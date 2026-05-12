@@ -1,0 +1,60 @@
+package com.nilpo.contenttracker.core.database.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
+import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
+import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.SeasonProgressEntity
+import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
+import com.nilpo.contenttracker.core.database.relation.TrackedMediaRelation
+import com.nilpo.contenttracker.core.database.relation.TrackingSessionWithSeasonsRelation
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface MediaDao {
+    @Query("SELECT COUNT(*) FROM media_items")
+    suspend fun countMediaItems(): Int
+
+    @Transaction
+    @Query("SELECT * FROM media_items WHERE type IN (:types) ORDER BY title")
+    fun observeTrackedMedia(types: List<String>): Flow<List<TrackedMediaRelation>>
+
+    @Transaction
+    @Query("SELECT * FROM tracking_sessions WHERE mediaItemId = :mediaItemId ORDER BY sessionNumber")
+    fun observeSessionsWithSeasons(mediaItemId: Long): Flow<List<TrackingSessionWithSeasonsRelation>>
+
+    @Query("SELECT * FROM tracking_sessions WHERE mediaItemId = :mediaItemId ORDER BY sessionNumber")
+    suspend fun getTrackingSessions(mediaItemId: Long): List<TrackingSessionEntity>
+
+    @Query("SELECT * FROM season_progress WHERE trackingSessionId = :trackingSessionId ORDER BY seasonNumber")
+    suspend fun getSeasonProgressForSession(trackingSessionId: Long): List<SeasonProgressEntity>
+
+    @Query(
+        """
+        SELECT season_progress.* FROM season_progress
+        INNER JOIN tracking_sessions ON season_progress.trackingSessionId = tracking_sessions.id
+        WHERE tracking_sessions.mediaItemId = :mediaItemId
+        ORDER BY season_progress.seasonNumber
+        """,
+    )
+    suspend fun getSeasonProgressForMedia(mediaItemId: Long): List<SeasonProgressEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMediaItem(item: MediaItemEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrackingSession(session: TrackingSessionEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSeasonProgress(seasonProgress: SeasonProgressEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExternalRating(externalRating: ExternalRatingEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExternalTracking(externalTracking: ExternalTrackingEntity): Long
+}
