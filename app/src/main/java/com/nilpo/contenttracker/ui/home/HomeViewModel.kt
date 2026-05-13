@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -85,6 +86,31 @@ class HomeViewModel(
     fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int) {
         viewModelScope.launch {
             mediaRepository.updateSeasonProgress(seasonProgressId, progressCurrent)
+        }
+    }
+
+    fun addExternalTracking(
+        mediaItemId: Long,
+        source: ExternalTrackingSource,
+        externalItemId: String?,
+        url: String?,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.addExternalTracking(
+                mediaItemId = mediaItemId,
+                source = source,
+                externalItemId = externalItemId,
+                url = url,
+            )
+        }
+    }
+
+    fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean) {
+        viewModelScope.launch {
+            mediaRepository.updateExternalTrackingSynced(
+                externalTrackingId = externalTrackingId,
+                isSynced = isSynced,
+            )
         }
     }
 

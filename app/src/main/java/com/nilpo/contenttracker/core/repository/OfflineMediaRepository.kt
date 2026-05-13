@@ -4,9 +4,11 @@ import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.SeasonProgressEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
+import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -184,6 +186,30 @@ class OfflineMediaRepository(
         mediaDao.updateSeasonProgress(
             seasonProgressId = seasonProgressId,
             progressCurrent = validProgress,
+        )
+    }
+
+    override suspend fun addExternalTracking(
+        mediaItemId: Long,
+        source: ExternalTrackingSource,
+        externalItemId: String?,
+        url: String?,
+    ) {
+        mediaDao.insertExternalTracking(
+            ExternalTrackingEntity(
+                mediaItemId = mediaItemId,
+                source = source.name,
+                externalItemId = externalItemId?.trim()?.takeIf { it.isNotBlank() },
+                url = url?.trim()?.takeIf { it.isNotBlank() },
+                isSynced = false,
+            ),
+        )
+    }
+
+    override suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean) {
+        mediaDao.updateExternalTrackingSynced(
+            externalTrackingId = externalTrackingId,
+            isSynced = isSynced,
         )
     }
 }

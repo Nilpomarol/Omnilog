@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -24,4 +25,13 @@ interface MediaRepository {
     suspend fun updateSessionNotes(sessionId: Long, notes: String?)
 
     suspend fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int)
+
+    suspend fun addExternalTracking(
+        mediaItemId: Long,
+        source: ExternalTrackingSource,
+        externalItemId: String?,
+        url: String?,
+    )
+
+    suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
 }

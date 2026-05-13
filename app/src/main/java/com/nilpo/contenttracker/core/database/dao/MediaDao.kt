@@ -93,6 +93,9 @@ interface MediaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExternalTracking(externalTracking: ExternalTrackingEntity): Long
 
+    @Query("UPDATE external_tracking SET isSynced = :isSynced WHERE id = :externalTrackingId")
+    suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
+
     @Query("UPDATE tracking_sessions SET progressCurrent = :progressCurrent WHERE id = :sessionId")
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
 

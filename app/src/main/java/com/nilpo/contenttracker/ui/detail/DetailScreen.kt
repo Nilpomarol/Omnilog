@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 
@@ -29,6 +30,8 @@ fun DetailScreen(
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
     onUpdateSeasonProgress: (Long, Int) -> Unit,
+    onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
+    onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -134,21 +137,20 @@ fun DetailScreen(
                 }
             }
 
-            if (trackedMedia.externalTracking.isNotEmpty()) {
-                item {
-                    DetailSectionTitle(text = stringResource(R.string.detail_external_tracking))
-                }
-                items(trackedMedia.externalTracking) { tracking ->
-                    val syncText = if (tracking.isSynced) {
-                        stringResource(R.string.synced_yes)
-                    } else {
-                        stringResource(R.string.synced_no)
-                    }
-                    Text(
-                        text = "${tracking.source.name} - $syncText",
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
-                    )
-                }
+            item {
+                DetailSectionTitle(text = stringResource(R.string.detail_external_tracking))
+                ExternalTrackingEditor(
+                    externalTracking = trackedMedia.externalTracking,
+                    onAddExternalTracking = { source, externalItemId, url ->
+                        onAddExternalTracking(
+                            trackedMedia.item.id,
+                            source,
+                            externalItemId,
+                            url,
+                        )
+                    },
+                    onUpdateSynced = onUpdateExternalTrackingSynced,
+                )
             }
         }
     }

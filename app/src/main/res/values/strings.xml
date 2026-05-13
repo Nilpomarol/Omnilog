@@ -73,4 +73,12 @@
     <string name="update_season_progress">Actualitza temporada</string>
     <string name="synced_yes">Actualitzat</string>
     <string name="synced_no">Pendent d\'actualitzar</string>
+    <string name="field_external_tracking_source">App externa</string>
+    <string name="field_external_tracking_id">ID extern</string>
+    <string name="field_external_tracking_url">URL</string>
+    <string name="add_external_tracking">Afegeix seguiment extern</string>
+    <string name="mark_external_tracking_synced">Marca actualitzat</string>
+    <string name="mark_external_tracking_pending">Marca pendent</string>
+    <string name="external_tracking_id_value">ID: %1$s</string>
+    <string name="external_tracking_other">Altres</string>
 </resources>
