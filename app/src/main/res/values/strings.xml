@@ -36,6 +36,13 @@
     <string name="detail_external_scores">Notes externes</string>
     <string name="detail_external_tracking">Seguiment extern</string>
     <string name="start_new_session">Comença una nova sessió</string>
+    <string name="add_media_title">Afegeix contingut</string>
+    <string name="field_title">Titol</string>
+    <string name="field_total_progress">Total</string>
+    <string name="field_platform">Plataforma</string>
+    <string name="field_owned">En propietat</string>
+    <string name="save">Desa</string>
+    <string name="cancel">Cancella</string>
     <string name="synced_yes">Actualitzat</string>
     <string name="synced_no">Pendent d\'actualitzar</string>
 </resources>

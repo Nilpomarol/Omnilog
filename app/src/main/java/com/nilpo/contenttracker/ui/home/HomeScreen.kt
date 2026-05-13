@@ -18,6 +18,7 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 fun HomeScreen(
     uiState: HomeUiState,
     onMediaClick: (TrackedMedia) -> Unit,
+    onAddClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
@@ -33,7 +34,10 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             item {
-                SectionHeader(section = section)
+                SectionHeader(
+                    section = section,
+                    onAddClick = onAddClick,
+                )
             }
 
             if (uiState.trackedItems.isEmpty()) {

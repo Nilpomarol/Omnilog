@@ -1,9 +1,12 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.database.dao.MediaDao
+import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.SeasonProgressEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
+import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -90,6 +93,40 @@ class OfflineMediaRepository(
                     ),
                 )
             }
+        }
+    }
+
+    override suspend fun addTrackedMedia(request: AddTrackedMediaRequest) {
+        val mediaItemId = mediaDao.insertMediaItem(
+            MediaItemEntity(
+                type = request.type.name,
+                title = request.title.trim(),
+                isOwned = request.isOwned,
+                ownershipType = request.ownershipType.name,
+            ),
+        )
+
+        val sessionId = mediaDao.insertTrackingSession(
+            TrackingSessionEntity(
+                mediaItemId = mediaItemId,
+                sessionNumber = 1,
+                status = TrackingStatus.Planned.name,
+                progressCurrent = 0,
+                progressTotal = request.progressTotal,
+                platformName = request.platformName?.trim()?.takeIf { it.isNotBlank() },
+                platformType = request.platformType.name,
+            ),
+        )
+
+        if (request.type == MediaType.Anime || request.type == MediaType.TvShow) {
+            mediaDao.insertSeasonProgress(
+                SeasonProgressEntity(
+                    trackingSessionId = sessionId,
+                    seasonNumber = 1,
+                    progressCurrent = 0,
+                    progressTotal = request.progressTotal,
+                ),
+            )
         }
     }
 }

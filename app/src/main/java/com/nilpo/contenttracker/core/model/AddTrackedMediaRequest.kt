@@ -1,0 +1,11 @@
+package com.nilpo.contenttracker.core.model
+
+data class AddTrackedMediaRequest(
+    val type: MediaType,
+    val title: String,
+    val progressTotal: Int?,
+    val isOwned: Boolean,
+    val ownershipType: OwnershipType,
+    val platformName: String?,
+    val platformType: ConsumptionPlatformType,
+)

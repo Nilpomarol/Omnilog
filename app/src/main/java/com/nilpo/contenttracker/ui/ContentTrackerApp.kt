@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
 import com.nilpo.contenttracker.ui.home.HomeViewModel
@@ -23,6 +24,7 @@ import com.nilpo.contenttracker.ui.home.MediaSection
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
+    var isAdding by remember { mutableStateOf(false) }
     val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
 
     Scaffold(
@@ -34,6 +36,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         selected = uiState.selectedSection == section,
                         onClick = {
                             selectedMediaId = null
+                            isAdding = false
                             viewModel.selectSection(section)
                         },
                         label = { Text(title) },
@@ -43,10 +46,23 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             }
         },
     ) { innerPadding ->
-        if (selectedMedia == null) {
+        if (isAdding) {
+            AddMediaScreen(
+                mediaType = uiState.selectedSection.defaultType,
+                onSave = { request ->
+                    viewModel.addTrackedMedia(request)
+                    isAdding = false
+                },
+                onCancel = { isAdding = false },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        } else if (selectedMedia == null) {
             HomeScreen(
                 uiState = uiState,
                 onMediaClick = { selectedMediaId = it.item.id },
+                onAddClick = { isAdding = true },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

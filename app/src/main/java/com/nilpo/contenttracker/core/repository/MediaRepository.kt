@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.core.repository
 
+import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import kotlinx.coroutines.flow.Flow
@@ -10,4 +11,6 @@ interface MediaRepository {
     suspend fun seedSampleDataIfEmpty()
 
     suspend fun startNewSession(mediaItemId: Long)
+
+    suspend fun addTrackedMedia(request: AddTrackedMediaRequest)
 }

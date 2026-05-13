@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +48,12 @@ class HomeViewModel(
     fun startNewSession(mediaItemId: Long) {
         viewModelScope.launch {
             mediaRepository.startNewSession(mediaItemId)
+        }
+    }
+
+    fun addTrackedMedia(request: AddTrackedMediaRequest) {
+        viewModelScope.launch {
+            mediaRepository.addTrackedMedia(request)
         }
     }
 
