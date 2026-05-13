@@ -114,6 +114,12 @@ class HomeViewModel(
         }
     }
 
+    fun deleteExternalTracking(externalTrackingId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteExternalTracking(externalTrackingId)
+        }
+    }
+
     class Factory(
         private val mediaRepository: MediaRepository,
     ) : ViewModelProvider.Factory {

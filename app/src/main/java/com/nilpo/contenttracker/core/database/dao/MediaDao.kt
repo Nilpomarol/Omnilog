@@ -96,6 +96,9 @@ interface MediaDao {
     @Query("UPDATE external_tracking SET isSynced = :isSynced WHERE id = :externalTrackingId")
     suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
 
+    @Query("DELETE FROM external_tracking WHERE id = :externalTrackingId")
+    suspend fun deleteExternalTracking(externalTrackingId: Long)
+
     @Query("UPDATE tracking_sessions SET progressCurrent = :progressCurrent WHERE id = :sessionId")
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
 

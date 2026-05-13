@@ -212,4 +212,8 @@ class OfflineMediaRepository(
             isSynced = isSynced,
         )
     }
+
+    override suspend fun deleteExternalTracking(externalTrackingId: Long) {
+        mediaDao.deleteExternalTracking(externalTrackingId)
+    }
 }

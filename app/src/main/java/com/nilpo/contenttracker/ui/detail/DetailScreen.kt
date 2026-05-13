@@ -32,6 +32,7 @@ fun DetailScreen(
     onUpdateSeasonProgress: (Long, Int) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
+    onDeleteExternalTracking: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -150,6 +151,7 @@ fun DetailScreen(
                         )
                     },
                     onUpdateSynced = onUpdateExternalTrackingSynced,
+                    onDelete = onDeleteExternalTracking,
                 )
             }
         }

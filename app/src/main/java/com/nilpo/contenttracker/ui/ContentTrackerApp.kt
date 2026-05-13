@@ -81,6 +81,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateSeasonProgress = viewModel::updateSeasonProgress,
                 onAddExternalTracking = viewModel::addExternalTracking,
                 onUpdateExternalTrackingSynced = viewModel::updateExternalTrackingSynced,
+                onDeleteExternalTracking = viewModel::deleteExternalTracking,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

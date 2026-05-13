@@ -27,6 +27,7 @@ fun ExternalTrackingEditor(
     externalTracking: List<ExternalTracking>,
     onAddExternalTracking: (ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateSynced: (Long, Boolean) -> Unit,
+    onDelete: (Long) -> Unit,
 ) {
     var selectedSource by remember { mutableStateOf(ExternalTrackingSource.Mal) }
     var externalItemId by remember { mutableStateOf("") }
@@ -37,6 +38,7 @@ fun ExternalTrackingEditor(
             ExternalTrackingRow(
                 tracking = tracking,
                 onUpdateSynced = onUpdateSynced,
+                onDelete = onDelete,
             )
         }
 
@@ -80,6 +82,7 @@ fun ExternalTrackingEditor(
 private fun ExternalTrackingRow(
     tracking: ExternalTracking,
     onUpdateSynced: (Long, Boolean) -> Unit,
+    onDelete: (Long) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -108,17 +111,26 @@ private fun ExternalTrackingRow(
                 )
             }
         }
-        TextButton(
-            onClick = {
-                onUpdateSynced(tracking.id, !tracking.isSynced)
-            },
-        ) {
-            val buttonText = if (tracking.isSynced) {
-                stringResource(R.string.mark_external_tracking_pending)
-            } else {
-                stringResource(R.string.mark_external_tracking_synced)
+        Column {
+            TextButton(
+                onClick = {
+                    onUpdateSynced(tracking.id, !tracking.isSynced)
+                },
+            ) {
+                val buttonText = if (tracking.isSynced) {
+                    stringResource(R.string.mark_external_tracking_pending)
+                } else {
+                    stringResource(R.string.mark_external_tracking_synced)
+                }
+                Text(text = buttonText)
             }
-            Text(text = buttonText)
+            TextButton(
+                onClick = {
+                    onDelete(tracking.id)
+                },
+            ) {
+                Text(text = stringResource(R.string.delete_external_tracking))
+            }
         }
     }
 }

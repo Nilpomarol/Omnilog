@@ -34,4 +34,6 @@ interface MediaRepository {
     )
 
     suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
+
+    suspend fun deleteExternalTracking(externalTrackingId: Long)
 }
