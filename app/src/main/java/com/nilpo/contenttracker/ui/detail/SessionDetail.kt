@@ -60,5 +60,12 @@ fun SessionDetail(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+        session.notes?.let { notes ->
+            Text(
+                text = notes,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }

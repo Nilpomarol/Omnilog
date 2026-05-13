@@ -77,6 +77,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateSessionProgress = viewModel::updateSessionProgress,
                 onUpdateSessionStatus = viewModel::updateSessionStatus,
                 onUpdateSessionRating = viewModel::updateSessionRating,
+                onUpdateSessionNotes = viewModel::updateSessionNotes,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

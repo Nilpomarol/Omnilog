@@ -156,4 +156,11 @@ class OfflineMediaRepository(
             rating = validRating,
         )
     }
+
+    override suspend fun updateSessionNotes(sessionId: Long, notes: String?) {
+        mediaDao.updateSessionNotes(
+            sessionId = sessionId,
+            notes = notes?.trim()?.takeIf { it.isNotBlank() },
+        )
+    }
 }

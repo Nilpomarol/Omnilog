@@ -76,6 +76,12 @@ class HomeViewModel(
         }
     }
 
+    fun updateSessionNotes(sessionId: Long, notes: String?) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionNotes(sessionId, notes)
+        }
+    }
+
     class Factory(
         private val mediaRepository: MediaRepository,
     ) : ViewModelProvider.Factory {

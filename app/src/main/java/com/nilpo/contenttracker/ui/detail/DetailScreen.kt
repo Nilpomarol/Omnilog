@@ -27,6 +27,7 @@ fun DetailScreen(
     onUpdateSessionProgress: (Long, Int) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     onUpdateSessionRating: (Long, Int?) -> Unit,
+    onUpdateSessionNotes: (Long, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -84,6 +85,12 @@ fun DetailScreen(
                         session = currentSession,
                         onSave = { rating ->
                             onUpdateSessionRating(currentSession.id, rating)
+                        },
+                    )
+                    NotesEditor(
+                        session = currentSession,
+                        onSave = { notes ->
+                            onUpdateSessionNotes(currentSession.id, notes)
                         },
                     )
                 }

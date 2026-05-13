@@ -20,4 +20,6 @@ interface MediaRepository {
     suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus)
 
     suspend fun updateSessionRating(sessionId: Long, rating: Int?)
+
+    suspend fun updateSessionNotes(sessionId: Long, notes: String?)
 }

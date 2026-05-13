@@ -69,4 +69,7 @@ interface MediaDao {
 
     @Query("UPDATE tracking_sessions SET rating = :rating WHERE id = :sessionId")
     suspend fun updateSessionRating(sessionId: Long, rating: Int?)
+
+    @Query("UPDATE tracking_sessions SET notes = :notes WHERE id = :sessionId")
+    suspend fun updateSessionNotes(sessionId: Long, notes: String?)
 }
