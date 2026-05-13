@@ -99,6 +99,33 @@ interface MediaDao {
     @Query("DELETE FROM external_tracking WHERE id = :externalTrackingId")
     suspend fun deleteExternalTracking(externalTrackingId: Long)
 
+    @Query(
+        """
+        UPDATE media_items
+        SET title = :title, isOwned = :isOwned, ownershipType = :ownershipType
+        WHERE id = :mediaItemId
+        """,
+    )
+    suspend fun updateMediaItemDetails(
+        mediaItemId: Long,
+        title: String,
+        isOwned: Boolean,
+        ownershipType: String,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET platformName = :platformName, platformType = :platformType
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionPlatform(
+        sessionId: Long,
+        platformName: String?,
+        platformType: String?,
+    )
+
     @Query("UPDATE tracking_sessions SET progressCurrent = :progressCurrent WHERE id = :sessionId")
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
 

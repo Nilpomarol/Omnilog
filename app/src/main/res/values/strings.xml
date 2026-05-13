@@ -33,6 +33,7 @@
     <string name="external_tracking_label">També a: %1$s</string>
     <string name="back">Enrere</string>
     <string name="detail_current_session">Sessió actual</string>
+    <string name="detail_item_details">Dades de l\'element</string>
     <string name="detail_history">Historial</string>
     <string name="detail_external_scores">Notes externes</string>
     <string name="detail_external_tracking">Seguiment extern</string>
@@ -71,6 +72,8 @@
     <string name="clear_rating">Esborra nota</string>
     <string name="update_notes">Actualitza notes</string>
     <string name="update_season_progress">Actualitza temporada</string>
+    <string name="update_item_details">Actualitza dades</string>
+    <string name="update_platform">Actualitza plataforma</string>
     <string name="synced_yes">Actualitzat</string>
     <string name="synced_no">Pendent d\'actualitzar</string>
     <string name="field_external_tracking_source">App externa</string>

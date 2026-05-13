@@ -8,8 +8,10 @@ import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -215,5 +217,34 @@ class OfflineMediaRepository(
 
     override suspend fun deleteExternalTracking(externalTrackingId: Long) {
         mediaDao.deleteExternalTracking(externalTrackingId)
+    }
+
+    override suspend fun updateMediaItemDetails(
+        mediaItemId: Long,
+        title: String,
+        ownershipType: OwnershipType,
+    ) {
+        val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
+
+        mediaDao.updateMediaItemDetails(
+            mediaItemId = mediaItemId,
+            title = validTitle,
+            isOwned = ownershipType != OwnershipType.None,
+            ownershipType = ownershipType.name,
+        )
+    }
+
+    override suspend fun updateSessionPlatform(
+        sessionId: Long,
+        platformName: String?,
+        platformType: ConsumptionPlatformType,
+    ) {
+        val validPlatformName = platformName?.trim()?.takeIf { it.isNotBlank() }
+
+        mediaDao.updateSessionPlatform(
+            sessionId = sessionId,
+            platformName = validPlatformName,
+            platformType = validPlatformName?.let { platformType.name },
+        )
     }
 }

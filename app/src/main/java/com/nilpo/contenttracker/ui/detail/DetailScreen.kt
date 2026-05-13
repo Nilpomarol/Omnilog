@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 
@@ -33,6 +35,8 @@ fun DetailScreen(
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     onDeleteExternalTracking: (Long) -> Unit,
+    onUpdateMediaItemDetails: (Long, String, OwnershipType) -> Unit,
+    onUpdateSessionPlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -57,6 +61,22 @@ fun DetailScreen(
                 Text(
                     text = trackedMedia.item.title,
                     style = MaterialTheme.typography.headlineLarge,
+                )
+            }
+
+            item {
+                DetailSectionTitle(text = stringResource(R.string.detail_item_details))
+                ItemDetailsEditor(
+                    item = trackedMedia.item,
+                    currentSession = currentSession,
+                    onSaveItemDetails = { title, ownershipType ->
+                        onUpdateMediaItemDetails(
+                            trackedMedia.item.id,
+                            title,
+                            ownershipType,
+                        )
+                    },
+                    onSavePlatform = onUpdateSessionPlatform,
                 )
             }
 

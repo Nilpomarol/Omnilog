@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -117,6 +119,34 @@ class HomeViewModel(
     fun deleteExternalTracking(externalTrackingId: Long) {
         viewModelScope.launch {
             mediaRepository.deleteExternalTracking(externalTrackingId)
+        }
+    }
+
+    fun updateMediaItemDetails(
+        mediaItemId: Long,
+        title: String,
+        ownershipType: OwnershipType,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.updateMediaItemDetails(
+                mediaItemId = mediaItemId,
+                title = title,
+                ownershipType = ownershipType,
+            )
+        }
+    }
+
+    fun updateSessionPlatform(
+        sessionId: Long,
+        platformName: String?,
+        platformType: ConsumptionPlatformType,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionPlatform(
+                sessionId = sessionId,
+                platformName = platformName,
+                platformType = platformType,
+            )
         }
     }
 
