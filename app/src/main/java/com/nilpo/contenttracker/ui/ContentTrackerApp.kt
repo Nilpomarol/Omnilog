@@ -48,7 +48,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     ) { innerPadding ->
         if (isAdding) {
             AddMediaScreen(
-                mediaType = uiState.selectedSection.defaultType,
+                initialMediaType = uiState.selectedSection.defaultType,
+                availableMediaTypes = uiState.selectedSection.types.toList(),
                 onSave = { request ->
                     viewModel.addTrackedMedia(request)
                     isAdding = false

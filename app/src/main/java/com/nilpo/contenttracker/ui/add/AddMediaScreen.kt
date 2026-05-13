@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -32,7 +31,8 @@ import com.nilpo.contenttracker.core.model.OwnershipType
 
 @Composable
 fun AddMediaScreen(
-    mediaType: MediaType,
+    initialMediaType: MediaType,
+    availableMediaTypes: List<MediaType>,
     onSave: (AddTrackedMediaRequest) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -40,7 +40,9 @@ fun AddMediaScreen(
     var title by remember { mutableStateOf("") }
     var totalProgress by remember { mutableStateOf("") }
     var platform by remember { mutableStateOf("") }
-    var isOwned by remember { mutableStateOf(false) }
+    var selectedMediaType by remember { mutableStateOf(initialMediaType) }
+    var selectedOwnershipType by remember { mutableStateOf(OwnershipType.None) }
+    var selectedPlatformType by remember { mutableStateOf(ConsumptionPlatformType.Other) }
 
     Surface(
         modifier = modifier,
@@ -56,6 +58,16 @@ fun AddMediaScreen(
                 text = stringResource(R.string.add_media_title),
                 style = MaterialTheme.typography.headlineLarge,
             )
+
+            if (availableMediaTypes.size > 1) {
+                OptionSelector(
+                    label = stringResource(R.string.field_media_type),
+                    options = availableMediaTypes,
+                    selectedOption = selectedMediaType,
+                    optionLabel = { it.label() },
+                    onOptionSelected = { selectedMediaType = it },
+                )
+            }
 
             OutlinedTextField(
                 value = title,
@@ -82,16 +94,21 @@ fun AddMediaScreen(
                 singleLine = true,
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Checkbox(
-                    checked = isOwned,
-                    onCheckedChange = { isOwned = it },
-                )
-                Text(text = stringResource(R.string.field_owned))
-            }
+            OptionSelector(
+                label = stringResource(R.string.field_ownership_type),
+                options = OwnershipType.entries,
+                selectedOption = selectedOwnershipType,
+                optionLabel = { it.label() },
+                onOptionSelected = { selectedOwnershipType = it },
+            )
+
+            OptionSelector(
+                label = stringResource(R.string.field_platform_type),
+                options = ConsumptionPlatformType.entries,
+                selectedOption = selectedPlatformType,
+                optionLabel = { it.label() },
+                onOptionSelected = { selectedPlatformType = it },
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -105,13 +122,13 @@ fun AddMediaScreen(
                     onClick = {
                         onSave(
                             AddTrackedMediaRequest(
-                                type = mediaType,
+                                type = selectedMediaType,
                                 title = title,
                                 progressTotal = totalProgress.toIntOrNull(),
-                                isOwned = isOwned,
-                                ownershipType = if (isOwned) OwnershipType.Physical else OwnershipType.None,
+                                isOwned = selectedOwnershipType != OwnershipType.None,
+                                ownershipType = selectedOwnershipType,
                                 platformName = platform.takeIf { it.isNotBlank() },
-                                platformType = ConsumptionPlatformType.Other,
+                                platformType = selectedPlatformType,
                             ),
                         )
                     },
@@ -120,5 +137,72 @@ fun AddMediaScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun <T> OptionSelector(
+    label: String,
+    options: List<T>,
+    selectedOption: T,
+    optionLabel: @Composable (T) -> String,
+    onOptionSelected: (T) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            options.forEach { option ->
+                if (option == selectedOption) {
+                    Button(onClick = { onOptionSelected(option) }) {
+                        Text(text = optionLabel(option))
+                    }
+                } else {
+                    TextButton(onClick = { onOptionSelected(option) }) {
+                        Text(text = optionLabel(option))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaType.label(): String {
+    return when (this) {
+        MediaType.Anime -> stringResource(R.string.media_type_anime)
+        MediaType.Book -> stringResource(R.string.media_type_book)
+        MediaType.Movie -> stringResource(R.string.media_type_movie)
+        MediaType.TvShow -> stringResource(R.string.media_type_tv_show)
+        MediaType.Game -> stringResource(R.string.media_type_game)
+    }
+}
+
+@Composable
+private fun OwnershipType.label(): String {
+    return when (this) {
+        OwnershipType.None -> stringResource(R.string.ownership_none)
+        OwnershipType.Physical -> stringResource(R.string.ownership_physical)
+        OwnershipType.Digital -> stringResource(R.string.ownership_digital)
+        OwnershipType.Subscription -> stringResource(R.string.ownership_subscription)
+        OwnershipType.Borrowed -> stringResource(R.string.ownership_borrowed)
+    }
+}
+
+@Composable
+private fun ConsumptionPlatformType.label(): String {
+    return when (this) {
+        ConsumptionPlatformType.Physical -> stringResource(R.string.platform_type_physical)
+        ConsumptionPlatformType.DigitalStore -> stringResource(R.string.platform_type_digital_store)
+        ConsumptionPlatformType.Streaming -> stringResource(R.string.platform_type_streaming)
+        ConsumptionPlatformType.Ebook -> stringResource(R.string.platform_type_ebook)
+        ConsumptionPlatformType.Library -> stringResource(R.string.platform_type_library)
+        ConsumptionPlatformType.Other -> stringResource(R.string.platform_type_other)
     }
 }
