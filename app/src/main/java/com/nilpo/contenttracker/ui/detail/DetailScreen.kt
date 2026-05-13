@@ -28,6 +28,7 @@ fun DetailScreen(
     onBack: () -> Unit,
     onStartNewSession: () -> Unit,
     onUpdateSessionProgress: (Long, Int) -> Unit,
+    onUpdateSessionProgressTotal: (Long, Int?) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
@@ -98,6 +99,12 @@ fun DetailScreen(
                         session = currentSession,
                         onSave = { progress ->
                             onUpdateSessionProgress(currentSession.id, progress)
+                        },
+                    )
+                    TotalProgressEditor(
+                        session = currentSession,
+                        onSave = { total ->
+                            onUpdateSessionProgressTotal(currentSession.id, total)
                         },
                     )
                     StatusSelector(

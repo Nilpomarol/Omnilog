@@ -67,6 +67,12 @@ class HomeViewModel(
         }
     }
 
+    fun updateSessionProgressTotal(sessionId: Long, progressTotal: Int?) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionProgressTotal(sessionId, progressTotal)
+        }
+    }
+
     fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
         viewModelScope.launch {
             mediaRepository.updateSessionStatus(sessionId, status)

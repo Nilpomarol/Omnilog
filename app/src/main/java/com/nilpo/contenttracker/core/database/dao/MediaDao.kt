@@ -129,6 +129,19 @@ interface MediaDao {
     @Query("UPDATE tracking_sessions SET progressCurrent = :progressCurrent WHERE id = :sessionId")
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
 
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET progressCurrent = :progressCurrent, progressTotal = :progressTotal
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionProgressTotal(
+        sessionId: Long,
+        progressCurrent: Int,
+        progressTotal: Int?,
+    )
+
     @Query("UPDATE tracking_sessions SET status = :status WHERE id = :sessionId")
     suspend fun updateSessionStatus(sessionId: Long, status: String)
 
@@ -140,4 +153,17 @@ interface MediaDao {
 
     @Query("UPDATE season_progress SET progressCurrent = :progressCurrent WHERE id = :seasonProgressId")
     suspend fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int)
+
+    @Query(
+        """
+        UPDATE season_progress
+        SET progressCurrent = :progressCurrent, progressTotal = :progressTotal
+        WHERE id = :seasonProgressId
+        """,
+    )
+    suspend fun updateSeasonProgressTotal(
+        seasonProgressId: Long,
+        progressCurrent: Int,
+        progressTotal: Int?,
+    )
 }

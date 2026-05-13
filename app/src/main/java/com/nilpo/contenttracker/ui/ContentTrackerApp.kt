@@ -75,6 +75,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onBack = { selectedMediaId = null },
                 onStartNewSession = { viewModel.startNewSession(selectedMedia.item.id) },
                 onUpdateSessionProgress = viewModel::updateSessionProgress,
+                onUpdateSessionProgressTotal = viewModel::updateSessionProgressTotal,
                 onUpdateSessionStatus = viewModel::updateSessionStatus,
                 onUpdateSessionRating = viewModel::updateSessionRating,
                 onUpdateSessionNotes = viewModel::updateSessionNotes,

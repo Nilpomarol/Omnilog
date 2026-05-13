@@ -20,6 +20,8 @@ interface MediaRepository {
 
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
 
+    suspend fun updateSessionProgressTotal(sessionId: Long, progressTotal: Int?)
+
     suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus)
 
     suspend fun updateSessionRating(sessionId: Long, rating: Int?)

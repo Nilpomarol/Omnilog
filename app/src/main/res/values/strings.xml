@@ -68,6 +68,7 @@
     <string name="save">Desa</string>
     <string name="cancel">Cancella</string>
     <string name="update_progress">Actualitza progres</string>
+    <string name="update_total_progress">Actualitza total</string>
     <string name="update_rating">Actualitza nota</string>
     <string name="clear_rating">Esborra nota</string>
     <string name="update_notes">Actualitza notes</string>

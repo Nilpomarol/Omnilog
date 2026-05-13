@@ -157,6 +157,34 @@ class OfflineMediaRepository(
         )
     }
 
+    override suspend fun updateSessionProgressTotal(sessionId: Long, progressTotal: Int?) {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return
+        val validTotal = progressTotal?.coerceAtLeast(0)
+        val validProgress = validTotal?.let { maxProgress ->
+            session.progressCurrent.coerceIn(0, maxProgress)
+        } ?: session.progressCurrent.coerceAtLeast(0)
+
+        mediaDao.updateSessionProgressTotal(
+            sessionId = sessionId,
+            progressCurrent = validProgress,
+            progressTotal = validTotal,
+        )
+
+        val seasons = mediaDao.getSeasonProgressForSession(sessionId)
+        if (seasons.size == 1) {
+            val season = seasons.first()
+            val validSeasonProgress = validTotal?.let { maxProgress ->
+                season.progressCurrent.coerceIn(0, maxProgress)
+            } ?: season.progressCurrent.coerceAtLeast(0)
+
+            mediaDao.updateSeasonProgressTotal(
+                seasonProgressId = season.id,
+                progressCurrent = validSeasonProgress,
+                progressTotal = validTotal,
+            )
+        }
+    }
+
     override suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
         mediaDao.updateSessionStatus(
             sessionId = sessionId,
