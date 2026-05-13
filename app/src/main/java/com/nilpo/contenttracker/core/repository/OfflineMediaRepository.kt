@@ -141,4 +141,11 @@ class OfflineMediaRepository(
             progressCurrent = validProgress,
         )
     }
+
+    override suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
+        mediaDao.updateSessionStatus(
+            sessionId = sessionId,
+            status = status.name,
+        )
+    }
 }

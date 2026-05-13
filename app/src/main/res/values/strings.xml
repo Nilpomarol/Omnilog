@@ -40,6 +40,7 @@
     <string name="field_title">Titol</string>
     <string name="field_total_progress">Total</string>
     <string name="field_progress">Progres</string>
+    <string name="field_status">Estat</string>
     <string name="field_media_type">Tipus</string>
     <string name="field_platform">Plataforma</string>
     <string name="field_platform_type">Tipus de plataforma</string>

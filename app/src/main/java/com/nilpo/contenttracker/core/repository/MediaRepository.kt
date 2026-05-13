@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.core.repository
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
 
 interface MediaRepository {
@@ -15,4 +16,6 @@ interface MediaRepository {
     suspend fun addTrackedMedia(request: AddTrackedMediaRequest)
 
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
+
+    suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus)
 }

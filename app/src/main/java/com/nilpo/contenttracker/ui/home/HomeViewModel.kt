@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +61,12 @@ class HomeViewModel(
     fun updateSessionProgress(sessionId: Long, progressCurrent: Int) {
         viewModelScope.launch {
             mediaRepository.updateSessionProgress(sessionId, progressCurrent)
+        }
+    }
+
+    fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionStatus(sessionId, status)
         }
     }
 

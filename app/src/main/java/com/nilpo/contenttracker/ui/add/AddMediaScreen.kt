@@ -28,6 +28,7 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
+import com.nilpo.contenttracker.ui.common.OptionSelector
 
 @Composable
 fun AddMediaScreen(
@@ -134,39 +135,6 @@ fun AddMediaScreen(
                     },
                 ) {
                     Text(text = stringResource(R.string.save))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun <T> OptionSelector(
-    label: String,
-    options: List<T>,
-    selectedOption: T,
-    optionLabel: @Composable (T) -> String,
-    onOptionSelected: (T) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            options.forEach { option ->
-                if (option == selectedOption) {
-                    Button(onClick = { onOptionSelected(option) }) {
-                        Text(text = optionLabel(option))
-                    }
-                } else {
-                    TextButton(onClick = { onOptionSelected(option) }) {
-                        Text(text = optionLabel(option))
-                    }
                 }
             }
         }

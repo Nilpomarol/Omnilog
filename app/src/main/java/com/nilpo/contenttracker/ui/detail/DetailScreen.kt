@@ -16,6 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.core.model.TrackingStatus
 
 @Composable
 fun DetailScreen(
@@ -24,6 +25,7 @@ fun DetailScreen(
     onBack: () -> Unit,
     onStartNewSession: () -> Unit,
     onUpdateSessionProgress: (Long, Int) -> Unit,
+    onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -69,6 +71,12 @@ fun DetailScreen(
                         session = currentSession,
                         onSave = { progress ->
                             onUpdateSessionProgress(currentSession.id, progress)
+                        },
+                    )
+                    StatusSelector(
+                        selectedStatus = currentSession.status,
+                        onStatusSelected = { status ->
+                            onUpdateSessionStatus(currentSession.id, status)
                         },
                     )
                 }

@@ -75,6 +75,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onBack = { selectedMediaId = null },
                 onStartNewSession = { viewModel.startNewSession(selectedMedia.item.id) },
                 onUpdateSessionProgress = viewModel::updateSessionProgress,
+                onUpdateSessionStatus = viewModel::updateSessionStatus,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

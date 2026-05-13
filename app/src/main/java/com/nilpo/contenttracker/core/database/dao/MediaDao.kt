@@ -63,4 +63,7 @@ interface MediaDao {
 
     @Query("UPDATE tracking_sessions SET progressCurrent = :progressCurrent WHERE id = :sessionId")
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
+
+    @Query("UPDATE tracking_sessions SET status = :status WHERE id = :sessionId")
+    suspend fun updateSessionStatus(sessionId: Long, status: String)
 }
