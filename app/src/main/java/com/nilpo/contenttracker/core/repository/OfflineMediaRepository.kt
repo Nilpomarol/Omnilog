@@ -23,7 +23,9 @@ class OfflineMediaRepository(
         return combine(
             mediaDao.observeTrackedMedia(typeNames),
             mediaDao.observeSeasonProgress(typeNames),
-        ) { relations, seasonProgress ->
+            mediaDao.observeExternalRatings(typeNames),
+            mediaDao.observeExternalTracking(typeNames),
+        ) { relations, seasonProgress, externalRatings, externalTracking ->
                 relations.map { relation ->
                     val sessionIds = relation.sessions.map { it.id }.toSet()
                     TrackedMedia(
@@ -32,8 +34,12 @@ class OfflineMediaRepository(
                         seasonProgress = seasonProgress
                             .filter { it.trackingSessionId in sessionIds }
                             .map { it.toDomain() },
-                        externalRatings = relation.externalRatings.map { it.toDomain() },
-                        externalTracking = relation.externalTracking.map { it.toDomain() },
+                        externalRatings = externalRatings
+                            .filter { it.mediaItemId == relation.item.id }
+                            .map { it.toDomain() },
+                        externalTracking = externalTracking
+                            .filter { it.mediaItemId == relation.item.id }
+                            .map { it.toDomain() },
                     )
                 }
         }

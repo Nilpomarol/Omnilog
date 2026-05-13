@@ -60,6 +60,24 @@ interface MediaDao {
     )
     fun observeSeasonProgress(types: List<String>): Flow<List<SeasonProgressEntity>>
 
+    @Query(
+        """
+        SELECT external_ratings.* FROM external_ratings
+        INNER JOIN media_items ON external_ratings.mediaItemId = media_items.id
+        WHERE media_items.type IN (:types)
+        """,
+    )
+    fun observeExternalRatings(types: List<String>): Flow<List<ExternalRatingEntity>>
+
+    @Query(
+        """
+        SELECT external_tracking.* FROM external_tracking
+        INNER JOIN media_items ON external_tracking.mediaItemId = media_items.id
+        WHERE media_items.type IN (:types)
+        """,
+    )
+    fun observeExternalTracking(types: List<String>): Flow<List<ExternalTrackingEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaItem(item: MediaItemEntity): Long
 
