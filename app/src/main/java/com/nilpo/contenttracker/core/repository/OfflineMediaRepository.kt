@@ -12,26 +12,31 @@ import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 
 class OfflineMediaRepository(
     private val mediaDao: MediaDao,
 ) : MediaRepository {
     override fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>> {
-        return mediaDao.observeTrackedMedia(types.map { it.name })
-            .map { relations ->
+        val typeNames = types.map { it.name }
+
+        return combine(
+            mediaDao.observeTrackedMedia(typeNames),
+            mediaDao.observeSeasonProgress(typeNames),
+        ) { relations, seasonProgress ->
                 relations.map { relation ->
+                    val sessionIds = relation.sessions.map { it.id }.toSet()
                     TrackedMedia(
                         item = relation.item.toDomain(),
                         sessions = relation.sessions.map { it.toDomain() },
-                        seasonProgress = mediaDao
-                            .getSeasonProgressForMedia(relation.item.id)
+                        seasonProgress = seasonProgress
+                            .filter { it.trackingSessionId in sessionIds }
                             .map { it.toDomain() },
                         externalRatings = relation.externalRatings.map { it.toDomain() },
                         externalTracking = relation.externalTracking.map { it.toDomain() },
                     )
                 }
-            }
+        }
     }
 
     override suspend fun seedSampleDataIfEmpty() {

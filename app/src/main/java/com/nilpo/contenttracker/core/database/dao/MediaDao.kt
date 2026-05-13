@@ -49,6 +49,17 @@ interface MediaDao {
     )
     suspend fun getSeasonProgressForMedia(mediaItemId: Long): List<SeasonProgressEntity>
 
+    @Query(
+        """
+        SELECT season_progress.* FROM season_progress
+        INNER JOIN tracking_sessions ON season_progress.trackingSessionId = tracking_sessions.id
+        INNER JOIN media_items ON tracking_sessions.mediaItemId = media_items.id
+        WHERE media_items.type IN (:types)
+        ORDER BY season_progress.seasonNumber
+        """,
+    )
+    fun observeSeasonProgress(types: List<String>): Flow<List<SeasonProgressEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaItem(item: MediaItemEntity): Long
 
