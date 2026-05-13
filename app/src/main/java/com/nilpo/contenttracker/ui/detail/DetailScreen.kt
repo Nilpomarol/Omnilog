@@ -23,6 +23,7 @@ fun DetailScreen(
     accent: Color,
     onBack: () -> Unit,
     onStartNewSession: () -> Unit,
+    onUpdateSessionProgress: (Long, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -63,6 +64,12 @@ fun DetailScreen(
                         session = currentSession,
                         seasons = trackedMedia.seasonsFor(currentSession),
                         accent = accent,
+                    )
+                    ProgressEditor(
+                        session = currentSession,
+                        onSave = { progress ->
+                            onUpdateSessionProgress(currentSession.id, progress)
+                        },
                     )
                 }
             }

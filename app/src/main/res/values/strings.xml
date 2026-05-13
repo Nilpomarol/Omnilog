@@ -39,6 +39,7 @@
     <string name="add_media_title">Afegeix contingut</string>
     <string name="field_title">Titol</string>
     <string name="field_total_progress">Total</string>
+    <string name="field_progress">Progres</string>
     <string name="field_media_type">Tipus</string>
     <string name="field_platform">Plataforma</string>
     <string name="field_platform_type">Tipus de plataforma</string>
@@ -61,6 +62,7 @@
     <string name="platform_type_other">Altres</string>
     <string name="save">Desa</string>
     <string name="cancel">Cancella</string>
+    <string name="update_progress">Actualitza progres</string>
     <string name="synced_yes">Actualitzat</string>
     <string name="synced_no">Pendent d\'actualitzar</string>
 </resources>

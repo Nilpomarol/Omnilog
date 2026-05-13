@@ -129,4 +129,11 @@ class OfflineMediaRepository(
             )
         }
     }
+
+    override suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int) {
+        mediaDao.updateSessionProgress(
+            sessionId = sessionId,
+            progressCurrent = progressCurrent.coerceAtLeast(0),
+        )
+    }
 }

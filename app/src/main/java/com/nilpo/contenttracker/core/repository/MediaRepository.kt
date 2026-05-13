@@ -13,4 +13,6 @@ interface MediaRepository {
     suspend fun startNewSession(mediaItemId: Long)
 
     suspend fun addTrackedMedia(request: AddTrackedMediaRequest)
+
+    suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
 }

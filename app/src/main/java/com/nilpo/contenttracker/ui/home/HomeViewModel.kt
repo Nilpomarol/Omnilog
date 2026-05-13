@@ -57,6 +57,12 @@ class HomeViewModel(
         }
     }
 
+    fun updateSessionProgress(sessionId: Long, progressCurrent: Int) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionProgress(sessionId, progressCurrent)
+        }
+    }
+
     class Factory(
         private val mediaRepository: MediaRepository,
     ) : ViewModelProvider.Factory {

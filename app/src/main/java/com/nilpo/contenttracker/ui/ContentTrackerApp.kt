@@ -74,6 +74,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 accent = uiState.selectedSection.accent,
                 onBack = { selectedMediaId = null },
                 onStartNewSession = { viewModel.startNewSession(selectedMedia.item.id) },
+                onUpdateSessionProgress = viewModel::updateSessionProgress,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
