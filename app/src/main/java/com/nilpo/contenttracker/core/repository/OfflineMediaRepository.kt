@@ -110,7 +110,7 @@ class OfflineMediaRepository(
             TrackingSessionEntity(
                 mediaItemId = mediaItemId,
                 sessionNumber = 1,
-                status = TrackingStatus.Planned.name,
+                status = request.initialStatus.name,
                 progressCurrent = 0,
                 progressTotal = request.progressTotal,
                 platformName = request.platformName?.trim()?.takeIf { it.isNotBlank() },

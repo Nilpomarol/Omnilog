@@ -28,7 +28,9 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
+import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OptionSelector
+import com.nilpo.contenttracker.ui.detail.StatusSelector
 
 @Composable
 fun AddMediaScreen(
@@ -42,6 +44,7 @@ fun AddMediaScreen(
     var totalProgress by remember { mutableStateOf("") }
     var platform by remember { mutableStateOf("") }
     var selectedMediaType by remember { mutableStateOf(initialMediaType) }
+    var selectedStatus by remember { mutableStateOf(TrackingStatus.Planned) }
     var selectedOwnershipType by remember { mutableStateOf(OwnershipType.None) }
     var selectedPlatformType by remember { mutableStateOf(ConsumptionPlatformType.Other) }
 
@@ -95,6 +98,11 @@ fun AddMediaScreen(
                 singleLine = true,
             )
 
+            StatusSelector(
+                selectedStatus = selectedStatus,
+                onStatusSelected = { selectedStatus = it },
+            )
+
             OptionSelector(
                 label = stringResource(R.string.field_ownership_type),
                 options = OwnershipType.entries,
@@ -126,6 +134,7 @@ fun AddMediaScreen(
                                 type = selectedMediaType,
                                 title = title,
                                 progressTotal = totalProgress.toIntOrNull(),
+                                initialStatus = selectedStatus,
                                 isOwned = selectedOwnershipType != OwnershipType.None,
                                 ownershipType = selectedOwnershipType,
                                 platformName = platform.takeIf { it.isNotBlank() },
