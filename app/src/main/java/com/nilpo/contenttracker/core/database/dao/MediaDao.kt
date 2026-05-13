@@ -30,6 +30,9 @@ interface MediaDao {
     @Query("SELECT * FROM tracking_sessions WHERE mediaItemId = :mediaItemId ORDER BY sessionNumber")
     suspend fun getTrackingSessions(mediaItemId: Long): List<TrackingSessionEntity>
 
+    @Query("SELECT * FROM tracking_sessions WHERE id = :sessionId LIMIT 1")
+    suspend fun getTrackingSession(sessionId: Long): TrackingSessionEntity?
+
     @Query("SELECT * FROM season_progress WHERE trackingSessionId = :trackingSessionId ORDER BY seasonNumber")
     suspend fun getSeasonProgressForSession(trackingSessionId: Long): List<SeasonProgressEntity>
 

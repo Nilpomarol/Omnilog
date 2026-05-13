@@ -131,9 +131,14 @@ class OfflineMediaRepository(
     }
 
     override suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int) {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return
+        val validProgress = session.progressTotal?.let { maxProgress ->
+            progressCurrent.coerceIn(0, maxProgress)
+        } ?: progressCurrent.coerceAtLeast(0)
+
         mediaDao.updateSessionProgress(
             sessionId = sessionId,
-            progressCurrent = progressCurrent.coerceAtLeast(0),
+            progressCurrent = validProgress,
         )
     }
 }
