@@ -26,6 +26,7 @@ fun DetailScreen(
     onStartNewSession: () -> Unit,
     onUpdateSessionProgress: (Long, Int) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
+    onUpdateSessionRating: (Long, Int?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -77,6 +78,12 @@ fun DetailScreen(
                         selectedStatus = currentSession.status,
                         onStatusSelected = { status ->
                             onUpdateSessionStatus(currentSession.id, status)
+                        },
+                    )
+                    RatingEditor(
+                        session = currentSession,
+                        onSave = { rating ->
+                            onUpdateSessionRating(currentSession.id, rating)
                         },
                     )
                 }

@@ -148,4 +148,12 @@ class OfflineMediaRepository(
             status = status.name,
         )
     }
+
+    override suspend fun updateSessionRating(sessionId: Long, rating: Int?) {
+        val validRating = rating?.coerceIn(1, 10)
+        mediaDao.updateSessionRating(
+            sessionId = sessionId,
+            rating = validRating,
+        )
+    }
 }

@@ -70,6 +70,12 @@ class HomeViewModel(
         }
     }
 
+    fun updateSessionRating(sessionId: Long, rating: Int?) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionRating(sessionId, rating)
+        }
+    }
+
     class Factory(
         private val mediaRepository: MediaRepository,
     ) : ViewModelProvider.Factory {

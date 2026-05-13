@@ -1,5 +1,7 @@
 package com.nilpo.contenttracker.ui.add
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,6 +57,7 @@ fun AddMediaScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
