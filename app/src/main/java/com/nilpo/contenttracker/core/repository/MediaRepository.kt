@@ -22,4 +22,6 @@ interface MediaRepository {
     suspend fun updateSessionRating(sessionId: Long, rating: Int?)
 
     suspend fun updateSessionNotes(sessionId: Long, notes: String?)
+
+    suspend fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int)
 }

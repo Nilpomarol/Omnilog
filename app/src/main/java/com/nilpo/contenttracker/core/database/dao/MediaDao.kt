@@ -36,6 +36,9 @@ interface MediaDao {
     @Query("SELECT * FROM season_progress WHERE trackingSessionId = :trackingSessionId ORDER BY seasonNumber")
     suspend fun getSeasonProgressForSession(trackingSessionId: Long): List<SeasonProgressEntity>
 
+    @Query("SELECT * FROM season_progress WHERE id = :seasonProgressId LIMIT 1")
+    suspend fun getSeasonProgress(seasonProgressId: Long): SeasonProgressEntity?
+
     @Query(
         """
         SELECT season_progress.* FROM season_progress
@@ -72,4 +75,7 @@ interface MediaDao {
 
     @Query("UPDATE tracking_sessions SET notes = :notes WHERE id = :sessionId")
     suspend fun updateSessionNotes(sessionId: Long, notes: String?)
+
+    @Query("UPDATE season_progress SET progressCurrent = :progressCurrent WHERE id = :seasonProgressId")
+    suspend fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int)
 }

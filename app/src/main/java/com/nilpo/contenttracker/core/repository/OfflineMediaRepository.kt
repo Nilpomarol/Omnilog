@@ -163,4 +163,16 @@ class OfflineMediaRepository(
             notes = notes?.trim()?.takeIf { it.isNotBlank() },
         )
     }
+
+    override suspend fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int) {
+        val seasonProgress = mediaDao.getSeasonProgress(seasonProgressId) ?: return
+        val validProgress = seasonProgress.progressTotal?.let { maxProgress ->
+            progressCurrent.coerceIn(0, maxProgress)
+        } ?: progressCurrent.coerceAtLeast(0)
+
+        mediaDao.updateSeasonProgress(
+            seasonProgressId = seasonProgressId,
+            progressCurrent = validProgress,
+        )
+    }
 }

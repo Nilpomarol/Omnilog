@@ -28,6 +28,7 @@ fun DetailScreen(
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
+    onUpdateSeasonProgress: (Long, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -93,6 +94,14 @@ fun DetailScreen(
                             onUpdateSessionNotes(currentSession.id, notes)
                         },
                     )
+                    trackedMedia.seasonsFor(currentSession).forEach { season ->
+                        SeasonProgressEditor(
+                            season = season,
+                            onSave = { progress ->
+                                onUpdateSeasonProgress(season.id, progress)
+                            },
+                        )
+                    }
                 }
             }
 

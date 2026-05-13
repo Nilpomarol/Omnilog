@@ -82,6 +82,12 @@ class HomeViewModel(
         }
     }
 
+    fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int) {
+        viewModelScope.launch {
+            mediaRepository.updateSeasonProgress(seasonProgressId, progressCurrent)
+        }
+    }
+
     class Factory(
         private val mediaRepository: MediaRepository,
     ) : ViewModelProvider.Factory {
