@@ -57,6 +57,7 @@
     <string name="collection_summary">Colleccio: %1$s</string>
     <string name="collection_none">Sense colleccio</string>
     <string name="clear_collection">Treu colleccio</string>
+    <string name="collection_item_count">%1$d elements</string>
     <string name="media_type_anime">Anime</string>
     <string name="media_type_book">Llibre</string>
     <string name="media_type_movie">Pellicula</string>
