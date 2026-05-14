@@ -29,6 +29,7 @@
     <string name="field_season_progress">Temporada %1$d</string>
     <string name="owned_label">En propietat</string>
     <string name="platform_label">Plataforma: %1$s</string>
+    <string name="platform_none">Sense plataforma</string>
     <string name="external_rating">%1$s %2$.1f/%3$.0f</string>
     <string name="external_tracking_label">També a: %1$s</string>
     <string name="back">Enrere</string>

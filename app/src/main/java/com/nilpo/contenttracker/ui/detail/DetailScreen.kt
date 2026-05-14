@@ -66,8 +66,7 @@ fun DetailScreen(
             }
 
             item {
-                DetailSectionTitle(text = stringResource(R.string.detail_item_details))
-                ItemDetailsEditor(
+                ItemDetailsSection(
                     item = trackedMedia.item,
                     currentSession = currentSession,
                     onSaveItemDetails = { title, ownershipType ->
