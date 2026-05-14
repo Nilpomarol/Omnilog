@@ -73,7 +73,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 trackedMedia = selectedMedia,
                 accent = uiState.selectedSection.accent,
                 onBack = { selectedMediaId = null },
-                onStartNewSession = { viewModel.startNewSession(selectedMedia.item.id) },
+                onStartNewSession = viewModel::startNewSession,
                 onUpdateSessionProgress = viewModel::updateSessionProgress,
                 onUpdateSessionProgressTotal = viewModel::updateSessionProgressTotal,
                 onUpdateSessionStatus = viewModel::updateSessionStatus,

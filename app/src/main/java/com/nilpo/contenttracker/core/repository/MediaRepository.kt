@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
@@ -14,7 +15,7 @@ interface MediaRepository {
 
     suspend fun seedSampleDataIfEmpty()
 
-    suspend fun startNewSession(mediaItemId: Long)
+    suspend fun startNewSession(request: AddTrackingSessionRequest)
 
     suspend fun addTrackedMedia(request: AddTrackedMediaRequest)
 

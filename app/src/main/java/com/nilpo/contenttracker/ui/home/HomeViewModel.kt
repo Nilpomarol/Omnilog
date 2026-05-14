@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -49,9 +50,9 @@ class HomeViewModel(
         selectedSection.value = section
     }
 
-    fun startNewSession(mediaItemId: Long) {
+    fun startNewSession(request: AddTrackingSessionRequest) {
         viewModelScope.launch {
-            mediaRepository.startNewSession(mediaItemId)
+            mediaRepository.startNewSession(request)
         }
     }
 

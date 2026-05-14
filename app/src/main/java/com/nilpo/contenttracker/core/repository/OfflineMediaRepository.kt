@@ -8,6 +8,7 @@ import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
@@ -71,34 +72,48 @@ class OfflineMediaRepository(
         }
     }
 
-    override suspend fun startNewSession(mediaItemId: Long) {
-        val sessions = mediaDao.getTrackingSessions(mediaItemId)
+    override suspend fun startNewSession(request: AddTrackingSessionRequest) {
+        val sessions = mediaDao.getTrackingSessions(request.mediaItemId)
         val latestSession = sessions.maxByOrNull { it.sessionNumber }
         val newSessionNumber = (latestSession?.sessionNumber ?: 0) + 1
+        val validTotal = request.progressTotal?.coerceAtLeast(0)
+        val validProgress = validTotal?.let { maxProgress ->
+            request.progressCurrent.coerceIn(0, maxProgress)
+        } ?: request.progressCurrent.coerceAtLeast(0)
+        val validPlatformName = request.platformName?.trim()?.takeIf { it.isNotBlank() }
 
         val newSession = if (latestSession == null) {
             TrackingSessionEntity(
-                mediaItemId = mediaItemId,
+                mediaItemId = request.mediaItemId,
                 sessionNumber = newSessionNumber,
-                status = TrackingStatus.InProgress.name,
+                status = request.status.name,
+                progressCurrent = validProgress,
+                progressTotal = validTotal,
+                platformName = validPlatformName,
+                platformType = validPlatformName?.let { request.platformType.name },
             )
         } else {
             latestSession.copy(
                 id = 0,
                 sessionNumber = newSessionNumber,
-                status = TrackingStatus.InProgress.name,
-                progressCurrent = 0,
+                status = request.status.name,
+                progressCurrent = validProgress,
+                progressTotal = validTotal,
                 rating = null,
                 notes = null,
+                platformName = validPlatformName,
+                platformType = validPlatformName?.let { request.platformType.name },
                 startedAtEpochDay = null,
                 finishedAtEpochDay = null,
             )
         }
 
         val newSessionId = mediaDao.insertTrackingSession(newSession)
+        var copiedSeasonCount = 0
 
         if (latestSession != null) {
             val previousSeasons = mediaDao.getSeasonProgressForSession(latestSession.id)
+            copiedSeasonCount = previousSeasons.size
             previousSeasons.forEach { season ->
                 mediaDao.insertSeasonProgress(
                     season.copy(
@@ -108,6 +123,10 @@ class OfflineMediaRepository(
                     ),
                 )
             }
+        }
+
+        if (copiedSeasonCount > 0) {
+            updateSessionProgressFromSeasons(newSessionId)
         }
     }
 

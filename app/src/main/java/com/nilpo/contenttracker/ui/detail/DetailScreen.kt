@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -26,7 +27,7 @@ fun DetailScreen(
     trackedMedia: TrackedMedia,
     accent: Color,
     onBack: () -> Unit,
-    onStartNewSession: () -> Unit,
+    onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     onUpdateSessionProgress: (Long, Int) -> Unit,
     onUpdateSessionProgressTotal: (Long, Int?) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
@@ -84,9 +85,11 @@ fun DetailScreen(
             }
 
             item {
-                Button(onClick = onStartNewSession) {
-                    Text(text = stringResource(R.string.start_new_session))
-                }
+                NewSessionSection(
+                    mediaItemId = trackedMedia.item.id,
+                    currentSession = currentSession,
+                    onStartNewSession = onStartNewSession,
+                )
             }
 
             if (currentSession != null) {

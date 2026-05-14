@@ -41,6 +41,8 @@
     <string name="detail_external_scores">Notes externes</string>
     <string name="detail_external_tracking">Seguiment extern</string>
     <string name="start_new_session">Comença una nova sessió</string>
+    <string name="new_session_title">Nova sessió</string>
+    <string name="create_session">Crea sessió</string>
     <string name="add_media_title">Afegeix contingut</string>
     <string name="field_title">Titol</string>
     <string name="field_total_progress">Total</string>
