@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,7 +43,10 @@ fun CurrentSessionSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            DetailSectionTitle(text = stringResource(R.string.detail_current_session))
+            Text(
+                text = stringResource(R.string.detail_current_session),
+                style = MaterialTheme.typography.titleMedium,
+            )
             TextButton(onClick = { isEditing = !isEditing }) {
                 val label = if (isEditing) {
                     stringResource(R.string.done_editing)
@@ -51,6 +56,7 @@ fun CurrentSessionSection(
                 Text(text = label)
             }
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.16f))
 
         SessionDetail(
             session = session,
