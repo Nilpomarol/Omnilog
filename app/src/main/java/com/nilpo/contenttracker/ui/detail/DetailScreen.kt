@@ -89,50 +89,17 @@ fun DetailScreen(
 
             if (currentSession != null) {
                 item {
-                    DetailSectionTitle(text = stringResource(R.string.detail_current_session))
-                    SessionDetail(
+                    CurrentSessionSection(
                         session = currentSession,
                         seasons = trackedMedia.seasonsFor(currentSession),
                         accent = accent,
+                        onUpdateSessionProgress = onUpdateSessionProgress,
+                        onUpdateSessionProgressTotal = onUpdateSessionProgressTotal,
+                        onUpdateSessionStatus = onUpdateSessionStatus,
+                        onUpdateSessionRating = onUpdateSessionRating,
+                        onUpdateSessionNotes = onUpdateSessionNotes,
+                        onUpdateSeasonProgress = onUpdateSeasonProgress,
                     )
-                    ProgressEditor(
-                        session = currentSession,
-                        onSave = { progress ->
-                            onUpdateSessionProgress(currentSession.id, progress)
-                        },
-                    )
-                    TotalProgressEditor(
-                        session = currentSession,
-                        onSave = { total ->
-                            onUpdateSessionProgressTotal(currentSession.id, total)
-                        },
-                    )
-                    StatusSelector(
-                        selectedStatus = currentSession.status,
-                        onStatusSelected = { status ->
-                            onUpdateSessionStatus(currentSession.id, status)
-                        },
-                    )
-                    RatingEditor(
-                        session = currentSession,
-                        onSave = { rating ->
-                            onUpdateSessionRating(currentSession.id, rating)
-                        },
-                    )
-                    NotesEditor(
-                        session = currentSession,
-                        onSave = { notes ->
-                            onUpdateSessionNotes(currentSession.id, notes)
-                        },
-                    )
-                    trackedMedia.seasonsFor(currentSession).forEach { season ->
-                        SeasonProgressEditor(
-                            season = season,
-                            onSave = { progress ->
-                                onUpdateSeasonProgress(season.id, progress)
-                            },
-                        )
-                    }
                 }
             }
 

@@ -67,6 +67,8 @@
     <string name="platform_type_other">Altres</string>
     <string name="save">Desa</string>
     <string name="cancel">Cancella</string>
+    <string name="edit">Edita</string>
+    <string name="done_editing">Fet</string>
     <string name="update_progress">Actualitza progres</string>
     <string name="update_total_progress">Actualitza total</string>
     <string name="update_rating">Actualitza nota</string>
