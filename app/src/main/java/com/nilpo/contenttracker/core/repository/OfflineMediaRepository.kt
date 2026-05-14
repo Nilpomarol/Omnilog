@@ -237,6 +237,12 @@ class OfflineMediaRepository(
         updateSessionProgressFromSeasons(seasonProgress.trackingSessionId)
     }
 
+    override suspend fun deleteSeasonProgress(seasonProgressId: Long) {
+        val seasonProgress = mediaDao.getSeasonProgress(seasonProgressId) ?: return
+        mediaDao.deleteSeasonProgress(seasonProgressId)
+        updateSessionProgressFromSeasons(seasonProgress.trackingSessionId)
+    }
+
     override suspend fun addSeasonProgress(
         sessionId: Long,
         seasonNumber: Int,
@@ -267,6 +273,11 @@ class OfflineMediaRepository(
         val session = mediaDao.getTrackingSession(sessionId) ?: return
         val seasons = mediaDao.getSeasonProgressForSession(sessionId)
         if (seasons.isEmpty()) {
+            mediaDao.updateSessionProgressTotal(
+                sessionId = session.id,
+                progressCurrent = 0,
+                progressTotal = null,
+            )
             return
         }
 

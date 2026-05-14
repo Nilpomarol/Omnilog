@@ -103,6 +103,12 @@ class HomeViewModel(
         }
     }
 
+    fun deleteSeasonProgress(seasonProgressId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteSeasonProgress(seasonProgressId)
+        }
+    }
+
     fun addSeasonProgress(
         sessionId: Long,
         seasonNumber: Int,

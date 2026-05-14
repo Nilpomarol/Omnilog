@@ -32,6 +32,8 @@ interface MediaRepository {
 
     suspend fun updateSeasonProgressTotal(seasonProgressId: Long, progressTotal: Int?)
 
+    suspend fun deleteSeasonProgress(seasonProgressId: Long)
+
     suspend fun addSeasonProgress(
         sessionId: Long,
         seasonNumber: Int,

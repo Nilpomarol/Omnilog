@@ -166,4 +166,7 @@ interface MediaDao {
         progressCurrent: Int,
         progressTotal: Int?,
     )
+
+    @Query("DELETE FROM season_progress WHERE id = :seasonProgressId")
+    suspend fun deleteSeasonProgress(seasonProgressId: Long)
 }

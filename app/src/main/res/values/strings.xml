@@ -70,6 +70,7 @@
     <string name="platform_type_other">Altres</string>
     <string name="save">Desa</string>
     <string name="cancel">Cancella</string>
+    <string name="delete">Elimina</string>
     <string name="add">Afegeix</string>
     <string name="edit">Edita</string>
     <string name="done_editing">Fet</string>
@@ -81,6 +82,10 @@
     <string name="update_season_progress">Actualitza temporada</string>
     <string name="update_season_total">Actualitza total</string>
     <string name="add_season">Afegeix temporada</string>
+    <string name="delete_season">Elimina</string>
+    <string name="delete_season_title">Elimina temporada</string>
+    <string name="delete_season_message">Vols eliminar la temporada %1$d?</string>
+    <string name="season_title">Temporada %1$d</string>
     <string name="season_duplicate_error">Aquesta temporada ja existeix</string>
     <string name="update_item_details">Actualitza dades</string>
     <string name="update_platform">Actualitza plataforma</string>
