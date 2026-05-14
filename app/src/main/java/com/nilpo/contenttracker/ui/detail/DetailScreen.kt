@@ -132,7 +132,6 @@ fun DetailScreen(
             }
 
             item {
-                DetailSectionTitle(text = stringResource(R.string.detail_external_tracking))
                 ExternalTrackingEditor(
                     externalTracking = trackedMedia.externalTracking,
                     onAddExternalTracking = { source, externalItemId, url ->

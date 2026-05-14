@@ -68,6 +68,7 @@
     <string name="platform_type_other">Altres</string>
     <string name="save">Desa</string>
     <string name="cancel">Cancella</string>
+    <string name="add">Afegeix</string>
     <string name="edit">Edita</string>
     <string name="done_editing">Fet</string>
     <string name="update_progress">Actualitza progres</string>
@@ -89,4 +90,5 @@
     <string name="delete_external_tracking">Elimina</string>
     <string name="external_tracking_id_value">ID: %1$s</string>
     <string name="external_tracking_other">Altres</string>
+    <string name="external_tracking_empty">Cap seguiment extern</string>
 </resources>
