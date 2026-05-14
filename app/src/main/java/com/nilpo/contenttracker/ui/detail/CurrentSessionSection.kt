@@ -35,6 +35,7 @@ fun CurrentSessionSection(
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
     onUpdateSeasonProgress: (Long, Int) -> Unit,
+    onUpdateSeasonProgressTotal: (Long, Int?) -> Unit,
     onAddSeasonProgress: (Long, Int, Int?) -> Unit,
     mediaType: MediaType,
 ) {
@@ -103,6 +104,9 @@ fun CurrentSessionSection(
                     season = season,
                     onSave = { progress ->
                         onUpdateSeasonProgress(season.id, progress)
+                    },
+                    onSaveTotal = { total ->
+                        onUpdateSeasonProgressTotal(season.id, total)
                     },
                 )
             }

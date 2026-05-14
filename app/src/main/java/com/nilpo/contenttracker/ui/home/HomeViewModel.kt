@@ -97,6 +97,12 @@ class HomeViewModel(
         }
     }
 
+    fun updateSeasonProgressTotal(seasonProgressId: Long, progressTotal: Int?) {
+        viewModelScope.launch {
+            mediaRepository.updateSeasonProgressTotal(seasonProgressId, progressTotal)
+        }
+    }
+
     fun addSeasonProgress(
         sessionId: Long,
         seasonNumber: Int,

@@ -24,11 +24,17 @@ import com.nilpo.contenttracker.core.model.SeasonProgress
 fun SeasonProgressEditor(
     season: SeasonProgress,
     onSave: (Int) -> Unit,
+    onSaveTotal: (Int?) -> Unit,
 ) {
     var progressText by remember { mutableStateOf(season.progressCurrent.toString()) }
+    var totalText by remember { mutableStateOf(season.progressTotal?.toString().orEmpty()) }
 
     LaunchedEffect(season.id, season.progressCurrent) {
         progressText = season.progressCurrent.toString()
+    }
+
+    LaunchedEffect(season.id, season.progressTotal) {
+        totalText = season.progressTotal?.toString().orEmpty()
     }
 
     Row(
@@ -52,6 +58,29 @@ fun SeasonProgressEditor(
             },
         ) {
             Text(text = stringResource(R.string.update_season_progress))
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        OutlinedTextField(
+            value = totalText,
+            onValueChange = { value ->
+                totalText = value.filter { it.isDigit() }
+            },
+            label = { Text(stringResource(R.string.field_season_total, season.seasonNumber)) },
+            modifier = Modifier.weight(1f),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+        )
+        Button(
+            onClick = {
+                onSaveTotal(totalText.toIntOrNull())
+            },
+        ) {
+            Text(text = stringResource(R.string.update_season_total))
         }
     }
 }

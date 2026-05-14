@@ -33,6 +33,7 @@ fun DetailScreen(
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
     onUpdateSeasonProgress: (Long, Int) -> Unit,
+    onUpdateSeasonProgressTotal: (Long, Int?) -> Unit,
     onAddSeasonProgress: (Long, Int, Int?) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
@@ -99,6 +100,7 @@ fun DetailScreen(
                         onUpdateSessionRating = onUpdateSessionRating,
                         onUpdateSessionNotes = onUpdateSessionNotes,
                         onUpdateSeasonProgress = onUpdateSeasonProgress,
+                        onUpdateSeasonProgressTotal = onUpdateSeasonProgressTotal,
                         onAddSeasonProgress = onAddSeasonProgress,
                         mediaType = trackedMedia.item.type,
                     )

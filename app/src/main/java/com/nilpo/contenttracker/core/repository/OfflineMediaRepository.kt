@@ -221,6 +221,22 @@ class OfflineMediaRepository(
         updateSessionProgressFromSeasons(seasonProgress.trackingSessionId)
     }
 
+    override suspend fun updateSeasonProgressTotal(seasonProgressId: Long, progressTotal: Int?) {
+        val seasonProgress = mediaDao.getSeasonProgress(seasonProgressId) ?: return
+        val validTotal = progressTotal?.coerceAtLeast(0)
+        val validProgress = validTotal?.let { maxProgress ->
+            seasonProgress.progressCurrent.coerceIn(0, maxProgress)
+        } ?: seasonProgress.progressCurrent.coerceAtLeast(0)
+
+        mediaDao.updateSeasonProgressTotal(
+            seasonProgressId = seasonProgressId,
+            progressCurrent = validProgress,
+            progressTotal = validTotal,
+        )
+
+        updateSessionProgressFromSeasons(seasonProgress.trackingSessionId)
+    }
+
     override suspend fun addSeasonProgress(
         sessionId: Long,
         seasonNumber: Int,
