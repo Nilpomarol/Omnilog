@@ -64,6 +64,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 uiState = uiState,
                 onMediaClick = { selectedMediaId = it.item.id },
                 onAddClick = { isAdding = true },
+                onSearchQueryChange = viewModel::updateSearchQuery,
+                onStatusFilterChange = viewModel::updateStatusFilter,
+                onSortModeChange = viewModel::updateSortMode,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

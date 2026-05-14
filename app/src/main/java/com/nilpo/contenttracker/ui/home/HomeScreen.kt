@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,12 +17,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.OptionSelector
 
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
     onMediaClick: (TrackedMedia) -> Unit,
     onAddClick: () -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onStatusFilterChange: (TrackingStatus?) -> Unit,
+    onSortModeChange: (HomeSortMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
@@ -46,6 +52,17 @@ fun HomeScreen(
                 SectionHeader(
                     section = section,
                     onAddClick = onAddClick,
+                )
+            }
+
+            item {
+                BrowseControls(
+                    searchQuery = uiState.searchQuery,
+                    statusFilter = uiState.statusFilter,
+                    sortMode = uiState.sortMode,
+                    onSearchQueryChange = onSearchQueryChange,
+                    onStatusFilterChange = onStatusFilterChange,
+                    onSortModeChange = onSortModeChange,
                 )
             }
 
@@ -99,6 +116,63 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BrowseControls(
+    searchQuery: String,
+    statusFilter: TrackingStatus?,
+    sortMode: HomeSortMode,
+    onSearchQueryChange: (String) -> Unit,
+    onStatusFilterChange: (TrackingStatus?) -> Unit,
+    onSortModeChange: (HomeSortMode) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            label = { Text(stringResource(R.string.search_label)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+
+        OptionSelector(
+            label = stringResource(R.string.filter_status),
+            options = listOf<TrackingStatus?>(null) + TrackingStatus.entries,
+            selectedOption = statusFilter,
+            optionLabel = { status ->
+                status?.label() ?: stringResource(R.string.filter_all_statuses)
+            },
+            onOptionSelected = onStatusFilterChange,
+        )
+
+        OptionSelector(
+            label = stringResource(R.string.sort_label),
+            options = HomeSortMode.entries,
+            selectedOption = sortMode,
+            optionLabel = { sort -> sort.label() },
+            onOptionSelected = onSortModeChange,
+        )
+    }
+}
+
+@Composable
+private fun TrackingStatus.label(): String {
+    return when (this) {
+        TrackingStatus.Planned -> stringResource(R.string.status_planned)
+        TrackingStatus.InProgress -> stringResource(R.string.status_in_progress)
+        TrackingStatus.Completed -> stringResource(R.string.status_completed)
+        TrackingStatus.Paused -> stringResource(R.string.status_paused)
+        TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
+    }
+}
+
+@Composable
+private fun HomeSortMode.label(): String {
+    return when (this) {
+        HomeSortMode.Title -> stringResource(R.string.sort_title)
+        HomeSortMode.Collection -> stringResource(R.string.sort_collection)
     }
 }
 

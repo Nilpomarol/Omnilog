@@ -8,9 +8,11 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
+import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
@@ -23,16 +25,31 @@ class HomeViewModel(
     private val mediaRepository: MediaRepository,
 ) : ViewModel() {
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
+    private val searchQuery = MutableStateFlow("")
+    private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
+    private val sortMode = MutableStateFlow(HomeSortMode.Title)
 
     val uiState = selectedSection
         .flatMapLatest { section ->
-            mediaRepository.observeTrackedMedia(section.types)
-                .map { trackedItems ->
+            combine(
+                mediaRepository.observeTrackedMedia(section.types),
+                searchQuery,
+                statusFilter,
+                sortMode,
+            ) { trackedItems, query, status, sort ->
+                val visibleItems = trackedItems
+                    .filterBySearch(query)
+                    .filterByStatus(status)
+                    .sortByMode(sort)
+
                     HomeUiState(
                         selectedSection = section,
-                        trackedItems = trackedItems,
+                        trackedItems = visibleItems,
+                        searchQuery = query,
+                        statusFilter = status,
+                        sortMode = sort,
                     )
-                }
+            }
         }
         .stateIn(
             scope = viewModelScope,
@@ -48,6 +65,18 @@ class HomeViewModel(
 
     fun selectSection(section: MediaSection) {
         selectedSection.value = section
+    }
+
+    fun updateSearchQuery(query: String) {
+        searchQuery.value = query
+    }
+
+    fun updateStatusFilter(status: TrackingStatus?) {
+        statusFilter.value = status
+    }
+
+    fun updateSortMode(mode: HomeSortMode) {
+        sortMode.value = mode
     }
 
     fun startNewSession(request: AddTrackingSessionRequest) {
@@ -164,5 +193,33 @@ class HomeViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return HomeViewModel(mediaRepository) as T
         }
+    }
+}
+
+private fun List<TrackedMedia>.filterBySearch(query: String): List<TrackedMedia> {
+    val normalizedQuery = query.trim()
+    if (normalizedQuery.isBlank()) {
+        return this
+    }
+
+    return filter { trackedMedia ->
+        trackedMedia.item.title.contains(normalizedQuery, ignoreCase = true) ||
+            trackedMedia.collection?.name?.contains(normalizedQuery, ignoreCase = true) == true
+    }
+}
+
+private fun List<TrackedMedia>.filterByStatus(status: TrackingStatus?): List<TrackedMedia> {
+    return status?.let { selectedStatus ->
+        filter { trackedMedia -> trackedMedia.currentSession?.status == selectedStatus }
+    } ?: this
+}
+
+private fun List<TrackedMedia>.sortByMode(mode: HomeSortMode): List<TrackedMedia> {
+    return when (mode) {
+        HomeSortMode.Title -> sortedBy { it.item.title.lowercase() }
+        HomeSortMode.Collection -> sortedWith(
+            compareBy<TrackedMedia> { it.collection?.name?.lowercase().orEmpty() }
+                .thenBy { it.item.title.lowercase() },
+        )
     }
 }

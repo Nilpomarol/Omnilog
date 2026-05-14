@@ -58,6 +58,12 @@
     <string name="collection_none">Sense colleccio</string>
     <string name="clear_collection">Treu colleccio</string>
     <string name="collection_item_count">%1$d elements</string>
+    <string name="search_label">Cerca</string>
+    <string name="filter_status">Filtra per estat</string>
+    <string name="filter_all_statuses">Tots els estats</string>
+    <string name="sort_label">Ordena</string>
+    <string name="sort_title">Titol</string>
+    <string name="sort_collection">Colleccio</string>
     <string name="media_type_anime">Anime</string>
     <string name="media_type_book">Llibre</string>
     <string name="media_type_movie">Pellicula</string>
