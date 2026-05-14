@@ -19,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
+import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
@@ -26,8 +27,10 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 @Composable
 fun ItemDetailsSection(
     item: MediaItem,
+    collection: MediaCollection?,
+    availableCollections: List<MediaCollection>,
     currentSession: TrackingSession?,
-    onSaveItemDetails: (String, Int?, OwnershipType) -> Unit,
+    onSaveItemDetails: (String, Long?, String?, Int?, OwnershipType) -> Unit,
     onSavePlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
 ) {
     var isEditing by rememberSaveable(item.id, currentSession?.id) { mutableStateOf(false) }
@@ -56,6 +59,8 @@ fun ItemDetailsSection(
         if (isEditing) {
             ItemDetailsEditor(
                 item = item,
+                collection = collection,
+                availableCollections = availableCollections,
                 currentSession = currentSession,
                 onSaveItemDetails = onSaveItemDetails,
                 onSavePlatform = onSavePlatform,
@@ -63,6 +68,7 @@ fun ItemDetailsSection(
         } else {
             ItemDetailsSummary(
                 item = item,
+                collection = collection,
                 currentSession = currentSession,
             )
         }
@@ -72,6 +78,7 @@ fun ItemDetailsSection(
 @Composable
 private fun ItemDetailsSummary(
     item: MediaItem,
+    collection: MediaCollection?,
     currentSession: TrackingSession?,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -86,6 +93,15 @@ private fun ItemDetailsSummary(
 
         Text(
             text = totalText,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        Text(
+            text = stringResource(
+                R.string.collection_summary,
+                collection?.name ?: stringResource(R.string.collection_none),
+            ),
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
             style = MaterialTheme.typography.bodyMedium,
         )

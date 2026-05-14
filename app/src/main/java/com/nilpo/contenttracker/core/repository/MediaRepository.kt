@@ -43,6 +43,8 @@ interface MediaRepository {
     suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
+        collectionId: Long?,
+        newCollectionName: String?,
         progressTotal: Int?,
         ownershipType: OwnershipType,
     )

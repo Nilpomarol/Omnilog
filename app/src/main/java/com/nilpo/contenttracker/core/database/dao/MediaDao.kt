@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.relation.TrackedMediaRelation
@@ -30,6 +31,18 @@ interface MediaDao {
     @Query("SELECT * FROM media_items WHERE id = :mediaItemId LIMIT 1")
     suspend fun getMediaItem(mediaItemId: Long): MediaItemEntity?
 
+    @Query("SELECT * FROM media_collections ORDER BY name")
+    fun observeMediaCollections(): Flow<List<MediaCollectionEntity>>
+
+    @Query("SELECT * FROM media_collections ORDER BY name")
+    suspend fun getMediaCollections(): List<MediaCollectionEntity>
+
+    @Query("SELECT * FROM media_collections WHERE id = :collectionId LIMIT 1")
+    suspend fun getMediaCollection(collectionId: Long): MediaCollectionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMediaCollection(collection: MediaCollectionEntity): Long
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaItem(item: MediaItemEntity): Long
 
@@ -51,13 +64,18 @@ interface MediaDao {
     @Query(
         """
         UPDATE media_items
-        SET title = :title, progressTotal = :progressTotal, isOwned = :isOwned, ownershipType = :ownershipType
+        SET title = :title,
+            collectionId = :collectionId,
+            progressTotal = :progressTotal,
+            isOwned = :isOwned,
+            ownershipType = :ownershipType
         WHERE id = :mediaItemId
         """,
     )
     suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
+        collectionId: Long?,
         progressTotal: Int?,
         isOwned: Boolean,
         ownershipType: String,

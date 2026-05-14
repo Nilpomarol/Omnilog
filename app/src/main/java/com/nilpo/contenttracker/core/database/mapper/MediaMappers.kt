@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.core.database.mapper
 
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.ConsumptionPlatform
@@ -10,6 +11,7 @@ import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTracking
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.Ownership
@@ -23,6 +25,7 @@ fun MediaItemEntity.toDomain(): MediaItem {
         id = id,
         type = enumValueOrDefault(type, MediaType.Anime),
         title = title,
+        collectionId = collectionId,
         progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,
@@ -40,6 +43,7 @@ fun MediaItem.toEntity(): MediaItemEntity {
         id = id,
         type = type.name,
         title = title,
+        collectionId = collectionId,
         progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,
@@ -47,6 +51,20 @@ fun MediaItem.toEntity(): MediaItemEntity {
         sourceApi = sourceApi,
         isOwned = ownership.isOwned,
         ownershipType = ownership.type.name,
+    )
+}
+
+fun MediaCollectionEntity.toDomain(): MediaCollection {
+    return MediaCollection(
+        id = id,
+        name = name,
+    )
+}
+
+fun MediaCollection.toEntity(): MediaCollectionEntity {
+    return MediaCollectionEntity(
+        id = id,
+        name = name,
     )
 }
 

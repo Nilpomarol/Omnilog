@@ -2,6 +2,8 @@ package com.nilpo.contenttracker.core.model
 
 data class TrackedMedia(
     val item: MediaItem,
+    val collection: MediaCollection? = null,
+    val availableCollections: List<MediaCollection> = emptyList(),
     val sessions: List<TrackingSession>,
     val externalRatings: List<ExternalRating> = emptyList(),
     val externalTracking: List<ExternalTracking> = emptyList(),

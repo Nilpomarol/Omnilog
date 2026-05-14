@@ -36,7 +36,7 @@ fun DetailScreen(
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     onDeleteExternalTracking: (Long) -> Unit,
-    onUpdateMediaItemDetails: (Long, String, Int?, OwnershipType) -> Unit,
+    onUpdateMediaItemDetails: (Long, String, Long?, String?, Int?, OwnershipType) -> Unit,
     onUpdateSessionPlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -71,11 +71,15 @@ fun DetailScreen(
             item {
                 ItemDetailsSection(
                     item = trackedMedia.item,
+                    collection = trackedMedia.collection,
+                    availableCollections = trackedMedia.availableCollections,
                     currentSession = currentSession,
-                    onSaveItemDetails = { title, progressTotal, ownershipType ->
+                    onSaveItemDetails = { title, collectionId, newCollectionName, progressTotal, ownershipType ->
                         onUpdateMediaItemDetails(
                             trackedMedia.item.id,
                             title,
+                            collectionId,
+                            newCollectionName,
                             progressTotal,
                             ownershipType,
                         )

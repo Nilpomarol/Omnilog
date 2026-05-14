@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
@@ -16,7 +17,7 @@ import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 
 class OfflineMediaRepository(
     private val mediaDao: MediaDao,
@@ -24,16 +25,20 @@ class OfflineMediaRepository(
     override fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>> {
         val typeNames = types.map { it.name }
 
-        return mediaDao.observeTrackedMedia(typeNames).let { flow ->
-            flow.map { relations ->
-                relations.map { relation ->
-                    TrackedMedia(
-                        item = relation.item.toDomain(),
-                        sessions = relation.sessions.map { it.toDomain() },
-                        externalRatings = relation.externalRatings.map { it.toDomain() },
-                        externalTracking = relation.externalTracking.map { it.toDomain() },
-                    )
-                }
+        return combine(
+            mediaDao.observeTrackedMedia(typeNames),
+            mediaDao.observeMediaCollections(),
+        ) { relations, collections ->
+            val availableCollections = collections.map { it.toDomain() }
+            relations.map { relation ->
+                TrackedMedia(
+                    item = relation.item.toDomain(),
+                    collection = relation.collection?.toDomain(),
+                    availableCollections = availableCollections,
+                    sessions = relation.sessions.map { it.toDomain() },
+                    externalRatings = relation.externalRatings.map { it.toDomain() },
+                    externalTracking = relation.externalTracking.map { it.toDomain() },
+                )
             }
         }
     }
@@ -195,15 +200,26 @@ class OfflineMediaRepository(
     override suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
+        collectionId: Long?,
+        newCollectionName: String?,
         progressTotal: Int?,
         ownershipType: OwnershipType,
     ) {
         val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
         val validTotal = progressTotal?.coerceAtLeast(0)
+        val validNewCollectionName = newCollectionName?.trim()?.takeIf { it.isNotBlank() }
+        val validCollectionId = when {
+            validNewCollectionName != null -> mediaDao.insertMediaCollection(
+                MediaCollectionEntity(name = validNewCollectionName),
+            )
+            collectionId != null && mediaDao.getMediaCollection(collectionId) != null -> collectionId
+            else -> null
+        }
 
         mediaDao.updateMediaItemDetails(
             mediaItemId = mediaItemId,
             title = validTitle,
+            collectionId = validCollectionId,
             progressTotal = validTotal,
             isOwned = ownershipType != OwnershipType.None,
             ownershipType = ownershipType.name,

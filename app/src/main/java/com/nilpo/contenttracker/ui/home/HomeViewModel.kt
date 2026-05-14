@@ -126,6 +126,8 @@ class HomeViewModel(
     fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
+        collectionId: Long?,
+        newCollectionName: String?,
         progressTotal: Int?,
         ownershipType: OwnershipType,
     ) {
@@ -133,6 +135,8 @@ class HomeViewModel(
             mediaRepository.updateMediaItemDetails(
                 mediaItemId = mediaItemId,
                 title = title,
+                collectionId = collectionId,
+                newCollectionName = newCollectionName,
                 progressTotal = progressTotal,
                 ownershipType = ownershipType,
             )
