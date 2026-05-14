@@ -115,11 +115,22 @@ class OfflineMediaRepository(
             val previousSeasons = mediaDao.getSeasonProgressForSession(latestSession.id)
             copiedSeasonCount = previousSeasons.size
             previousSeasons.forEach { season ->
+                val copiedSeasonProgress = if (previousSeasons.size == 1) {
+                    validProgress
+                } else {
+                    0
+                }
+                val copiedSeasonTotal = if (previousSeasons.size == 1) {
+                    validTotal
+                } else {
+                    season.progressTotal
+                }
                 mediaDao.insertSeasonProgress(
                     season.copy(
                         id = 0,
                         trackingSessionId = newSessionId,
-                        progressCurrent = 0,
+                        progressCurrent = copiedSeasonProgress,
+                        progressTotal = copiedSeasonTotal,
                     ),
                 )
             }
