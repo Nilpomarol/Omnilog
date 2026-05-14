@@ -130,11 +130,21 @@ fun DetailScreen(
             }
 
             items(pastSessions) { session ->
-                SessionDetail(
+                PastSessionSection(
                     session = session,
                     seasons = trackedMedia.seasonsFor(session),
                     accent = accent,
-                    onDelete = { onDeletePastSession(session.id) },
+                    mediaType = trackedMedia.item.type,
+                    onUpdateSessionProgress = onUpdateSessionProgress,
+                    onUpdateSessionProgressTotal = onUpdateSessionProgressTotal,
+                    onUpdateSessionStatus = onUpdateSessionStatus,
+                    onUpdateSessionRating = onUpdateSessionRating,
+                    onUpdateSessionNotes = onUpdateSessionNotes,
+                    onUpdateSessionPlatform = onUpdateSessionPlatform,
+                    onUpdateSeasonProgress = onUpdateSeasonProgress,
+                    onUpdateSeasonProgressTotal = onUpdateSeasonProgressTotal,
+                    onDeleteSeasonProgress = onDeleteSeasonProgress,
+                    onDeleteSession = { onDeletePastSession(session.id) },
                 )
             }
 

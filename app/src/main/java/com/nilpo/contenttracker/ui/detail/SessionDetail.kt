@@ -33,6 +33,7 @@ fun SessionDetail(
     seasons: List<SeasonProgress>,
     accent: Color,
     onDelete: (() -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     var showDeleteConfirmation by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -55,9 +56,12 @@ fun SessionDetail(
                 color = accent,
                 style = MaterialTheme.typography.titleSmall,
             )
-            if (onDelete != null) {
-                TextButton(onClick = { showDeleteConfirmation = true }) {
-                    Text(text = stringResource(R.string.delete))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                trailingContent?.invoke()
+                if (onDelete != null) {
+                    TextButton(onClick = { showDeleteConfirmation = true }) {
+                        Text(text = stringResource(R.string.delete))
+                    }
                 }
             }
         }
