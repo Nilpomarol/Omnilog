@@ -27,7 +27,7 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 fun ItemDetailsSection(
     item: MediaItem,
     currentSession: TrackingSession?,
-    onSaveItemDetails: (String, OwnershipType) -> Unit,
+    onSaveItemDetails: (String, Int?, OwnershipType) -> Unit,
     onSavePlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
 ) {
     var isEditing by rememberSaveable(item.id, currentSession?.id) { mutableStateOf(false) }
@@ -77,6 +77,15 @@ private fun ItemDetailsSummary(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = stringResource(R.string.field_ownership_type) + ": " + item.ownership.type.label(),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        val totalText = item.progressTotal?.let { total ->
+            stringResource(R.string.progress_total_value, total)
+        } ?: stringResource(R.string.progress_total_unknown)
+
+        Text(
+            text = totalText,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
             style = MaterialTheme.typography.bodyMedium,
         )

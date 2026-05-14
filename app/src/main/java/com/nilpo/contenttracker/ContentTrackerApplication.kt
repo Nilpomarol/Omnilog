@@ -11,7 +11,9 @@ class ContentTrackerApplication : Application() {
             applicationContext,
             ContentTrackerDatabase::class.java,
             "content-tracker.db",
-        ).build()
+        )
+            .fallbackToDestructiveMigration(false)
+            .build()
     }
 
     val mediaRepository: OfflineMediaRepository by lazy {

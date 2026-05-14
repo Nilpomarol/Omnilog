@@ -5,7 +5,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.nilpo.contenttracker.R
-import com.nilpo.contenttracker.core.model.SeasonProgress
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -15,7 +14,6 @@ fun MetadataSummary(
     trackedMedia: TrackedMedia,
     session: TrackingSession,
 ) {
-    val seasonText = seasonSummary(trackedMedia.seasonsFor(session))
     val platform = session.platform?.let { stringResource(R.string.platform_label, it.name) }
     val ownership = stringResource(R.string.owned_label).takeIf { trackedMedia.item.ownership.isOwned }
     val externalRating = trackedMedia.externalRatings.firstOrNull()?.let {
@@ -33,7 +31,7 @@ fun MetadataSummary(
         )
     }
 
-    val details = listOfNotNull(seasonText, platform, ownership, externalRating, externalTracking)
+    val details = listOfNotNull(platform, ownership, externalRating, externalTracking)
 
     if (details.isNotEmpty()) {
         Text(
@@ -55,42 +53,15 @@ fun sessionLabel(session: TrackingSession): String {
 }
 
 @Composable
-fun sessionSummary(session: TrackingSession): String {
-    val progress = when (val total = session.progressTotal) {
+fun sessionSummary(session: TrackingSession, progressTotal: Int?): String {
+    val progress = when (progressTotal) {
         null -> stringResource(R.string.progress_value, session.progressCurrent)
-        else -> stringResource(R.string.progress_with_total, session.progressCurrent, total)
+        else -> stringResource(R.string.progress_with_total, session.progressCurrent, progressTotal)
     }
 
     val rating = session.rating?.let { stringResource(R.string.rating_value, it) }
 
     return listOfNotNull(progress, rating).joinToString(" | ")
-}
-
-@Composable
-fun seasonSummary(seasons: List<SeasonProgress>): String? {
-    if (seasons.isEmpty()) {
-        return null
-    }
-
-    val seasonLabels = seasons.map { season ->
-        val total = season.progressTotal
-        if (total == null) {
-            stringResource(
-                R.string.season_progress_without_total,
-                season.seasonNumber,
-                season.progressCurrent,
-            )
-        } else {
-            stringResource(
-                R.string.season_progress,
-                season.seasonNumber,
-                season.progressCurrent,
-                total,
-            )
-        }
-    }
-
-    return seasonLabels.joinToString(" | ")
 }
 
 @Composable

@@ -29,19 +29,14 @@ fun DetailScreen(
     onBack: () -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     onUpdateSessionProgress: (Long, Int) -> Unit,
-    onUpdateSessionProgressTotal: (Long, Int?) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
-    onUpdateSeasonProgress: (Long, Int) -> Unit,
-    onUpdateSeasonProgressTotal: (Long, Int?) -> Unit,
-    onDeleteSeasonProgress: (Long) -> Unit,
     onDeletePastSession: (Long) -> Unit,
-    onAddSeasonProgress: (Long, Int, Int?) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     onDeleteExternalTracking: (Long) -> Unit,
-    onUpdateMediaItemDetails: (Long, String, OwnershipType) -> Unit,
+    onUpdateMediaItemDetails: (Long, String, Int?, OwnershipType) -> Unit,
     onUpdateSessionPlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -77,10 +72,11 @@ fun DetailScreen(
                 ItemDetailsSection(
                     item = trackedMedia.item,
                     currentSession = currentSession,
-                    onSaveItemDetails = { title, ownershipType ->
+                    onSaveItemDetails = { title, progressTotal, ownershipType ->
                         onUpdateMediaItemDetails(
                             trackedMedia.item.id,
                             title,
+                            progressTotal,
                             ownershipType,
                         )
                     },
@@ -100,18 +96,12 @@ fun DetailScreen(
                 item {
                     CurrentSessionSection(
                         session = currentSession,
-                        seasons = trackedMedia.seasonsFor(currentSession),
+                        progressTotal = trackedMedia.item.progressTotal,
                         accent = accent,
                         onUpdateSessionProgress = onUpdateSessionProgress,
-                        onUpdateSessionProgressTotal = onUpdateSessionProgressTotal,
                         onUpdateSessionStatus = onUpdateSessionStatus,
                         onUpdateSessionRating = onUpdateSessionRating,
                         onUpdateSessionNotes = onUpdateSessionNotes,
-                        onUpdateSeasonProgress = onUpdateSeasonProgress,
-                        onUpdateSeasonProgressTotal = onUpdateSeasonProgressTotal,
-                        onDeleteSeasonProgress = onDeleteSeasonProgress,
-                        onAddSeasonProgress = onAddSeasonProgress,
-                        mediaType = trackedMedia.item.type,
                     )
                 }
             }
@@ -132,18 +122,13 @@ fun DetailScreen(
             items(pastSessions) { session ->
                 PastSessionSection(
                     session = session,
-                    seasons = trackedMedia.seasonsFor(session),
+                    progressTotal = trackedMedia.item.progressTotal,
                     accent = accent,
-                    mediaType = trackedMedia.item.type,
                     onUpdateSessionProgress = onUpdateSessionProgress,
-                    onUpdateSessionProgressTotal = onUpdateSessionProgressTotal,
                     onUpdateSessionStatus = onUpdateSessionStatus,
                     onUpdateSessionRating = onUpdateSessionRating,
                     onUpdateSessionNotes = onUpdateSessionNotes,
                     onUpdateSessionPlatform = onUpdateSessionPlatform,
-                    onUpdateSeasonProgress = onUpdateSeasonProgress,
-                    onUpdateSeasonProgressTotal = onUpdateSeasonProgressTotal,
-                    onDeleteSeasonProgress = onDeleteSeasonProgress,
                     onDeleteSession = { onDeletePastSession(session.id) },
                 )
             }

@@ -9,6 +9,7 @@ object SampleTrackedMedia {
                 id = 1,
                 type = MediaType.Anime,
                 title = "Fullmetal Alchemist: Brotherhood",
+                progressTotal = 64,
             ),
             sessions = listOf(
                 TrackingSession(
@@ -17,7 +18,6 @@ object SampleTrackedMedia {
                     sessionNumber = 1,
                     status = TrackingStatus.Completed,
                     progressCurrent = 64,
-                    progressTotal = 64,
                     rating = 10,
                     platform = ConsumptionPlatform("Crunchyroll", ConsumptionPlatformType.Streaming),
                     finishedAt = LocalDate.of(2024, 8, 12),
@@ -28,18 +28,8 @@ object SampleTrackedMedia {
                     sessionNumber = 2,
                     status = TrackingStatus.InProgress,
                     progressCurrent = 18,
-                    progressTotal = 64,
                     platform = ConsumptionPlatform("Crunchyroll", ConsumptionPlatformType.Streaming),
                     startedAt = LocalDate.of(2026, 5, 1),
-                ),
-            ),
-            seasonProgress = listOf(
-                SeasonProgress(
-                    id = 1,
-                    trackingSessionId = 2,
-                    seasonNumber = 1,
-                    progressCurrent = 18,
-                    progressTotal = 64,
                 ),
             ),
             externalRatings = listOf(
@@ -67,6 +57,7 @@ object SampleTrackedMedia {
                 id = 3,
                 type = MediaType.Book,
                 title = "Dune",
+                progressTotal = 688,
                 ownership = Ownership(
                     isOwned = true,
                     type = OwnershipType.Physical,
@@ -79,7 +70,6 @@ object SampleTrackedMedia {
                     sessionNumber = 1,
                     status = TrackingStatus.Completed,
                     progressCurrent = 688,
-                    progressTotal = 688,
                     rating = 9,
                     platform = ConsumptionPlatform("Physical", ConsumptionPlatformType.Physical),
                 ),
@@ -89,7 +79,6 @@ object SampleTrackedMedia {
                     sessionNumber = 2,
                     status = TrackingStatus.InProgress,
                     progressCurrent = 210,
-                    progressTotal = 688,
                     platform = ConsumptionPlatform("Kindle", ConsumptionPlatformType.Ebook),
                 ),
             ),
@@ -122,6 +111,7 @@ object SampleTrackedMedia {
                 id = 5,
                 type = MediaType.Movie,
                 title = "The Matrix",
+                progressTotal = 1,
             ),
             sessions = listOf(
                 TrackingSession(
@@ -130,7 +120,6 @@ object SampleTrackedMedia {
                     sessionNumber = 1,
                     status = TrackingStatus.Completed,
                     progressCurrent = 1,
-                    progressTotal = 1,
                     rating = 8,
                     platform = ConsumptionPlatform("Netflix", ConsumptionPlatformType.Streaming),
                 ),
@@ -140,7 +129,6 @@ object SampleTrackedMedia {
                     sessionNumber = 2,
                     status = TrackingStatus.Completed,
                     progressCurrent = 1,
-                    progressTotal = 1,
                     rating = 9,
                     platform = ConsumptionPlatform("Blu-ray", ConsumptionPlatformType.Physical),
                 ),
@@ -169,7 +157,8 @@ object SampleTrackedMedia {
             item = MediaItem(
                 id = 7,
                 type = MediaType.TvShow,
-                title = "Severance",
+                title = "Severance - Season 1",
+                progressTotal = 9,
             ),
             sessions = listOf(
                 TrackingSession(
@@ -177,26 +166,9 @@ object SampleTrackedMedia {
                     mediaItemId = 7,
                     sessionNumber = 1,
                     status = TrackingStatus.InProgress,
-                    progressCurrent = 12,
-                    progressTotal = 19,
+                    progressCurrent = 9,
                     rating = 9,
                     platform = ConsumptionPlatform("Apple TV+", ConsumptionPlatformType.Streaming),
-                ),
-            ),
-            seasonProgress = listOf(
-                SeasonProgress(
-                    id = 2,
-                    trackingSessionId = 7,
-                    seasonNumber = 1,
-                    progressCurrent = 9,
-                    progressTotal = 9,
-                ),
-                SeasonProgress(
-                    id = 3,
-                    trackingSessionId = 7,
-                    seasonNumber = 2,
-                    progressCurrent = 3,
-                    progressTotal = 10,
                 ),
             ),
             externalRatings = listOf(
@@ -230,6 +202,7 @@ object SampleTrackedMedia {
                 id = 8,
                 type = MediaType.Game,
                 title = "Elden Ring",
+                progressTotal = 95,
                 ownership = Ownership(
                     isOwned = true,
                     type = OwnershipType.Digital,
@@ -242,7 +215,6 @@ object SampleTrackedMedia {
                     sessionNumber = 1,
                     status = TrackingStatus.Completed,
                     progressCurrent = 95,
-                    progressTotal = 95,
                     rating = 10,
                     platform = ConsumptionPlatform("Steam", ConsumptionPlatformType.DigitalStore),
                 ),
@@ -252,7 +224,6 @@ object SampleTrackedMedia {
                     sessionNumber = 2,
                     status = TrackingStatus.Planned,
                     progressCurrent = 0,
-                    progressTotal = 95,
                     platform = ConsumptionPlatform("Steam", ConsumptionPlatformType.DigitalStore),
                 ),
             ),

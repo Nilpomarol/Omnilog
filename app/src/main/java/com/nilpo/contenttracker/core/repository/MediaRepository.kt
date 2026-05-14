@@ -21,27 +21,13 @@ interface MediaRepository {
 
     suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
 
-    suspend fun updateSessionProgressTotal(sessionId: Long, progressTotal: Int?)
-
     suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus)
 
     suspend fun updateSessionRating(sessionId: Long, rating: Int?)
 
     suspend fun updateSessionNotes(sessionId: Long, notes: String?)
 
-    suspend fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int)
-
-    suspend fun updateSeasonProgressTotal(seasonProgressId: Long, progressTotal: Int?)
-
-    suspend fun deleteSeasonProgress(seasonProgressId: Long)
-
     suspend fun deletePastSession(sessionId: Long)
-
-    suspend fun addSeasonProgress(
-        sessionId: Long,
-        seasonNumber: Int,
-        progressTotal: Int?,
-    )
 
     suspend fun addExternalTracking(
         mediaItemId: Long,
@@ -57,6 +43,7 @@ interface MediaRepository {
     suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
+        progressTotal: Int?,
         ownershipType: OwnershipType,
     )
 

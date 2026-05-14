@@ -20,8 +20,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
-import com.nilpo.contenttracker.core.model.MediaType
-import com.nilpo.contenttracker.core.model.SeasonProgress
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OptionSelector
@@ -29,18 +27,13 @@ import com.nilpo.contenttracker.ui.common.OptionSelector
 @Composable
 fun PastSessionSection(
     session: TrackingSession,
-    seasons: List<SeasonProgress>,
+    progressTotal: Int?,
     accent: Color,
-    mediaType: MediaType,
     onUpdateSessionProgress: (Long, Int) -> Unit,
-    onUpdateSessionProgressTotal: (Long, Int?) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
     onUpdateSessionPlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
-    onUpdateSeasonProgress: (Long, Int) -> Unit,
-    onUpdateSeasonProgressTotal: (Long, Int?) -> Unit,
-    onDeleteSeasonProgress: (Long) -> Unit,
     onDeleteSession: () -> Unit,
 ) {
     var isEditing by rememberSaveable(session.id) { mutableStateOf(false) }
@@ -48,7 +41,7 @@ fun PastSessionSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SessionDetail(
             session = session,
-            seasons = seasons,
+            progressTotal = progressTotal,
             accent = accent,
             onDelete = onDeleteSession,
             trailingContent = {
@@ -68,12 +61,6 @@ fun PastSessionSection(
                 session = session,
                 onSave = { progress ->
                     onUpdateSessionProgress(session.id, progress)
-                },
-            )
-            TotalProgressEditor(
-                session = session,
-                onSave = { total ->
-                    onUpdateSessionProgressTotal(session.id, total)
                 },
             )
             StatusSelector(
@@ -98,22 +85,6 @@ fun PastSessionSection(
                 session = session,
                 onSavePlatform = onUpdateSessionPlatform,
             )
-            if (mediaType == MediaType.Anime || mediaType == MediaType.TvShow) {
-                seasons.forEach { season ->
-                    SeasonProgressEditor(
-                        season = season,
-                        onSave = { progress ->
-                            onUpdateSeasonProgress(season.id, progress)
-                        },
-                        onSaveTotal = { total ->
-                            onUpdateSeasonProgressTotal(season.id, total)
-                        },
-                        onDelete = {
-                            onDeleteSeasonProgress(season.id)
-                        },
-                    )
-                }
-            }
         }
     }
 }

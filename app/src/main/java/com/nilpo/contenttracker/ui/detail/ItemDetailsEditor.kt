@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.ui.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -14,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
@@ -26,18 +28,20 @@ import com.nilpo.contenttracker.ui.common.OptionSelector
 fun ItemDetailsEditor(
     item: MediaItem,
     currentSession: TrackingSession?,
-    onSaveItemDetails: (String, OwnershipType) -> Unit,
+    onSaveItemDetails: (String, Int?, OwnershipType) -> Unit,
     onSavePlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
 ) {
     var title by remember { mutableStateOf(item.title) }
+    var totalText by remember { mutableStateOf(item.progressTotal?.toString().orEmpty()) }
     var selectedOwnershipType by remember { mutableStateOf(item.ownership.type) }
     var platformName by remember { mutableStateOf(currentSession?.platform?.name.orEmpty()) }
     var selectedPlatformType by remember {
         mutableStateOf(currentSession?.platform?.type ?: ConsumptionPlatformType.Other)
     }
 
-    LaunchedEffect(item.id, item.title, item.ownership.type) {
+    LaunchedEffect(item.id, item.title, item.progressTotal, item.ownership.type) {
         title = item.title
+        totalText = item.progressTotal?.toString().orEmpty()
         selectedOwnershipType = item.ownership.type
     }
 
@@ -55,6 +59,15 @@ fun ItemDetailsEditor(
             singleLine = true,
         )
 
+        OutlinedTextField(
+            value = totalText,
+            onValueChange = { value -> totalText = value.filter { it.isDigit() } },
+            label = { Text(stringResource(R.string.field_total_progress)) },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+        )
+
         OptionSelector(
             label = stringResource(R.string.field_ownership_type),
             options = OwnershipType.entries,
@@ -66,7 +79,7 @@ fun ItemDetailsEditor(
         Button(
             enabled = title.isNotBlank(),
             onClick = {
-                onSaveItemDetails(title, selectedOwnershipType)
+                onSaveItemDetails(title, totalText.toIntOrNull(), selectedOwnershipType)
             },
         ) {
             Text(text = stringResource(R.string.update_item_details))

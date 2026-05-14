@@ -8,7 +8,6 @@ data class TrackingSession(
     val sessionNumber: Int,
     val status: TrackingStatus,
     val progressCurrent: Int = 0,
-    val progressTotal: Int? = null,
     val rating: Int? = null,
     val notes: String? = null,
     val platform: ConsumptionPlatform? = null,

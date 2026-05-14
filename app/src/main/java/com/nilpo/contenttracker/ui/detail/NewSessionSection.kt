@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -16,7 +15,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
@@ -34,9 +32,6 @@ fun NewSessionSection(
     var isAdding by rememberSaveable(mediaItemId) { mutableStateOf(false) }
     var selectedStatus by rememberSaveable { mutableStateOf(TrackingStatus.Planned) }
     var progressText by rememberSaveable { mutableStateOf("0") }
-    var totalText by rememberSaveable(currentSession?.id) {
-        mutableStateOf(currentSession?.progressTotal?.toString().orEmpty())
-    }
     var platformName by rememberSaveable(currentSession?.id) {
         mutableStateOf(currentSession?.platform?.name.orEmpty())
     }
@@ -57,31 +52,15 @@ fun NewSessionSection(
                 onStatusSelected = { selectedStatus = it },
             )
 
-            Row(
+            OutlinedTextField(
+                value = progressText,
+                onValueChange = { value ->
+                    progressText = value.filter { it.isDigit() }
+                },
+                label = { Text(stringResource(R.string.field_progress)) },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedTextField(
-                    value = progressText,
-                    onValueChange = { value ->
-                        progressText = value.filter { it.isDigit() }
-                    },
-                    label = { Text(stringResource(R.string.field_progress)) },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = totalText,
-                    onValueChange = { value ->
-                        totalText = value.filter { it.isDigit() }
-                    },
-                    label = { Text(stringResource(R.string.field_total_progress)) },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                )
-            }
+                singleLine = true,
+            )
 
             OutlinedTextField(
                 value = platformName,
@@ -110,7 +89,6 @@ fun NewSessionSection(
                                 mediaItemId = mediaItemId,
                                 status = selectedStatus,
                                 progressCurrent = progressText.toIntOrNull() ?: 0,
-                                progressTotal = totalText.toIntOrNull(),
                                 platformName = platformName,
                                 platformType = selectedPlatformType,
                             ),

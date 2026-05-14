@@ -24,7 +24,6 @@ data class TrackingSessionEntity(
     val sessionNumber: Int,
     val status: String,
     val progressCurrent: Int = 0,
-    val progressTotal: Int? = null,
     val rating: Int? = null,
     val notes: String? = null,
     val platformName: String? = null,

@@ -9,6 +9,7 @@ data class MediaItemEntity(
     val id: Long = 0,
     val type: String,
     val title: String,
+    val progressTotal: Int? = null,
     val coverUrl: String? = null,
     val synopsis: String? = null,
     val externalId: String? = null,

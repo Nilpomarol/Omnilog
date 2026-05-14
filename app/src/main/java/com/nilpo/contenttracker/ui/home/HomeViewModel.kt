@@ -68,12 +68,6 @@ class HomeViewModel(
         }
     }
 
-    fun updateSessionProgressTotal(sessionId: Long, progressTotal: Int?) {
-        viewModelScope.launch {
-            mediaRepository.updateSessionProgressTotal(sessionId, progressTotal)
-        }
-    }
-
     fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
         viewModelScope.launch {
             mediaRepository.updateSessionStatus(sessionId, status)
@@ -92,41 +86,9 @@ class HomeViewModel(
         }
     }
 
-    fun updateSeasonProgress(seasonProgressId: Long, progressCurrent: Int) {
-        viewModelScope.launch {
-            mediaRepository.updateSeasonProgress(seasonProgressId, progressCurrent)
-        }
-    }
-
-    fun updateSeasonProgressTotal(seasonProgressId: Long, progressTotal: Int?) {
-        viewModelScope.launch {
-            mediaRepository.updateSeasonProgressTotal(seasonProgressId, progressTotal)
-        }
-    }
-
-    fun deleteSeasonProgress(seasonProgressId: Long) {
-        viewModelScope.launch {
-            mediaRepository.deleteSeasonProgress(seasonProgressId)
-        }
-    }
-
     fun deletePastSession(sessionId: Long) {
         viewModelScope.launch {
             mediaRepository.deletePastSession(sessionId)
-        }
-    }
-
-    fun addSeasonProgress(
-        sessionId: Long,
-        seasonNumber: Int,
-        progressTotal: Int?,
-    ) {
-        viewModelScope.launch {
-            mediaRepository.addSeasonProgress(
-                sessionId = sessionId,
-                seasonNumber = seasonNumber,
-                progressTotal = progressTotal,
-            )
         }
     }
 
@@ -164,12 +126,14 @@ class HomeViewModel(
     fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
+        progressTotal: Int?,
         ownershipType: OwnershipType,
     ) {
         viewModelScope.launch {
             mediaRepository.updateMediaItemDetails(
                 mediaItemId = mediaItemId,
                 title = title,
+                progressTotal = progressTotal,
                 ownershipType = ownershipType,
             )
         }

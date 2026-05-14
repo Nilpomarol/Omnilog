@@ -49,7 +49,7 @@ fun MediaCard(
                 style = MaterialTheme.typography.labelLarge,
             )
             Text(
-                text = sessionSummary(session),
+                text = sessionSummary(session, trackedMedia.item.progressTotal),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
                 style = MaterialTheme.typography.bodyMedium,
             )

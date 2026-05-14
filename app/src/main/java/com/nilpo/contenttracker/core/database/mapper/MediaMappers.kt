@@ -3,7 +3,6 @@ package com.nilpo.contenttracker.core.database.mapper
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
-import com.nilpo.contenttracker.core.database.entity.SeasonProgressEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.ConsumptionPlatform
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
@@ -15,7 +14,6 @@ import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.Ownership
 import com.nilpo.contenttracker.core.model.OwnershipType
-import com.nilpo.contenttracker.core.model.SeasonProgress
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import java.time.LocalDate
@@ -25,6 +23,7 @@ fun MediaItemEntity.toDomain(): MediaItem {
         id = id,
         type = enumValueOrDefault(type, MediaType.Anime),
         title = title,
+        progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,
         externalId = externalId,
@@ -41,6 +40,7 @@ fun MediaItem.toEntity(): MediaItemEntity {
         id = id,
         type = type.name,
         title = title,
+        progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,
         externalId = externalId,
@@ -57,7 +57,6 @@ fun TrackingSessionEntity.toDomain(): TrackingSession {
         sessionNumber = sessionNumber,
         status = enumValueOrDefault(status, TrackingStatus.Planned),
         progressCurrent = progressCurrent,
-        progressTotal = progressTotal,
         rating = rating,
         notes = notes,
         platform = platformName?.let { name ->
@@ -78,33 +77,12 @@ fun TrackingSession.toEntity(): TrackingSessionEntity {
         sessionNumber = sessionNumber,
         status = status.name,
         progressCurrent = progressCurrent,
-        progressTotal = progressTotal,
         rating = rating,
         notes = notes,
         platformName = platform?.name,
         platformType = platform?.type?.name,
         startedAtEpochDay = startedAt?.toEpochDay(),
         finishedAtEpochDay = finishedAt?.toEpochDay(),
-    )
-}
-
-fun SeasonProgressEntity.toDomain(): SeasonProgress {
-    return SeasonProgress(
-        id = id,
-        trackingSessionId = trackingSessionId,
-        seasonNumber = seasonNumber,
-        progressCurrent = progressCurrent,
-        progressTotal = progressTotal,
-    )
-}
-
-fun SeasonProgress.toEntity(): SeasonProgressEntity {
-    return SeasonProgressEntity(
-        id = id,
-        trackingSessionId = trackingSessionId,
-        seasonNumber = seasonNumber,
-        progressCurrent = progressCurrent,
-        progressTotal = progressTotal,
     )
 }
 

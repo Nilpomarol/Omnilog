@@ -19,26 +19,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
-import com.nilpo.contenttracker.core.model.MediaType
-import com.nilpo.contenttracker.core.model.SeasonProgress
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 
 @Composable
 fun CurrentSessionSection(
     session: TrackingSession,
-    seasons: List<SeasonProgress>,
+    progressTotal: Int?,
     accent: Color,
     onUpdateSessionProgress: (Long, Int) -> Unit,
-    onUpdateSessionProgressTotal: (Long, Int?) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
-    onUpdateSeasonProgress: (Long, Int) -> Unit,
-    onUpdateSeasonProgressTotal: (Long, Int?) -> Unit,
-    onDeleteSeasonProgress: (Long) -> Unit,
-    onAddSeasonProgress: (Long, Int, Int?) -> Unit,
-    mediaType: MediaType,
 ) {
     var isEditing by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -65,7 +57,7 @@ fun CurrentSessionSection(
 
         SessionDetail(
             session = session,
-            seasons = seasons,
+            progressTotal = progressTotal,
             accent = accent,
         )
 
@@ -74,12 +66,6 @@ fun CurrentSessionSection(
                 session = session,
                 onSave = { progress ->
                     onUpdateSessionProgress(session.id, progress)
-                },
-            )
-            TotalProgressEditor(
-                session = session,
-                onSave = { total ->
-                    onUpdateSessionProgressTotal(session.id, total)
                 },
             )
             StatusSelector(
@@ -100,28 +86,6 @@ fun CurrentSessionSection(
                     onUpdateSessionNotes(session.id, notes)
                 },
             )
-            seasons.forEach { season ->
-                SeasonProgressEditor(
-                    season = season,
-                    onSave = { progress ->
-                        onUpdateSeasonProgress(season.id, progress)
-                    },
-                    onSaveTotal = { total ->
-                        onUpdateSeasonProgressTotal(season.id, total)
-                    },
-                    onDelete = {
-                        onDeleteSeasonProgress(season.id)
-                    },
-                )
-            }
-            if (mediaType == MediaType.Anime || mediaType == MediaType.TvShow) {
-                AddSeasonEditor(
-                    existingSeasons = seasons,
-                    onAddSeason = { seasonNumber, total ->
-                        onAddSeasonProgress(session.id, seasonNumber, total)
-                    },
-                )
-            }
         }
     }
 }
