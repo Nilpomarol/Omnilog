@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.SeasonProgress
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -34,6 +35,8 @@ fun CurrentSessionSection(
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
     onUpdateSeasonProgress: (Long, Int) -> Unit,
+    onAddSeasonProgress: (Long, Int, Int?) -> Unit,
+    mediaType: MediaType,
 ) {
     var isEditing by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -100,6 +103,14 @@ fun CurrentSessionSection(
                     season = season,
                     onSave = { progress ->
                         onUpdateSeasonProgress(season.id, progress)
+                    },
+                )
+            }
+            if (mediaType == MediaType.Anime || mediaType == MediaType.TvShow) {
+                AddSeasonEditor(
+                    existingSeasons = seasons,
+                    onAddSeason = { seasonNumber, total ->
+                        onAddSeasonProgress(session.id, seasonNumber, total)
                     },
                 )
             }

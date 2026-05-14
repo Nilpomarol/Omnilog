@@ -97,6 +97,20 @@ class HomeViewModel(
         }
     }
 
+    fun addSeasonProgress(
+        sessionId: Long,
+        seasonNumber: Int,
+        progressTotal: Int?,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.addSeasonProgress(
+                sessionId = sessionId,
+                seasonNumber = seasonNumber,
+                progressTotal = progressTotal,
+            )
+        }
+    }
+
     fun addExternalTracking(
         mediaItemId: Long,
         source: ExternalTrackingSource,

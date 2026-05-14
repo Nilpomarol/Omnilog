@@ -219,6 +219,30 @@ class OfflineMediaRepository(
         )
     }
 
+    override suspend fun addSeasonProgress(
+        sessionId: Long,
+        seasonNumber: Int,
+        progressTotal: Int?,
+    ) {
+        if (seasonNumber <= 0) {
+            return
+        }
+
+        val existingSeasons = mediaDao.getSeasonProgressForSession(sessionId)
+        if (existingSeasons.any { it.seasonNumber == seasonNumber }) {
+            return
+        }
+
+        mediaDao.insertSeasonProgress(
+            SeasonProgressEntity(
+                trackingSessionId = sessionId,
+                seasonNumber = seasonNumber,
+                progressCurrent = 0,
+                progressTotal = progressTotal?.coerceAtLeast(0),
+            ),
+        )
+    }
+
     override suspend fun addExternalTracking(
         mediaItemId: Long,
         source: ExternalTrackingSource,

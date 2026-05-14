@@ -80,6 +80,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateSessionRating = viewModel::updateSessionRating,
                 onUpdateSessionNotes = viewModel::updateSessionNotes,
                 onUpdateSeasonProgress = viewModel::updateSeasonProgress,
+                onAddSeasonProgress = viewModel::addSeasonProgress,
                 onAddExternalTracking = viewModel::addExternalTracking,
                 onUpdateExternalTrackingSynced = viewModel::updateExternalTrackingSynced,
                 onDeleteExternalTracking = viewModel::deleteExternalTracking,
