@@ -29,6 +29,8 @@ interface MediaRepository {
 
     suspend fun deletePastSession(sessionId: Long)
 
+    suspend fun deleteMediaItem(mediaItemId: Long)
+
     suspend fun addExternalTracking(
         mediaItemId: Long,
         source: ExternalTrackingSource,

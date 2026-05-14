@@ -1,15 +1,22 @@
 package com.nilpo.contenttracker.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -38,12 +45,14 @@ fun DetailScreen(
     onDeleteExternalTracking: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Int?, OwnershipType) -> Unit,
     onUpdateSessionPlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
+    onDeleteMediaItem: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
     val pastSessions = trackedMedia.sessions
         .filter { session -> session.id != currentSession?.id }
         .sortedBy { it.sessionNumber }
+    var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
 
     Surface(
         modifier = modifier,
@@ -56,8 +65,13 @@ fun DetailScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
-                Button(onClick = onBack) {
-                    Text(text = stringResource(R.string.back))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = onBack) {
+                        Text(text = stringResource(R.string.back))
+                    }
+                    TextButton(onClick = { showDeleteConfirmation = true }) {
+                        Text(text = stringResource(R.string.delete))
+                    }
                 }
             }
 
@@ -170,5 +184,29 @@ fun DetailScreen(
                 )
             }
         }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text(text = stringResource(R.string.delete_media_title)) },
+            text = { Text(text = stringResource(R.string.delete_media_message, trackedMedia.item.title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteMediaItem(trackedMedia.item.id)
+                        showDeleteConfirmation = false
+                        onBack()
+                    },
+                ) {
+                    Text(text = stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }

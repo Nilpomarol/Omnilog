@@ -95,6 +95,8 @@
     <string name="update_notes">Actualitza notes</string>
     <string name="delete_session_title">Elimina sessio</string>
     <string name="delete_session_message">Vols eliminar la sessio #%1$d?</string>
+    <string name="delete_media_title">Elimina element</string>
+    <string name="delete_media_message">Vols eliminar %1$s? Tambe s\'eliminaran les seves sessions i seguiments externs.</string>
     <string name="update_item_details">Actualitza dades</string>
     <string name="update_platform">Actualitza plataforma</string>
     <string name="synced_yes">Actualitzat</string>

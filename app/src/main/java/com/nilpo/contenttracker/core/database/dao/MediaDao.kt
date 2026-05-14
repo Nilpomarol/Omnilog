@@ -123,4 +123,7 @@ interface MediaDao {
 
     @Query("DELETE FROM tracking_sessions WHERE id = :sessionId")
     suspend fun deleteTrackingSession(sessionId: Long)
+
+    @Query("DELETE FROM media_items WHERE id = :mediaItemId")
+    suspend fun deleteMediaItem(mediaItemId: Long)
 }

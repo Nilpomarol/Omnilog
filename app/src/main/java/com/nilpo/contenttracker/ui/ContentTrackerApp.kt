@@ -118,6 +118,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onDeleteExternalTracking = viewModel::deleteExternalTracking,
                 onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
                 onUpdateSessionPlatform = viewModel::updateSessionPlatform,
+                onDeleteMediaItem = { mediaItemId ->
+                    viewModel.deleteMediaItem(mediaItemId)
+                    selectedMediaId = null
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

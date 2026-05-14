@@ -121,6 +121,12 @@ class HomeViewModel(
         }
     }
 
+    fun deleteMediaItem(mediaItemId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteMediaItem(mediaItemId)
+        }
+    }
+
     fun addExternalTracking(
         mediaItemId: Long,
         source: ExternalTrackingSource,

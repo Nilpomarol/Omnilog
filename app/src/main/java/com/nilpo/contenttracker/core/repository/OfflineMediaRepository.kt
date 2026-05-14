@@ -169,6 +169,14 @@ class OfflineMediaRepository(
         mediaDao.deleteTrackingSession(sessionId)
     }
 
+    override suspend fun deleteMediaItem(mediaItemId: Long) {
+        if (mediaDao.getMediaItem(mediaItemId) == null) {
+            return
+        }
+
+        mediaDao.deleteMediaItem(mediaItemId)
+    }
+
     override suspend fun addExternalTracking(
         mediaItemId: Long,
         source: ExternalTrackingSource,
