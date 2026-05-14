@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OptionSelector
@@ -24,6 +26,7 @@ import com.nilpo.contenttracker.ui.common.OptionSelector
 fun HomeScreen(
     uiState: HomeUiState,
     onMediaClick: (TrackedMedia) -> Unit,
+    onCollectionClick: (MediaCollection) -> Unit,
     onAddClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
@@ -80,6 +83,7 @@ fun HomeScreen(
                         CollectionHeader(
                             title = collection?.name.orEmpty(),
                             count = items.size,
+                            onClick = collection?.let { { onCollectionClick(it) } },
                         )
                     }
                     items(items.sortedBy { it.item.title }) { trackedMedia ->
@@ -96,6 +100,7 @@ fun HomeScreen(
                         CollectionHeader(
                             title = stringResource(R.string.collection_none),
                             count = ungroupedItems.size,
+                            onClick = null,
                         )
                     }
                     items(ungroupedItems.sortedBy { it.item.title }) { trackedMedia ->
@@ -180,9 +185,18 @@ private fun HomeSortMode.label(): String {
 private fun CollectionHeader(
     title: String,
     count: Int,
+    onClick: (() -> Unit)?,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick == null) {
+                    Modifier
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                },
+            ),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(

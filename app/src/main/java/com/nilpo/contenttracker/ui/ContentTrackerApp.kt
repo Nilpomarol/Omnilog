@@ -16,6 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.detail.DetailScreen
+import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
@@ -24,8 +25,14 @@ import com.nilpo.contenttracker.ui.home.MediaSection
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
+    var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
+    val selectedCollection = uiState.trackedItems
+        .mapNotNull { it.collection }
+        .firstOrNull { it.id == selectedCollectionId }
+    val selectedCollectionItems = uiState.trackedItems
+        .filter { it.collection?.id == selectedCollectionId }
 
     Scaffold(
         bottomBar = {
@@ -36,6 +43,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         selected = uiState.selectedSection == section,
                         onClick = {
                             selectedMediaId = null
+                            selectedCollectionId = null
                             isAdding = false
                             viewModel.selectSection(section)
                         },
@@ -54,7 +62,21 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     viewModel.addTrackedMedia(request)
                     isAdding = false
                 },
-                onCancel = { isAdding = false },
+                onCancel = {
+                    isAdding = false
+                    selectedCollectionId = null
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        } else if (selectedCollection != null && selectedMedia == null) {
+            CollectionDetailScreen(
+                collection = selectedCollection,
+                items = selectedCollectionItems,
+                accent = uiState.selectedSection.accent,
+                onBack = { selectedCollectionId = null },
+                onMediaClick = { selectedMediaId = it.item.id },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -63,7 +85,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             HomeScreen(
                 uiState = uiState,
                 onMediaClick = { selectedMediaId = it.item.id },
-                onAddClick = { isAdding = true },
+                onCollectionClick = {
+                    selectedCollectionId = it.id
+                    isAdding = false
+                },
+                onAddClick = {
+                    isAdding = true
+                    selectedCollectionId = null
+                },
                 onSearchQueryChange = viewModel::updateSearchQuery,
                 onStatusFilterChange = viewModel::updateStatusFilter,
                 onSortModeChange = viewModel::updateSortMode,
