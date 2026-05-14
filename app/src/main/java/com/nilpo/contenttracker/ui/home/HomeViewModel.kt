@@ -152,6 +152,18 @@ class HomeViewModel(
         }
     }
 
+    fun updateMediaCollectionName(collectionId: Long, name: String) {
+        viewModelScope.launch {
+            mediaRepository.updateMediaCollectionName(collectionId, name)
+        }
+    }
+
+    fun deleteMediaCollection(collectionId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteMediaCollection(collectionId)
+        }
+    }
+
     fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,

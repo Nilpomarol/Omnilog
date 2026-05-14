@@ -40,6 +40,10 @@ interface MediaRepository {
 
     suspend fun deleteExternalTracking(externalTrackingId: Long)
 
+    suspend fun updateMediaCollectionName(collectionId: Long, name: String)
+
+    suspend fun deleteMediaCollection(collectionId: Long)
+
     suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,

@@ -43,6 +43,12 @@ interface MediaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaCollection(collection: MediaCollectionEntity): Long
 
+    @Query("UPDATE media_collections SET name = :name WHERE id = :collectionId")
+    suspend fun updateMediaCollectionName(collectionId: Long, name: String)
+
+    @Query("DELETE FROM media_collections WHERE id = :collectionId")
+    suspend fun deleteMediaCollection(collectionId: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaItem(item: MediaItemEntity): Long
 

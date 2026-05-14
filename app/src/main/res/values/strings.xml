@@ -58,6 +58,8 @@
     <string name="collection_none">Sense colleccio</string>
     <string name="clear_collection">Treu colleccio</string>
     <string name="collection_item_count">%1$d elements</string>
+    <string name="delete_collection_title">Elimina colleccio</string>
+    <string name="delete_collection_message">Vols eliminar la colleccio %1$s? Els elements no s\'eliminaran.</string>
     <string name="search_label">Cerca</string>
     <string name="filter_status">Filtra per estat</string>
     <string name="filter_all_statuses">Tots els estats</string>

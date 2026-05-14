@@ -77,6 +77,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 accent = uiState.selectedSection.accent,
                 onBack = { selectedCollectionId = null },
                 onMediaClick = { selectedMediaId = it.item.id },
+                onRenameCollection = viewModel::updateMediaCollectionName,
+                onDeleteCollection = viewModel::deleteMediaCollection,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

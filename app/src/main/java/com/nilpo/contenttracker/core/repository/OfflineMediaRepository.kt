@@ -197,6 +197,23 @@ class OfflineMediaRepository(
         mediaDao.deleteExternalTracking(externalTrackingId)
     }
 
+    override suspend fun updateMediaCollectionName(collectionId: Long, name: String) {
+        val validName = name.trim().takeIf { it.isNotBlank() } ?: return
+        if (mediaDao.getMediaCollection(collectionId) == null) {
+            return
+        }
+
+        mediaDao.updateMediaCollectionName(collectionId, validName)
+    }
+
+    override suspend fun deleteMediaCollection(collectionId: Long) {
+        if (mediaDao.getMediaCollection(collectionId) == null) {
+            return
+        }
+
+        mediaDao.deleteMediaCollection(collectionId)
+    }
+
     override suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
