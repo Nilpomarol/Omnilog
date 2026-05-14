@@ -36,6 +36,7 @@ fun DetailScreen(
     onUpdateSeasonProgress: (Long, Int) -> Unit,
     onUpdateSeasonProgressTotal: (Long, Int?) -> Unit,
     onDeleteSeasonProgress: (Long) -> Unit,
+    onDeletePastSession: (Long) -> Unit,
     onAddSeasonProgress: (Long, Int, Int?) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
@@ -45,6 +46,9 @@ fun DetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
+    val pastSessions = trackedMedia.sessions
+        .filter { session -> session.id != currentSession?.id }
+        .sortedBy { it.sessionNumber }
 
     Surface(
         modifier = modifier,
@@ -116,11 +120,21 @@ fun DetailScreen(
                 DetailSectionTitle(text = stringResource(R.string.detail_history))
             }
 
-            items(trackedMedia.sessions.sortedBy { it.sessionNumber }) { session ->
+            if (pastSessions.isEmpty()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.history_empty),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.68f),
+                    )
+                }
+            }
+
+            items(pastSessions) { session ->
                 SessionDetail(
                     session = session,
                     seasons = trackedMedia.seasonsFor(session),
                     accent = accent,
+                    onDelete = { onDeletePastSession(session.id) },
                 )
             }
 

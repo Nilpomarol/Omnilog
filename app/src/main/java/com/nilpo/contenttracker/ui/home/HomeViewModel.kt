@@ -110,6 +110,12 @@ class HomeViewModel(
         }
     }
 
+    fun deletePastSession(sessionId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deletePastSession(sessionId)
+        }
+    }
+
     fun addSeasonProgress(
         sessionId: Long,
         seasonNumber: Int,

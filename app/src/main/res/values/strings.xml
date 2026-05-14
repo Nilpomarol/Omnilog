@@ -38,6 +38,7 @@
     <string name="detail_current_session">Sessió actual</string>
     <string name="detail_item_details">Dades de l\'element</string>
     <string name="detail_history">Historial</string>
+    <string name="history_empty">Encara no hi ha sessions anteriors.</string>
     <string name="detail_external_scores">Notes externes</string>
     <string name="detail_external_tracking">Seguiment extern</string>
     <string name="start_new_session">Comença una nova sessió</string>
@@ -87,6 +88,8 @@
     <string name="delete_season">Elimina</string>
     <string name="delete_season_title">Elimina temporada</string>
     <string name="delete_season_message">Vols eliminar la temporada %1$d?</string>
+    <string name="delete_session_title">Elimina sessio</string>
+    <string name="delete_session_message">Vols eliminar la sessio #%1$d?</string>
     <string name="season_title">Temporada %1$d</string>
     <string name="season_duplicate_error">Aquesta temporada ja existeix</string>
     <string name="update_item_details">Actualitza dades</string>

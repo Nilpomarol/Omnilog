@@ -169,4 +169,7 @@ interface MediaDao {
 
     @Query("DELETE FROM season_progress WHERE id = :seasonProgressId")
     suspend fun deleteSeasonProgress(seasonProgressId: Long)
+
+    @Query("DELETE FROM tracking_sessions WHERE id = :sessionId")
+    suspend fun deleteTrackingSession(sessionId: Long)
 }
