@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.database.dao.MediaDao
+import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
@@ -18,6 +19,8 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import org.json.JSONArray
+import org.json.JSONObject
 
 class OfflineMediaRepository(
     private val mediaDao: MediaDao,
@@ -60,6 +63,33 @@ class OfflineMediaRepository(
                 mediaDao.insertExternalTracking(tracking.toEntity())
             }
         }
+    }
+
+    override suspend fun exportBackupJson(): String {
+        return JSONObject()
+            .put("schemaVersion", 1)
+            .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
+            .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
+            .put("trackingSessions", JSONArray(mediaDao.getAllTrackingSessions().map { it.toJson() }))
+            .put("externalRatings", JSONArray(mediaDao.getExternalRatings().map { it.toJson() }))
+            .put("externalTracking", JSONArray(mediaDao.getExternalTracking().map { it.toJson() }))
+            .toString(2)
+    }
+
+    override suspend fun importBackupJson(json: String) {
+        val root = JSONObject(json)
+        val schemaVersion = root.optInt("schemaVersion", -1)
+        if (schemaVersion != 1) {
+            return
+        }
+
+        mediaDao.replaceAllData(
+            collections = root.getJSONArray("collections").mapObjects { it.toMediaCollectionEntity() },
+            mediaItems = root.getJSONArray("mediaItems").mapObjects { it.toMediaItemEntity() },
+            sessions = root.getJSONArray("trackingSessions").mapObjects { it.toTrackingSessionEntity() },
+            externalRatings = root.getJSONArray("externalRatings").mapObjects { it.toExternalRatingEntity() },
+            externalTracking = root.getJSONArray("externalTracking").mapObjects { it.toExternalTrackingEntity() },
+        )
     }
 
     override suspend fun startNewSession(request: AddTrackingSessionRequest) {
@@ -268,4 +298,141 @@ class OfflineMediaRepository(
             platformType = validPlatformName?.let { platformType.name },
         )
     }
+}
+
+private fun MediaCollectionEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("name", name)
+}
+
+private fun MediaItemEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("type", type)
+        .put("title", title)
+        .putNullable("collectionId", collectionId)
+        .putNullable("progressTotal", progressTotal)
+        .putNullable("coverUrl", coverUrl)
+        .putNullable("synopsis", synopsis)
+        .putNullable("externalId", externalId)
+        .putNullable("sourceApi", sourceApi)
+        .put("isOwned", isOwned)
+        .put("ownershipType", ownershipType)
+}
+
+private fun TrackingSessionEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("mediaItemId", mediaItemId)
+        .put("sessionNumber", sessionNumber)
+        .put("status", status)
+        .put("progressCurrent", progressCurrent)
+        .putNullable("rating", rating)
+        .putNullable("notes", notes)
+        .putNullable("platformName", platformName)
+        .putNullable("platformType", platformType)
+        .putNullable("startedAtEpochDay", startedAtEpochDay)
+        .putNullable("finishedAtEpochDay", finishedAtEpochDay)
+}
+
+private fun ExternalRatingEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("mediaItemId", mediaItemId)
+        .put("source", source)
+        .put("score", score)
+        .put("maxScore", maxScore)
+        .putNullable("voteCount", voteCount)
+}
+
+private fun ExternalTrackingEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("mediaItemId", mediaItemId)
+        .put("source", source)
+        .putNullable("externalItemId", externalItemId)
+        .putNullable("url", url)
+        .put("isSynced", isSynced)
+}
+
+private fun JSONObject.toMediaCollectionEntity(): MediaCollectionEntity {
+    return MediaCollectionEntity(
+        id = getLong("id"),
+        name = getString("name"),
+    )
+}
+
+private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
+    return MediaItemEntity(
+        id = getLong("id"),
+        type = getString("type"),
+        title = getString("title"),
+        collectionId = optNullableLong("collectionId"),
+        progressTotal = optNullableInt("progressTotal"),
+        coverUrl = optNullableString("coverUrl"),
+        synopsis = optNullableString("synopsis"),
+        externalId = optNullableString("externalId"),
+        sourceApi = optNullableString("sourceApi"),
+        isOwned = optBoolean("isOwned", false),
+        ownershipType = optString("ownershipType", "None"),
+    )
+}
+
+private fun JSONObject.toTrackingSessionEntity(): TrackingSessionEntity {
+    return TrackingSessionEntity(
+        id = getLong("id"),
+        mediaItemId = getLong("mediaItemId"),
+        sessionNumber = getInt("sessionNumber"),
+        status = getString("status"),
+        progressCurrent = optInt("progressCurrent", 0),
+        rating = optNullableInt("rating"),
+        notes = optNullableString("notes"),
+        platformName = optNullableString("platformName"),
+        platformType = optNullableString("platformType"),
+        startedAtEpochDay = optNullableLong("startedAtEpochDay"),
+        finishedAtEpochDay = optNullableLong("finishedAtEpochDay"),
+    )
+}
+
+private fun JSONObject.toExternalRatingEntity(): ExternalRatingEntity {
+    return ExternalRatingEntity(
+        id = getLong("id"),
+        mediaItemId = getLong("mediaItemId"),
+        source = getString("source"),
+        score = getDouble("score"),
+        maxScore = getDouble("maxScore"),
+        voteCount = optNullableInt("voteCount"),
+    )
+}
+
+private fun JSONObject.toExternalTrackingEntity(): ExternalTrackingEntity {
+    return ExternalTrackingEntity(
+        id = getLong("id"),
+        mediaItemId = getLong("mediaItemId"),
+        source = getString("source"),
+        externalItemId = optNullableString("externalItemId"),
+        url = optNullableString("url"),
+        isSynced = optBoolean("isSynced", false),
+    )
+}
+
+private fun JSONObject.putNullable(name: String, value: Any?): JSONObject {
+    return put(name, value ?: JSONObject.NULL)
+}
+
+private fun JSONObject.optNullableString(name: String): String? {
+    return if (isNull(name)) null else optString(name)
+}
+
+private fun JSONObject.optNullableInt(name: String): Int? {
+    return if (isNull(name)) null else optInt(name)
+}
+
+private fun JSONObject.optNullableLong(name: String): Long? {
+    return if (isNull(name)) null else optLong(name)
+}
+
+private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {
+    return List(length()) { index -> transform(getJSONObject(index)) }
 }

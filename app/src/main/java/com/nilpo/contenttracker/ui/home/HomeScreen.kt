@@ -3,15 +3,18 @@ package com.nilpo.contenttracker.ui.home
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -31,6 +34,8 @@ fun HomeScreen(
     onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
@@ -66,6 +71,8 @@ fun HomeScreen(
                     onSearchQueryChange = onSearchQueryChange,
                     onStatusFilterChange = onStatusFilterChange,
                     onSortModeChange = onSortModeChange,
+                    onExportBackup = onExportBackup,
+                    onImportBackup = onImportBackup,
                 )
             }
 
@@ -132,6 +139,8 @@ private fun BrowseControls(
     onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
@@ -159,6 +168,15 @@ private fun BrowseControls(
             optionLabel = { sort -> sort.label() },
             onOptionSelected = onSortModeChange,
         )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onExportBackup) {
+                Text(text = stringResource(R.string.export_backup))
+            }
+            TextButton(onClick = onImportBackup) {
+                Text(text = stringResource(R.string.import_backup))
+            }
+        }
     }
 }
 

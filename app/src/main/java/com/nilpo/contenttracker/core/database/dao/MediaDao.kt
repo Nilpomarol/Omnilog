@@ -31,11 +31,23 @@ interface MediaDao {
     @Query("SELECT * FROM media_items WHERE id = :mediaItemId LIMIT 1")
     suspend fun getMediaItem(mediaItemId: Long): MediaItemEntity?
 
+    @Query("SELECT * FROM media_items ORDER BY id")
+    suspend fun getMediaItems(): List<MediaItemEntity>
+
     @Query("SELECT * FROM media_collections ORDER BY name")
     fun observeMediaCollections(): Flow<List<MediaCollectionEntity>>
 
     @Query("SELECT * FROM media_collections ORDER BY name")
     suspend fun getMediaCollections(): List<MediaCollectionEntity>
+
+    @Query("SELECT * FROM tracking_sessions ORDER BY id")
+    suspend fun getAllTrackingSessions(): List<TrackingSessionEntity>
+
+    @Query("SELECT * FROM external_ratings ORDER BY id")
+    suspend fun getExternalRatings(): List<ExternalRatingEntity>
+
+    @Query("SELECT * FROM external_tracking ORDER BY id")
+    suspend fun getExternalTracking(): List<ExternalTrackingEntity>
 
     @Query("SELECT * FROM media_collections WHERE id = :collectionId LIMIT 1")
     suspend fun getMediaCollection(collectionId: Long): MediaCollectionEntity?
@@ -126,4 +138,40 @@ interface MediaDao {
 
     @Query("DELETE FROM media_items WHERE id = :mediaItemId")
     suspend fun deleteMediaItem(mediaItemId: Long)
+
+    @Query("DELETE FROM external_tracking")
+    suspend fun deleteAllExternalTracking()
+
+    @Query("DELETE FROM external_ratings")
+    suspend fun deleteAllExternalRatings()
+
+    @Query("DELETE FROM tracking_sessions")
+    suspend fun deleteAllTrackingSessions()
+
+    @Query("DELETE FROM media_items")
+    suspend fun deleteAllMediaItems()
+
+    @Query("DELETE FROM media_collections")
+    suspend fun deleteAllMediaCollections()
+
+    @Transaction
+    suspend fun replaceAllData(
+        collections: List<MediaCollectionEntity>,
+        mediaItems: List<MediaItemEntity>,
+        sessions: List<TrackingSessionEntity>,
+        externalRatings: List<ExternalRatingEntity>,
+        externalTracking: List<ExternalTrackingEntity>,
+    ) {
+        deleteAllExternalTracking()
+        deleteAllExternalRatings()
+        deleteAllTrackingSessions()
+        deleteAllMediaItems()
+        deleteAllMediaCollections()
+
+        collections.forEach { insertMediaCollection(it) }
+        mediaItems.forEach { insertMediaItem(it) }
+        sessions.forEach { insertTrackingSession(it) }
+        externalRatings.forEach { insertExternalRating(it) }
+        externalTracking.forEach { insertExternalTracking(it) }
+    }
 }

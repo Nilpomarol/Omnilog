@@ -1,31 +1,46 @@
 package com.nilpo.contenttracker.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
 
 @Composable
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
+    var pendingImportJson by remember { mutableStateOf<String?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
     val selectedCollection = uiState.trackedItems
@@ -33,6 +48,33 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         .firstOrNull { it.id == selectedCollectionId }
     val selectedCollectionItems = uiState.trackedItems
         .filter { it.collection?.id == selectedCollectionId }
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val backupJson = viewModel.exportBackupJson()
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(backupJson.toByteArray(Charsets.UTF_8))
+                    }
+                }
+            }
+        }
+    }
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                pendingImportJson = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.readBytes().toString(Charsets.UTF_8)
+                    }
+                }
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -98,6 +140,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onSearchQueryChange = viewModel::updateSearchQuery,
                 onStatusFilterChange = viewModel::updateStatusFilter,
                 onSortModeChange = viewModel::updateSortMode,
+                onExportBackup = {
+                    exportBackupLauncher.launch("content-tracker-backup-${LocalDate.now()}.json")
+                },
+                onImportBackup = {
+                    importBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -127,5 +175,31 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     .padding(innerPadding),
             )
         }
+    }
+
+    pendingImportJson?.let { backupJson ->
+        AlertDialog(
+            onDismissRequest = { pendingImportJson = null },
+            title = { Text(text = stringResource(R.string.import_backup_title)) },
+            text = { Text(text = stringResource(R.string.import_backup_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.importBackupJson(backupJson)
+                        selectedMediaId = null
+                        selectedCollectionId = null
+                        isAdding = false
+                        pendingImportJson = null
+                    },
+                ) {
+                    Text(text = stringResource(R.string.import_backup_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImportJson = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }

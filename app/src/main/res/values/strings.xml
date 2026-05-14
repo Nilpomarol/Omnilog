@@ -66,6 +66,11 @@
     <string name="sort_label">Ordena</string>
     <string name="sort_title">Titol</string>
     <string name="sort_collection">Colleccio</string>
+    <string name="export_backup">Exporta copia</string>
+    <string name="import_backup">Importa copia</string>
+    <string name="import_backup_title">Importa copia</string>
+    <string name="import_backup_message">Aixo substituira totes les dades locals actuals per les de la copia.</string>
+    <string name="import_backup_confirm">Importa</string>
     <string name="media_type_anime">Anime</string>
     <string name="media_type_book">Llibre</string>
     <string name="media_type_movie">Pellicula</string>

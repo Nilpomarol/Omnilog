@@ -63,6 +63,16 @@ class HomeViewModel(
         }
     }
 
+    suspend fun exportBackupJson(): String {
+        return mediaRepository.exportBackupJson()
+    }
+
+    fun importBackupJson(json: String) {
+        viewModelScope.launch {
+            mediaRepository.importBackupJson(json)
+        }
+    }
+
     fun selectSection(section: MediaSection) {
         selectedSection.value = section
     }

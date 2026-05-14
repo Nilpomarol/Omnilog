@@ -15,6 +15,10 @@ interface MediaRepository {
 
     suspend fun seedSampleDataIfEmpty()
 
+    suspend fun exportBackupJson(): String
+
+    suspend fun importBackupJson(json: String)
+
     suspend fun startNewSession(request: AddTrackingSessionRequest)
 
     suspend fun addTrackedMedia(request: AddTrackedMediaRequest)
