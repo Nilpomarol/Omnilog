@@ -40,10 +40,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
-    val groupedItems = uiState.trackedItems
-        .filter { it.collection != null }
-        .groupBy { it.collection }
-    val ungroupedItems = uiState.trackedItems.filter { it.collection == null }
+    val groupedItems = uiState.trackedItems.groupBy { it.collection }
     val showCollectionGroups = uiState.sortMode == HomeSortMode.Collection && groupedItems.isNotEmpty()
 
     Surface(
@@ -90,7 +87,7 @@ fun HomeScreen(
                 groupedItems.forEach { (collection, items) ->
                     item {
                         CollectionHeader(
-                            title = collection?.name.orEmpty(),
+                            title = collection?.name ?: stringResource(R.string.collection_none),
                             count = items.size,
                             onClick = collection?.let { { onCollectionClick(it) } },
                         )
@@ -104,22 +101,6 @@ fun HomeScreen(
                     }
                 }
 
-                if (ungroupedItems.isNotEmpty()) {
-                    item {
-                        CollectionHeader(
-                            title = stringResource(R.string.collection_none),
-                            count = ungroupedItems.size,
-                            onClick = null,
-                        )
-                    }
-                    items(ungroupedItems) { trackedMedia ->
-                        MediaCard(
-                            trackedMedia = trackedMedia,
-                            accent = section.accent,
-                            onClick = { onMediaClick(trackedMedia) },
-                        )
-                    }
-                }
             } else {
                 items(uiState.trackedItems) { trackedMedia ->
                     MediaCard(
@@ -210,6 +191,7 @@ private fun HomeSortMode.label(): String {
         HomeSortMode.Collection -> stringResource(R.string.sort_collection)
         HomeSortMode.Progress -> stringResource(R.string.sort_progress)
         HomeSortMode.Rating -> stringResource(R.string.sort_rating)
+        HomeSortMode.Recent -> stringResource(R.string.sort_recent)
     }
 }
 

@@ -104,6 +104,7 @@ class OfflineMediaRepository(
         val latestSession = sessions.maxByOrNull { it.sessionNumber }
         val mediaItem = mediaDao.getMediaItem(request.mediaItemId) ?: return
         val newSessionNumber = (latestSession?.sessionNumber ?: 0) + 1
+        val updatedAtEpochMillis = System.currentTimeMillis()
         val validProgress = mediaItem.progressTotal?.let { maxProgress ->
             request.progressCurrent.coerceIn(0, maxProgress)
         } ?: request.progressCurrent.coerceAtLeast(0)
@@ -117,6 +118,7 @@ class OfflineMediaRepository(
                 progressCurrent = validProgress,
                 platformName = validPlatformName,
                 platformType = validPlatformName?.let { request.platformType.name },
+                updatedAtEpochMillis = updatedAtEpochMillis,
             )
         } else {
             latestSession.copy(
@@ -130,6 +132,7 @@ class OfflineMediaRepository(
                 platformType = validPlatformName?.let { request.platformType.name },
                 startedAtEpochDay = null,
                 finishedAtEpochDay = null,
+                updatedAtEpochMillis = updatedAtEpochMillis,
             )
         }
 
@@ -155,6 +158,7 @@ class OfflineMediaRepository(
                 progressCurrent = 0,
                 platformName = request.platformName?.trim()?.takeIf { it.isNotBlank() },
                 platformType = request.platformType.name,
+                updatedAtEpochMillis = System.currentTimeMillis(),
             ),
         )
     }
@@ -169,6 +173,7 @@ class OfflineMediaRepository(
         mediaDao.updateSessionProgress(
             sessionId = sessionId,
             progressCurrent = validProgress,
+            updatedAtEpochMillis = System.currentTimeMillis(),
         )
     }
 
@@ -176,6 +181,7 @@ class OfflineMediaRepository(
         mediaDao.updateSessionStatus(
             sessionId = sessionId,
             status = status.name,
+            updatedAtEpochMillis = System.currentTimeMillis(),
         )
     }
 
@@ -184,6 +190,7 @@ class OfflineMediaRepository(
         mediaDao.updateSessionRating(
             sessionId = sessionId,
             rating = validRating,
+            updatedAtEpochMillis = System.currentTimeMillis(),
         )
     }
 
@@ -191,6 +198,7 @@ class OfflineMediaRepository(
         mediaDao.updateSessionNotes(
             sessionId = sessionId,
             notes = notes?.trim()?.takeIf { it.isNotBlank() },
+            updatedAtEpochMillis = System.currentTimeMillis(),
         )
     }
 
@@ -288,7 +296,11 @@ class OfflineMediaRepository(
         )
 
         validTotal?.let { total ->
-            mediaDao.clampSessionsToMediaTotal(mediaItemId, total)
+            mediaDao.clampSessionsToMediaTotal(
+                mediaItemId = mediaItemId,
+                progressTotal = total,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
         }
     }
 
@@ -303,6 +315,7 @@ class OfflineMediaRepository(
             sessionId = sessionId,
             platformName = validPlatformName,
             platformType = validPlatformName?.let { platformType.name },
+            updatedAtEpochMillis = System.currentTimeMillis(),
         )
     }
 }
@@ -351,6 +364,7 @@ private fun TrackingSessionEntity.toJson(): JSONObject {
         .putNullable("platformType", platformType)
         .putNullable("startedAtEpochDay", startedAtEpochDay)
         .putNullable("finishedAtEpochDay", finishedAtEpochDay)
+        .put("updatedAtEpochMillis", updatedAtEpochMillis)
 }
 
 private fun ExternalRatingEntity.toJson(): JSONObject {
@@ -409,6 +423,7 @@ private fun JSONObject.toTrackingSessionEntity(): TrackingSessionEntity {
         platformType = optNullableString("platformType"),
         startedAtEpochDay = optNullableLong("startedAtEpochDay"),
         finishedAtEpochDay = optNullableLong("finishedAtEpochDay"),
+        updatedAtEpochMillis = optLong("updatedAtEpochMillis", 0),
     )
 }
 

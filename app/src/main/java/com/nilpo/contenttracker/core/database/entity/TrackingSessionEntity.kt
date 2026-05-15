@@ -30,4 +30,5 @@ data class TrackingSessionEntity(
     val platformType: String? = null,
     val startedAtEpochDay: Long? = null,
     val finishedAtEpochDay: Long? = null,
+    val updatedAtEpochMillis: Long = System.currentTimeMillis(),
 )

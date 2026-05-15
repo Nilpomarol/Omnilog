@@ -85,6 +85,7 @@ fun TrackingSessionEntity.toDomain(): TrackingSession {
         },
         startedAt = startedAtEpochDay?.let(LocalDate::ofEpochDay),
         finishedAt = finishedAtEpochDay?.let(LocalDate::ofEpochDay),
+        updatedAtEpochMillis = updatedAtEpochMillis,
     )
 }
 
@@ -101,6 +102,7 @@ fun TrackingSession.toEntity(): TrackingSessionEntity {
         platformType = platform?.type?.name,
         startedAtEpochDay = startedAt?.toEpochDay(),
         finishedAtEpochDay = finishedAt?.toEpochDay(),
+        updatedAtEpochMillis = updatedAtEpochMillis,
     )
 }
 

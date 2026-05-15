@@ -68,6 +68,7 @@
     <string name="sort_collection">Colleccio</string>
     <string name="sort_progress">Progres</string>
     <string name="sort_rating">Nota</string>
+    <string name="sort_recent">Actualitzat</string>
     <string name="sort_direction_label">Direccio</string>
     <string name="sort_direction_ascending">Ascendent</string>
     <string name="sort_direction_descending">Descendent</string>

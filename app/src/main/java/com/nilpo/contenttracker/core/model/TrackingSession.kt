@@ -13,6 +13,7 @@ data class TrackingSession(
     val platform: ConsumptionPlatform? = null,
     val startedAt: LocalDate? = null,
     val finishedAt: LocalDate? = null,
+    val updatedAtEpochMillis: Long = 0,
 ) {
     val isRevisit: Boolean
         get() = sessionNumber > 1

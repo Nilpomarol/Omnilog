@@ -102,7 +102,9 @@ interface MediaDao {
     @Query(
         """
         UPDATE tracking_sessions
-        SET platformName = :platformName, platformType = :platformType
+        SET platformName = :platformName,
+            platformType = :platformType,
+            updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE id = :sessionId
         """,
     )
@@ -110,28 +112,78 @@ interface MediaDao {
         sessionId: Long,
         platformName: String?,
         platformType: String?,
+        updatedAtEpochMillis: Long,
     )
-
-    @Query("UPDATE tracking_sessions SET progressCurrent = :progressCurrent WHERE id = :sessionId")
-    suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
-
-    @Query("UPDATE tracking_sessions SET status = :status WHERE id = :sessionId")
-    suspend fun updateSessionStatus(sessionId: Long, status: String)
-
-    @Query("UPDATE tracking_sessions SET rating = :rating WHERE id = :sessionId")
-    suspend fun updateSessionRating(sessionId: Long, rating: Int?)
-
-    @Query("UPDATE tracking_sessions SET notes = :notes WHERE id = :sessionId")
-    suspend fun updateSessionNotes(sessionId: Long, notes: String?)
 
     @Query(
         """
         UPDATE tracking_sessions
-        SET progressCurrent = :progressTotal
+        SET progressCurrent = :progressCurrent,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionProgress(
+        sessionId: Long,
+        progressCurrent: Int,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET status = :status,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionStatus(
+        sessionId: Long,
+        status: String,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET rating = :rating,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionRating(
+        sessionId: Long,
+        rating: Int?,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET notes = :notes,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionNotes(
+        sessionId: Long,
+        notes: String?,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET progressCurrent = :progressTotal,
+            updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE mediaItemId = :mediaItemId AND progressCurrent > :progressTotal
         """,
     )
-    suspend fun clampSessionsToMediaTotal(mediaItemId: Long, progressTotal: Int)
+    suspend fun clampSessionsToMediaTotal(
+        mediaItemId: Long,
+        progressTotal: Int,
+        updatedAtEpochMillis: Long,
+    )
 
     @Query("DELETE FROM tracking_sessions WHERE id = :sessionId")
     suspend fun deleteTrackingSession(sessionId: Long)

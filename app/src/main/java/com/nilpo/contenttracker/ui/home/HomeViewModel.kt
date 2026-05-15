@@ -263,6 +263,8 @@ private fun List<TrackedMedia>.sortByMode(
             .thenBy { it.item.title.lowercase() }
         HomeSortMode.Rating -> compareBy<TrackedMedia> { it.currentSession?.rating ?: 0 }
             .thenBy { it.item.title.lowercase() }
+        HomeSortMode.Recent -> compareBy<TrackedMedia> { it.currentSession?.updatedAtEpochMillis ?: 0L }
+            .thenBy { it.item.title.lowercase() }
     }
 
     return when (direction) {

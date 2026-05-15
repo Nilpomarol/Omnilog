@@ -17,6 +17,7 @@ enum class HomeSortMode {
     Collection,
     Progress,
     Rating,
+    Recent,
 }
 
 enum class HomeSortDirection {
