@@ -39,6 +39,9 @@ fun AddMediaScreen(
     initialMediaType: MediaType,
     availableMediaTypes: List<MediaType>,
     onSave: (AddTrackedMediaRequest) -> Unit,
+    metadataUiState: MetadataSearchUiState,
+    onMetadataQueryChange: (String) -> Unit,
+    onMetadataSearch: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -64,6 +67,12 @@ fun AddMediaScreen(
             Text(
                 text = stringResource(R.string.add_media_title),
                 style = MaterialTheme.typography.headlineLarge,
+            )
+
+            MetadataSearchSection(
+                uiState = metadataUiState,
+                onQueryChange = onMetadataQueryChange,
+                onSearch = onMetadataSearch,
             )
 
             if (availableMediaTypes.size > 1) {
@@ -148,6 +157,60 @@ fun AddMediaScreen(
                 ) {
                     Text(text = stringResource(R.string.save))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetadataSearchSection(
+    uiState: MetadataSearchUiState,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.metadata_search_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = uiState.query,
+                onValueChange = onQueryChange,
+                label = { Text(stringResource(R.string.metadata_search_label)) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+            )
+            Button(
+                enabled = uiState.query.isNotBlank() && !uiState.isLoading,
+                onClick = onSearch,
+            ) {
+                Text(text = stringResource(R.string.search_action))
+            }
+        }
+
+        if (uiState.isLoading) {
+            Text(
+                text = stringResource(R.string.metadata_search_loading),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+            )
+        } else if (uiState.hasSearched && uiState.suggestions.isEmpty()) {
+            Text(
+                text = stringResource(R.string.metadata_search_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+            )
+        } else {
+            uiState.suggestions.forEach { suggestion ->
+                Text(
+                    text = suggestion.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         }
     }

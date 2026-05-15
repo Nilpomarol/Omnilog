@@ -42,6 +42,11 @@
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
     <string name="add_media_title">Afegeix contingut</string>
+    <string name="metadata_search_title">Cerca metadades</string>
+    <string name="metadata_search_label">Titol a cercar</string>
+    <string name="metadata_search_loading">Cercant...</string>
+    <string name="metadata_search_empty">Encara no hi ha cap font de metadades configurada.</string>
+    <string name="search_action">Cerca</string>
     <string name="field_title">Titol</string>
     <string name="field_total_progress">Total</string>
     <string name="field_progress">Progres</string>

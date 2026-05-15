@@ -11,7 +11,8 @@ import com.nilpo.contenttracker.ui.theme.ContentTrackerTheme
 class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModel.Factory(
-            (application as ContentTrackerApplication).mediaRepository,
+            mediaRepository = (application as ContentTrackerApplication).mediaRepository,
+            metadataRepository = (application as ContentTrackerApplication).metadataRepository,
         )
     }
 

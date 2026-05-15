@@ -40,6 +40,7 @@ import java.time.LocalDate
 @Composable
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val metadataUiState by viewModel.metadataUiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -148,6 +149,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     viewModel.addTrackedMedia(request)
                     isAdding = false
                 },
+                metadataUiState = metadataUiState,
+                onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
+                onMetadataSearch = viewModel::searchMetadataSuggestions,
                 onCancel = {
                     isAdding = false
                     selectedCollectionId = null

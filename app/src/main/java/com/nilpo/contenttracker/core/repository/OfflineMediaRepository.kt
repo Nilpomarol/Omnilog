@@ -67,7 +67,7 @@ class OfflineMediaRepository(
 
     override suspend fun exportBackupJson(): String {
         return JSONObject()
-            .put("schemaVersion", 1)
+            .put("schemaVersion", 2)
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
             .put("trackingSessions", JSONArray(mediaDao.getAllTrackingSessions().map { it.toJson() }))
@@ -145,6 +145,8 @@ class OfflineMediaRepository(
                 type = request.type.name,
                 title = request.title.trim(),
                 progressTotal = request.progressTotal?.coerceAtLeast(0),
+                metadataExternalId = request.metadataExternalId,
+                metadataSource = request.metadataSource?.name,
                 isOwned = request.isOwned,
                 ownershipType = request.ownershipType.name,
             ),
@@ -323,7 +325,7 @@ class OfflineMediaRepository(
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
     val schemaVersion = root.optInt("schemaVersion", -1)
-    if (schemaVersion != 1) {
+    if (schemaVersion !in 1..2) {
         throw UnsupportedBackupSchemaException(schemaVersion)
     }
 
@@ -345,8 +347,8 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .putNullable("progressTotal", progressTotal)
         .putNullable("coverUrl", coverUrl)
         .putNullable("synopsis", synopsis)
-        .putNullable("externalId", externalId)
-        .putNullable("sourceApi", sourceApi)
+        .putNullable("metadataExternalId", metadataExternalId)
+        .putNullable("metadataSource", metadataSource)
         .put("isOwned", isOwned)
         .put("ownershipType", ownershipType)
 }
@@ -403,8 +405,8 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         progressTotal = optNullableInt("progressTotal"),
         coverUrl = optNullableString("coverUrl"),
         synopsis = optNullableString("synopsis"),
-        externalId = optNullableString("externalId"),
-        sourceApi = optNullableString("sourceApi"),
+        metadataExternalId = optNullableString("metadataExternalId") ?: optNullableString("externalId"),
+        metadataSource = optNullableString("metadataSource") ?: optNullableString("sourceApi"),
         isOwned = optBoolean("isOwned", false),
         ownershipType = optString("ownershipType", "None"),
     )

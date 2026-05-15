@@ -14,6 +14,7 @@ import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.Ownership
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
@@ -29,8 +30,8 @@ fun MediaItemEntity.toDomain(): MediaItem {
         progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,
-        externalId = externalId,
-        sourceApi = sourceApi,
+        metadataExternalId = metadataExternalId,
+        metadataSource = enumValueOrNull<MetadataSource>(metadataSource),
         ownership = Ownership(
             isOwned = isOwned,
             type = enumValueOrDefault(ownershipType, OwnershipType.None),
@@ -47,8 +48,8 @@ fun MediaItem.toEntity(): MediaItemEntity {
         progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,
-        externalId = externalId,
-        sourceApi = sourceApi,
+        metadataExternalId = metadataExternalId,
+        metadataSource = metadataSource?.name,
         isOwned = ownership.isOwned,
         ownershipType = ownership.type.name,
     )
@@ -154,7 +155,13 @@ private inline fun <reified T : Enum<T>> enumValueOrDefault(
     value: String?,
     default: T,
 ): T {
+    return enumValueOrNull<T>(value) ?: default
+}
+
+private inline fun <reified T : Enum<T>> enumValueOrNull(
+    value: String?,
+): T? {
     return value?.let { enumValue ->
         enumValues<T>().firstOrNull { it.name == enumValue }
-    } ?: default
+    }
 }

@@ -26,8 +26,8 @@ data class MediaItemEntity(
     val progressTotal: Int? = null,
     val coverUrl: String? = null,
     val synopsis: String? = null,
-    val externalId: String? = null,
-    val sourceApi: String? = null,
+    val metadataExternalId: String? = null,
+    val metadataSource: String? = null,
     val isOwned: Boolean = false,
     val ownershipType: String = "None",
 )

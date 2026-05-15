@@ -9,4 +9,6 @@ data class AddTrackedMediaRequest(
     val ownershipType: OwnershipType,
     val platformName: String?,
     val platformType: ConsumptionPlatformType,
+    val metadataSource: MetadataSource? = null,
+    val metadataExternalId: String? = null,
 )

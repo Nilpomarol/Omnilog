@@ -7,15 +7,19 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
+import com.nilpo.contenttracker.core.repository.MetadataRepository
+import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -23,12 +27,16 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     private val mediaRepository: MediaRepository,
+    private val metadataRepository: MetadataRepository,
 ) : ViewModel() {
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
     private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
     private val sortMode = MutableStateFlow(HomeSortMode.Title)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Ascending)
+    private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
+
+    val metadataUiState = metadataSearchState.asStateFlow()
 
     val uiState = selectedSection
         .flatMapLatest { section ->
@@ -84,6 +92,39 @@ class HomeViewModel(
 
     fun updateSearchQuery(query: String) {
         searchQuery.value = query
+    }
+
+    fun updateMetadataSearchQuery(query: String) {
+        metadataSearchState.value = metadataSearchState.value.copy(query = query)
+    }
+
+    fun searchMetadataSuggestions() {
+        val query = metadataSearchState.value.query.trim()
+        if (query.isBlank()) {
+            metadataSearchState.value = metadataSearchState.value.copy(
+                suggestions = emptyList(),
+                isLoading = false,
+                hasSearched = false,
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            metadataSearchState.value = metadataSearchState.value.copy(
+                isLoading = true,
+                hasSearched = true,
+            )
+            val suggestions = metadataRepository.searchSuggestions(
+                MetadataSearchRequest(
+                    query = query,
+                    mediaTypes = selectedSection.value.types,
+                ),
+            )
+            metadataSearchState.value = metadataSearchState.value.copy(
+                suggestions = suggestions,
+                isLoading = false,
+            )
+        }
     }
 
     fun updateStatusFilter(status: TrackingStatus?) {
@@ -226,10 +267,14 @@ class HomeViewModel(
 
     class Factory(
         private val mediaRepository: MediaRepository,
+        private val metadataRepository: MetadataRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return HomeViewModel(mediaRepository) as T
+            return HomeViewModel(
+                mediaRepository = mediaRepository,
+                metadataRepository = metadataRepository,
+            ) as T
         }
     }
 }
