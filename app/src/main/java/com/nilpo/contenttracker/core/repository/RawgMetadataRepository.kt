@@ -30,8 +30,19 @@ class RawgMetadataRepository(
         }
     }
 
-    // Developers require a separate detail fetch; leaving creators empty until implemented.
-    override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion = suggestion
+    override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
+        if (apiKey.isBlank() || suggestion.source != MetadataSource.Rawg) {
+            return suggestion
+        }
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                getJson(
+                    "https://api.rawg.io/api/games/${suggestion.externalId}?key=$apiKey",
+                ).toDetailedSuggestion(suggestion)
+            }.getOrElse { suggestion }
+        }
+    }
 
     private fun JSONObject.toMetadataSuggestion(): MetadataSuggestion? {
         val id = optLong("id", 0L).takeIf { it > 0L } ?: return null
@@ -75,6 +86,35 @@ class RawgMetadataRepository(
         )
     }
 
+    private fun JSONObject.toDetailedSuggestion(base: MetadataSuggestion): MetadataSuggestion {
+        val coverUrl = optString("background_image").takeIf { it.isNotBlank() }
+        val releaseYear = optString("released")
+            .take(4)
+            .toIntOrNull()
+            ?.takeIf { it > 0 }
+        val rating = optDouble("rating", 0.0)
+        val ratingsCount = optInt("ratings_count", 0)
+        val playtime = optInt("playtime", 0).takeIf { it > 0 }
+
+        return base.copy(
+            releaseYear = releaseYear ?: base.releaseYear,
+            coverUrl = coverUrl ?: base.coverUrl,
+            synopsis = optString("description_raw").takeIf { it.isNotBlank() } ?: base.synopsis,
+            genres = optJSONArray("genres").toStringList("name").ifEmpty { base.genres },
+            creators = optJSONArray("developers").toStringList("name").ifEmpty { base.creators },
+            progressTotal = playtime ?: base.progressTotal,
+            externalRating = if (rating > 0.0) {
+                MetadataRatingSuggestion(
+                    score = rating,
+                    maxScore = 5.0,
+                    voteCount = ratingsCount.takeIf { it > 0 },
+                )
+            } else {
+                base.externalRating
+            },
+        )
+    }
+
     private fun getJson(url: String): JSONObject {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 10_000
@@ -82,4 +122,11 @@ class RawgMetadataRepository(
         connection.requestMethod = "GET"
         return connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
     }
+}
+
+private fun org.json.JSONArray?.toStringList(fieldName: String): List<String> {
+    if (this == null) return emptyList()
+    return List(length()) { getJSONObject(it) }
+        .map { it.optString(fieldName) }
+        .filter { it.isNotBlank() }
 }
