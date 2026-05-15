@@ -8,6 +8,7 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 class CompositeMetadataRepository(
     private val tmdb: TmdbMetadataRepository,
     private val aniList: AniListMetadataRepository,
+    private val googleBooks: GoogleBooksMetadataRepository,
 ) : MetadataRepository {
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         return buildList {
@@ -18,6 +19,9 @@ class CompositeMetadataRepository(
             if (MediaType.Anime in request.mediaTypes) {
                 addAll(aniList.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Anime))))
             }
+            if (MediaType.Book in request.mediaTypes) {
+                addAll(googleBooks.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Book))))
+            }
         }
     }
 
@@ -25,6 +29,7 @@ class CompositeMetadataRepository(
         return when (suggestion.source) {
             MetadataSource.Tmdb -> tmdb.getSuggestionDetails(suggestion)
             MetadataSource.AniList -> aniList.getSuggestionDetails(suggestion)
+            MetadataSource.GoogleBooks -> googleBooks.getSuggestionDetails(suggestion)
             else -> suggestion
         }
     }
