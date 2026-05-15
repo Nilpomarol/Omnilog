@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.ui.common
 
 import android.graphics.BitmapFactory
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,6 +29,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCredit
@@ -69,83 +73,12 @@ fun MediaMetadataSummary(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            MetadataCoverImage(
-                coverUrl = metadata.coverUrl,
-                modifier = Modifier.size(width = 104.dp, height = 156.dp),
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = metadata.displayTitle(),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                metadata.originalTitle?.let { originalTitle ->
-                    MetadataLine(
-                        label = stringResource(R.string.metadata_original_title),
-                        value = originalTitle,
-                    )
-                }
-                metadata.sourceName?.let { sourceName ->
-                    Text(
-                        text = stringResource(R.string.metadata_suggestion_source, sourceName),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
-                    )
-                }
-                metadata.progressTotal?.let { total ->
-                    Text(
-                        text = stringResource(R.string.progress_total_value, total),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                metadata.providerCollectionTitle?.let { collectionTitle ->
-                    MetadataLine(
-                        label = stringResource(R.string.metadata_provider_collection),
-                        value = collectionTitle,
-                    )
-                }
-                metadata.externalRatingText()?.let { ratingText ->
-                    MetadataLine(
-                        label = stringResource(R.string.metadata_external_rating_label),
-                        value = ratingText,
-                    )
-                }
-                metadata.popularityScore?.let { popularity ->
-                    MetadataLine(
-                        label = stringResource(R.string.metadata_popularity),
-                        value = formatDecimal(popularity),
-                    )
-                }
-                metadata.rankingText()?.let { ranking ->
-                    MetadataLine(
-                        label = stringResource(R.string.metadata_ranking),
-                        value = ranking,
-                    )
-                }
-                if (isLoadingDetails) {
-                    Text(
-                        text = stringResource(R.string.metadata_details_loading),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-                    )
-                }
-            }
-        }
-
-        if (metadata.creators.isNotEmpty()) {
-            MetadataLine(
-                label = stringResource(metadata.creatorLabelRes()),
-                value = metadata.creators.joinToString(", "),
-            )
-        }
+        MediaMetadataHero(
+            metadata = metadata,
+            isLoadingDetails = isLoadingDetails,
+        )
 
         if (metadata.genres.isNotEmpty()) {
             FlowRow(
@@ -174,6 +107,108 @@ fun MediaMetadataSummary(
 }
 
 @Composable
+private fun MediaMetadataHero(
+    metadata: MediaMetadataUi,
+    isLoadingDetails: Boolean,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        MetadataCoverImage(
+            coverUrl = metadata.coverUrl,
+            modifier = Modifier.size(width = 132.dp, height = 198.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = metadata.displayTitle(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            metadata.originalTitle?.let { originalTitle ->
+                Text(
+                    text = originalTitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+                )
+            }
+            if (metadata.creators.isNotEmpty()) {
+                Text(
+                    text = metadata.creators.joinToString(", "),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
+                )
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                metadata.sourceName?.let { sourceName ->
+                    MetadataPill(value = sourceName)
+                }
+                metadata.externalRatingText()?.let { ratingText ->
+                    MetadataPill(
+                        label = stringResource(R.string.metadata_external_rating_label),
+                        value = ratingText,
+                    )
+                }
+                metadata.rankingText()?.let { ranking ->
+                    MetadataPill(value = ranking)
+                }
+                metadata.popularityScore?.let { popularity ->
+                    MetadataPill(
+                        label = stringResource(R.string.metadata_popularity),
+                        value = formatDecimal(popularity),
+                    )
+                }
+                metadata.progressTotal?.let { total ->
+                    MetadataPill(
+                        label = stringResource(R.string.field_total_progress),
+                        value = total.toString(),
+                    )
+                }
+            }
+            metadata.providerCollectionTitle?.let { collectionTitle ->
+                MetadataLine(
+                    label = stringResource(R.string.metadata_provider_collection),
+                    value = collectionTitle,
+                )
+            }
+            if (isLoadingDetails) {
+                Text(
+                    text = stringResource(R.string.metadata_details_loading),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetadataPill(
+    value: String,
+    label: String? = null,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    ) {
+        Text(
+            text = label?.let { "$it $value" } ?: value,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
 fun MetadataCoverImage(
     coverUrl: String?,
     modifier: Modifier = Modifier,
@@ -194,7 +229,9 @@ fun MetadataCoverImage(
 
     Surface(
         modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 2.dp,
     ) {
         image?.let { loadedImage ->
             Image(
