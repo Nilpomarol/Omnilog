@@ -92,6 +92,7 @@ class HomeViewModel(
 
     fun updateSortMode(mode: HomeSortMode) {
         sortMode.value = mode
+        sortDirection.value = mode.defaultDirection()
     }
 
     fun updateSortDirection(direction: HomeSortDirection) {
@@ -281,5 +282,17 @@ private fun TrackedMedia.progressSortValue(): Double {
         progressCurrent.toDouble() / progressTotal.toDouble()
     } else {
         progressCurrent.toDouble()
+    }
+}
+
+private fun HomeSortMode.defaultDirection(): HomeSortDirection {
+    return when (this) {
+        HomeSortMode.Title,
+        HomeSortMode.Collection,
+        -> HomeSortDirection.Ascending
+        HomeSortMode.Progress,
+        HomeSortMode.Rating,
+        HomeSortMode.Recent,
+        -> HomeSortDirection.Descending
     }
 }
