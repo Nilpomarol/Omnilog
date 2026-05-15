@@ -2,10 +2,11 @@ package com.nilpo.contenttracker
 
 import android.app.Application
 import androidx.room.Room
+import com.nilpo.contenttracker.BuildConfig
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.repository.MetadataRepository
-import com.nilpo.contenttracker.core.repository.NoOpMetadataRepository
 import com.nilpo.contenttracker.core.repository.OfflineMediaRepository
+import com.nilpo.contenttracker.core.repository.TmdbMetadataRepository
 
 class ContentTrackerApplication : Application() {
     val database: ContentTrackerDatabase by lazy {
@@ -23,6 +24,6 @@ class ContentTrackerApplication : Application() {
     }
 
     val metadataRepository: MetadataRepository by lazy {
-        NoOpMetadataRepository()
+        TmdbMetadataRepository(BuildConfig.TMDB_API_KEY)
     }
 }

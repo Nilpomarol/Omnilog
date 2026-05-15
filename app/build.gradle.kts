@@ -4,6 +4,13 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val tmdbApiKey = providers.gradleProperty("TMDB_API_KEY")
+    .orElse(providers.environmentVariable("TMDB_API_KEY"))
+    .orElse("")
+    .get()
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "com.nilpo.contenttracker"
     compileSdk = 36
@@ -14,9 +21,11 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }
