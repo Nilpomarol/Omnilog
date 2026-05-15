@@ -145,6 +145,8 @@ class OfflineMediaRepository(
                 type = request.type.name,
                 title = request.title.trim(),
                 progressTotal = request.progressTotal?.coerceAtLeast(0),
+                coverUrl = request.coverUrl,
+                synopsis = request.synopsis,
                 metadataExternalId = request.metadataExternalId,
                 metadataSource = request.metadataSource?.name,
                 isOwned = request.isOwned,

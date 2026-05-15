@@ -5,4 +5,6 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 
 interface MetadataRepository {
     suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion>
+
+    suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion
 }

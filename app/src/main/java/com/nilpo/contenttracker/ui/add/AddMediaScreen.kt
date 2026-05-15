@@ -17,6 +17,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ fun AddMediaScreen(
     metadataUiState: MetadataSearchUiState,
     onMetadataQueryChange: (String) -> Unit,
     onMetadataSearch: () -> Unit,
+    onMetadataSuggestionSelected: (MetadataSuggestion) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -54,7 +56,15 @@ fun AddMediaScreen(
     var selectedStatus by remember { mutableStateOf(TrackingStatus.Planned) }
     var selectedOwnershipType by remember { mutableStateOf(OwnershipType.None) }
     var selectedPlatformType by remember { mutableStateOf(ConsumptionPlatformType.Other) }
-    var selectedMetadataSuggestion by remember { mutableStateOf<MetadataSuggestion?>(null) }
+    val selectedMetadataSuggestion = metadataUiState.selectedSuggestion
+
+    LaunchedEffect(selectedMetadataSuggestion) {
+        selectedMetadataSuggestion?.let { suggestion ->
+            title = suggestion.title
+            totalProgress = suggestion.progressTotal?.toString().orEmpty()
+            selectedMediaType = suggestion.mediaType
+        }
+    }
 
     Surface(
         modifier = modifier,
@@ -77,12 +87,7 @@ fun AddMediaScreen(
                 selectedSuggestion = selectedMetadataSuggestion,
                 onQueryChange = onMetadataQueryChange,
                 onSearch = onMetadataSearch,
-                onSuggestionSelected = { suggestion ->
-                    selectedMetadataSuggestion = suggestion
-                    title = suggestion.title
-                    totalProgress = suggestion.progressTotal?.toString().orEmpty()
-                    selectedMediaType = suggestion.mediaType
-                },
+                onSuggestionSelected = onMetadataSuggestionSelected,
             )
 
             if (availableMediaTypes.size > 1) {
@@ -163,6 +168,8 @@ fun AddMediaScreen(
                                 platformType = selectedPlatformType,
                                 metadataSource = selectedMetadataSuggestion?.source,
                                 metadataExternalId = selectedMetadataSuggestion?.externalId,
+                                coverUrl = selectedMetadataSuggestion?.coverUrl,
+                                synopsis = selectedMetadataSuggestion?.synopsis,
                             ),
                         )
                     },
@@ -210,6 +217,12 @@ private fun MetadataSearchSection(
         if (uiState.isLoading) {
             Text(
                 text = stringResource(R.string.metadata_search_loading),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+            )
+        } else if (uiState.isLoadingDetails) {
+            Text(
+                text = stringResource(R.string.metadata_details_loading),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
             )

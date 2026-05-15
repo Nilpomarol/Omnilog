@@ -152,6 +152,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 metadataUiState = metadataUiState,
                 onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
                 onMetadataSearch = viewModel::searchMetadataSuggestions,
+                onMetadataSuggestionSelected = viewModel::selectMetadataSuggestion,
                 onCancel = {
                     isAdding = false
                     selectedCollectionId = null

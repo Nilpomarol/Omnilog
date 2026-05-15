@@ -11,4 +11,6 @@ data class AddTrackedMediaRequest(
     val platformType: ConsumptionPlatformType,
     val metadataSource: MetadataSource? = null,
     val metadataExternalId: String? = null,
+    val coverUrl: String? = null,
+    val synopsis: String? = null,
 )

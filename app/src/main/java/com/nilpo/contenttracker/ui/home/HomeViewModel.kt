@@ -8,6 +8,7 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
+import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -122,7 +123,33 @@ class HomeViewModel(
             )
             metadataSearchState.value = metadataSearchState.value.copy(
                 suggestions = suggestions,
+                selectedSuggestion = null,
                 isLoading = false,
+            )
+        }
+    }
+
+    fun selectMetadataSuggestion(suggestion: MetadataSuggestion) {
+        metadataSearchState.value = metadataSearchState.value.copy(
+            selectedSuggestion = suggestion,
+            isLoadingDetails = true,
+        )
+
+        viewModelScope.launch {
+            val detailedSuggestion = metadataRepository.getSuggestionDetails(suggestion)
+            metadataSearchState.value = metadataSearchState.value.copy(
+                suggestions = metadataSearchState.value.suggestions.map { existingSuggestion ->
+                    if (
+                        existingSuggestion.source == detailedSuggestion.source &&
+                        existingSuggestion.externalId == detailedSuggestion.externalId
+                    ) {
+                        detailedSuggestion
+                    } else {
+                        existingSuggestion
+                    }
+                },
+                selectedSuggestion = detailedSuggestion,
+                isLoadingDetails = false,
             )
         }
     }

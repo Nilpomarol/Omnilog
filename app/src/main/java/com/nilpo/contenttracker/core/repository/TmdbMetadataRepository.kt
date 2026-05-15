@@ -35,6 +35,28 @@ class TmdbMetadataRepository(
         }
     }
 
+    override suspend fun getSuggestionDetails(
+        suggestion: MetadataSuggestion,
+    ): MetadataSuggestion {
+        if (apiKey.isBlank() || suggestion.source != MetadataSource.Tmdb) {
+            return suggestion
+        }
+
+        return withContext(Dispatchers.IO) {
+            val endpoint = when (suggestion.mediaType) {
+                MediaType.Movie -> "movie"
+                MediaType.TvShow -> "tv"
+                else -> return@withContext suggestion
+            }
+            runCatching {
+                getJson(
+                    "https://api.themoviedb.org/3/$endpoint/${suggestion.externalId}" +
+                        "?api_key=$apiKey&language=ca-ES",
+                ).toDetailedSuggestion(suggestion)
+            }.getOrElse { suggestion }
+        }
+    }
+
     private fun searchEndpoint(
         query: String,
         endpoint: String,
@@ -97,6 +119,26 @@ class TmdbMetadataRepository(
         )
     }
 
+    private fun JSONObject.toDetailedSuggestion(base: MetadataSuggestion): MetadataSuggestion {
+        val posterPath = optString("poster_path").takeIf { it.isNotBlank() }
+        val collectionTitle = optJSONObject("belongs_to_collection")
+            ?.optString("name")
+            ?.takeIf { it.isNotBlank() }
+        val progressTotal = when (base.mediaType) {
+            MediaType.Movie -> optInt("runtime", 0).takeIf { it > 0 }
+            MediaType.TvShow -> optInt("number_of_episodes", 0).takeIf { it > 0 }
+            else -> base.progressTotal
+        }
+
+        return base.copy(
+            collectionTitle = collectionTitle ?: base.collectionTitle,
+            genres = optJSONArray("genres").toStringList("name"),
+            progressTotal = progressTotal ?: base.progressTotal,
+            coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: base.coverUrl,
+            synopsis = optString("overview").takeIf { it.isNotBlank() } ?: base.synopsis,
+        )
+    }
+
     private fun getJson(url: String): JSONObject {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 10_000
@@ -107,4 +149,14 @@ class TmdbMetadataRepository(
             JSONObject(reader.readText())
         }
     }
+}
+
+private fun org.json.JSONArray?.toStringList(fieldName: String): List<String> {
+    if (this == null) {
+        return emptyList()
+    }
+
+    return List(length()) { index ->
+        getJSONObject(index).optString(fieldName)
+    }.filter { it.isNotBlank() }
 }
