@@ -7,7 +7,7 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 
 class CompositeMetadataRepository(
     private val tmdb: TmdbMetadataRepository,
-    private val jikan: JikanMetadataRepository,
+    private val aniList: AniListMetadataRepository,
 ) : MetadataRepository {
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         return buildList {
@@ -16,7 +16,7 @@ class CompositeMetadataRepository(
                 addAll(tmdb.searchSuggestions(request.copy(mediaTypes = tmdbTypes)))
             }
             if (MediaType.Anime in request.mediaTypes) {
-                addAll(jikan.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Anime))))
+                addAll(aniList.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Anime))))
             }
         }
     }
@@ -24,7 +24,7 @@ class CompositeMetadataRepository(
     override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
         return when (suggestion.source) {
             MetadataSource.Tmdb -> tmdb.getSuggestionDetails(suggestion)
-            MetadataSource.Jikan -> jikan.getSuggestionDetails(suggestion)
+            MetadataSource.AniList -> aniList.getSuggestionDetails(suggestion)
             else -> suggestion
         }
     }
