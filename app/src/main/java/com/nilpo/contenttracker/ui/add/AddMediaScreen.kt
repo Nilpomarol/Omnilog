@@ -512,6 +512,15 @@ private fun MetadataDetailSummary(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            if (suggestion.creators.isNotEmpty()) {
+                Text(
+                    text = stringResource(
+                        suggestion.creatorLabelRes(),
+                        suggestion.creators.joinToString(", "),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             if (isLoadingDetails) {
                 Text(
                     text = stringResource(R.string.metadata_details_loading),
@@ -610,6 +619,16 @@ private fun MetadataSuggestion.displayTitle(): String {
         title,
         releaseYear?.let { "($it)" },
     ).joinToString(" ")
+}
+
+private fun MetadataSuggestion.creatorLabelRes(): Int {
+    return when (mediaType) {
+        MediaType.Anime -> R.string.metadata_creator_anime
+        MediaType.Book -> R.string.metadata_creator_book
+        MediaType.Movie -> R.string.metadata_creator_movie
+        MediaType.TvShow -> R.string.metadata_creator_tv
+        MediaType.Game -> R.string.metadata_creator_game
+    }
 }
 
 @Composable

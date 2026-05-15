@@ -51,6 +51,11 @@
     <string name="metadata_suggestion_source">Font: %1$s</string>
     <string name="metadata_review_title">Revisa i crea seguiment</string>
     <string name="metadata_genres">Generes: %1$s</string>
+    <string name="metadata_creator_book">Autor: %1$s</string>
+    <string name="metadata_creator_movie">Director: %1$s</string>
+    <string name="metadata_creator_tv">Creadors: %1$s</string>
+    <string name="metadata_creator_anime">Estudi: %1$s</string>
+    <string name="metadata_creator_game">Desenvolupador: %1$s</string>
     <string name="add_manual">Afegeix manualment</string>
     <string name="search_action">Cerca</string>
     <string name="field_title">Titol</string>
