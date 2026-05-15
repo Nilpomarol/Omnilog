@@ -1,10 +1,7 @@
 package com.nilpo.contenttracker.ui.add
 
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,9 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -41,12 +35,12 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.MediaMetadataSummary
+import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
+import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.detail.StatusSelector
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import java.net.URL
 
 @Composable
 fun AddMediaScreen(
@@ -493,65 +487,10 @@ private fun MetadataDetailSummary(
     suggestion: MetadataSuggestion,
     isLoadingDetails: Boolean,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        CoverImage(
-            coverUrl = suggestion.coverUrl,
-            modifier = Modifier.size(width = 96.dp, height = 144.dp),
-        )
-        Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            Text(
-                text = suggestion.displayTitle(),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Text(
-                text = stringResource(R.string.metadata_suggestion_source, suggestion.source.name),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
-            )
-            suggestion.progressTotal?.let { total ->
-                Text(
-                    text = stringResource(R.string.progress_total_value, total),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            if (suggestion.genres.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.metadata_genres, suggestion.genres.joinToString(", ")),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            if (suggestion.creators.isNotEmpty()) {
-                Text(
-                    text = stringResource(
-                        suggestion.creatorLabelRes(),
-                        suggestion.creators.joinToString(", "),
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            if (isLoadingDetails) {
-                Text(
-                    text = stringResource(R.string.metadata_details_loading),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-                )
-            }
-        }
-    }
-
-    suggestion.synopsis?.let { synopsis ->
-        Text(
-            text = synopsis,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
-        )
-    }
+    MediaMetadataSummary(
+        metadata = suggestion.toMediaMetadataUi(),
+        isLoadingDetails = isLoadingDetails,
+    )
 }
 
 @Composable
@@ -567,7 +506,7 @@ private fun MetadataSuggestionRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverImage(
+        MetadataCoverImage(
             coverUrl = suggestion.coverUrl,
             modifier = Modifier.size(width = 52.dp, height = 78.dp),
         )
@@ -588,40 +527,6 @@ private fun MetadataSuggestionRow(
     }
 }
 
-@Composable
-private fun CoverImage(
-    coverUrl: String?,
-    modifier: Modifier = Modifier,
-) {
-    var image by remember(coverUrl) { mutableStateOf<ImageBitmap?>(null) }
-
-    LaunchedEffect(coverUrl) {
-        image = coverUrl?.let { url ->
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    URL(url).openStream().use { inputStream ->
-                        BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
-                    }
-                }.getOrNull()
-            }
-        }
-    }
-
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        image?.let { loadedImage ->
-            Image(
-                bitmap = loadedImage,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } ?: Box(modifier = Modifier.fillMaxSize())
-    }
-}
-
 private enum class AddMediaStep {
     Search,
     Review,
@@ -633,16 +538,6 @@ private fun MetadataSuggestion.displayTitle(): String {
         title,
         releaseYear?.let { "($it)" },
     ).joinToString(" ")
-}
-
-private fun MetadataSuggestion.creatorLabelRes(): Int {
-    return when (mediaType) {
-        MediaType.Anime -> R.string.metadata_creator_anime
-        MediaType.Book -> R.string.metadata_creator_book
-        MediaType.Movie -> R.string.metadata_creator_movie
-        MediaType.TvShow -> R.string.metadata_creator_tv
-        MediaType.Game -> R.string.metadata_creator_game
-    }
 }
 
 @Composable

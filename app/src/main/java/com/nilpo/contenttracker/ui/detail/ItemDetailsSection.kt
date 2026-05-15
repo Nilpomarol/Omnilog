@@ -20,13 +20,17 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaCollection
+import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
+import com.nilpo.contenttracker.ui.common.MediaMetadataSummary
+import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 
 @Composable
 fun ItemDetailsSection(
     item: MediaItem,
+    credits: List<MediaCredit>,
     collection: MediaCollection?,
     availableCollections: List<MediaCollection>,
     currentSession: TrackingSession?,
@@ -68,6 +72,7 @@ fun ItemDetailsSection(
         } else {
             ItemDetailsSummary(
                 item = item,
+                credits = credits,
                 collection = collection,
                 currentSession = currentSession,
             )
@@ -78,10 +83,13 @@ fun ItemDetailsSection(
 @Composable
 private fun ItemDetailsSummary(
     item: MediaItem,
+    credits: List<MediaCredit>,
     collection: MediaCollection?,
     currentSession: TrackingSession?,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        MediaMetadataSummary(metadata = item.toMediaMetadataUi(credits))
+
         Text(
             text = stringResource(R.string.field_ownership_type) + ": " + item.ownership.type.label(),
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),

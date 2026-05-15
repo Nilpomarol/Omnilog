@@ -85,6 +85,7 @@ fun DetailScreen(
             item {
                 ItemDetailsSection(
                     item = trackedMedia.item,
+                    credits = trackedMedia.credits,
                     collection = trackedMedia.collection,
                     availableCollections = trackedMedia.availableCollections,
                     currentSession = currentSession,
