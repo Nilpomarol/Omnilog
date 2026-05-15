@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -29,6 +28,7 @@ class HomeViewModel(
     private val searchQuery = MutableStateFlow("")
     private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
     private val sortMode = MutableStateFlow(HomeSortMode.Title)
+    private val sortDirection = MutableStateFlow(HomeSortDirection.Ascending)
 
     val uiState = selectedSection
         .flatMapLatest { section ->
@@ -37,11 +37,12 @@ class HomeViewModel(
                 searchQuery,
                 statusFilter,
                 sortMode,
-            ) { trackedItems, query, status, sort ->
+                sortDirection,
+            ) { trackedItems, query, status, sort, direction ->
                 val visibleItems = trackedItems
                     .filterBySearch(query)
                     .filterByStatus(status)
-                    .sortByMode(sort)
+                    .sortByMode(sort, direction)
 
                     HomeUiState(
                         selectedSection = section,
@@ -49,6 +50,7 @@ class HomeViewModel(
                         searchQuery = query,
                         statusFilter = status,
                         sortMode = sort,
+                        sortDirection = direction,
                     )
             }
         }
@@ -90,6 +92,10 @@ class HomeViewModel(
 
     fun updateSortMode(mode: HomeSortMode) {
         sortMode.value = mode
+    }
+
+    fun updateSortDirection(direction: HomeSortDirection) {
+        sortDirection.value = direction
     }
 
     fun startNewSession(request: AddTrackingSessionRequest) {
@@ -245,21 +251,23 @@ private fun List<TrackedMedia>.filterByStatus(status: TrackingStatus?): List<Tra
     } ?: this
 }
 
-private fun List<TrackedMedia>.sortByMode(mode: HomeSortMode): List<TrackedMedia> {
-    return when (mode) {
-        HomeSortMode.Title -> sortedBy { it.item.title.lowercase() }
-        HomeSortMode.Collection -> sortedWith(
-            compareBy<TrackedMedia> { it.collection?.name?.lowercase().orEmpty() }
-                .thenBy { it.item.title.lowercase() },
-        )
-        HomeSortMode.Progress -> sortedWith(
-            compareByDescending<TrackedMedia> { it.progressSortValue() }
-                .thenBy { it.item.title.lowercase() },
-        )
-        HomeSortMode.Rating -> sortedWith(
-            compareByDescending<TrackedMedia> { it.currentSession?.rating ?: 0 }
-                .thenBy { it.item.title.lowercase() },
-        )
+private fun List<TrackedMedia>.sortByMode(
+    mode: HomeSortMode,
+    direction: HomeSortDirection,
+): List<TrackedMedia> {
+    val comparator = when (mode) {
+        HomeSortMode.Title -> compareBy<TrackedMedia> { it.item.title.lowercase() }
+        HomeSortMode.Collection -> compareBy<TrackedMedia> { it.collection?.name?.lowercase().orEmpty() }
+            .thenBy { it.item.title.lowercase() }
+        HomeSortMode.Progress -> compareBy<TrackedMedia> { it.progressSortValue() }
+            .thenBy { it.item.title.lowercase() }
+        HomeSortMode.Rating -> compareBy<TrackedMedia> { it.currentSession?.rating ?: 0 }
+            .thenBy { it.item.title.lowercase() }
+    }
+
+    return when (direction) {
+        HomeSortDirection.Ascending -> sortedWith(comparator)
+        HomeSortDirection.Descending -> sortedWith(comparator.reversed())
     }
 }
 

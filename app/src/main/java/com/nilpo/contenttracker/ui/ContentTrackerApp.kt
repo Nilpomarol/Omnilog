@@ -184,6 +184,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onSearchQueryChange = viewModel::updateSearchQuery,
                 onStatusFilterChange = viewModel::updateStatusFilter,
                 onSortModeChange = viewModel::updateSortMode,
+                onSortDirectionChange = viewModel::updateSortDirection,
                 onExportBackup = {
                     exportBackupLauncher.launch("content-tracker-backup-${LocalDate.now()}.json")
                 },

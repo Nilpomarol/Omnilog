@@ -9,6 +9,7 @@ data class HomeUiState(
     val searchQuery: String = "",
     val statusFilter: TrackingStatus? = null,
     val sortMode: HomeSortMode = HomeSortMode.Title,
+    val sortDirection: HomeSortDirection = HomeSortDirection.Ascending,
 )
 
 enum class HomeSortMode {
@@ -16,4 +17,9 @@ enum class HomeSortMode {
     Collection,
     Progress,
     Rating,
+}
+
+enum class HomeSortDirection {
+    Ascending,
+    Descending,
 }

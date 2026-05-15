@@ -34,6 +34,7 @@ fun HomeScreen(
     onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
+    onSortDirectionChange: (HomeSortDirection) -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
     modifier: Modifier = Modifier,
@@ -42,9 +43,8 @@ fun HomeScreen(
     val groupedItems = uiState.trackedItems
         .filter { it.collection != null }
         .groupBy { it.collection }
-        .toSortedCollectionEntries(uiState.sortMode)
     val ungroupedItems = uiState.trackedItems.filter { it.collection == null }
-    val hasCollections = groupedItems.isNotEmpty()
+    val showCollectionGroups = uiState.sortMode == HomeSortMode.Collection && groupedItems.isNotEmpty()
 
     Surface(
         modifier = modifier,
@@ -68,9 +68,11 @@ fun HomeScreen(
                     searchQuery = uiState.searchQuery,
                     statusFilter = uiState.statusFilter,
                     sortMode = uiState.sortMode,
+                    sortDirection = uiState.sortDirection,
                     onSearchQueryChange = onSearchQueryChange,
                     onStatusFilterChange = onStatusFilterChange,
                     onSortModeChange = onSortModeChange,
+                    onSortDirectionChange = onSortDirectionChange,
                     onExportBackup = onExportBackup,
                     onImportBackup = onImportBackup,
                 )
@@ -84,7 +86,7 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
                     )
                 }
-            } else if (hasCollections) {
+            } else if (showCollectionGroups) {
                 groupedItems.forEach { (collection, items) ->
                     item {
                         CollectionHeader(
@@ -136,9 +138,11 @@ private fun BrowseControls(
     searchQuery: String,
     statusFilter: TrackingStatus?,
     sortMode: HomeSortMode,
+    sortDirection: HomeSortDirection,
     onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
+    onSortDirectionChange: (HomeSortDirection) -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
 ) {
@@ -167,6 +171,14 @@ private fun BrowseControls(
             selectedOption = sortMode,
             optionLabel = { sort -> sort.label() },
             onOptionSelected = onSortModeChange,
+        )
+
+        OptionSelector(
+            label = stringResource(R.string.sort_direction_label),
+            options = HomeSortDirection.entries,
+            selectedOption = sortDirection,
+            optionLabel = { direction -> direction.label() },
+            onOptionSelected = onSortDirectionChange,
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -201,34 +213,11 @@ private fun HomeSortMode.label(): String {
     }
 }
 
-private fun Map<MediaCollection?, List<TrackedMedia>>.toSortedCollectionEntries(
-    sortMode: HomeSortMode,
-): List<Map.Entry<MediaCollection?, List<TrackedMedia>>> {
-    return when (sortMode) {
-        HomeSortMode.Title,
-        HomeSortMode.Collection,
-        -> entries.sortedBy { it.key?.name.orEmpty().lowercase() }
-        HomeSortMode.Progress -> entries.sortedWith(
-            compareByDescending<Map.Entry<MediaCollection?, List<TrackedMedia>>> { entry ->
-                entry.value.maxOfOrNull { it.progressSortValue() } ?: 0.0
-            }.thenBy { it.key?.name.orEmpty().lowercase() },
-        )
-        HomeSortMode.Rating -> entries.sortedWith(
-            compareByDescending<Map.Entry<MediaCollection?, List<TrackedMedia>>> { entry ->
-                entry.value.maxOfOrNull { it.currentSession?.rating ?: 0 } ?: 0
-            }.thenBy { it.key?.name.orEmpty().lowercase() },
-        )
-    }
-}
-
-private fun TrackedMedia.progressSortValue(): Double {
-    val progressCurrent = currentSession?.progressCurrent ?: 0
-    val progressTotal = item.progressTotal
-
-    return if (progressTotal != null && progressTotal > 0) {
-        progressCurrent.toDouble() / progressTotal.toDouble()
-    } else {
-        progressCurrent.toDouble()
+@Composable
+private fun HomeSortDirection.label(): String {
+    return when (this) {
+        HomeSortDirection.Ascending -> stringResource(R.string.sort_direction_ascending)
+        HomeSortDirection.Descending -> stringResource(R.string.sort_direction_descending)
     }
 }
 
