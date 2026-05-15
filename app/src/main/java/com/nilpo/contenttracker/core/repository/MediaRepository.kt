@@ -14,12 +14,22 @@ class UnsupportedBackupSchemaException(
     val schemaVersion: Int,
 ) : IllegalArgumentException("Unsupported backup schema version: $schemaVersion")
 
+data class BackupPreview(
+    val collectionCount: Int,
+    val mediaItemCount: Int,
+    val trackingSessionCount: Int,
+    val externalRatingCount: Int,
+    val externalTrackingCount: Int,
+)
+
 interface MediaRepository {
     fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>>
 
     suspend fun seedSampleDataIfEmpty()
 
     suspend fun exportBackupJson(): String
+
+    suspend fun previewBackupJson(json: String): BackupPreview
 
     suspend fun importBackupJson(json: String)
 

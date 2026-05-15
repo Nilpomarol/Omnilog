@@ -10,6 +10,7 @@ import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
@@ -65,6 +66,10 @@ class HomeViewModel(
 
     suspend fun exportBackupJson(): String {
         return mediaRepository.exportBackupJson()
+    }
+
+    suspend fun previewBackupJson(json: String): BackupPreview {
+        return mediaRepository.previewBackupJson(json)
     }
 
     suspend fun importBackupJson(json: String) {

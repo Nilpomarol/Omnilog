@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.detail.DetailScreen
@@ -44,7 +45,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
-    var pendingImportJson by remember { mutableStateOf<String?>(null) }
+    var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
     val selectedCollection = uiState.trackedItems
@@ -85,7 +86,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val result = runCatching {
+                val readResult = runCatching {
                     withContext(Dispatchers.IO) {
                         checkNotNull(context.contentResolver.openInputStream(uri)) {
                             "Could not open backup source"
@@ -94,9 +95,25 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         }
                     }
                 }
-                pendingImportJson = result.getOrNull()
-                if (result.isFailure) {
+                val backupJson = readResult.getOrNull()
+                if (backupJson == null) {
                     snackbarHostState.showSnackbar(importReadErrorMessage)
+                    return@launch
+                }
+
+                val previewResult = runCatching {
+                    PendingBackupImport(
+                        json = backupJson,
+                        preview = viewModel.previewBackupJson(backupJson),
+                    )
+                }
+                pendingImport = previewResult.getOrNull()
+                previewResult.exceptionOrNull()?.let { error ->
+                    val message = when (error) {
+                        is UnsupportedBackupSchemaException -> importUnsupportedMessage
+                        else -> importInvalidMessage
+                    }
+                    snackbarHostState.showSnackbar(message)
                 }
             }
         }
@@ -204,26 +221,37 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         }
     }
 
-    pendingImportJson?.let { backupJson ->
+    pendingImport?.let { backupImport ->
         AlertDialog(
-            onDismissRequest = { pendingImportJson = null },
+            onDismissRequest = { pendingImport = null },
             title = { Text(text = stringResource(R.string.import_backup_title)) },
-            text = { Text(text = stringResource(R.string.import_backup_message)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.import_backup_message_with_summary,
+                        backupImport.preview.collectionCount,
+                        backupImport.preview.mediaItemCount,
+                        backupImport.preview.trackingSessionCount,
+                        backupImport.preview.externalRatingCount,
+                        backupImport.preview.externalTrackingCount,
+                    ),
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         coroutineScope.launch {
                             val result = runCatching {
-                                viewModel.importBackupJson(backupJson)
+                                viewModel.importBackupJson(backupImport.json)
                             }
                             if (result.isSuccess) {
                                 selectedMediaId = null
                                 selectedCollectionId = null
                                 isAdding = false
-                                pendingImportJson = null
+                                pendingImport = null
                                 snackbarHostState.showSnackbar(importSuccessMessage)
                             } else {
-                                pendingImportJson = null
+                                pendingImport = null
                                 val message = when (result.exceptionOrNull()) {
                                     is UnsupportedBackupSchemaException -> importUnsupportedMessage
                                     else -> importInvalidMessage
@@ -237,10 +265,15 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingImportJson = null }) {
+                TextButton(onClick = { pendingImport = null }) {
                     Text(text = stringResource(R.string.cancel))
                 }
             },
         )
     }
 }
+
+private data class PendingBackupImport(
+    val json: String,
+    val preview: BackupPreview,
+)

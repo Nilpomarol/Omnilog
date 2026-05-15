@@ -76,13 +76,20 @@ class OfflineMediaRepository(
             .toString(2)
     }
 
-    override suspend fun importBackupJson(json: String) {
-        val root = JSONObject(json)
-        val schemaVersion = root.optInt("schemaVersion", -1)
-        if (schemaVersion != 1) {
-            throw UnsupportedBackupSchemaException(schemaVersion)
-        }
+    override suspend fun previewBackupJson(json: String): BackupPreview {
+        val root = parseBackupRoot(json)
 
+        return BackupPreview(
+            collectionCount = root.getJSONArray("collections").length(),
+            mediaItemCount = root.getJSONArray("mediaItems").length(),
+            trackingSessionCount = root.getJSONArray("trackingSessions").length(),
+            externalRatingCount = root.getJSONArray("externalRatings").length(),
+            externalTrackingCount = root.getJSONArray("externalTracking").length(),
+        )
+    }
+
+    override suspend fun importBackupJson(json: String) {
+        val root = parseBackupRoot(json)
         mediaDao.replaceAllData(
             collections = root.getJSONArray("collections").mapObjects { it.toMediaCollectionEntity() },
             mediaItems = root.getJSONArray("mediaItems").mapObjects { it.toMediaItemEntity() },
@@ -298,6 +305,16 @@ class OfflineMediaRepository(
             platformType = validPlatformName?.let { platformType.name },
         )
     }
+}
+
+private fun parseBackupRoot(json: String): JSONObject {
+    val root = JSONObject(json)
+    val schemaVersion = root.optInt("schemaVersion", -1)
+    if (schemaVersion != 1) {
+        throw UnsupportedBackupSchemaException(schemaVersion)
+    }
+
+    return root
 }
 
 private fun MediaCollectionEntity.toJson(): JSONObject {
