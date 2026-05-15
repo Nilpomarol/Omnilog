@@ -22,8 +22,12 @@ fun <T> OptionSelector(
     selectedOption: T,
     optionLabel: @Composable (T) -> String,
     onOptionSelected: (T) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,

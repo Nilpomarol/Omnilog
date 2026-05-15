@@ -146,21 +146,28 @@ private fun BrowseControls(
             onOptionSelected = onStatusFilterChange,
         )
 
-        OptionSelector(
-            label = stringResource(R.string.sort_label),
-            options = HomeSortMode.entries,
-            selectedOption = sortMode,
-            optionLabel = { sort -> sort.label() },
-            onOptionSelected = onSortModeChange,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OptionSelector(
+                label = stringResource(R.string.sort_label),
+                options = HomeSortMode.entries,
+                selectedOption = sortMode,
+                optionLabel = { sort -> sort.label() },
+                onOptionSelected = onSortModeChange,
+                modifier = Modifier.weight(1f),
+            )
 
-        OptionSelector(
-            label = stringResource(R.string.sort_direction_label),
-            options = HomeSortDirection.entries,
-            selectedOption = sortDirection,
-            optionLabel = { direction -> direction.label() },
-            onOptionSelected = onSortDirectionChange,
-        )
+            OptionSelector(
+                label = stringResource(R.string.sort_direction_label),
+                options = HomeSortDirection.entries,
+                selectedOption = sortDirection,
+                optionLabel = { direction -> direction.label() },
+                onOptionSelected = onSortDirectionChange,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onExportBackup) {
