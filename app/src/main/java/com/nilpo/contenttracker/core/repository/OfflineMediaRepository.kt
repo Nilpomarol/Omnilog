@@ -80,7 +80,7 @@ class OfflineMediaRepository(
         val root = JSONObject(json)
         val schemaVersion = root.optInt("schemaVersion", -1)
         if (schemaVersion != 1) {
-            return
+            throw UnsupportedBackupSchemaException(schemaVersion)
         }
 
         mediaDao.replaceAllData(

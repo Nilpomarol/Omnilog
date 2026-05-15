@@ -9,6 +9,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
@@ -38,6 +41,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var pendingImportJson by remember { mutableStateOf<String?>(null) }
@@ -48,17 +52,31 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         .firstOrNull { it.id == selectedCollectionId }
     val selectedCollectionItems = uiState.trackedItems
         .filter { it.collection?.id == selectedCollectionId }
+    val exportSuccessMessage = stringResource(R.string.backup_export_success)
+    val exportErrorMessage = stringResource(R.string.backup_export_error)
+    val importReadErrorMessage = stringResource(R.string.backup_import_read_error)
+    val importSuccessMessage = stringResource(R.string.backup_import_success)
+    val importInvalidMessage = stringResource(R.string.backup_import_invalid)
+    val importUnsupportedMessage = stringResource(R.string.backup_import_unsupported)
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val backupJson = viewModel.exportBackupJson()
-                withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(backupJson.toByteArray(Charsets.UTF_8))
+                val result = runCatching {
+                    val backupJson = viewModel.exportBackupJson()
+                    withContext(Dispatchers.IO) {
+                        val bytes = backupJson.toByteArray(Charsets.UTF_8)
+                        checkNotNull(context.contentResolver.openOutputStream(uri)) {
+                            "Could not open backup destination"
+                        }.use { outputStream ->
+                            outputStream.write(bytes)
+                        }
                     }
                 }
+                snackbarHostState.showSnackbar(
+                    if (result.isSuccess) exportSuccessMessage else exportErrorMessage,
+                )
             }
         }
     }
@@ -67,16 +85,25 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                pendingImportJson = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                        inputStream.readBytes().toString(Charsets.UTF_8)
+                val result = runCatching {
+                    withContext(Dispatchers.IO) {
+                        checkNotNull(context.contentResolver.openInputStream(uri)) {
+                            "Could not open backup source"
+                        }.use { inputStream ->
+                            inputStream.readBytes().toString(Charsets.UTF_8)
+                        }
                     }
+                }
+                pendingImportJson = result.getOrNull()
+                if (result.isFailure) {
+                    snackbarHostState.showSnackbar(importReadErrorMessage)
                 }
             }
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             NavigationBar {
                 MediaSection.entries.forEach { section ->
@@ -185,11 +212,25 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.importBackupJson(backupJson)
-                        selectedMediaId = null
-                        selectedCollectionId = null
-                        isAdding = false
-                        pendingImportJson = null
+                        coroutineScope.launch {
+                            val result = runCatching {
+                                viewModel.importBackupJson(backupJson)
+                            }
+                            if (result.isSuccess) {
+                                selectedMediaId = null
+                                selectedCollectionId = null
+                                isAdding = false
+                                pendingImportJson = null
+                                snackbarHostState.showSnackbar(importSuccessMessage)
+                            } else {
+                                pendingImportJson = null
+                                val message = when (result.exceptionOrNull()) {
+                                    is UnsupportedBackupSchemaException -> importUnsupportedMessage
+                                    else -> importInvalidMessage
+                                }
+                                snackbarHostState.showSnackbar(message)
+                            }
+                        }
                     },
                 ) {
                     Text(text = stringResource(R.string.import_backup_confirm))

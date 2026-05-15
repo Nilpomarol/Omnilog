@@ -67,10 +67,8 @@ class HomeViewModel(
         return mediaRepository.exportBackupJson()
     }
 
-    fun importBackupJson(json: String) {
-        viewModelScope.launch {
-            mediaRepository.importBackupJson(json)
-        }
+    suspend fun importBackupJson(json: String) {
+        mediaRepository.importBackupJson(json)
     }
 
     fun selectSection(section: MediaSection) {

@@ -71,6 +71,12 @@
     <string name="import_backup_title">Importa copia</string>
     <string name="import_backup_message">Aixo substituira totes les dades locals actuals per les de la copia.</string>
     <string name="import_backup_confirm">Importa</string>
+    <string name="backup_export_success">Copia exportada.</string>
+    <string name="backup_export_error">No s\'ha pogut exportar la copia.</string>
+    <string name="backup_import_success">Copia importada.</string>
+    <string name="backup_import_read_error">No s\'ha pogut llegir el fitxer de copia.</string>
+    <string name="backup_import_invalid">Aquest fitxer no es una copia valida.</string>
+    <string name="backup_import_unsupported">Aquesta versio de copia no es compatible.</string>
     <string name="media_type_anime">Anime</string>
     <string name="media_type_book">Llibre</string>
     <string name="media_type_movie">Pellicula</string>

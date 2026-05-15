@@ -10,6 +10,10 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
 
+class UnsupportedBackupSchemaException(
+    val schemaVersion: Int,
+) : IllegalArgumentException("Unsupported backup schema version: $schemaVersion")
+
 interface MediaRepository {
     fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>>
 
