@@ -114,17 +114,21 @@ class HomeViewModel(
             metadataSearchState.value = metadataSearchState.value.copy(
                 isLoading = true,
                 hasSearched = true,
+                hasError = false,
             )
-            val suggestions = metadataRepository.searchSuggestions(
-                MetadataSearchRequest(
-                    query = query,
-                    mediaTypes = selectedSection.value.types,
-                ),
-            )
+            val result = runCatching {
+                metadataRepository.searchSuggestions(
+                    MetadataSearchRequest(
+                        query = query,
+                        mediaTypes = selectedSection.value.types,
+                    ),
+                )
+            }
             metadataSearchState.value = metadataSearchState.value.copy(
-                suggestions = suggestions,
+                suggestions = result.getOrElse { emptyList() },
                 selectedSuggestion = null,
                 isLoading = false,
+                hasError = result.isFailure,
             )
         }
     }

@@ -249,6 +249,11 @@ private fun MetadataSearchResults(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
         )
+        uiState.hasError -> Text(
+            text = stringResource(R.string.metadata_search_error),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
         uiState.hasSearched && uiState.suggestions.isEmpty() -> Text(
             text = stringResource(R.string.metadata_search_empty),
             style = MaterialTheme.typography.bodyMedium,

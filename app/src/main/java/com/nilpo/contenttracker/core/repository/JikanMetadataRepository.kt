@@ -18,13 +18,11 @@ class JikanMetadataRepository : MetadataRepository {
         if (MediaType.Anime !in request.mediaTypes || query.isBlank()) return emptyList()
 
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                val response = getJson("https://api.jikan.moe/v4/anime?q=$encodedQuery&limit=10&sfw=true")
-                val data = response.optJSONArray("data") ?: return@runCatching emptyList()
-                List(data.length()) { data.getJSONObject(it) }
-                    .mapNotNull { it.toMetadataSuggestion() }
-            }.getOrElse { emptyList() }
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val response = getJson("https://api.jikan.moe/v4/anime?q=$encodedQuery&limit=10&sfw=true")
+            val data = response.optJSONArray("data") ?: return@withContext emptyList()
+            List(data.length()) { data.getJSONObject(it) }
+                .mapNotNull { it.toMetadataSuggestion() }
         }
     }
 
