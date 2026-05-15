@@ -51,7 +51,7 @@ class TmdbMetadataRepository(
             runCatching {
                 getJson(
                     "https://api.themoviedb.org/3/$endpoint/${suggestion.externalId}" +
-                        "?api_key=$apiKey&language=ca-ES",
+                        "?api_key=$apiKey&language=en-US",
                 ).toDetailedSuggestion(suggestion)
             }.getOrElse { suggestion }
         }
@@ -65,7 +65,7 @@ class TmdbMetadataRepository(
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
         val response = getJson(
             "https://api.themoviedb.org/3/search/$endpoint" +
-                "?api_key=$apiKey&query=$encodedQuery&include_adult=false&language=ca-ES",
+                "?api_key=$apiKey&query=$encodedQuery&include_adult=false&language=en-US",
         )
         val results = response.optJSONArray("results") ?: return emptyList()
 
