@@ -149,6 +149,7 @@ Hero content:
 - author/director/studio/developer
 - provider rating and metadata
 - relevant provider collection/franchise info
+- Genre tags (below cover just above the use tracking section and scrolable if needed)
 
 Below hero:
 

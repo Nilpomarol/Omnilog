@@ -3,16 +3,25 @@ package com.nilpo.contenttracker.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,8 +29,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.repository.BackupPreview
@@ -37,6 +52,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -48,6 +64,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var isAdding by remember { mutableStateOf(false) }
+    var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
     val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
     val selectedCollection = uiState.trackedItems
         .mapNotNull { it.collection }
@@ -121,21 +138,54 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
 
     Scaffold(
+        topBar = {
+            OmnilogTopBar(
+                accent = when (selectedDestination) {
+                    AppDestination.Home -> MaterialTheme.colorScheme.primary
+                    AppDestination.Section -> uiState.selectedSection.accent
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             NavigationBar {
+                NavigationBarItem(
+                    selected = selectedDestination == AppDestination.Home,
+                    onClick = {
+                        selectedDestination = AppDestination.Home
+                        selectedMediaId = null
+                        selectedCollectionId = null
+                        isAdding = false
+                    },
+                    label = { Text(stringResource(R.string.nav_home)) },
+                    icon = {
+                        NavMark(
+                            label = "O",
+                            accent = MaterialTheme.colorScheme.primary,
+                            selected = selectedDestination == AppDestination.Home,
+                        )
+                    },
+                )
                 MediaSection.entries.forEach { section ->
                     val title = stringResource(section.titleResId)
+                    val selected = selectedDestination == AppDestination.Section && uiState.selectedSection == section
                     NavigationBarItem(
-                        selected = uiState.selectedSection == section,
+                        selected = selected,
                         onClick = {
+                            selectedDestination = AppDestination.Section
                             selectedMediaId = null
                             selectedCollectionId = null
                             isAdding = false
                             viewModel.selectSection(section)
                         },
                         label = { Text(title) },
-                        icon = { Text(title.first().toString()) },
+                        icon = {
+                            NavMark(
+                                label = section.navMark,
+                                accent = section.accent,
+                                selected = selected,
+                            )
+                        },
                     )
                 }
             }
@@ -159,6 +209,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     isAdding = false
                     selectedCollectionId = null
                 },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        } else if (selectedDestination == AppDestination.Home) {
+            OmnilogHomeLanding(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -287,3 +343,78 @@ private data class PendingBackupImport(
     val json: String,
     val preview: BackupPreview,
 )
+
+private enum class AppDestination {
+    Home,
+    Section,
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OmnilogTopBar(accent: Color) {
+    TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+        ),
+        title = {
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
+                        append("Omni")
+                    }
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.SemiBold)) {
+                        append("log")
+                    }
+                },
+                style = MaterialTheme.typography.headlineSmall,
+            )
+        },
+    )
+}
+
+@Composable
+private fun NavMark(
+    label: String,
+    accent: Color,
+    selected: Boolean,
+) {
+    Surface(
+        shape = CircleShape,
+        color = if (selected) accent else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun OmnilogHomeLanding(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.home_title),
+                style = MaterialTheme.typography.headlineLarge,
+            )
+            Text(
+                text = stringResource(R.string.home_redesign_placeholder),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+            )
+        }
+    }
+}

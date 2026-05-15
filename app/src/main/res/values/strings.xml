@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Content Tracker</string>
+    <string name="app_name">Omnilog</string>
 
+    <string name="nav_home">Inici</string>
     <string name="nav_anime">Anime</string>
     <string name="nav_books">Llibres</string>
-    <string name="nav_movies">Pel·lícules</string>
+    <string name="nav_movies">TV</string>
     <string name="nav_games">Jocs</string>
+    <string name="home_title">La teva biblioteca</string>
+    <string name="home_redesign_placeholder">Aquest espai sera el resum visual d\'Omnilog: lectures, visionats, partides, estadistiques i activitat recent.</string>
 
     <string name="empty_anime">L\'anime que segueixis apareixerà aquí.</string>
     <string name="empty_books">Els llibres que llegeixis i rellegeixis apareixeran aquí.</string>
