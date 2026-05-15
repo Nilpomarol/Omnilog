@@ -9,6 +9,7 @@ class CompositeMetadataRepository(
     private val tmdb: TmdbMetadataRepository,
     private val aniList: AniListMetadataRepository,
     private val googleBooks: GoogleBooksMetadataRepository,
+    private val rawg: RawgMetadataRepository,
 ) : MetadataRepository {
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         return buildList {
@@ -22,6 +23,9 @@ class CompositeMetadataRepository(
             if (MediaType.Book in request.mediaTypes) {
                 addAll(googleBooks.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Book))))
             }
+            if (MediaType.Game in request.mediaTypes) {
+                addAll(rawg.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Game))))
+            }
         }
     }
 
@@ -30,6 +34,7 @@ class CompositeMetadataRepository(
             MetadataSource.Tmdb -> tmdb.getSuggestionDetails(suggestion)
             MetadataSource.AniList -> aniList.getSuggestionDetails(suggestion)
             MetadataSource.GoogleBooks -> googleBooks.getSuggestionDetails(suggestion)
+            MetadataSource.Rawg -> rawg.getSuggestionDetails(suggestion)
             else -> suggestion
         }
     }

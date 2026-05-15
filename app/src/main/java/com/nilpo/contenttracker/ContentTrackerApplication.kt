@@ -9,6 +9,7 @@ import com.nilpo.contenttracker.core.repository.CompositeMetadataRepository
 import com.nilpo.contenttracker.core.repository.GoogleBooksMetadataRepository
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.core.repository.OfflineMediaRepository
+import com.nilpo.contenttracker.core.repository.RawgMetadataRepository
 import com.nilpo.contenttracker.core.repository.TmdbMetadataRepository
 
 class ContentTrackerApplication : Application() {
@@ -31,6 +32,7 @@ class ContentTrackerApplication : Application() {
             tmdb = TmdbMetadataRepository(BuildConfig.TMDB_API_KEY),
             aniList = AniListMetadataRepository(),
             googleBooks = GoogleBooksMetadataRepository(BuildConfig.GOOGLE_BOOKS_API_KEY),
+            rawg = RawgMetadataRepository(BuildConfig.RAWG_API_KEY),
         )
     }
 }
