@@ -42,7 +42,7 @@ fun HomeScreen(
     val groupedItems = uiState.trackedItems
         .filter { it.collection != null }
         .groupBy { it.collection }
-        .toSortedMap(compareBy(nullsLast()) { it?.name.orEmpty() })
+        .toSortedCollectionEntries(uiState.sortMode)
     val ungroupedItems = uiState.trackedItems.filter { it.collection == null }
     val hasCollections = groupedItems.isNotEmpty()
 
@@ -198,6 +198,37 @@ private fun HomeSortMode.label(): String {
         HomeSortMode.Collection -> stringResource(R.string.sort_collection)
         HomeSortMode.Progress -> stringResource(R.string.sort_progress)
         HomeSortMode.Rating -> stringResource(R.string.sort_rating)
+    }
+}
+
+private fun Map<MediaCollection?, List<TrackedMedia>>.toSortedCollectionEntries(
+    sortMode: HomeSortMode,
+): List<Map.Entry<MediaCollection?, List<TrackedMedia>>> {
+    return when (sortMode) {
+        HomeSortMode.Title,
+        HomeSortMode.Collection,
+        -> entries.sortedBy { it.key?.name.orEmpty().lowercase() }
+        HomeSortMode.Progress -> entries.sortedWith(
+            compareByDescending<Map.Entry<MediaCollection?, List<TrackedMedia>>> { entry ->
+                entry.value.maxOfOrNull { it.progressSortValue() } ?: 0.0
+            }.thenBy { it.key?.name.orEmpty().lowercase() },
+        )
+        HomeSortMode.Rating -> entries.sortedWith(
+            compareByDescending<Map.Entry<MediaCollection?, List<TrackedMedia>>> { entry ->
+                entry.value.maxOfOrNull { it.currentSession?.rating ?: 0 } ?: 0
+            }.thenBy { it.key?.name.orEmpty().lowercase() },
+        )
+    }
+}
+
+private fun TrackedMedia.progressSortValue(): Double {
+    val progressCurrent = currentSession?.progressCurrent ?: 0
+    val progressTotal = item.progressTotal
+
+    return if (progressTotal != null && progressTotal > 0) {
+        progressCurrent.toDouble() / progressTotal.toDouble()
+    } else {
+        progressCurrent.toDouble()
     }
 }
 
