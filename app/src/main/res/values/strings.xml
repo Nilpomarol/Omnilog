@@ -92,7 +92,7 @@
     <string name="import_backup">Importa copia</string>
     <string name="import_backup_title">Importa copia</string>
     <string name="import_backup_message">Aixo substituira totes les dades locals actuals per les de la copia.</string>
-    <string name="import_backup_message_with_summary">Aixo substituira totes les dades locals actuals per les de la copia.\n\nLa copia conte:\n%1$d colleccions\n%2$d elements\n%3$d sessions\n%4$d notes externes\n%5$d seguiments externs</string>
+    <string name="import_backup_message_with_summary">Aixo substituira totes les dades locals actuals per les de la copia.\n\nLa copia conte:\n%1$d colleccions\n%2$d elements\n%3$d credits\n%4$d sessions\n%5$d notes externes\n%6$d seguiments externs</string>
     <string name="import_backup_confirm">Importa</string>
     <string name="backup_export_success">Copia exportada.</string>
     <string name="backup_export_error">No s\'ha pogut exportar la copia.</string>

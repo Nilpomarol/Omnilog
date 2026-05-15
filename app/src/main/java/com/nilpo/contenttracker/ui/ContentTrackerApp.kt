@@ -240,6 +240,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         R.string.import_backup_message_with_summary,
                         backupImport.preview.collectionCount,
                         backupImport.preview.mediaItemCount,
+                        backupImport.preview.mediaCreditCount,
                         backupImport.preview.trackingSessionCount,
                         backupImport.preview.externalRatingCount,
                         backupImport.preview.externalTrackingCount,

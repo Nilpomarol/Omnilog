@@ -1,6 +1,8 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -72,6 +74,14 @@ class GoogleBooksMetadataRepository(
             synopsis = info.optString("description").takeIf { it.isNotBlank() },
             progressTotal = info.optInt("pageCount", 0).takeIf { it > 0 },
             creators = authors,
+            credits = authors.mapIndexed { index, author ->
+                MediaCredit(
+                    personName = author,
+                    roleType = MediaCreditRole.Author,
+                    sortOrder = index,
+                    metadataSource = MetadataSource.GoogleBooks,
+                )
+            },
             genres = categories,
             sourceUrl = info.optString("infoLink").takeIf { it.isNotBlank() },
             externalRating = if (averageRating > 0.0) {

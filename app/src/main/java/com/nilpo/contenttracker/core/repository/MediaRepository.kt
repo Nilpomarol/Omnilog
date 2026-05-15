@@ -17,6 +17,7 @@ class UnsupportedBackupSchemaException(
 data class BackupPreview(
     val collectionCount: Int,
     val mediaItemCount: Int,
+    val mediaCreditCount: Int,
     val trackingSessionCount: Int,
     val externalRatingCount: Int,
     val externalTrackingCount: Int,

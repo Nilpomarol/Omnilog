@@ -1,6 +1,8 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -51,6 +53,8 @@ class AniListMetadataRepository : MetadataRepository {
             ?.trim()
         val averageScore = optInt("averageScore", 0)
         val popularity = optInt("popularity", 0)
+        val rankings = optJSONArray("rankings")
+        val ratingDistribution = optJSONObject("stats")?.optJSONArray("scoreDistribution")
         val releaseYear = optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
         val genres = optJSONArray("genres")?.let { arr ->
             List(arr.length()) { arr.getString(it) }.filter { it.isNotBlank() }
@@ -61,6 +65,17 @@ class AniListMetadataRepository : MetadataRepository {
             ?.let { arr -> List(arr.length()) { arr.getJSONObject(it).optString("name") } }
             ?.filter { it.isNotBlank() }
             ?: emptyList()
+        val studioCredits = creators.mapIndexed { index, studio ->
+            MediaCredit(
+                personName = studio,
+                roleType = MediaCreditRole.Studio,
+                sortOrder = index,
+                metadataSource = MetadataSource.AniList,
+            )
+        }
+        val voiceCredits = optJSONObject("characters")
+            ?.optJSONArray("edges")
+            .toVoiceActorCredits()
 
         return MetadataSuggestion(
             source = MetadataSource.AniList,
@@ -74,7 +89,14 @@ class AniListMetadataRepository : MetadataRepository {
             progressTotal = optInt("episodes", 0).takeIf { it > 0 },
             genres = genres,
             creators = creators,
+            credits = studioCredits + voiceCredits,
             sourceUrl = optString("siteUrl").takeIf { it.isNotBlank() },
+            popularityScore = popularity.takeIf { it > 0 }?.toDouble(),
+            rankingPosition = rankings.firstRank(),
+            rankingLabel = rankings.firstRankLabel(),
+            ratingDistributionJson = ratingDistribution?.toString(),
+            popularityJson = JSONObject().put("popularity", popularity).toString(),
+            rankingJson = rankings?.toString(),
             externalRating = if (averageScore > 0) {
                 MetadataRatingSuggestion(
                     score = averageScore / 10.0,
@@ -116,13 +138,66 @@ class AniListMetadataRepository : MetadataRepository {
                   episodes
                   averageScore
                   popularity
+                  rankings { rank type allTime context }
+                  stats { scoreDistribution { score amount } }
                   startDate { year }
                   genres
                   studios(isMain: true) { nodes { name } }
+                  characters(perPage: 12, sort: ROLE) {
+                    edges {
+                      node { name { full } }
+                      voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } }
+                    }
+                  }
                   siteUrl
                 }
               }
             }
         """.trimIndent()
     }
+}
+
+private fun org.json.JSONArray?.firstRank(): Int? {
+    if (this == null || length() == 0) return null
+    return List(length()) { getJSONObject(it) }
+        .firstOrNull { it.optBoolean("allTime", false) }
+        ?.optInt("rank", 0)
+        ?.takeIf { it > 0 }
+}
+
+private fun org.json.JSONArray?.firstRankLabel(): String? {
+    if (this == null || length() == 0) return null
+    val ranking = List(length()) { getJSONObject(it) }
+        .firstOrNull { it.optBoolean("allTime", false) }
+        ?: return null
+    return ranking.optString("context").takeIf { it.isNotBlank() }
+        ?: ranking.optString("type").takeIf { it.isNotBlank() }
+}
+
+private fun org.json.JSONArray?.toVoiceActorCredits(): List<MediaCredit> {
+    if (this == null) return emptyList()
+    return List(length()) { edgeIndex ->
+        val edge = getJSONObject(edgeIndex)
+        val characterName = edge
+            .optJSONObject("node")
+            ?.optJSONObject("name")
+            ?.optString("full")
+            ?.takeIf { it.isNotBlank() }
+        val voiceActors = edge.optJSONArray("voiceActors") ?: return@List emptyList()
+        List(voiceActors.length()) { actorIndex ->
+            val actorName = voiceActors
+                .getJSONObject(actorIndex)
+                .optJSONObject("name")
+                ?.optString("full")
+                ?.takeIf { it.isNotBlank() }
+                ?: return@List null
+            MediaCredit(
+                personName = actorName,
+                roleType = MediaCreditRole.VoiceActor,
+                characterName = characterName,
+                sortOrder = edgeIndex * 10 + actorIndex,
+                metadataSource = MetadataSource.AniList,
+            )
+        }.filterNotNull()
+    }.flatten()
 }

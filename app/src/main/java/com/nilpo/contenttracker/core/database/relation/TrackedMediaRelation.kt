@@ -5,6 +5,7 @@ import androidx.room.Relation
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 
@@ -21,6 +22,11 @@ data class TrackedMediaRelation(
         entityColumn = "mediaItemId",
     )
     val sessions: List<TrackingSessionEntity>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "mediaItemId",
+    )
+    val credits: List<MediaCreditEntity>,
     @Relation(
         parentColumn = "id",
         entityColumn = "mediaItemId",

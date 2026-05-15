@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.relation.TrackedMediaRelation
@@ -33,6 +34,9 @@ interface MediaDao {
 
     @Query("SELECT * FROM media_items ORDER BY id")
     suspend fun getMediaItems(): List<MediaItemEntity>
+
+    @Query("SELECT * FROM media_credits ORDER BY mediaItemId, sortOrder, id")
+    suspend fun getMediaCredits(): List<MediaCreditEntity>
 
     @Query("SELECT * FROM media_collections ORDER BY name")
     fun observeMediaCollections(): Flow<List<MediaCollectionEntity>>
@@ -63,6 +67,12 @@ interface MediaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaItem(item: MediaItemEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMediaCredit(credit: MediaCreditEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMediaCredits(credits: List<MediaCreditEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrackingSession(session: TrackingSessionEntity): Long
@@ -203,6 +213,9 @@ interface MediaDao {
     @Query("DELETE FROM media_items")
     suspend fun deleteAllMediaItems()
 
+    @Query("DELETE FROM media_credits")
+    suspend fun deleteAllMediaCredits()
+
     @Query("DELETE FROM media_collections")
     suspend fun deleteAllMediaCollections()
 
@@ -210,6 +223,7 @@ interface MediaDao {
     suspend fun replaceAllData(
         collections: List<MediaCollectionEntity>,
         mediaItems: List<MediaItemEntity>,
+        mediaCredits: List<MediaCreditEntity>,
         sessions: List<TrackingSessionEntity>,
         externalRatings: List<ExternalRatingEntity>,
         externalTracking: List<ExternalTrackingEntity>,
@@ -217,11 +231,13 @@ interface MediaDao {
         deleteAllExternalTracking()
         deleteAllExternalRatings()
         deleteAllTrackingSessions()
+        deleteAllMediaCredits()
         deleteAllMediaItems()
         deleteAllMediaCollections()
 
         collections.forEach { insertMediaCollection(it) }
         mediaItems.forEach { insertMediaItem(it) }
+        mediaCredits.forEach { insertMediaCredit(it) }
         sessions.forEach { insertTrackingSession(it) }
         externalRatings.forEach { insertExternalRating(it) }
         externalTracking.forEach { insertExternalTracking(it) }

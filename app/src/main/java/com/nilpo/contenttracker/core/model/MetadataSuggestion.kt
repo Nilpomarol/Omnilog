@@ -10,10 +10,17 @@ data class MetadataSuggestion(
     val releaseYear: Int? = null,
     val genres: List<String> = emptyList(),
     val creators: List<String> = emptyList(),
+    val credits: List<MediaCredit> = emptyList(),
     val progressTotal: Int? = null,
     val coverUrl: String? = null,
     val synopsis: String? = null,
     val sourceUrl: String? = null,
+    val popularityScore: Double? = null,
+    val rankingPosition: Int? = null,
+    val rankingLabel: String? = null,
+    val ratingDistributionJson: String? = null,
+    val popularityJson: String? = null,
+    val rankingJson: String? = null,
     val externalRating: MetadataRatingSuggestion? = null,
 )
 

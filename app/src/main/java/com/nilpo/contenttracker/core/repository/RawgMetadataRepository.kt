@@ -1,6 +1,8 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -95,6 +97,7 @@ class RawgMetadataRepository(
         val rating = optDouble("rating", 0.0)
         val ratingsCount = optInt("ratings_count", 0)
         val playtime = optInt("playtime", 0).takeIf { it > 0 }
+        val ratingsDistribution = optJSONArray("ratings")?.toString()
 
         return base.copy(
             releaseYear = releaseYear ?: base.releaseYear,
@@ -102,7 +105,16 @@ class RawgMetadataRepository(
             synopsis = optString("description_raw").takeIf { it.isNotBlank() } ?: base.synopsis,
             genres = optJSONArray("genres").toStringList("name").ifEmpty { base.genres },
             creators = optJSONArray("developers").toStringList("name").ifEmpty { base.creators },
+            credits = optJSONArray("developers").toCredits(MediaCreditRole.Developer, MetadataSource.Rawg)
+                .ifEmpty { base.credits },
             progressTotal = playtime ?: base.progressTotal,
+            popularityScore = optInt("added", 0).takeIf { it > 0 }?.toDouble() ?: base.popularityScore,
+            ratingDistributionJson = ratingsDistribution ?: base.ratingDistributionJson,
+            popularityJson = JSONObject()
+                .put("added", optInt("added", 0))
+                .put("ratingsCount", ratingsCount)
+                .put("suggestionsCount", optInt("suggestions_count", 0))
+                .toString(),
             externalRating = if (rating > 0.0) {
                 MetadataRatingSuggestion(
                     score = rating,
@@ -129,4 +141,21 @@ private fun org.json.JSONArray?.toStringList(fieldName: String): List<String> {
     return List(length()) { getJSONObject(it) }
         .map { it.optString(fieldName) }
         .filter { it.isNotBlank() }
+}
+
+private fun org.json.JSONArray?.toCredits(
+    roleType: MediaCreditRole,
+    source: MetadataSource,
+): List<MediaCredit> {
+    if (this == null) return emptyList()
+    return List(length()) { index ->
+        val obj = getJSONObject(index)
+        val name = obj.optString("name").takeIf { it.isNotBlank() } ?: return@List null
+        MediaCredit(
+            personName = name,
+            roleType = roleType,
+            sortOrder = index,
+            metadataSource = source,
+        )
+    }.filterNotNull()
 }

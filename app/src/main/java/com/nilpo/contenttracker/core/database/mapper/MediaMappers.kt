@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.core.database.mapper
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.ConsumptionPlatform
@@ -12,6 +13,8 @@ import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTracking
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaCollection
+import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -19,6 +22,7 @@ import com.nilpo.contenttracker.core.model.Ownership
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import org.json.JSONArray
 import java.time.LocalDate
 
 fun MediaItemEntity.toDomain(): MediaItem {
@@ -28,8 +32,24 @@ fun MediaItemEntity.toDomain(): MediaItem {
         title = title,
         collectionId = collectionId,
         progressTotal = progressTotal,
+        originalTitle = originalTitle,
+        releaseYear = releaseYear,
+        genres = genresJson.toStringList(),
+        creators = creatorsJson.toStringList(),
         coverUrl = coverUrl,
         synopsis = synopsis,
+        sourceUrl = sourceUrl,
+        externalRatingScore = externalRatingScore,
+        externalRatingMax = externalRatingMax,
+        externalRatingVoteCount = externalRatingVoteCount,
+        popularityScore = popularityScore,
+        rankingPosition = rankingPosition,
+        rankingLabel = rankingLabel,
+        providerCollectionTitle = providerCollectionTitle,
+        ratingDistributionJson = ratingDistributionJson,
+        popularityJson = popularityJson,
+        rankingJson = rankingJson,
+        metadataLastFetchedAtEpochMillis = metadataLastFetchedAtEpochMillis,
         metadataExternalId = metadataExternalId,
         metadataSource = enumValueOrNull<MetadataSource>(metadataSource),
         ownership = Ownership(
@@ -46,12 +66,52 @@ fun MediaItem.toEntity(): MediaItemEntity {
         title = title,
         collectionId = collectionId,
         progressTotal = progressTotal,
+        originalTitle = originalTitle,
+        releaseYear = releaseYear,
+        genresJson = genres.toJsonArrayString(),
+        creatorsJson = creators.toJsonArrayString(),
         coverUrl = coverUrl,
         synopsis = synopsis,
+        sourceUrl = sourceUrl,
+        externalRatingScore = externalRatingScore,
+        externalRatingMax = externalRatingMax,
+        externalRatingVoteCount = externalRatingVoteCount,
+        popularityScore = popularityScore,
+        rankingPosition = rankingPosition,
+        rankingLabel = rankingLabel,
+        providerCollectionTitle = providerCollectionTitle,
+        ratingDistributionJson = ratingDistributionJson,
+        popularityJson = popularityJson,
+        rankingJson = rankingJson,
+        metadataLastFetchedAtEpochMillis = metadataLastFetchedAtEpochMillis,
         metadataExternalId = metadataExternalId,
         metadataSource = metadataSource?.name,
         isOwned = ownership.isOwned,
         ownershipType = ownership.type.name,
+    )
+}
+
+fun MediaCreditEntity.toDomain(): MediaCredit {
+    return MediaCredit(
+        id = id,
+        mediaItemId = mediaItemId,
+        personName = personName,
+        roleType = enumValueOrDefault(roleType, MediaCreditRole.Cast),
+        characterName = characterName,
+        sortOrder = sortOrder,
+        metadataSource = enumValueOrNull<MetadataSource>(metadataSource),
+    )
+}
+
+fun MediaCredit.toEntity(mediaItemIdOverride: Long? = null): MediaCreditEntity {
+    return MediaCreditEntity(
+        id = id,
+        mediaItemId = mediaItemIdOverride ?: mediaItemId,
+        personName = personName,
+        roleType = roleType.name,
+        characterName = characterName,
+        sortOrder = sortOrder,
+        metadataSource = metadataSource?.name,
     )
 }
 
@@ -164,4 +224,17 @@ private inline fun <reified T : Enum<T>> enumValueOrNull(
     return value?.let { enumValue ->
         enumValues<T>().firstOrNull { it.name == enumValue }
     }
+}
+
+private fun String?.toStringList(): List<String> {
+    if (isNullOrBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(this)
+        List(array.length()) { array.optString(it) }.filter { it.isNotBlank() }
+    }.getOrDefault(emptyList())
+}
+
+private fun List<String>.toJsonArrayString(): String? {
+    if (isEmpty()) return null
+    return JSONArray(this).toString()
 }

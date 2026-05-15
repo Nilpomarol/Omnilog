@@ -5,6 +5,7 @@ data class TrackedMedia(
     val collection: MediaCollection? = null,
     val availableCollections: List<MediaCollection> = emptyList(),
     val sessions: List<TrackingSession>,
+    val credits: List<MediaCredit> = emptyList(),
     val externalRatings: List<ExternalRating> = emptyList(),
     val externalTracking: List<ExternalTracking> = emptyList(),
 ) {

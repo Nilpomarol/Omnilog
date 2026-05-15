@@ -4,10 +4,12 @@ import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
@@ -39,6 +41,7 @@ class OfflineMediaRepository(
                     collection = relation.collection?.toDomain(),
                     availableCollections = availableCollections,
                     sessions = relation.sessions.map { it.toDomain() },
+                    credits = relation.credits.map { it.toDomain() },
                     externalRatings = relation.externalRatings.map { it.toDomain() },
                     externalTracking = relation.externalTracking.map { it.toDomain() },
                 )
@@ -56,6 +59,9 @@ class OfflineMediaRepository(
             trackedMedia.sessions.forEach { session ->
                 mediaDao.insertTrackingSession(session.toEntity())
             }
+            trackedMedia.credits.forEach { credit ->
+                mediaDao.insertMediaCredit(credit.toEntity())
+            }
             trackedMedia.externalRatings.forEach { rating ->
                 mediaDao.insertExternalRating(rating.toEntity())
             }
@@ -67,9 +73,10 @@ class OfflineMediaRepository(
 
     override suspend fun exportBackupJson(): String {
         return JSONObject()
-            .put("schemaVersion", 2)
+            .put("schemaVersion", 3)
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
+            .put("mediaCredits", JSONArray(mediaDao.getMediaCredits().map { it.toJson() }))
             .put("trackingSessions", JSONArray(mediaDao.getAllTrackingSessions().map { it.toJson() }))
             .put("externalRatings", JSONArray(mediaDao.getExternalRatings().map { it.toJson() }))
             .put("externalTracking", JSONArray(mediaDao.getExternalTracking().map { it.toJson() }))
@@ -82,6 +89,7 @@ class OfflineMediaRepository(
         return BackupPreview(
             collectionCount = root.getJSONArray("collections").length(),
             mediaItemCount = root.getJSONArray("mediaItems").length(),
+            mediaCreditCount = root.optJSONArray("mediaCredits")?.length() ?: 0,
             trackingSessionCount = root.getJSONArray("trackingSessions").length(),
             externalRatingCount = root.getJSONArray("externalRatings").length(),
             externalTrackingCount = root.getJSONArray("externalTracking").length(),
@@ -93,6 +101,7 @@ class OfflineMediaRepository(
         mediaDao.replaceAllData(
             collections = root.getJSONArray("collections").mapObjects { it.toMediaCollectionEntity() },
             mediaItems = root.getJSONArray("mediaItems").mapObjects { it.toMediaItemEntity() },
+            mediaCredits = root.optJSONArray("mediaCredits")?.mapObjects { it.toMediaCreditEntity() } ?: emptyList(),
             sessions = root.getJSONArray("trackingSessions").mapObjects { it.toTrackingSessionEntity() },
             externalRatings = root.getJSONArray("externalRatings").mapObjects { it.toExternalRatingEntity() },
             externalTracking = root.getJSONArray("externalTracking").mapObjects { it.toExternalTrackingEntity() },
@@ -145,14 +154,47 @@ class OfflineMediaRepository(
                 type = request.type.name,
                 title = request.title.trim(),
                 progressTotal = request.progressTotal?.coerceAtLeast(0),
+                originalTitle = request.originalTitle?.trim()?.takeIf { it.isNotBlank() },
+                releaseYear = request.releaseYear,
+                genresJson = request.genres.toJsonArrayString(),
+                creatorsJson = request.creators.toJsonArrayString(),
                 coverUrl = request.coverUrl,
                 synopsis = request.synopsis,
+                sourceUrl = request.sourceUrl,
+                externalRatingScore = request.externalRating?.score,
+                externalRatingMax = request.externalRating?.maxScore,
+                externalRatingVoteCount = request.externalRating?.voteCount,
+                popularityScore = request.popularityScore,
+                rankingPosition = request.rankingPosition,
+                rankingLabel = request.rankingLabel,
+                providerCollectionTitle = request.providerCollectionTitle,
+                ratingDistributionJson = request.ratingDistributionJson,
+                popularityJson = request.popularityJson,
+                rankingJson = request.rankingJson,
+                metadataLastFetchedAtEpochMillis = request.metadataSource?.let { System.currentTimeMillis() },
                 metadataExternalId = request.metadataExternalId,
                 metadataSource = request.metadataSource?.name,
                 isOwned = request.isOwned,
                 ownershipType = request.ownershipType.name,
             ),
         )
+
+        if (request.credits.isNotEmpty()) {
+            mediaDao.insertMediaCredits(
+                request.credits
+                    .filter { it.personName.isNotBlank() }
+                    .mapIndexed { index, credit ->
+                        credit.copy(
+                            id = 0,
+                            mediaItemId = mediaItemId,
+                            personName = credit.personName.trim(),
+                            characterName = credit.characterName?.trim()?.takeIf { it.isNotBlank() },
+                            sortOrder = credit.sortOrder.takeIf { it > 0 } ?: index,
+                            metadataSource = credit.metadataSource ?: request.metadataSource,
+                        ).toEntity()
+                    },
+            )
+        }
 
         mediaDao.insertTrackingSession(
             TrackingSessionEntity(
@@ -327,7 +369,7 @@ class OfflineMediaRepository(
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
     val schemaVersion = root.optInt("schemaVersion", -1)
-    if (schemaVersion !in 1..2) {
+    if (schemaVersion !in 1..3) {
         throw UnsupportedBackupSchemaException(schemaVersion)
     }
 
@@ -347,12 +389,39 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .put("title", title)
         .putNullable("collectionId", collectionId)
         .putNullable("progressTotal", progressTotal)
+        .putNullable("originalTitle", originalTitle)
+        .putNullable("releaseYear", releaseYear)
+        .put("genres", JSONArray(genresJson.toStringList()))
+        .put("creators", JSONArray(creatorsJson.toStringList()))
         .putNullable("coverUrl", coverUrl)
         .putNullable("synopsis", synopsis)
+        .putNullable("sourceUrl", sourceUrl)
+        .putNullable("externalRatingScore", externalRatingScore)
+        .putNullable("externalRatingMax", externalRatingMax)
+        .putNullable("externalRatingVoteCount", externalRatingVoteCount)
+        .putNullable("popularityScore", popularityScore)
+        .putNullable("rankingPosition", rankingPosition)
+        .putNullable("rankingLabel", rankingLabel)
+        .putNullable("providerCollectionTitle", providerCollectionTitle)
+        .putNullable("ratingDistributionJson", ratingDistributionJson)
+        .putNullable("popularityJson", popularityJson)
+        .putNullable("rankingJson", rankingJson)
+        .putNullable("metadataLastFetchedAtEpochMillis", metadataLastFetchedAtEpochMillis)
         .putNullable("metadataExternalId", metadataExternalId)
         .putNullable("metadataSource", metadataSource)
         .put("isOwned", isOwned)
         .put("ownershipType", ownershipType)
+}
+
+private fun MediaCreditEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("mediaItemId", mediaItemId)
+        .put("personName", personName)
+        .put("roleType", roleType)
+        .putNullable("characterName", characterName)
+        .put("sortOrder", sortOrder)
+        .putNullable("metadataSource", metadataSource)
 }
 
 private fun TrackingSessionEntity.toJson(): JSONObject {
@@ -405,12 +474,40 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         title = getString("title"),
         collectionId = optNullableLong("collectionId"),
         progressTotal = optNullableInt("progressTotal"),
+        originalTitle = optNullableString("originalTitle"),
+        releaseYear = optNullableInt("releaseYear"),
+        genresJson = optStringArray("genres").toJsonArrayString(),
+        creatorsJson = optStringArray("creators").toJsonArrayString(),
         coverUrl = optNullableString("coverUrl"),
         synopsis = optNullableString("synopsis"),
+        sourceUrl = optNullableString("sourceUrl"),
+        externalRatingScore = optNullableDouble("externalRatingScore"),
+        externalRatingMax = optNullableDouble("externalRatingMax"),
+        externalRatingVoteCount = optNullableInt("externalRatingVoteCount"),
+        popularityScore = optNullableDouble("popularityScore"),
+        rankingPosition = optNullableInt("rankingPosition"),
+        rankingLabel = optNullableString("rankingLabel"),
+        providerCollectionTitle = optNullableString("providerCollectionTitle"),
+        ratingDistributionJson = optNullableString("ratingDistributionJson"),
+        popularityJson = optNullableString("popularityJson"),
+        rankingJson = optNullableString("rankingJson"),
+        metadataLastFetchedAtEpochMillis = optNullableLong("metadataLastFetchedAtEpochMillis"),
         metadataExternalId = optNullableString("metadataExternalId") ?: optNullableString("externalId"),
         metadataSource = optNullableString("metadataSource") ?: optNullableString("sourceApi"),
         isOwned = optBoolean("isOwned", false),
         ownershipType = optString("ownershipType", "None"),
+    )
+}
+
+private fun JSONObject.toMediaCreditEntity(): MediaCreditEntity {
+    return MediaCreditEntity(
+        id = getLong("id"),
+        mediaItemId = getLong("mediaItemId"),
+        personName = getString("personName"),
+        roleType = optString("roleType", MediaCreditRole.Cast.name),
+        characterName = optNullableString("characterName"),
+        sortOrder = optInt("sortOrder", 0),
+        metadataSource = optNullableString("metadataSource"),
     )
 }
 
@@ -465,10 +562,32 @@ private fun JSONObject.optNullableInt(name: String): Int? {
     return if (isNull(name)) null else optInt(name)
 }
 
+private fun JSONObject.optNullableDouble(name: String): Double? {
+    return if (isNull(name)) null else optDouble(name)
+}
+
 private fun JSONObject.optNullableLong(name: String): Long? {
     return if (isNull(name)) null else optLong(name)
 }
 
 private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {
     return List(length()) { index -> transform(getJSONObject(index)) }
+}
+
+private fun JSONObject.optStringArray(name: String): List<String> {
+    val array = optJSONArray(name) ?: return emptyList()
+    return List(array.length()) { array.optString(it) }.filter { it.isNotBlank() }
+}
+
+private fun String?.toStringList(): List<String> {
+    if (isNullOrBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(this)
+        List(array.length()) { array.optString(it) }.filter { it.isNotBlank() }
+    }.getOrDefault(emptyList())
+}
+
+private fun List<String>.toJsonArrayString(): String? {
+    if (isEmpty()) return null
+    return JSONArray(this).toString()
 }

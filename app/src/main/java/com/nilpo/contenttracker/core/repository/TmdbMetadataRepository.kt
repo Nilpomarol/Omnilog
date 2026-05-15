@@ -1,6 +1,8 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -50,7 +52,7 @@ class TmdbMetadataRepository(
                             "?api_key=$apiKey&language=en-US&append_to_response=credits"
                     MediaType.TvShow ->
                         "https://api.themoviedb.org/3/tv/${suggestion.externalId}" +
-                            "?api_key=$apiKey&language=en-US"
+                            "?api_key=$apiKey&language=en-US&append_to_response=credits"
                     else -> return@withContext suggestion
                 }
                 getJson(url).toDetailedSuggestion(suggestion)
@@ -93,6 +95,7 @@ class TmdbMetadataRepository(
         }
         val posterPath = optString("poster_path").takeIf { it.isNotBlank() }
         val voteAverage = optDouble("vote_average", 0.0)
+        val popularity = optDouble("popularity", 0.0)
 
         return MetadataSuggestion(
             source = MetadataSource.Tmdb,
@@ -103,6 +106,7 @@ class TmdbMetadataRepository(
             releaseYear = date.take(4).toIntOrNull(),
             coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" },
             synopsis = optString("overview").takeIf { it.isNotBlank() },
+            popularityScore = popularity.takeIf { it > 0.0 },
             sourceUrl = when (mediaType) {
                 MediaType.Movie -> "https://www.themoviedb.org/movie/$id"
                 MediaType.TvShow -> "https://www.themoviedb.org/tv/$id"
@@ -138,14 +142,27 @@ class TmdbMetadataRepository(
             MediaType.TvShow -> optJSONArray("created_by").toStringList("name")
             else -> emptyList()
         }
+        val creatorCredits = when (base.mediaType) {
+            MediaType.Movie -> optJSONObject("credits")
+                ?.optJSONArray("crew")
+                .toCredits(MediaCreditRole.Director, MetadataSource.Tmdb) { optString("job") == "Director" }
+            MediaType.TvShow -> optJSONArray("created_by")
+                .toCredits(MediaCreditRole.Creator, MetadataSource.Tmdb)
+            else -> emptyList()
+        }
+        val castCredits = optJSONObject("credits")
+            ?.optJSONArray("cast")
+            .toCredits(MediaCreditRole.Cast, MetadataSource.Tmdb, limit = 20)
 
         return base.copy(
             collectionTitle = collectionTitle ?: base.collectionTitle,
             genres = optJSONArray("genres").toStringList("name"),
             creators = creators.ifEmpty { base.creators },
+            credits = (creatorCredits + castCredits).ifEmpty { base.credits },
             progressTotal = progressTotal ?: base.progressTotal,
             coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: base.coverUrl,
             synopsis = optString("overview").takeIf { it.isNotBlank() } ?: base.synopsis,
+            popularityScore = optDouble("popularity", 0.0).takeIf { it > 0.0 } ?: base.popularityScore,
         )
     }
 
@@ -170,4 +187,26 @@ private fun org.json.JSONArray?.toStringList(
         .filter { it.predicate() }
         .map { it.optString(fieldName) }
         .filter { it.isNotBlank() }
+}
+
+private fun org.json.JSONArray?.toCredits(
+    roleType: MediaCreditRole,
+    source: MetadataSource,
+    limit: Int = Int.MAX_VALUE,
+    predicate: JSONObject.() -> Boolean = { true },
+): List<MediaCredit> {
+    if (this == null) return emptyList()
+    return List(length()) { getJSONObject(it) }
+        .filter { it.predicate() }
+        .take(limit)
+        .mapIndexedNotNull { index, obj ->
+            val name = obj.optString("name").takeIf { it.isNotBlank() } ?: return@mapIndexedNotNull null
+            MediaCredit(
+                personName = name,
+                roleType = roleType,
+                characterName = obj.optString("character").takeIf { it.isNotBlank() },
+                sortOrder = index,
+                metadataSource = source,
+            )
+        }
 }
