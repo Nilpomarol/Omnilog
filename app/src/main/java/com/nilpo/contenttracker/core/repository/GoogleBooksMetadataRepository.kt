@@ -23,7 +23,7 @@ class GoogleBooksMetadataRepository(
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
             val response = getJson(
                 "https://www.googleapis.com/books/v1/volumes" +
-                    "?q=$encodedQuery&maxResults=10&key=$apiKey",
+                    "?q=$encodedQuery&maxResults=10&hl=es&key=$apiKey",
             )
             val items = response.optJSONArray("items") ?: return@withContext emptyList()
             List(items.length()) { items.getJSONObject(it) }
@@ -81,8 +81,8 @@ class GoogleBooksMetadataRepository(
 
     private fun getJson(url: String): JSONObject {
         val connection = URL(url).openConnection() as HttpURLConnection
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 10_000
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 15_000
         connection.requestMethod = "GET"
         return connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
     }
