@@ -43,16 +43,17 @@ class TmdbMetadataRepository(
         }
 
         return withContext(Dispatchers.IO) {
-            val endpoint = when (suggestion.mediaType) {
-                MediaType.Movie -> "movie"
-                MediaType.TvShow -> "tv"
-                else -> return@withContext suggestion
-            }
             runCatching {
-                getJson(
-                    "https://api.themoviedb.org/3/$endpoint/${suggestion.externalId}" +
-                        "?api_key=$apiKey&language=en-US",
-                ).toDetailedSuggestion(suggestion)
+                val url = when (suggestion.mediaType) {
+                    MediaType.Movie ->
+                        "https://api.themoviedb.org/3/movie/${suggestion.externalId}" +
+                            "?api_key=$apiKey&language=en-US&append_to_response=credits"
+                    MediaType.TvShow ->
+                        "https://api.themoviedb.org/3/tv/${suggestion.externalId}" +
+                            "?api_key=$apiKey&language=en-US"
+                    else -> return@withContext suggestion
+                }
+                getJson(url).toDetailedSuggestion(suggestion)
             }.getOrElse { suggestion }
         }
     }
@@ -129,10 +130,19 @@ class TmdbMetadataRepository(
             MediaType.TvShow -> optInt("number_of_episodes", 0).takeIf { it > 0 }
             else -> base.progressTotal
         }
+        val creators = when (base.mediaType) {
+            MediaType.Movie -> optJSONObject("credits")
+                ?.optJSONArray("crew")
+                ?.toStringList("name") { optString("job") == "Director" }
+                ?: emptyList()
+            MediaType.TvShow -> optJSONArray("created_by").toStringList("name")
+            else -> emptyList()
+        }
 
         return base.copy(
             collectionTitle = collectionTitle ?: base.collectionTitle,
             genres = optJSONArray("genres").toStringList("name"),
+            creators = creators.ifEmpty { base.creators },
             progressTotal = progressTotal ?: base.progressTotal,
             coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: base.coverUrl,
             synopsis = optString("overview").takeIf { it.isNotBlank() } ?: base.synopsis,
@@ -151,12 +161,13 @@ class TmdbMetadataRepository(
     }
 }
 
-private fun org.json.JSONArray?.toStringList(fieldName: String): List<String> {
-    if (this == null) {
-        return emptyList()
-    }
-
-    return List(length()) { index ->
-        getJSONObject(index).optString(fieldName)
-    }.filter { it.isNotBlank() }
+private fun org.json.JSONArray?.toStringList(
+    fieldName: String,
+    predicate: JSONObject.() -> Boolean = { true },
+): List<String> {
+    if (this == null) return emptyList()
+    return List(length()) { getJSONObject(it) }
+        .filter { it.predicate() }
+        .map { it.optString(fieldName) }
+        .filter { it.isNotBlank() }
 }

@@ -21,9 +21,11 @@ class GoogleBooksMetadataRepository(
 
         return withContext(Dispatchers.IO) {
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val fields = "items(id,volumeInfo(title,authors,description,pageCount," +
+                "averageRating,ratingsCount,publishedDate,categories,imageLinks/thumbnail,infoLink))"
             val response = getJson(
                 "https://www.googleapis.com/books/v1/volumes" +
-                    "?q=$encodedQuery&maxResults=10&hl=es&key=$apiKey",
+                    "?q=$encodedQuery&maxResults=10&hl=es&fields=$fields&key=$apiKey",
             )
             val items = response.optJSONArray("items") ?: return@withContext emptyList()
             List(items.length()) { items.getJSONObject(it) }
@@ -49,6 +51,10 @@ class GoogleBooksMetadataRepository(
             .toIntOrNull()
             ?.takeIf { it > 0 }
 
+        val authors = info.optJSONArray("authors")?.let { arr ->
+            List(arr.length()) { arr.getString(it) }.filter { it.isNotBlank() }
+        } ?: emptyList()
+
         val categories = info.optJSONArray("categories")?.let { arr ->
             List(arr.length()) { arr.getString(it) }.filter { it.isNotBlank() }
         } ?: emptyList()
@@ -65,6 +71,7 @@ class GoogleBooksMetadataRepository(
             coverUrl = coverUrl,
             synopsis = info.optString("description").takeIf { it.isNotBlank() },
             progressTotal = info.optInt("pageCount", 0).takeIf { it > 0 },
+            creators = authors,
             genres = categories,
             sourceUrl = info.optString("infoLink").takeIf { it.isNotBlank() },
             externalRating = if (averageRating > 0.0) {

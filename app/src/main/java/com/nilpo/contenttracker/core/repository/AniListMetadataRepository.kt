@@ -56,6 +56,12 @@ class AniListMetadataRepository : MetadataRepository {
             List(arr.length()) { arr.getString(it) }.filter { it.isNotBlank() }
         } ?: emptyList()
 
+        val creators = optJSONObject("studios")
+            ?.optJSONArray("nodes")
+            ?.let { arr -> List(arr.length()) { arr.getJSONObject(it).optString("name") } }
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
+
         return MetadataSuggestion(
             source = MetadataSource.AniList,
             externalId = id.toString(),
@@ -67,6 +73,7 @@ class AniListMetadataRepository : MetadataRepository {
             synopsis = synopsis,
             progressTotal = optInt("episodes", 0).takeIf { it > 0 },
             genres = genres,
+            creators = creators,
             sourceUrl = optString("siteUrl").takeIf { it.isNotBlank() },
             externalRating = if (averageScore > 0) {
                 MetadataRatingSuggestion(
@@ -111,6 +118,7 @@ class AniListMetadataRepository : MetadataRepository {
                   popularity
                   startDate { year }
                   genres
+                  studios(isMain: true) { nodes { name } }
                   siteUrl
                 }
               }
