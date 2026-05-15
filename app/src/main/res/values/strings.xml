@@ -63,7 +63,12 @@
     <string name="metadata_provider_collection">Colleccio del proveidor</string>
     <string name="metadata_external_rating_label">Nota externa</string>
     <string name="metadata_popularity">Popularitat</string>
+    <string name="metadata_users">Usuaris</string>
     <string name="metadata_ranking">Ranquing</string>
+    <string name="metadata_total_episodes">Episodis</string>
+    <string name="metadata_total_pages">Pagines</string>
+    <string name="metadata_total_minutes">Minuts</string>
+    <string name="metadata_total_hours">Hores</string>
     <string name="metadata_credits_authors">Autors</string>
     <string name="metadata_credits_directors">Directors</string>
     <string name="metadata_credits_creators">Creadors</string>

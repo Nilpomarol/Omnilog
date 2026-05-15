@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,6 +95,13 @@ fun MediaMetadataSummary(
             }
         }
 
+        metadata.providerCollectionTitle?.let { collectionTitle ->
+            MetadataLine(
+                label = stringResource(R.string.metadata_provider_collection),
+                value = collectionTitle,
+            )
+        }
+
         metadata.synopsis?.let { synopsis ->
             Text(
                 text = synopsis,
@@ -120,69 +128,62 @@ private fun MediaMetadataHero(
             modifier = Modifier.size(width = 132.dp, height = 198.dp),
         )
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .weight(1f)
+                .height(198.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = metadata.displayTitle(),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            metadata.originalTitle?.let { originalTitle ->
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    text = originalTitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+                    text = metadata.displayTitle(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
                 )
+                metadata.originalTitle?.let { originalTitle ->
+                    Text(
+                        text = originalTitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+                    )
+                }
+                if (metadata.creators.isNotEmpty()) {
+                    Text(
+                        text = metadata.creators.joinToString(", "),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
+                    )
+                }
+                if (isLoadingDetails) {
+                    Text(
+                        text = stringResource(R.string.metadata_details_loading),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                    )
+                }
             }
-            if (metadata.creators.isNotEmpty()) {
-                Text(
-                    text = metadata.creators.joinToString(", "),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
-                )
-            }
+
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                metadata.sourceName?.let { sourceName ->
-                    MetadataPill(value = sourceName)
-                }
-                metadata.externalRatingText()?.let { ratingText ->
-                    MetadataPill(
-                        label = stringResource(R.string.metadata_external_rating_label),
-                        value = ratingText,
-                    )
+                metadata.sourceRatingText()?.let { sourceRating ->
+                    MetadataPill(value = sourceRating)
                 }
                 metadata.rankingText()?.let { ranking ->
                     MetadataPill(value = ranking)
                 }
                 metadata.popularityScore?.let { popularity ->
                     MetadataPill(
-                        label = stringResource(R.string.metadata_popularity),
+                        label = stringResource(R.string.metadata_users),
                         value = formatDecimal(popularity),
                     )
                 }
                 metadata.progressTotal?.let { total ->
                     MetadataPill(
-                        label = stringResource(R.string.field_total_progress),
+                        label = stringResource(metadata.totalUnitLabelRes()),
                         value = total.toString(),
                     )
                 }
-            }
-            metadata.providerCollectionTitle?.let { collectionTitle ->
-                MetadataLine(
-                    label = stringResource(R.string.metadata_provider_collection),
-                    value = collectionTitle,
-                )
-            }
-            if (isLoadingDetails) {
-                Text(
-                    text = stringResource(R.string.metadata_details_loading),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-                )
             }
         }
     }
@@ -194,7 +195,7 @@ private fun MetadataPill(
     label: String? = null,
 ) {
     Surface(
-        shape = RoundedCornerShape(999.dp),
+        shape = RoundedCornerShape(6.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -329,12 +330,15 @@ private fun MediaMetadataUi.displayTitle(): String {
     ).joinToString(" ")
 }
 
-private fun MediaMetadataUi.externalRatingText(): String? {
-    val score = externalRatingScore ?: return null
-    val max = externalRatingMax ?: return null
-    return externalRatingVoteCount?.let { voteCount ->
-        "${formatDecimal(score)}/${formatDecimal(max)} ($voteCount)"
-    } ?: "${formatDecimal(score)}/${formatDecimal(max)}"
+private fun MediaMetadataUi.sourceRatingText(): String? {
+    val source = sourceName
+    val score = externalRatingScore?.let(::formatDecimal)
+    return when {
+        source != null && score != null -> "$source $score"
+        source != null -> source
+        score != null -> score
+        else -> null
+    }
 }
 
 private fun MediaMetadataUi.rankingText(): String? {
@@ -343,13 +347,14 @@ private fun MediaMetadataUi.rankingText(): String? {
 }
 
 @StringRes
-private fun MediaMetadataUi.creatorLabelRes(): Int {
+private fun MediaMetadataUi.totalUnitLabelRes(): Int {
     return when (mediaType) {
-        MediaType.Anime -> R.string.metadata_creator_anime
-        MediaType.Book -> R.string.metadata_creator_book
-        MediaType.Movie -> R.string.metadata_creator_movie
-        MediaType.TvShow -> R.string.metadata_creator_tv
-        MediaType.Game -> R.string.metadata_creator_game
+        MediaType.Anime,
+        MediaType.TvShow,
+        -> R.string.metadata_total_episodes
+        MediaType.Book -> R.string.metadata_total_pages
+        MediaType.Movie -> R.string.metadata_total_minutes
+        MediaType.Game -> R.string.metadata_total_hours
     }
 }
 

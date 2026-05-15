@@ -154,21 +154,21 @@ Hero content:
 Below hero:
 
 - user tracking/session area
-- history/past sessions
 - additional metadata/credits that did not fit in the hero
+- history/past sessions
 
 There should probably be no explicit label for the current session section, or it should be very light. If a label is needed later, candidates include `Seguiment actual`, `Ara mateix`, or `Progres actual`.
 
 Actions:
 
-- item edits live under a top-right `...` menu
+- item edits live under a top-right vertical `...` menu
 - each session has its own edit affordance or long-press affordance
 - add/edit session should be a floating bottom-right action, similar in spirit to MAL
 - avoid a dedicated "actions" section inside the page
 
 ### Stats Page
 
-Stats can be introduced after core browsing/detail UI is stable.
+Stats can be introduced after core browsing/detail UI is stable. StoryGraph is a good reference for stats direction and visualizations.
 
 Direction:
 
