@@ -46,6 +46,7 @@
     <string name="metadata_search_label">Titol a cercar</string>
     <string name="metadata_search_loading">Cercant...</string>
     <string name="metadata_search_empty">Encara no hi ha cap font de metadades configurada.</string>
+    <string name="metadata_suggestion_source">Font: %1$s</string>
     <string name="search_action">Cerca</string>
     <string name="field_title">Titol</string>
     <string name="field_total_progress">Total</string>

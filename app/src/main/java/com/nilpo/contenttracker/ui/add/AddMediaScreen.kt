@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.add
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OptionSelector
@@ -52,6 +54,7 @@ fun AddMediaScreen(
     var selectedStatus by remember { mutableStateOf(TrackingStatus.Planned) }
     var selectedOwnershipType by remember { mutableStateOf(OwnershipType.None) }
     var selectedPlatformType by remember { mutableStateOf(ConsumptionPlatformType.Other) }
+    var selectedMetadataSuggestion by remember { mutableStateOf<MetadataSuggestion?>(null) }
 
     Surface(
         modifier = modifier,
@@ -71,8 +74,15 @@ fun AddMediaScreen(
 
             MetadataSearchSection(
                 uiState = metadataUiState,
+                selectedSuggestion = selectedMetadataSuggestion,
                 onQueryChange = onMetadataQueryChange,
                 onSearch = onMetadataSearch,
+                onSuggestionSelected = { suggestion ->
+                    selectedMetadataSuggestion = suggestion
+                    title = suggestion.title
+                    totalProgress = suggestion.progressTotal?.toString().orEmpty()
+                    selectedMediaType = suggestion.mediaType
+                },
             )
 
             if (availableMediaTypes.size > 1) {
@@ -151,6 +161,8 @@ fun AddMediaScreen(
                                 ownershipType = selectedOwnershipType,
                                 platformName = platform.takeIf { it.isNotBlank() },
                                 platformType = selectedPlatformType,
+                                metadataSource = selectedMetadataSuggestion?.source,
+                                metadataExternalId = selectedMetadataSuggestion?.externalId,
                             ),
                         )
                     },
@@ -165,8 +177,10 @@ fun AddMediaScreen(
 @Composable
 private fun MetadataSearchSection(
     uiState: MetadataSearchUiState,
+    selectedSuggestion: MetadataSuggestion?,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
+    onSuggestionSelected: (MetadataSuggestion) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -207,13 +221,52 @@ private fun MetadataSearchSection(
             )
         } else {
             uiState.suggestions.forEach { suggestion ->
-                Text(
-                    text = suggestion.title,
-                    style = MaterialTheme.typography.bodyMedium,
+                MetadataSuggestionRow(
+                    suggestion = suggestion,
+                    isSelected = selectedSuggestion?.source == suggestion.source &&
+                        selectedSuggestion.externalId == suggestion.externalId,
+                    onClick = { onSuggestionSelected(suggestion) },
                 )
             }
         }
     }
+}
+
+@Composable
+private fun MetadataSuggestionRow(
+    suggestion: MetadataSuggestion,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = suggestion.displayTitle(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onBackground
+            },
+        )
+        Text(
+            text = stringResource(R.string.metadata_suggestion_source, suggestion.source.name),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+        )
+    }
+}
+
+private fun MetadataSuggestion.displayTitle(): String {
+    return listOfNotNull(
+        title,
+        releaseYear?.let { "($it)" },
+    ).joinToString(" ")
 }
 
 @Composable
