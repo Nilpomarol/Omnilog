@@ -14,4 +14,6 @@ data class HomeUiState(
 enum class HomeSortMode {
     Title,
     Collection,
+    Progress,
+    Rating,
 }

@@ -252,5 +252,24 @@ private fun List<TrackedMedia>.sortByMode(mode: HomeSortMode): List<TrackedMedia
             compareBy<TrackedMedia> { it.collection?.name?.lowercase().orEmpty() }
                 .thenBy { it.item.title.lowercase() },
         )
+        HomeSortMode.Progress -> sortedWith(
+            compareByDescending<TrackedMedia> { it.progressSortValue() }
+                .thenBy { it.item.title.lowercase() },
+        )
+        HomeSortMode.Rating -> sortedWith(
+            compareByDescending<TrackedMedia> { it.currentSession?.rating ?: 0 }
+                .thenBy { it.item.title.lowercase() },
+        )
+    }
+}
+
+private fun TrackedMedia.progressSortValue(): Double {
+    val progressCurrent = currentSession?.progressCurrent ?: 0
+    val progressTotal = item.progressTotal
+
+    return if (progressTotal != null && progressTotal > 0) {
+        progressCurrent.toDouble() / progressTotal.toDouble()
+    } else {
+        progressCurrent.toDouble()
     }
 }

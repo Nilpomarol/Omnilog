@@ -66,6 +66,8 @@
     <string name="sort_label">Ordena</string>
     <string name="sort_title">Titol</string>
     <string name="sort_collection">Colleccio</string>
+    <string name="sort_progress">Progres</string>
+    <string name="sort_rating">Nota</string>
     <string name="export_backup">Exporta copia</string>
     <string name="import_backup">Importa copia</string>
     <string name="import_backup_title">Importa copia</string>

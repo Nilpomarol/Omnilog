@@ -93,7 +93,7 @@ fun HomeScreen(
                             onClick = collection?.let { { onCollectionClick(it) } },
                         )
                     }
-                    items(items.sortedBy { it.item.title }) { trackedMedia ->
+                    items(items) { trackedMedia ->
                         MediaCard(
                             trackedMedia = trackedMedia,
                             accent = section.accent,
@@ -110,7 +110,7 @@ fun HomeScreen(
                             onClick = null,
                         )
                     }
-                    items(ungroupedItems.sortedBy { it.item.title }) { trackedMedia ->
+                    items(ungroupedItems) { trackedMedia ->
                         MediaCard(
                             trackedMedia = trackedMedia,
                             accent = section.accent,
@@ -196,6 +196,8 @@ private fun HomeSortMode.label(): String {
     return when (this) {
         HomeSortMode.Title -> stringResource(R.string.sort_title)
         HomeSortMode.Collection -> stringResource(R.string.sort_collection)
+        HomeSortMode.Progress -> stringResource(R.string.sort_progress)
+        HomeSortMode.Rating -> stringResource(R.string.sort_rating)
     }
 }
 
