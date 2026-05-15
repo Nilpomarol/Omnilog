@@ -147,6 +147,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 availableMediaTypes = uiState.selectedSection.types.toList(),
                 onSave = { request ->
                     viewModel.addTrackedMedia(request)
+                    viewModel.clearMetadataSearch()
                     isAdding = false
                 },
                 metadataUiState = metadataUiState,
@@ -154,6 +155,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onMetadataSearch = viewModel::searchMetadataSuggestions,
                 onMetadataSuggestionSelected = viewModel::selectMetadataSuggestion,
                 onCancel = {
+                    viewModel.clearMetadataSearch()
                     isAdding = false
                     selectedCollectionId = null
                 },
@@ -183,6 +185,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     isAdding = false
                 },
                 onAddClick = {
+                    viewModel.clearMetadataSearch()
                     isAdding = true
                     selectedCollectionId = null
                 },

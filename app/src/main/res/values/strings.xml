@@ -48,6 +48,9 @@
     <string name="metadata_details_loading">Carregant detalls...</string>
     <string name="metadata_search_empty">Encara no hi ha cap font de metadades configurada.</string>
     <string name="metadata_suggestion_source">Font: %1$s</string>
+    <string name="metadata_review_title">Revisa i crea seguiment</string>
+    <string name="metadata_genres">Generes: %1$s</string>
+    <string name="add_manual">Afegeix manualment</string>
     <string name="search_action">Cerca</string>
     <string name="field_title">Titol</string>
     <string name="field_total_progress">Total</string>

@@ -1,15 +1,19 @@
 package com.nilpo.contenttracker.ui.add
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -24,6 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -36,6 +43,10 @@ import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OptionSelector
 import com.nilpo.contenttracker.ui.detail.StatusSelector
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 @Composable
 fun AddMediaScreen(
@@ -49,6 +60,7 @@ fun AddMediaScreen(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var step by remember { mutableStateOf(AddMediaStep.Search) }
     var title by remember { mutableStateOf("") }
     var totalProgress by remember { mutableStateOf("") }
     var platform by remember { mutableStateOf("") }
@@ -63,6 +75,9 @@ fun AddMediaScreen(
             title = suggestion.title
             totalProgress = suggestion.progressTotal?.toString().orEmpty()
             selectedMediaType = suggestion.mediaType
+            if (step != AddMediaStep.Manual) {
+                step = AddMediaStep.Review
+            }
         }
     }
 
@@ -77,85 +92,40 @@ fun AddMediaScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = stringResource(R.string.add_media_title),
-                style = MaterialTheme.typography.headlineLarge,
-            )
-
-            MetadataSearchSection(
-                uiState = metadataUiState,
-                selectedSuggestion = selectedMetadataSuggestion,
-                onQueryChange = onMetadataQueryChange,
-                onSearch = onMetadataSearch,
-                onSuggestionSelected = onMetadataSuggestionSelected,
-            )
-
-            if (availableMediaTypes.size > 1) {
-                OptionSelector(
-                    label = stringResource(R.string.field_media_type),
-                    options = availableMediaTypes,
-                    selectedOption = selectedMediaType,
-                    optionLabel = { it.label() },
-                    onOptionSelected = { selectedMediaType = it },
+            when (step) {
+                AddMediaStep.Search -> MetadataSearchStep(
+                    uiState = metadataUiState,
+                    onQueryChange = onMetadataQueryChange,
+                    onSearch = onMetadataSearch,
+                    onSuggestionSelected = onMetadataSuggestionSelected,
+                    onManualAdd = {
+                        selectedMediaType = initialMediaType
+                        title = ""
+                        totalProgress = ""
+                        step = AddMediaStep.Manual
+                    },
+                    onCancel = onCancel,
                 )
-            }
-
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text(stringResource(R.string.field_title)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-
-            OutlinedTextField(
-                value = totalProgress,
-                onValueChange = { value -> totalProgress = value.filter { it.isDigit() } },
-                label = { Text(stringResource(R.string.field_total_progress)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-            )
-
-            OutlinedTextField(
-                value = platform,
-                onValueChange = { platform = it },
-                label = { Text(stringResource(R.string.field_platform)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-
-            StatusSelector(
-                selectedStatus = selectedStatus,
-                onStatusSelected = { selectedStatus = it },
-            )
-
-            OptionSelector(
-                label = stringResource(R.string.field_ownership_type),
-                options = OwnershipType.entries,
-                selectedOption = selectedOwnershipType,
-                optionLabel = { it.label() },
-                onOptionSelected = { selectedOwnershipType = it },
-            )
-
-            OptionSelector(
-                label = stringResource(R.string.field_platform_type),
-                options = ConsumptionPlatformType.entries,
-                selectedOption = selectedPlatformType,
-                optionLabel = { it.label() },
-                onOptionSelected = { selectedPlatformType = it },
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                TextButton(onClick = onCancel) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-                Button(
-                    enabled = title.isNotBlank(),
-                    onClick = {
+                AddMediaStep.Review -> MetadataReviewStep(
+                    suggestion = selectedMetadataSuggestion,
+                    isLoadingDetails = metadataUiState.isLoadingDetails,
+                    availableMediaTypes = availableMediaTypes,
+                    selectedMediaType = selectedMediaType,
+                    onMediaTypeSelected = { selectedMediaType = it },
+                    title = title,
+                    onTitleChange = { title = it },
+                    totalProgress = totalProgress,
+                    onTotalProgressChange = { value -> totalProgress = value.filter { it.isDigit() } },
+                    platform = platform,
+                    onPlatformChange = { platform = it },
+                    selectedStatus = selectedStatus,
+                    onStatusSelected = { selectedStatus = it },
+                    selectedOwnershipType = selectedOwnershipType,
+                    onOwnershipTypeSelected = { selectedOwnershipType = it },
+                    selectedPlatformType = selectedPlatformType,
+                    onPlatformTypeSelected = { selectedPlatformType = it },
+                    onBackToSearch = { step = AddMediaStep.Search },
+                    onSave = {
                         onSave(
                             AddTrackedMediaRequest(
                                 type = selectedMediaType,
@@ -173,72 +143,40 @@ fun AddMediaScreen(
                             ),
                         )
                     },
-                ) {
-                    Text(text = stringResource(R.string.save))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetadataSearchSection(
-    uiState: MetadataSearchUiState,
-    selectedSuggestion: MetadataSuggestion?,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
-    onSuggestionSelected: (MetadataSuggestion) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.metadata_search_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = uiState.query,
-                onValueChange = onQueryChange,
-                label = { Text(stringResource(R.string.metadata_search_label)) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-            )
-            Button(
-                enabled = uiState.query.isNotBlank() && !uiState.isLoading,
-                onClick = onSearch,
-            ) {
-                Text(text = stringResource(R.string.search_action))
-            }
-        }
-
-        if (uiState.isLoading) {
-            Text(
-                text = stringResource(R.string.metadata_search_loading),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-            )
-        } else if (uiState.isLoadingDetails) {
-            Text(
-                text = stringResource(R.string.metadata_details_loading),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-            )
-        } else if (uiState.hasSearched && uiState.suggestions.isEmpty()) {
-            Text(
-                text = stringResource(R.string.metadata_search_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-            )
-        } else {
-            uiState.suggestions.forEach { suggestion ->
-                MetadataSuggestionRow(
-                    suggestion = suggestion,
-                    isSelected = selectedSuggestion?.source == suggestion.source &&
-                        selectedSuggestion.externalId == suggestion.externalId,
-                    onClick = { onSuggestionSelected(suggestion) },
+                    onCancel = onCancel,
+                )
+                AddMediaStep.Manual -> ManualAddStep(
+                    availableMediaTypes = availableMediaTypes,
+                    selectedMediaType = selectedMediaType,
+                    onMediaTypeSelected = { selectedMediaType = it },
+                    title = title,
+                    onTitleChange = { title = it },
+                    totalProgress = totalProgress,
+                    onTotalProgressChange = { value -> totalProgress = value.filter { it.isDigit() } },
+                    platform = platform,
+                    onPlatformChange = { platform = it },
+                    selectedStatus = selectedStatus,
+                    onStatusSelected = { selectedStatus = it },
+                    selectedOwnershipType = selectedOwnershipType,
+                    onOwnershipTypeSelected = { selectedOwnershipType = it },
+                    selectedPlatformType = selectedPlatformType,
+                    onPlatformTypeSelected = { selectedPlatformType = it },
+                    onBackToSearch = { step = AddMediaStep.Search },
+                    onSave = {
+                        onSave(
+                            AddTrackedMediaRequest(
+                                type = selectedMediaType,
+                                title = title,
+                                progressTotal = totalProgress.toIntOrNull(),
+                                initialStatus = selectedStatus,
+                                isOwned = selectedOwnershipType != OwnershipType.None,
+                                ownershipType = selectedOwnershipType,
+                                platformName = platform.takeIf { it.isNotBlank() },
+                                platformType = selectedPlatformType,
+                            ),
+                        )
+                    },
+                    onCancel = onCancel,
                 )
             }
         }
@@ -246,33 +184,420 @@ private fun MetadataSearchSection(
 }
 
 @Composable
+private fun MetadataSearchStep(
+    uiState: MetadataSearchUiState,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onSuggestionSelected: (MetadataSuggestion) -> Unit,
+    onManualAdd: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    LaunchedEffect(uiState.query) {
+        if (uiState.query.trim().length >= 2) {
+            delay(450)
+            onSearch()
+        }
+    }
+
+    Text(
+        text = stringResource(R.string.metadata_search_title),
+        style = MaterialTheme.typography.headlineLarge,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = uiState.query,
+            onValueChange = onQueryChange,
+            label = { Text(stringResource(R.string.metadata_search_label)) },
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+        )
+        Button(
+            enabled = uiState.query.isNotBlank() && !uiState.isLoading,
+            onClick = onSearch,
+        ) {
+            Text(text = stringResource(R.string.search_action))
+        }
+    }
+
+    MetadataSearchResults(
+        uiState = uiState,
+        onSuggestionSelected = onSuggestionSelected,
+    )
+
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onCancel) {
+            Text(text = stringResource(R.string.cancel))
+        }
+        TextButton(onClick = onManualAdd) {
+            Text(text = stringResource(R.string.add_manual))
+        }
+    }
+}
+
+@Composable
+private fun MetadataSearchResults(
+    uiState: MetadataSearchUiState,
+    onSuggestionSelected: (MetadataSuggestion) -> Unit,
+) {
+    when {
+        uiState.isLoading -> Text(
+            text = stringResource(R.string.metadata_search_loading),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+        )
+        uiState.hasSearched && uiState.suggestions.isEmpty() -> Text(
+            text = stringResource(R.string.metadata_search_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+        )
+        else -> uiState.suggestions.forEach { suggestion ->
+            MetadataSuggestionRow(
+                suggestion = suggestion,
+                onClick = { onSuggestionSelected(suggestion) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetadataReviewStep(
+    suggestion: MetadataSuggestion?,
+    isLoadingDetails: Boolean,
+    availableMediaTypes: List<MediaType>,
+    selectedMediaType: MediaType,
+    onMediaTypeSelected: (MediaType) -> Unit,
+    title: String,
+    onTitleChange: (String) -> Unit,
+    totalProgress: String,
+    onTotalProgressChange: (String) -> Unit,
+    platform: String,
+    onPlatformChange: (String) -> Unit,
+    selectedStatus: TrackingStatus,
+    onStatusSelected: (TrackingStatus) -> Unit,
+    selectedOwnershipType: OwnershipType,
+    onOwnershipTypeSelected: (OwnershipType) -> Unit,
+    selectedPlatformType: ConsumptionPlatformType,
+    onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
+    onBackToSearch: () -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBackToSearch) {
+            Text(text = stringResource(R.string.back))
+        }
+        TextButton(onClick = onCancel) {
+            Text(text = stringResource(R.string.cancel))
+        }
+    }
+
+    Text(
+        text = stringResource(R.string.metadata_review_title),
+        style = MaterialTheme.typography.headlineLarge,
+    )
+
+    suggestion?.let {
+        MetadataDetailSummary(
+            suggestion = it,
+            isLoadingDetails = isLoadingDetails,
+        )
+    }
+
+    TrackingSetupForm(
+        availableMediaTypes = availableMediaTypes,
+        selectedMediaType = selectedMediaType,
+        onMediaTypeSelected = onMediaTypeSelected,
+        title = title,
+        onTitleChange = onTitleChange,
+        totalProgress = totalProgress,
+        onTotalProgressChange = onTotalProgressChange,
+        platform = platform,
+        onPlatformChange = onPlatformChange,
+        selectedStatus = selectedStatus,
+        onStatusSelected = onStatusSelected,
+        selectedOwnershipType = selectedOwnershipType,
+        onOwnershipTypeSelected = onOwnershipTypeSelected,
+        selectedPlatformType = selectedPlatformType,
+        onPlatformTypeSelected = onPlatformTypeSelected,
+    )
+
+    Button(
+        enabled = title.isNotBlank(),
+        onClick = onSave,
+    ) {
+        Text(text = stringResource(R.string.create_session))
+    }
+}
+
+@Composable
+private fun ManualAddStep(
+    availableMediaTypes: List<MediaType>,
+    selectedMediaType: MediaType,
+    onMediaTypeSelected: (MediaType) -> Unit,
+    title: String,
+    onTitleChange: (String) -> Unit,
+    totalProgress: String,
+    onTotalProgressChange: (String) -> Unit,
+    platform: String,
+    onPlatformChange: (String) -> Unit,
+    selectedStatus: TrackingStatus,
+    onStatusSelected: (TrackingStatus) -> Unit,
+    selectedOwnershipType: OwnershipType,
+    onOwnershipTypeSelected: (OwnershipType) -> Unit,
+    selectedPlatformType: ConsumptionPlatformType,
+    onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
+    onBackToSearch: () -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBackToSearch) {
+            Text(text = stringResource(R.string.back))
+        }
+        TextButton(onClick = onCancel) {
+            Text(text = stringResource(R.string.cancel))
+        }
+    }
+
+    Text(
+        text = stringResource(R.string.add_manual),
+        style = MaterialTheme.typography.headlineLarge,
+    )
+
+    TrackingSetupForm(
+        availableMediaTypes = availableMediaTypes,
+        selectedMediaType = selectedMediaType,
+        onMediaTypeSelected = onMediaTypeSelected,
+        title = title,
+        onTitleChange = onTitleChange,
+        totalProgress = totalProgress,
+        onTotalProgressChange = onTotalProgressChange,
+        platform = platform,
+        onPlatformChange = onPlatformChange,
+        selectedStatus = selectedStatus,
+        onStatusSelected = onStatusSelected,
+        selectedOwnershipType = selectedOwnershipType,
+        onOwnershipTypeSelected = onOwnershipTypeSelected,
+        selectedPlatformType = selectedPlatformType,
+        onPlatformTypeSelected = onPlatformTypeSelected,
+    )
+
+    Button(
+        enabled = title.isNotBlank(),
+        onClick = onSave,
+    ) {
+        Text(text = stringResource(R.string.save))
+    }
+}
+
+@Composable
+private fun TrackingSetupForm(
+    availableMediaTypes: List<MediaType>,
+    selectedMediaType: MediaType,
+    onMediaTypeSelected: (MediaType) -> Unit,
+    title: String,
+    onTitleChange: (String) -> Unit,
+    totalProgress: String,
+    onTotalProgressChange: (String) -> Unit,
+    platform: String,
+    onPlatformChange: (String) -> Unit,
+    selectedStatus: TrackingStatus,
+    onStatusSelected: (TrackingStatus) -> Unit,
+    selectedOwnershipType: OwnershipType,
+    onOwnershipTypeSelected: (OwnershipType) -> Unit,
+    selectedPlatformType: ConsumptionPlatformType,
+    onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
+) {
+    if (availableMediaTypes.size > 1) {
+        OptionSelector(
+            label = stringResource(R.string.field_media_type),
+            options = availableMediaTypes,
+            selectedOption = selectedMediaType,
+            optionLabel = { it.label() },
+            onOptionSelected = onMediaTypeSelected,
+        )
+    }
+
+    OutlinedTextField(
+        value = title,
+        onValueChange = onTitleChange,
+        label = { Text(stringResource(R.string.field_title)) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+    )
+
+    OutlinedTextField(
+        value = totalProgress,
+        onValueChange = onTotalProgressChange,
+        label = { Text(stringResource(R.string.field_total_progress)) },
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        singleLine = true,
+    )
+
+    OutlinedTextField(
+        value = platform,
+        onValueChange = onPlatformChange,
+        label = { Text(stringResource(R.string.field_platform)) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+    )
+
+    StatusSelector(
+        selectedStatus = selectedStatus,
+        onStatusSelected = onStatusSelected,
+    )
+
+    OptionSelector(
+        label = stringResource(R.string.field_ownership_type),
+        options = OwnershipType.entries,
+        selectedOption = selectedOwnershipType,
+        optionLabel = { it.label() },
+        onOptionSelected = onOwnershipTypeSelected,
+    )
+
+    OptionSelector(
+        label = stringResource(R.string.field_platform_type),
+        options = ConsumptionPlatformType.entries,
+        selectedOption = selectedPlatformType,
+        optionLabel = { it.label() },
+        onOptionSelected = onPlatformTypeSelected,
+    )
+}
+
+@Composable
+private fun MetadataDetailSummary(
+    suggestion: MetadataSuggestion,
+    isLoadingDetails: Boolean,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        CoverImage(
+            coverUrl = suggestion.coverUrl,
+            modifier = Modifier.size(width = 96.dp, height = 144.dp),
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            Text(
+                text = suggestion.displayTitle(),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = stringResource(R.string.metadata_suggestion_source, suggestion.source.name),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+            )
+            suggestion.progressTotal?.let { total ->
+                Text(
+                    text = stringResource(R.string.progress_total_value, total),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (suggestion.genres.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.metadata_genres, suggestion.genres.joinToString(", ")),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (isLoadingDetails) {
+                Text(
+                    text = stringResource(R.string.metadata_details_loading),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                )
+            }
+        }
+    }
+
+    suggestion.synopsis?.let { synopsis ->
+        Text(
+            text = synopsis,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
+        )
+    }
+}
+
+@Composable
 private fun MetadataSuggestionRow(
     suggestion: MetadataSuggestion,
-    isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = suggestion.displayTitle(),
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (isSelected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onBackground
-            },
+        CoverImage(
+            coverUrl = suggestion.coverUrl,
+            modifier = Modifier.size(width = 52.dp, height = 78.dp),
         )
-        Text(
-            text = stringResource(R.string.metadata_suggestion_source, suggestion.source.name),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
-        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = suggestion.displayTitle(),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = suggestion.mediaType.label(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+            )
+        }
     }
+}
+
+@Composable
+private fun CoverImage(
+    coverUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    var image by remember(coverUrl) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(coverUrl) {
+        image = coverUrl?.let { url ->
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    URL(url).openStream().use { inputStream ->
+                        BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
+                    }
+                }.getOrNull()
+            }
+        }
+    }
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        image?.let { loadedImage ->
+            Image(
+                bitmap = loadedImage,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } ?: Box(modifier = Modifier.fillMaxSize())
+    }
+}
+
+private enum class AddMediaStep {
+    Search,
+    Review,
+    Manual,
 }
 
 private fun MetadataSuggestion.displayTitle(): String {

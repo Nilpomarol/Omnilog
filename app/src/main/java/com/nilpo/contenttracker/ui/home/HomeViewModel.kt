@@ -129,6 +129,10 @@ class HomeViewModel(
         }
     }
 
+    fun clearMetadataSearch() {
+        metadataSearchState.value = MetadataSearchUiState()
+    }
+
     fun selectMetadataSuggestion(suggestion: MetadataSuggestion) {
         metadataSearchState.value = metadataSearchState.value.copy(
             selectedSuggestion = suggestion,
