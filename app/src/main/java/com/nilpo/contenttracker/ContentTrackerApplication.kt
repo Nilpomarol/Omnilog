@@ -3,6 +3,8 @@ package com.nilpo.contenttracker
 import android.app.Application
 import androidx.room.Room
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
+import com.nilpo.contenttracker.core.repository.MetadataRepository
+import com.nilpo.contenttracker.core.repository.NoOpMetadataRepository
 import com.nilpo.contenttracker.core.repository.OfflineMediaRepository
 
 class ContentTrackerApplication : Application() {
@@ -18,5 +20,9 @@ class ContentTrackerApplication : Application() {
 
     val mediaRepository: OfflineMediaRepository by lazy {
         OfflineMediaRepository(database.mediaDao())
+    }
+
+    val metadataRepository: MetadataRepository by lazy {
+        NoOpMetadataRepository()
     }
 }
