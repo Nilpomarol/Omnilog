@@ -61,6 +61,7 @@
     <string name="metadata_creator_game">Desenvolupador: %1$s</string>
     <string name="metadata_original_title">Titol original</string>
     <string name="metadata_provider_collection">Colleccio del proveidor</string>
+    <string name="metadata_summary">Resum</string>
     <string name="metadata_external_rating_label">Nota externa</string>
     <string name="metadata_popularity">Popularitat</string>
     <string name="metadata_users">Usuaris</string>
@@ -138,6 +139,8 @@
     <string name="platform_type_other">Altres</string>
     <string name="save">Desa</string>
     <string name="cancel">Cancella</string>
+    <string name="show_more">Veure mes</string>
+    <string name="show_less">Mostra menys</string>
     <string name="delete">Elimina</string>
     <string name="add">Afegeix</string>
     <string name="edit">Edita</string>

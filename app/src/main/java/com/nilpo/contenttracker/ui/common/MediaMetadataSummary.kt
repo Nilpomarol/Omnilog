@@ -4,21 +4,24 @@ import android.graphics.BitmapFactory
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +34,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCredit
@@ -74,53 +78,22 @@ fun MediaMetadataSummary(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        MediaMetadataHero(
-            metadata = metadata,
-            isLoadingDetails = isLoadingDetails,
-        )
-
-        if (metadata.genres.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                metadata.genres.forEach { genre ->
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(text = genre) },
-                    )
-                }
-            }
-        }
-
-        metadata.providerCollectionTitle?.let { collectionTitle ->
-            MetadataLine(
-                label = stringResource(R.string.metadata_provider_collection),
-                value = collectionTitle,
-            )
-        }
-
-        metadata.synopsis?.let { synopsis ->
-            Text(
-                text = synopsis,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
-            )
-        }
-
-        CreditGroups(credits = metadata.credits)
+        MediaMetadataHero(metadata = metadata, isLoadingDetails = isLoadingDetails)
+        GenreRow(genres = metadata.genres)
+        MediaMetadataSecondary(metadata = metadata)
     }
 }
 
 @Composable
-private fun MediaMetadataHero(
+fun MediaMetadataHero(
     metadata: MediaMetadataUi,
-    isLoadingDetails: Boolean,
+    modifier: Modifier = Modifier,
+    isLoadingDetails: Boolean = false,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         MetadataCoverImage(
@@ -185,6 +158,67 @@ private fun MediaMetadataHero(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun MediaMetadataHeroGenres(
+    metadata: MediaMetadataUi,
+    modifier: Modifier = Modifier,
+) {
+    GenreRow(
+        genres = metadata.genres,
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun MediaMetadataSecondary(
+    metadata: MediaMetadataUi,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        metadata.providerCollectionTitle?.let { collectionTitle ->
+            MetadataSection(
+                title = stringResource(R.string.metadata_provider_collection),
+                body = collectionTitle,
+            )
+        }
+
+        metadata.synopsis?.let { synopsis ->
+            MetadataSection(
+                title = stringResource(R.string.metadata_summary),
+                body = synopsis,
+                collapsible = true,
+            )
+        }
+
+        CreditGroups(credits = metadata.credits)
+    }
+}
+
+@Composable
+private fun GenreRow(
+    genres: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    if (genres.isEmpty()) return
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        genres.forEach { genre ->
+            AssistChip(
+                onClick = {},
+                label = { Text(text = genre) },
+            )
         }
     }
 }
@@ -294,12 +328,52 @@ fun MediaItem.toMediaMetadataUi(credits: List<MediaCredit>): MediaMetadataUi {
 }
 
 @Composable
-private fun MetadataLine(label: String, value: String) {
-    Text(
-        text = "$label: $value",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+private fun MetadataSection(title: String, body: String) {
+    MetadataSection(
+        title = title,
+        body = body,
+        collapsible = false,
     )
+}
+
+@Composable
+private fun MetadataSection(
+    title: String,
+    body: String,
+    collapsible: Boolean,
+) {
+    var isExpanded by remember(body) { mutableStateOf(false) }
+    val shouldCollapse = collapsible && body.length > 260
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
+            maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (shouldCollapse) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = { isExpanded = !isExpanded }) {
+                    Text(
+                        text = stringResource(
+                            if (isExpanded) R.string.show_less else R.string.show_more,
+                        ),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -316,9 +390,9 @@ private fun CreditGroups(credits: List<MediaCredit>) {
             .joinToString(", ") { credit ->
                 credit.characterName?.let { "${credit.personName} ($it)" } ?: credit.personName
             }
-        MetadataLine(
-            label = stringResource(role.labelRes()),
-            value = values,
+        MetadataSection(
+            title = stringResource(role.labelRes()),
+            body = values,
         )
     }
 }

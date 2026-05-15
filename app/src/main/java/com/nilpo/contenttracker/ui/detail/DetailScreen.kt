@@ -28,6 +28,9 @@ import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.MediaMetadataHero
+import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
+import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 
 @Composable
 fun DetailScreen(
@@ -83,6 +86,32 @@ fun DetailScreen(
             }
 
             item {
+                MediaMetadataHero(
+                    metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits),
+                )
+            }
+
+            item {
+                MediaMetadataHeroGenres(
+                    metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits),
+                )
+            }
+
+            if (currentSession != null) {
+                item {
+                    CurrentSessionSection(
+                        session = currentSession,
+                        progressTotal = trackedMedia.item.progressTotal,
+                        accent = accent,
+                        onUpdateSessionProgress = onUpdateSessionProgress,
+                        onUpdateSessionStatus = onUpdateSessionStatus,
+                        onUpdateSessionRating = onUpdateSessionRating,
+                        onUpdateSessionNotes = onUpdateSessionNotes,
+                    )
+                }
+            }
+
+            item {
                 ItemDetailsSection(
                     item = trackedMedia.item,
                     credits = trackedMedia.credits,
@@ -109,20 +138,6 @@ fun DetailScreen(
                     currentSession = currentSession,
                     onStartNewSession = onStartNewSession,
                 )
-            }
-
-            if (currentSession != null) {
-                item {
-                    CurrentSessionSection(
-                        session = currentSession,
-                        progressTotal = trackedMedia.item.progressTotal,
-                        accent = accent,
-                        onUpdateSessionProgress = onUpdateSessionProgress,
-                        onUpdateSessionStatus = onUpdateSessionStatus,
-                        onUpdateSessionRating = onUpdateSessionRating,
-                        onUpdateSessionNotes = onUpdateSessionNotes,
-                    )
-                }
             }
 
             item {

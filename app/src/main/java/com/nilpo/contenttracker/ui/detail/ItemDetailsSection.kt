@@ -24,7 +24,7 @@ import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
-import com.nilpo.contenttracker.ui.common.MediaMetadataSummary
+import com.nilpo.contenttracker.ui.common.MediaMetadataSecondary
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 
 @Composable
@@ -88,7 +88,7 @@ private fun ItemDetailsSummary(
     currentSession: TrackingSession?,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        MediaMetadataSummary(metadata = item.toMediaMetadataUi(credits))
+        MediaMetadataSecondary(metadata = item.toMediaMetadataUi(credits))
 
         Text(
             text = stringResource(R.string.field_ownership_type) + ": " + item.ownership.type.label(),
