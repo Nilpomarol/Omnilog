@@ -38,6 +38,7 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.MediaMetadataSummary
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
+import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.detail.StatusSelector
 import kotlinx.coroutines.delay
@@ -515,7 +516,7 @@ private fun MetadataSuggestionRow(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = suggestion.displayTitle(),
+                text = displayMediaTitle(suggestion.title),
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
@@ -531,13 +532,6 @@ private enum class AddMediaStep {
     Search,
     Review,
     Manual,
-}
-
-private fun MetadataSuggestion.displayTitle(): String {
-    return listOfNotNull(
-        title,
-        releaseYear?.let { "($it)" },
-    ).joinToString(" ")
 }
 
 @Composable

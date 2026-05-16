@@ -1,13 +1,11 @@
 package com.nilpo.contenttracker.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,20 +26,25 @@ import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
+import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
+import java.time.LocalDate
 
 @Composable
 fun DetailScreen(
     trackedMedia: TrackedMedia,
     accent: Color,
+    headerActions: DetailHeaderActions,
     onBack: () -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     onUpdateSessionProgress: (Long, Int) -> Unit,
     onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
     onUpdateSessionRating: (Long, Int?) -> Unit,
     onUpdateSessionNotes: (Long, String?) -> Unit,
+    onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
@@ -57,6 +60,10 @@ fun DetailScreen(
         .sortedBy { it.sessionNumber }
     var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
 
+    headerActions.onDeleteRequested = {
+        showDeleteConfirmation = true
+    }
+
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.background,
@@ -64,27 +71,9 @@ fun DetailScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = onBack) {
-                        Text(text = stringResource(R.string.back))
-                    }
-                    TextButton(onClick = { showDeleteConfirmation = true }) {
-                        Text(text = stringResource(R.string.delete))
-                    }
-                }
-            }
-
-            item {
-                Text(
-                    text = trackedMedia.item.title,
-                    style = MaterialTheme.typography.headlineLarge,
-                )
-            }
-
             item {
                 MediaMetadataHero(
                     metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits),
@@ -102,11 +91,13 @@ fun DetailScreen(
                     CurrentSessionSection(
                         session = currentSession,
                         progressTotal = trackedMedia.item.progressTotal,
+                        mediaType = trackedMedia.item.type,
                         accent = accent,
                         onUpdateSessionProgress = onUpdateSessionProgress,
                         onUpdateSessionStatus = onUpdateSessionStatus,
                         onUpdateSessionRating = onUpdateSessionRating,
                         onUpdateSessionNotes = onUpdateSessionNotes,
+                        onUpdateSessionDetails = onUpdateSessionDetails,
                     )
                 }
             }
@@ -118,6 +109,7 @@ fun DetailScreen(
                     collection = trackedMedia.collection,
                     availableCollections = trackedMedia.availableCollections,
                     currentSession = currentSession,
+                    isEditing = headerActions.isEditingItemDetails,
                     onSaveItemDetails = { title, collectionId, newCollectionName, progressTotal, ownershipType ->
                         onUpdateMediaItemDetails(
                             trackedMedia.item.id,
@@ -206,7 +198,14 @@ fun DetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
             title = { Text(text = stringResource(R.string.delete_media_title)) },
-            text = { Text(text = stringResource(R.string.delete_media_message, trackedMedia.item.title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.delete_media_message,
+                        displayMediaTitle(trackedMedia.item.title),
+                    ),
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
@@ -208,6 +209,28 @@ class HomeViewModel(
     fun updateSessionNotes(sessionId: Long, notes: String?) {
         viewModelScope.launch {
             mediaRepository.updateSessionNotes(sessionId, notes)
+        }
+    }
+
+    fun updateSessionDetails(
+        sessionId: Long,
+        status: TrackingStatus,
+        progressCurrent: Int,
+        rating: Int?,
+        notes: String?,
+        startedAt: LocalDate?,
+        finishedAt: LocalDate?,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionDetails(
+                sessionId = sessionId,
+                status = status,
+                progressCurrent = progressCurrent,
+                rating = rating,
+                notes = notes,
+                startedAt = startedAt,
+                finishedAt = finishedAt,
+            )
         }
     }
 

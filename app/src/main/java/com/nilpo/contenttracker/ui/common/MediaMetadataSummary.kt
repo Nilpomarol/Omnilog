@@ -398,10 +398,7 @@ private fun CreditGroups(credits: List<MediaCredit>) {
 }
 
 private fun MediaMetadataUi.displayTitle(): String {
-    return listOfNotNull(
-        title,
-        releaseYear?.let { "($it)" },
-    ).joinToString(" ")
+    return displayMediaTitle(title)
 }
 
 private fun MediaMetadataUi.sourceRatingText(): String? {

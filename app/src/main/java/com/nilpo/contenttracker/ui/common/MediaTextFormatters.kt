@@ -9,6 +9,15 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 
+fun displayMediaTitle(title: String): String {
+    val cleanedTitle = title
+        .replace(Regex("""\s*\([^)]*\)"""), "")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+
+    return cleanedTitle.ifBlank { title.trim() }
+}
+
 @Composable
 fun MetadataSummary(
     trackedMedia: TrackedMedia,

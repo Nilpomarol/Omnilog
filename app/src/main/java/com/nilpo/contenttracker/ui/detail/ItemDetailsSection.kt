@@ -7,12 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -34,29 +29,20 @@ fun ItemDetailsSection(
     collection: MediaCollection?,
     availableCollections: List<MediaCollection>,
     currentSession: TrackingSession?,
+    isEditing: Boolean,
     onSaveItemDetails: (String, Long?, String?, Int?, OwnershipType) -> Unit,
     onSavePlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
 ) {
-    var isEditing by rememberSaveable(item.id, currentSession?.id) { mutableStateOf(false) }
-
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = stringResource(R.string.detail_item_details),
                 style = MaterialTheme.typography.titleMedium,
             )
-            TextButton(onClick = { isEditing = !isEditing }) {
-                val label = if (isEditing) {
-                    stringResource(R.string.done_editing)
-                } else {
-                    stringResource(R.string.edit)
-                }
-                Text(text = label)
-            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.16f))
 

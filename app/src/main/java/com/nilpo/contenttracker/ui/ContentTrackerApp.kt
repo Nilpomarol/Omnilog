@@ -3,14 +3,22 @@ package com.nilpo.contenttracker.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -65,6 +73,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
+    var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
     val selectedCollection = uiState.trackedItems
         .mapNotNull { it.collection }
@@ -144,6 +153,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     AppDestination.Home -> MaterialTheme.colorScheme.primary
                     AppDestination.Section -> uiState.selectedSection.accent
                 },
+                showDetailActions = selectedMedia != null && !isAdding,
+                detailActions = detailActions,
+                onBack = { selectedMediaId = null },
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -260,15 +272,21 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     .padding(innerPadding),
             )
         } else {
+            val actions = remember(selectedMedia.item.id) {
+                DetailHeaderActions()
+            }
+            detailActions = actions
             DetailScreen(
                 trackedMedia = selectedMedia,
                 accent = uiState.selectedSection.accent,
+                headerActions = actions,
                 onBack = { selectedMediaId = null },
                 onStartNewSession = viewModel::startNewSession,
                 onUpdateSessionProgress = viewModel::updateSessionProgress,
                 onUpdateSessionStatus = viewModel::updateSessionStatus,
                 onUpdateSessionRating = viewModel::updateSessionRating,
                 onUpdateSessionNotes = viewModel::updateSessionNotes,
+                onUpdateSessionDetails = viewModel::updateSessionDetails,
                 onDeletePastSession = viewModel::deletePastSession,
                 onAddExternalTracking = viewModel::addExternalTracking,
                 onUpdateExternalTrackingSynced = viewModel::updateExternalTrackingSynced,
@@ -337,12 +355,19 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             },
         )
     }
+
 }
 
 private data class PendingBackupImport(
     val json: String,
     val preview: BackupPreview,
 )
+
+class DetailHeaderActions {
+    var isEditingItemDetails by mutableStateOf(false)
+    var isMenuExpanded by mutableStateOf(false)
+    var onDeleteRequested: () -> Unit = {}
+}
 
 private enum class AppDestination {
     Home,
@@ -351,12 +376,27 @@ private enum class AppDestination {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OmnilogTopBar(accent: Color) {
+private fun OmnilogTopBar(
+    accent: Color,
+    showDetailActions: Boolean,
+    detailActions: DetailHeaderActions,
+    onBack: () -> Unit,
+) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onBackground,
         ),
+        navigationIcon = {
+            if (showDetailActions) {
+                IconButton(onClick = onBack) {
+                    Text(
+                        text = "‹",
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                }
+            }
+        },
         title = {
             Text(
                 text = buildAnnotatedString {
@@ -370,7 +410,76 @@ private fun OmnilogTopBar(accent: Color) {
                 style = MaterialTheme.typography.headlineSmall,
             )
         },
+        actions = {
+            if (showDetailActions) {
+                Box {
+                    IconButton(onClick = { detailActions.isMenuExpanded = true }) {
+                        Text(
+                            text = "⋮",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = detailActions.isMenuExpanded,
+                        onDismissRequest = { detailActions.isMenuExpanded = false },
+                        shape = RoundedCornerShape(8.dp),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 2.dp,
+                        shadowElevation = 8.dp,
+                    ) {
+                        HeaderMenuItem(
+                            text = stringResource(
+                                if (detailActions.isEditingItemDetails) {
+                                    R.string.done_editing
+                                } else {
+                                    R.string.edit
+                                },
+                            ),
+                            onClick = {
+                                detailActions.isEditingItemDetails = !detailActions.isEditingItemDetails
+                                detailActions.isMenuExpanded = false
+                            },
+                        )
+                        HeaderMenuItem(
+                            text = stringResource(R.string.delete),
+                            destructive = true,
+                            onClick = {
+                                detailActions.isMenuExpanded = false
+                                detailActions.onDeleteRequested()
+                            },
+                        )
+                    }
+                }
+            }
+        },
     )
+}
+
+@Composable
+private fun HeaderMenuItem(
+    text: String,
+    destructive: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val textColor = if (destructive) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Row(
+        modifier = Modifier
+            .widthIn(min = 148.dp)
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+    ) {
+        Text(
+            text = text,
+            color = textColor,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
 }
 
 @Composable

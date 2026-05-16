@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
 
 class OfflineMediaRepository(
     private val mediaDao: MediaDao,
@@ -244,6 +245,33 @@ class OfflineMediaRepository(
         mediaDao.updateSessionNotes(
             sessionId = sessionId,
             notes = notes?.trim()?.takeIf { it.isNotBlank() },
+            updatedAtEpochMillis = System.currentTimeMillis(),
+        )
+    }
+
+    override suspend fun updateSessionDetails(
+        sessionId: Long,
+        status: TrackingStatus,
+        progressCurrent: Int,
+        rating: Int?,
+        notes: String?,
+        startedAt: LocalDate?,
+        finishedAt: LocalDate?,
+    ) {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return
+        val mediaItem = mediaDao.getMediaItem(session.mediaItemId) ?: return
+        val validProgress = mediaItem.progressTotal?.let { maxProgress ->
+            progressCurrent.coerceIn(0, maxProgress)
+        } ?: progressCurrent.coerceAtLeast(0)
+
+        mediaDao.updateSessionDetails(
+            sessionId = sessionId,
+            status = status.name,
+            progressCurrent = validProgress,
+            rating = rating?.coerceIn(1, 10),
+            notes = notes?.trim()?.takeIf { it.isNotBlank() },
+            startedAtEpochDay = startedAt?.toEpochDay(),
+            finishedAtEpochDay = finishedAt?.toEpochDay(),
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
     }

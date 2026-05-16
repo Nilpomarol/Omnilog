@@ -26,7 +26,17 @@
 
     <string name="progress_value">Progrés %1$d</string>
     <string name="progress_with_total">Progrés %1$d/%2$d</string>
+    <string name="progress_unit_episode_one">episodi</string>
+    <string name="progress_unit_episode_many">episodis</string>
+    <string name="progress_unit_page_one">pagina</string>
+    <string name="progress_unit_page_many">pagines</string>
+    <string name="progress_unit_minute_one">minut</string>
+    <string name="progress_unit_minute_many">minuts</string>
+    <string name="progress_unit_hour_one">hora</string>
+    <string name="progress_unit_hour_many">hores</string>
     <string name="rating_value">Nota %1$d/10</string>
+    <string name="rating_empty">Sense nota</string>
+    <string name="rating_clear">Esborra la nota</string>
     <string name="owned_label">En propietat</string>
     <string name="platform_label">Plataforma: %1$s</string>
     <string name="platform_none">Sense plataforma</string>
@@ -36,6 +46,15 @@
     <string name="external_tracking_label">També a: %1$s</string>
     <string name="back">Enrere</string>
     <string name="detail_current_session">Sessió actual</string>
+    <string name="edit_current_session">Edita seguiment</string>
+    <string name="session_planned_prompt">Preparat per comencar quan vulguis.</string>
+    <string name="session_started_at">Inici: %1$s</string>
+    <string name="session_finished_at">Final: %1$s</string>
+    <string name="session_updated_at">Actualitzat: %1$s</string>
+    <string name="session_dates">Dates</string>
+    <string name="session_started_label">Data d\'inici</string>
+    <string name="session_finished_label">Data de final</string>
+    <string name="pick_date">Tria</string>
     <string name="detail_item_details">Dades de l\'element</string>
     <string name="detail_history">Historial</string>
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
@@ -84,6 +103,7 @@
     <string name="field_progress">Progres</string>
     <string name="field_rating">Nota</string>
     <string name="field_notes">Notes</string>
+    <string name="notes_placeholder">Afegeix una nota...</string>
     <string name="field_status">Estat</string>
     <string name="field_media_type">Tipus</string>
     <string name="field_platform">Plataforma</string>

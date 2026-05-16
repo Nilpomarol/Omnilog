@@ -22,12 +22,13 @@ class GoogleBooksMetadataRepository(
         if (apiKey.isBlank() || MediaType.Book !in request.mediaTypes || query.isBlank()) return emptyList()
 
         return withContext(Dispatchers.IO) {
-            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val encodedQuery = URLEncoder.encode(query.toGoogleBooksQuery(), "UTF-8")
             val fields = "items(id,volumeInfo(title,authors,description,pageCount," +
                 "averageRating,ratingsCount,publishedDate,categories,imageLinks/thumbnail,infoLink))"
             val response = getJson(
                 "https://www.googleapis.com/books/v1/volumes" +
-                    "?q=$encodedQuery&maxResults=10&hl=es&fields=$fields&key=$apiKey",
+                    "?q=$encodedQuery&maxResults=20&printType=books&orderBy=relevance" +
+                    "&hl=es&fields=$fields&key=$apiKey",
             )
             val items = response.optJSONArray("items") ?: return@withContext emptyList()
             List(items.length()) { items.getJSONObject(it) }
@@ -82,7 +83,7 @@ class GoogleBooksMetadataRepository(
                     metadataSource = MetadataSource.GoogleBooks,
                 )
             },
-            genres = categories,
+            genres = categories.standardBookGenres().ifEmpty { categories.take(3) },
             sourceUrl = info.optString("infoLink").takeIf { it.isNotBlank() },
             externalRating = if (averageRating > 0.0) {
                 MetadataRatingSuggestion(
@@ -102,5 +103,14 @@ class GoogleBooksMetadataRepository(
         connection.readTimeout = 15_000
         connection.requestMethod = "GET"
         return connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
+    }
+}
+
+private fun String.toGoogleBooksQuery(): String {
+    val compact = filter { it.isDigit() || it == 'X' || it == 'x' }
+    return if (compact.length == 10 || compact.length == 13) {
+        "isbn:$compact"
+    } else {
+        this
     }
 }

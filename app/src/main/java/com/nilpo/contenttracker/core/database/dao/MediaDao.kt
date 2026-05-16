@@ -184,6 +184,30 @@ interface MediaDao {
     @Query(
         """
         UPDATE tracking_sessions
+        SET status = :status,
+            progressCurrent = :progressCurrent,
+            rating = :rating,
+            notes = :notes,
+            startedAtEpochDay = :startedAtEpochDay,
+            finishedAtEpochDay = :finishedAtEpochDay,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionDetails(
+        sessionId: Long,
+        status: String,
+        progressCurrent: Int,
+        rating: Int?,
+        notes: String?,
+        startedAtEpochDay: Long?,
+        finishedAtEpochDay: Long?,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
         SET progressCurrent = :progressTotal,
             updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE mediaItemId = :mediaItemId AND progressCurrent > :progressTotal

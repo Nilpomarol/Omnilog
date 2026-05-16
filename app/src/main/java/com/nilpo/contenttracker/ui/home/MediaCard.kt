@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.ui.common.MetadataSummary
+import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.sessionLabel
 import com.nilpo.contenttracker.ui.common.sessionSummary
 
@@ -38,7 +39,7 @@ fun MediaCard(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            text = trackedMedia.item.title,
+            text = displayMediaTitle(trackedMedia.item.title),
             style = MaterialTheme.typography.titleLarge,
         )
 

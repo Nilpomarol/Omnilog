@@ -9,6 +9,7 @@ import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 class UnsupportedBackupSchemaException(
     val schemaVersion: Int,
@@ -45,6 +46,16 @@ interface MediaRepository {
     suspend fun updateSessionRating(sessionId: Long, rating: Int?)
 
     suspend fun updateSessionNotes(sessionId: Long, notes: String?)
+
+    suspend fun updateSessionDetails(
+        sessionId: Long,
+        status: TrackingStatus,
+        progressCurrent: Int,
+        rating: Int?,
+        notes: String?,
+        startedAt: LocalDate?,
+        finishedAt: LocalDate?,
+    )
 
     suspend fun deletePastSession(sessionId: Long)
 
