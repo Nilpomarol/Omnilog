@@ -70,6 +70,13 @@ interface MediaRepository {
 
     suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
 
+    suspend fun updateExternalTracking(
+        externalTrackingId: Long,
+        source: ExternalTrackingSource,
+        externalItemId: String?,
+        url: String?,
+    )
+
     suspend fun deleteExternalTracking(externalTrackingId: Long)
 
     suspend fun updateMediaCollectionName(collectionId: Long, name: String)

@@ -35,8 +35,14 @@ class OfflineMediaRepository(
             mediaDao.observeTrackedMedia(typeNames),
             mediaDao.observeMediaCollections(),
         ) { relations, collections ->
-            val availableCollections = collections.map { it.toDomain() }
             relations.map { relation ->
+                val sameTypeCollectionIds = relations
+                    .filter { otherRelation -> otherRelation.item.type == relation.item.type }
+                    .mapNotNull { otherRelation -> otherRelation.item.collectionId }
+                    .toSet()
+                val availableCollections = collections
+                    .filter { collection -> collection.id in sameTypeCollectionIds }
+                    .map { it.toDomain() }
                 TrackedMedia(
                     item = relation.item.toDomain(),
                     collection = relation.collection?.toDomain(),
@@ -126,8 +132,12 @@ class OfflineMediaRepository(
                 sessionNumber = newSessionNumber,
                 status = request.status.name,
                 progressCurrent = validProgress,
+                rating = request.rating?.coerceIn(1, 10),
+                notes = request.notes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = validPlatformName,
                 platformType = validPlatformName?.let { request.platformType.name },
+                startedAtEpochDay = request.startedAt?.toEpochDay(),
+                finishedAtEpochDay = request.finishedAt?.toEpochDay(),
                 updatedAtEpochMillis = updatedAtEpochMillis,
             )
         } else {
@@ -136,17 +146,18 @@ class OfflineMediaRepository(
                 sessionNumber = newSessionNumber,
                 status = request.status.name,
                 progressCurrent = validProgress,
-                rating = null,
-                notes = null,
+                rating = request.rating?.coerceIn(1, 10),
+                notes = request.notes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = validPlatformName,
                 platformType = validPlatformName?.let { request.platformType.name },
-                startedAtEpochDay = null,
-                finishedAtEpochDay = null,
+                startedAtEpochDay = request.startedAt?.toEpochDay(),
+                finishedAtEpochDay = request.finishedAt?.toEpochDay(),
                 updatedAtEpochMillis = updatedAtEpochMillis,
             )
         }
 
         mediaDao.insertTrackingSession(newSession)
+        mediaDao.updateExternalTrackingSyncedForMedia(request.mediaItemId, isSynced = false)
     }
 
     override suspend fun addTrackedMedia(request: AddTrackedMediaRequest) {
@@ -222,31 +233,38 @@ class OfflineMediaRepository(
             progressCurrent = validProgress,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 
     override suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return
         mediaDao.updateSessionStatus(
             sessionId = sessionId,
             status = status.name,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 
     override suspend fun updateSessionRating(sessionId: Long, rating: Int?) {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return
         val validRating = rating?.coerceIn(1, 10)
         mediaDao.updateSessionRating(
             sessionId = sessionId,
             rating = validRating,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 
     override suspend fun updateSessionNotes(sessionId: Long, notes: String?) {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return
         mediaDao.updateSessionNotes(
             sessionId = sessionId,
             notes = notes?.trim()?.takeIf { it.isNotBlank() },
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 
     override suspend fun updateSessionDetails(
@@ -274,6 +292,7 @@ class OfflineMediaRepository(
             finishedAtEpochDay = finishedAt?.toEpochDay(),
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 
     override suspend fun deletePastSession(sessionId: Long) {
@@ -317,6 +336,21 @@ class OfflineMediaRepository(
         mediaDao.updateExternalTrackingSynced(
             externalTrackingId = externalTrackingId,
             isSynced = isSynced,
+        )
+    }
+
+    override suspend fun updateExternalTracking(
+        externalTrackingId: Long,
+        source: ExternalTrackingSource,
+        externalItemId: String?,
+        url: String?,
+    ) {
+        mediaDao.updateExternalTracking(
+            externalTrackingId = externalTrackingId,
+            source = source.name,
+            externalItemId = externalItemId?.trim()?.takeIf { it.isNotBlank() },
+            url = url?.trim()?.takeIf { it.isNotBlank() },
+            isSynced = false,
         )
     }
 
@@ -391,6 +425,8 @@ class OfflineMediaRepository(
             platformType = validPlatformName?.let { platformType.name },
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        val session = mediaDao.getTrackingSession(sessionId) ?: return
+        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 }
 

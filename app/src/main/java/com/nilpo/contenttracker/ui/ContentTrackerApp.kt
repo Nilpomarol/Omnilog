@@ -304,6 +304,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateSessionDetails = viewModel::updateSessionDetails,
                 onDeletePastSession = viewModel::deletePastSession,
                 onAddExternalTracking = viewModel::addExternalTracking,
+                onUpdateExternalTracking = viewModel::updateExternalTracking,
                 onUpdateExternalTrackingSynced = viewModel::updateExternalTrackingSynced,
                 onDeleteExternalTracking = viewModel::deleteExternalTracking,
                 onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
@@ -382,6 +383,7 @@ class DetailHeaderActions {
     var isEditingItemDetails by mutableStateOf(false)
     var isMenuExpanded by mutableStateOf(false)
     var onDeleteRequested: () -> Unit = {}
+    var onManageExternalTrackingRequested: () -> Unit = {}
 }
 
 private enum class AppDestination {
@@ -479,6 +481,13 @@ private fun OmnilogTopBar(
                             onClick = {
                                 detailActions.isEditingItemDetails = !detailActions.isEditingItemDetails
                                 detailActions.isMenuExpanded = false
+                            },
+                        )
+                        HeaderMenuItem(
+                            text = stringResource(R.string.detail_external_tracking),
+                            onClick = {
+                                detailActions.isMenuExpanded = false
+                                detailActions.onManageExternalTrackingRequested()
                             },
                         )
                         HeaderMenuItem(

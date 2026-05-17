@@ -46,6 +46,10 @@
     <string name="rating_empty">Sense nota</string>
     <string name="rating_clear">Esborra la nota</string>
     <string name="owned_label">En propietat</string>
+    <string name="owned_action_add">En propietat?</string>
+    <string name="collection_action_add">Afegeix a colleccio</string>
+    <string name="collection_modal_title">Colleccio</string>
+    <string name="collection_search">Cerca colleccions</string>
     <string name="platform_label">Plataforma: %1$s</string>
     <string name="platform_none">Sense plataforma</string>
     <string name="progress_total_value">Total: %1$d</string>
@@ -68,7 +72,6 @@
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
     <string name="detail_external_scores">Notes externes</string>
     <string name="detail_external_tracking">Seguiment extern</string>
-    <string name="start_new_session">Comença una nova sessió</string>
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
     <string name="add_media_title">Afegeix contingut</string>
@@ -196,4 +199,7 @@
     <string name="external_tracking_id_value">ID: %1$s</string>
     <string name="external_tracking_other">Altres</string>
     <string name="external_tracking_empty">Cap seguiment extern</string>
-</resources>
+    <string name="external_tracking_not_tracked">No sincronitzat</string>
+    <string name="external_tracking_updated">Actualitzat</string>
+    <string name="external_tracking_pending">Pendent</string>
+  </resources>

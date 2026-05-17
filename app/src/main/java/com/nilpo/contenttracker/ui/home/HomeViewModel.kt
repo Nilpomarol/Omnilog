@@ -280,6 +280,22 @@ class HomeViewModel(
         }
     }
 
+    fun updateExternalTracking(
+        externalTrackingId: Long,
+        source: ExternalTrackingSource,
+        externalItemId: String?,
+        url: String?,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.updateExternalTracking(
+                externalTrackingId = externalTrackingId,
+                source = source,
+                externalItemId = externalItemId,
+                url = url,
+            )
+        }
+    }
+
     fun deleteExternalTracking(externalTrackingId: Long) {
         viewModelScope.launch {
             mediaRepository.deleteExternalTracking(externalTrackingId)

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,9 +29,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +72,9 @@ data class MediaMetadataUi(
     val popularityScore: Double? = null,
     val rankingPosition: Int? = null,
     val rankingLabel: String? = null,
+    val collectionName: String? = null,
+    val isOwned: Boolean = false,
+    val isExternalTrackingUpdated: Boolean = false,
 )
 
 @Composable
@@ -96,10 +103,35 @@ fun MediaMetadataHero(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        MetadataCoverImage(
-            coverUrl = metadata.coverUrl,
-            modifier = Modifier.size(width = 156.dp, height = 234.dp),
-        )
+        Box {
+            MetadataCoverImage(
+                coverUrl = metadata.coverUrl,
+                modifier = Modifier.size(width = 156.dp, height = 234.dp),
+            )
+            if (metadata.isOwned || metadata.isExternalTrackingUpdated) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (metadata.isOwned) {
+                        CoverBadge(
+                            iconResId = R.drawable.ic_owned_badge,
+                            contentDescription = stringResource(R.string.owned_label),
+                            tint = OmnilogColors.Dashboard,
+                        )
+                    }
+                    if (metadata.isExternalTrackingUpdated) {
+                        CoverBadge(
+                            iconResId = R.drawable.ic_external_updated_badge,
+                            contentDescription = stringResource(R.string.external_tracking_updated),
+                            tint = OmnilogColors.Completed,
+                        )
+                    }
+                }
+            }
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -107,6 +139,16 @@ fun MediaMetadataHero(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                metadata.collectionName?.let { collectionName ->
+                    Text(
+                        text = collectionName,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
                     text = metadata.displayTitle(),
                     style = MaterialTheme.typography.headlineSmall,
@@ -164,6 +206,28 @@ fun MediaMetadataHero(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CoverBadge(
+    iconResId: Int,
+    contentDescription: String,
+    tint: Color,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = OmnilogColors.AppPanel.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        contentColor = tint,
+    ) {
+        Icon(
+            painter = painterResource(iconResId),
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .padding(6.dp)
+                .size(15.dp),
+        )
     }
 }
 

@@ -108,13 +108,13 @@ fun CurrentSessionSection(
             onDismissRequest = { showEditor = false },
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
-            EditSessionScreen(
+            SessionEditorScreen(
                 session = session,
                 progressTotal = progressTotal,
                 mediaType = mediaType,
                 accent = accent,
                 onBack = { showEditor = false },
-                onUpdateSessionDetails = onUpdateSessionDetails,
+                onSaveSessionDetails = onUpdateSessionDetails,
             )
         }
     }
@@ -205,15 +205,16 @@ private fun SessionCard(
 // Full-page edit screen
 // ─────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EditSessionScreen(
+@OptIn(ExperimentalMaterial3Api::class)
+fun SessionEditorScreen(
     session: TrackingSession,
     progressTotal: Int?,
     mediaType: MediaType,
     accent: Color,
+    titleResId: Int = R.string.edit_current_session,
     onBack: () -> Unit,
-    onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
+    onSaveSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
 ) {
     var draftStatus by rememberSaveable(session.id) { mutableStateOf(session.status) }
     var draftProgress by rememberSaveable(session.id) {
@@ -236,7 +237,7 @@ private fun EditSessionScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.edit_current_session),
+                        text = stringResource(titleResId),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -260,7 +261,7 @@ private fun EditSessionScreen(
                     }
                     Button(
                         onClick = {
-                            onUpdateSessionDetails(
+                            onSaveSessionDetails(
                                 session.id,
                                 draftStatus,
                                 draftProgress.coerceIn(0, maxProgress),

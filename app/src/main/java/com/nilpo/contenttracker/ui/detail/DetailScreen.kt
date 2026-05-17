@@ -47,6 +47,7 @@ fun DetailScreen(
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
+    onUpdateExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     onDeleteExternalTracking: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Int?, OwnershipType) -> Unit,
@@ -59,9 +60,15 @@ fun DetailScreen(
         .filter { session -> session.id != currentSession?.id }
         .sortedBy { it.sessionNumber }
     var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
+    var showExternalTrackingManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
+    val isExternalTrackingUpdated = trackedMedia.externalTracking.isNotEmpty() &&
+        trackedMedia.externalTracking.all { it.isSynced }
 
     headerActions.onDeleteRequested = {
         showDeleteConfirmation = true
+    }
+    headerActions.onManageExternalTrackingRequested = {
+        showExternalTrackingManager = true
     }
 
     Surface(
@@ -76,7 +83,11 @@ fun DetailScreen(
         ) {
             item {
                 MediaMetadataHero(
-                    metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits),
+                    metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
+                        collectionName = trackedMedia.collection?.name,
+                        isOwned = trackedMedia.item.ownership.isOwned,
+                        isExternalTrackingUpdated = isExternalTrackingUpdated,
+                    ),
                 )
             }
 
@@ -103,6 +114,37 @@ fun DetailScreen(
             }
 
             item {
+                DetailQuickActionsSection(
+                    item = trackedMedia.item,
+                    collection = trackedMedia.collection,
+                    availableCollections = trackedMedia.availableCollections,
+                    currentSession = currentSession,
+                    externalTracking = trackedMedia.externalTracking,
+                    accent = accent,
+                    onSaveItemDetails = { title, collectionId, newCollectionName, progressTotal, ownershipType ->
+                        onUpdateMediaItemDetails(
+                            trackedMedia.item.id,
+                            title,
+                            collectionId,
+                            newCollectionName,
+                            progressTotal,
+                            ownershipType,
+                        )
+                    },
+                    onStartNewSession = onStartNewSession,
+                    onAddExternalTracking = { source, externalItemId, url ->
+                        onAddExternalTracking(
+                            trackedMedia.item.id,
+                            source,
+                            externalItemId,
+                            url,
+                        )
+                    },
+                    onUpdateExternalTrackingSynced = onUpdateExternalTrackingSynced,
+                )
+            }
+
+            item {
                 ItemDetailsSection(
                     item = trackedMedia.item,
                     credits = trackedMedia.credits,
@@ -121,14 +163,6 @@ fun DetailScreen(
                         )
                     },
                     onSavePlatform = onUpdateSessionPlatform,
-                )
-            }
-
-            item {
-                NewSessionSection(
-                    mediaItemId = trackedMedia.item.id,
-                    currentSession = currentSession,
-                    onStartNewSession = onStartNewSession,
                 )
             }
 
@@ -175,22 +209,6 @@ fun DetailScreen(
                     )
                 }
             }
-
-            item {
-                ExternalTrackingEditor(
-                    externalTracking = trackedMedia.externalTracking,
-                    onAddExternalTracking = { source, externalItemId, url ->
-                        onAddExternalTracking(
-                            trackedMedia.item.id,
-                            source,
-                            externalItemId,
-                            url,
-                        )
-                    },
-                    onUpdateSynced = onUpdateExternalTrackingSynced,
-                    onDelete = onDeleteExternalTracking,
-                )
-            }
         }
     }
 
@@ -222,6 +240,21 @@ fun DetailScreen(
                     Text(text = stringResource(R.string.cancel))
                 }
             },
+        )
+    }
+
+    if (showExternalTrackingManager) {
+        ExternalTrackingDialog(
+            externalTracking = trackedMedia.externalTracking,
+            accent = accent,
+            onDismiss = { showExternalTrackingManager = false },
+            onAddExternalTracking = { source, externalItemId, url ->
+                onAddExternalTracking(trackedMedia.item.id, source, externalItemId, url)
+                showExternalTrackingManager = false
+            },
+            onUpdateExternalTracking = onUpdateExternalTracking,
+            onUpdateSynced = onUpdateExternalTrackingSynced,
+            onDelete = onDeleteExternalTracking,
         )
     }
 }
