@@ -143,8 +143,8 @@ private fun SessionCard(
         tonalElevation = 2.dp,
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Header row: status pill + edit button
             Row(
@@ -159,12 +159,12 @@ private fun SessionCard(
                 )
                 FilledTonalIconButton(
                     onClick = onEditClick,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Edit,
                         contentDescription = stringResource(R.string.edit),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
@@ -693,7 +693,7 @@ private fun NotesEditorField(
 
 @Composable
 private fun PlannedSummary(session: TrackingSession, color: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.session_planned_prompt),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
@@ -720,7 +720,7 @@ private fun ProgressSummary(
     progressFraction: Float,
     color: Color,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -728,14 +728,14 @@ private fun ProgressSummary(
             Text(
                 text = progressText(session, progressTotal, mediaType),
                 color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
             if (progressTotal != null && progressTotal > 0) {
                 Text(
                     text = "· ${(progressFraction * 100).toInt()}%",
                     color = color.copy(alpha = 0.70f),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 2.dp),
                 )
@@ -765,7 +765,7 @@ private fun CompletedSummary(
     mediaType: MediaType,
     color: Color,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         RatingDisplay(rating = session.rating, color = color)
         ThickProgressBar(fraction = 1f, color = color)
         Text(
@@ -785,14 +785,14 @@ private fun DroppedSummary(
     progressFraction: Float,
     color: Color,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (session.rating != null) {
             RatingDisplay(rating = session.rating, color = color)
         } else {
             Text(
                 text = progressText(session, progressTotal, mediaType),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -823,14 +823,14 @@ private fun ThickProgressBar(fraction: Float, color: Color) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(8.dp)
+            .height(6.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(animated)
-                .height(8.dp)
+                .height(6.dp)
                 .clip(RoundedCornerShape(999.dp))
                 .background(color),
         )
@@ -839,7 +839,7 @@ private fun ThickProgressBar(fraction: Float, color: Color) {
 
 @Composable
 private fun RatingDisplay(rating: Int?, color: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -849,7 +849,7 @@ private fun RatingDisplay(rating: Int?, color: Color) {
                 text = stringResource(R.string.field_rating),
                 color = if (rating != null) color
                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
             Text(
@@ -860,7 +860,7 @@ private fun RatingDisplay(rating: Int?, color: Color) {
                 },
                 color = if (rating != null) color
                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
             )
         }
@@ -873,7 +873,7 @@ private fun RatingDisplay(rating: Int?, color: Color) {
                 Icon(
                     imageVector = Icons.Filled.Star,
                     contentDescription = null,
-                    modifier = Modifier.size(26.dp),
+                    modifier = Modifier.size(22.dp),
                     tint = if (index < clampedRating) {
                         color
                     } else {
@@ -908,7 +908,7 @@ private fun InlineRatingDisplay(rating: Int?, color: Color) {
                 Icon(
                     imageVector = Icons.Filled.Star,
                     contentDescription = null,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(13.dp),
                     tint = if (index < rating.coerceIn(0, 10)) {
                         color
                     } else {
@@ -931,7 +931,7 @@ private fun SessionDates(
     val updatedAt = session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
     if (startedAt == null && finishedAt == null && updatedAt == null) return
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (startedAt != null || finishedAt != null) {
             val primaryDateColor = if (highlightedStartedAt && startedAt != null) {
                 highlightColor
@@ -946,7 +946,7 @@ private fun SessionDates(
                 startedAt?.let { label ->
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (highlightedStartedAt) FontWeight.Bold else FontWeight.SemiBold,
                         color = primaryDateColor,
                     )
@@ -954,7 +954,7 @@ private fun SessionDates(
                 finishedAt?.let { label ->
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
                     )
@@ -964,7 +964,7 @@ private fun SessionDates(
         updatedAt?.let { label ->
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
                 modifier = Modifier.fillMaxWidth(),
@@ -987,7 +987,7 @@ private fun QuickHintRow(values: List<String>, color: Color) {
             ) {
                 Text(
                     text = value,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
                 )
@@ -1012,11 +1012,11 @@ private fun StatusPill(label: String, icon: ImageVector, color: Color) {
         contentColor = color,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(15.dp))
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp))
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,

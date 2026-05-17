@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +43,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
@@ -98,39 +98,44 @@ fun MediaMetadataHero(
     ) {
         MetadataCoverImage(
             coverUrl = metadata.coverUrl,
-            modifier = Modifier.size(width = 132.dp, height = 198.dp),
+            modifier = Modifier.size(width = 156.dp, height = 234.dp),
         )
         Column(
             modifier = Modifier
                 .weight(1f)
-                .height(198.dp),
+                .height(234.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
                     text = metadata.displayTitle(),
                     style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.AppInk,
                 )
                 metadata.originalTitle?.let { originalTitle ->
                     Text(
                         text = originalTitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 if (metadata.creators.isNotEmpty()) {
                     Text(
                         text = metadata.creators.joinToString(", "),
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
+                        color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 if (isLoadingDetails) {
                     Text(
                         text = stringResource(R.string.metadata_details_loading),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                        color = OmnilogColors.AppMuted,
                     )
                 }
             }
@@ -215,10 +220,19 @@ private fun GenreRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         genres.forEach { genre ->
-            AssistChip(
-                onClick = {},
-                label = { Text(text = genre) },
-            )
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = OmnilogColors.AppPanel,
+                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                contentColor = OmnilogColors.AppMuted,
+            ) {
+                Text(
+                    text = genre,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }
@@ -229,10 +243,10 @@ private fun MetadataPill(
     label: String? = null,
 ) {
     Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = RoundedCornerShape(8.dp),
+        color = OmnilogColors.AppBackground.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        contentColor = OmnilogColors.AppMuted,
     ) {
         Text(
             text = label?.let { "$it $value" } ?: value,
@@ -264,9 +278,9 @@ fun MetadataCoverImage(
 
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
         image?.let { loadedImage ->
             Image(
@@ -349,13 +363,13 @@ private fun MetadataSection(
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+            color = OmnilogColors.AppMuted,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = body,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.82f),
+            color = OmnilogColors.AppInk.copy(alpha = 0.84f),
             maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
             overflow = TextOverflow.Ellipsis,
         )

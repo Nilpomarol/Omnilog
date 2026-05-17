@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
@@ -21,6 +22,7 @@ import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.ui.common.MediaMetadataSecondary
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
 
 @Composable
 fun ItemDetailsSection(
@@ -42,9 +44,11 @@ fun ItemDetailsSection(
             Text(
                 text = stringResource(R.string.detail_item_details),
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogColors.AppInk,
             )
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.16f))
+        HorizontalDivider(color = OmnilogColors.AppLine)
 
         if (isEditing) {
             ItemDetailsEditor(
@@ -78,7 +82,7 @@ private fun ItemDetailsSummary(
 
         Text(
             text = stringResource(R.string.field_ownership_type) + ": " + item.ownership.type.label(),
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
             style = MaterialTheme.typography.bodyMedium,
         )
         val totalText = item.progressTotal?.let { total ->
@@ -87,7 +91,7 @@ private fun ItemDetailsSummary(
 
         Text(
             text = totalText,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
             style = MaterialTheme.typography.bodyMedium,
         )
 
@@ -96,7 +100,7 @@ private fun ItemDetailsSummary(
                 R.string.collection_summary,
                 collection?.name ?: stringResource(R.string.collection_none),
             ),
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
             style = MaterialTheme.typography.bodyMedium,
         )
 
@@ -106,7 +110,7 @@ private fun ItemDetailsSummary(
 
         Text(
             text = platformText,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
             style = MaterialTheme.typography.bodyMedium,
         )
     }
