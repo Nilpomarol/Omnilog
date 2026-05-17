@@ -34,7 +34,7 @@
     <string name="progress_unit_minute_many">minuts</string>
     <string name="progress_unit_hour_one">hora</string>
     <string name="progress_unit_hour_many">hores</string>
-    <string name="rating_value">Nota %1$d/10</string>
+    <string name="rating_value">%1$d/10</string>
     <string name="rating_empty">Sense nota</string>
     <string name="rating_clear">Esborra la nota</string>
     <string name="owned_label">En propietat</string>

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -249,7 +250,12 @@ private fun EditSessionScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = onBack) {
+                    TextButton(
+                        onClick = onBack,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = accent,
+                        ),
+                    ) {
                         Text(text = stringResource(R.string.cancel))
                     }
                     Button(
@@ -265,6 +271,10 @@ private fun EditSessionScreen(
                             )
                             onBack()
                         },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accent,
+                            contentColor = Color.White,
+                        ),
                     ) {
                         Text(text = stringResource(R.string.save))
                     }
@@ -837,9 +847,10 @@ private fun RatingDisplay(rating: Int?, color: Color) {
         ) {
             Text(
                 text = stringResource(R.string.field_rating),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                color = if (rating != null) color
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
             )
             Text(
                 text = if (rating != null) {
