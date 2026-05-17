@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 
 data class HomeUiState(
     val selectedSection: MediaSection = MediaSection.Anime,
+    val allTrackedItems: List<TrackedMedia> = emptyList(),
     val trackedItems: List<TrackedMedia> = emptyList(),
     val searchQuery: String = "",
     val statusFilter: TrackingStatus? = null,

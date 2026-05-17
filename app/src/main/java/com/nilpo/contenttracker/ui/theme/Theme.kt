@@ -1,9 +1,14 @@
 package com.nilpo.contenttracker.ui.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import com.nilpo.contenttracker.R
 
 object OmnilogColors {
     val Anime = Color(0xFFD88CA8)
@@ -38,10 +43,42 @@ private val DarkColors = darkColorScheme(
     error = Color(0xFFE19A94),
 )
 
+private val DisplayFontFamily = FontFamily(
+    Font(R.font.libre_baskerville, weight = FontWeight.Normal),
+    Font(R.font.libre_baskerville, weight = FontWeight.Bold),
+)
+
+private val BodyFontFamily = FontFamily(
+    Font(R.font.lato_regular, weight = FontWeight.Normal),
+    Font(R.font.lato_semibold, weight = FontWeight.SemiBold),
+    Font(R.font.lato_bold, weight = FontWeight.Bold),
+)
+
+private val BaseTypography = Typography()
+
+private val OmnilogTypography = Typography(
+    displayLarge = BaseTypography.displayLarge.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    displayMedium = BaseTypography.displayMedium.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    displaySmall = BaseTypography.displaySmall.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    headlineLarge = BaseTypography.headlineLarge.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    headlineMedium = BaseTypography.headlineMedium.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    headlineSmall = BaseTypography.headlineSmall.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    titleLarge = BaseTypography.titleLarge.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    titleMedium = BaseTypography.titleMedium.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.SemiBold),
+    titleSmall = BaseTypography.titleSmall.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.SemiBold),
+    bodyLarge = BaseTypography.bodyLarge.copy(fontFamily = BodyFontFamily),
+    bodyMedium = BaseTypography.bodyMedium.copy(fontFamily = BodyFontFamily),
+    bodySmall = BaseTypography.bodySmall.copy(fontFamily = BodyFontFamily),
+    labelLarge = BaseTypography.labelLarge.copy(fontFamily = BodyFontFamily),
+    labelMedium = BaseTypography.labelMedium.copy(fontFamily = BodyFontFamily),
+    labelSmall = BaseTypography.labelSmall.copy(fontFamily = BodyFontFamily),
+)
+
 @Composable
 fun ContentTrackerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = DarkColors,
+        typography = OmnilogTypography,
         content = content,
     )
 }

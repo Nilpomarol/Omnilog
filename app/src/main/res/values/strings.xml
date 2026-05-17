@@ -8,6 +8,14 @@
     <string name="nav_movies">TV</string>
     <string name="nav_games">Jocs</string>
     <string name="home_title">La teva biblioteca</string>
+    <string name="home_empty_state">Encara no hi ha activitat per resumir.</string>
+    <string name="home_active_title">Ara mateix</string>
+    <string name="home_top_rated_title">Millors notes</string>
+    <string name="home_recent_title">Activitat recent</string>
+    <string name="home_stat_total_titles">Titols totals</string>
+    <string name="home_stat_hours_watched">Hores Totals</string>
+    <string name="home_stat_average_rating">Nota mitjana</string>
+    <string name="home_stat_titles_this_year">Aquest any</string>
     <string name="home_redesign_placeholder">Aquest espai sera el resum visual d\'Omnilog: lectures, visionats, partides, estadistiques i activitat recent.</string>
 
     <string name="empty_anime">L\'anime que segueixis apareixerà aquí.</string>

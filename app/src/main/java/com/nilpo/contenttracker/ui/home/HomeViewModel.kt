@@ -7,6 +7,7 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -16,17 +17,14 @@ import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     private val mediaRepository: MediaRepository,
     private val metadataRepository: MetadataRepository,
@@ -40,29 +38,40 @@ class HomeViewModel(
 
     val metadataUiState = metadataSearchState.asStateFlow()
 
-    val uiState = selectedSection
-        .flatMapLatest { section ->
-            combine(
-                mediaRepository.observeTrackedMedia(section.types),
-                searchQuery,
-                statusFilter,
-                sortMode,
-                sortDirection,
-            ) { trackedItems, query, status, sort, direction ->
-                val visibleItems = trackedItems
-                    .filterBySearch(query)
-                    .filterByStatus(status)
-                    .sortByMode(sort, direction)
+    private val filters = combine(
+        searchQuery,
+        statusFilter,
+        sortMode,
+        sortDirection,
+    ) { query, status, sort, direction ->
+        HomeFilters(
+            query = query,
+            status = status,
+            sort = sort,
+            direction = direction,
+        )
+    }
 
-                    HomeUiState(
-                        selectedSection = section,
-                        trackedItems = visibleItems,
-                        searchQuery = query,
-                        statusFilter = status,
-                        sortMode = sort,
-                        sortDirection = direction,
-                    )
-            }
+    val uiState = combine(
+        selectedSection,
+        mediaRepository.observeTrackedMedia(MediaType.entries.toSet()),
+        filters,
+    ) { section, allTrackedItems, filters ->
+        val visibleItems = allTrackedItems
+            .filter { it.item.type in section.types }
+            .filterBySearch(filters.query)
+            .filterByStatus(filters.status)
+            .sortByMode(filters.sort, filters.direction)
+
+        HomeUiState(
+            selectedSection = section,
+            allTrackedItems = allTrackedItems,
+            trackedItems = visibleItems,
+            searchQuery = filters.query,
+            statusFilter = filters.status,
+            sortMode = filters.sort,
+            sortDirection = filters.direction,
+        )
         }
         .stateIn(
             scope = viewModelScope,
@@ -336,6 +345,13 @@ class HomeViewModel(
         }
     }
 }
+
+private data class HomeFilters(
+    val query: String,
+    val status: TrackingStatus?,
+    val sort: HomeSortMode,
+    val direction: HomeSortDirection,
+)
 
 private fun List<TrackedMedia>.filterBySearch(query: String): List<TrackedMedia> {
     val normalizedQuery = query.trim()

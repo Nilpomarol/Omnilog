@@ -53,6 +53,7 @@ import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
+import com.nilpo.contenttracker.ui.home.HomeLandingScreen
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import kotlinx.coroutines.Dispatchers
@@ -226,7 +227,15 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     .padding(innerPadding),
             )
         } else if (selectedDestination == AppDestination.Home) {
-            OmnilogHomeLanding(
+            HomeLandingScreen(
+                uiState = uiState,
+                onMediaClick = { trackedMedia ->
+                    val section = trackedMedia.item.type.homeSection()
+                    viewModel.selectSection(section)
+                    selectedDestination = AppDestination.Section
+                    selectedCollectionId = null
+                    selectedMediaId = trackedMedia.item.id
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -374,6 +383,16 @@ private enum class AppDestination {
     Section,
 }
 
+private fun com.nilpo.contenttracker.core.model.MediaType.homeSection(): MediaSection =
+    when (this) {
+        com.nilpo.contenttracker.core.model.MediaType.Anime -> MediaSection.Anime
+        com.nilpo.contenttracker.core.model.MediaType.Book -> MediaSection.Books
+        com.nilpo.contenttracker.core.model.MediaType.Movie,
+        com.nilpo.contenttracker.core.model.MediaType.TvShow,
+            -> MediaSection.Movies
+        com.nilpo.contenttracker.core.model.MediaType.Game -> MediaSection.Games
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OmnilogTopBar(
@@ -499,31 +518,5 @@ private fun NavMark(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
         )
-    }
-}
-
-@Composable
-private fun OmnilogHomeLanding(modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.home_title),
-                style = MaterialTheme.typography.headlineLarge,
-            )
-            Text(
-                text = stringResource(R.string.home_redesign_placeholder),
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-            )
-        }
     }
 }
