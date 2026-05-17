@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
-import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
@@ -197,30 +196,6 @@ class HomeViewModel(
         }
     }
 
-    fun updateSessionProgress(sessionId: Long, progressCurrent: Int) {
-        viewModelScope.launch {
-            mediaRepository.updateSessionProgress(sessionId, progressCurrent)
-        }
-    }
-
-    fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
-        viewModelScope.launch {
-            mediaRepository.updateSessionStatus(sessionId, status)
-        }
-    }
-
-    fun updateSessionRating(sessionId: Long, rating: Int?) {
-        viewModelScope.launch {
-            mediaRepository.updateSessionRating(sessionId, rating)
-        }
-    }
-
-    fun updateSessionNotes(sessionId: Long, notes: String?) {
-        viewModelScope.launch {
-            mediaRepository.updateSessionNotes(sessionId, notes)
-        }
-    }
-
     fun updateSessionDetails(
         sessionId: Long,
         status: TrackingStatus,
@@ -334,16 +309,30 @@ class HomeViewModel(
         }
     }
 
-    fun updateSessionPlatform(
-        sessionId: Long,
-        platformName: String?,
-        platformType: ConsumptionPlatformType,
+    fun updateMediaItemMetadata(
+        mediaItemId: Long,
+        title: String,
+        originalTitle: String?,
+        releaseYear: Int?,
+        progressTotal: Int?,
+        genres: List<String>,
+        creators: List<String>,
+        coverUrl: String?,
+        synopsis: String?,
+        sourceUrl: String?,
     ) {
         viewModelScope.launch {
-            mediaRepository.updateSessionPlatform(
-                sessionId = sessionId,
-                platformName = platformName,
-                platformType = platformType,
+            mediaRepository.updateMediaItemMetadata(
+                mediaItemId = mediaItemId,
+                title = title,
+                originalTitle = originalTitle,
+                releaseYear = releaseYear,
+                progressTotal = progressTotal,
+                genres = genres,
+                creators = creators,
+                coverUrl = coverUrl,
+                synopsis = synopsis,
+                sourceUrl = sourceUrl,
             )
         }
     }

@@ -297,10 +297,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 headerActions = actions,
                 onBack = { selectedMediaId = null },
                 onStartNewSession = viewModel::startNewSession,
-                onUpdateSessionProgress = viewModel::updateSessionProgress,
-                onUpdateSessionStatus = viewModel::updateSessionStatus,
-                onUpdateSessionRating = viewModel::updateSessionRating,
-                onUpdateSessionNotes = viewModel::updateSessionNotes,
                 onUpdateSessionDetails = viewModel::updateSessionDetails,
                 onDeletePastSession = viewModel::deletePastSession,
                 onAddExternalTracking = viewModel::addExternalTracking,
@@ -308,7 +304,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateExternalTrackingSynced = viewModel::updateExternalTrackingSynced,
                 onDeleteExternalTracking = viewModel::deleteExternalTracking,
                 onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
-                onUpdateSessionPlatform = viewModel::updateSessionPlatform,
+                onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
                 onDeleteMediaItem = { mediaItemId ->
                     viewModel.deleteMediaItem(mediaItemId)
                     selectedMediaId = null

@@ -19,9 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
-import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -40,10 +41,6 @@ fun DetailScreen(
     headerActions: DetailHeaderActions,
     onBack: () -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
-    onUpdateSessionProgress: (Long, Int) -> Unit,
-    onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
-    onUpdateSessionRating: (Long, Int?) -> Unit,
-    onUpdateSessionNotes: (Long, String?) -> Unit,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
@@ -51,7 +48,7 @@ fun DetailScreen(
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     onDeleteExternalTracking: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Int?, OwnershipType) -> Unit,
-    onUpdateSessionPlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
+    onUpdateMediaItemMetadata: (Long, String, String?, Int?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -104,10 +101,6 @@ fun DetailScreen(
                         progressTotal = trackedMedia.item.progressTotal,
                         mediaType = trackedMedia.item.type,
                         accent = accent,
-                        onUpdateSessionProgress = onUpdateSessionProgress,
-                        onUpdateSessionStatus = onUpdateSessionStatus,
-                        onUpdateSessionRating = onUpdateSessionRating,
-                        onUpdateSessionNotes = onUpdateSessionNotes,
                         onUpdateSessionDetails = onUpdateSessionDetails,
                     )
                 }
@@ -148,21 +141,6 @@ fun DetailScreen(
                 ItemDetailsSection(
                     item = trackedMedia.item,
                     credits = trackedMedia.credits,
-                    collection = trackedMedia.collection,
-                    availableCollections = trackedMedia.availableCollections,
-                    currentSession = currentSession,
-                    isEditing = headerActions.isEditingItemDetails,
-                    onSaveItemDetails = { title, collectionId, newCollectionName, progressTotal, ownershipType ->
-                        onUpdateMediaItemDetails(
-                            trackedMedia.item.id,
-                            title,
-                            collectionId,
-                            newCollectionName,
-                            progressTotal,
-                            ownershipType,
-                        )
-                    },
-                    onSavePlatform = onUpdateSessionPlatform,
                 )
             }
 
@@ -183,12 +161,9 @@ fun DetailScreen(
                 PastSessionSection(
                     session = session,
                     progressTotal = trackedMedia.item.progressTotal,
+                    mediaType = trackedMedia.item.type,
                     accent = accent,
-                    onUpdateSessionProgress = onUpdateSessionProgress,
-                    onUpdateSessionStatus = onUpdateSessionStatus,
-                    onUpdateSessionRating = onUpdateSessionRating,
-                    onUpdateSessionNotes = onUpdateSessionNotes,
-                    onUpdateSessionPlatform = onUpdateSessionPlatform,
+                    onUpdateSessionDetails = onUpdateSessionDetails,
                     onDeleteSession = { onDeletePastSession(session.id) },
                 )
             }
@@ -256,5 +231,33 @@ fun DetailScreen(
             onUpdateSynced = onUpdateExternalTrackingSynced,
             onDelete = onDeleteExternalTracking,
         )
+    }
+
+    if (headerActions.isEditingItemDetails) {
+        Dialog(
+            onDismissRequest = { headerActions.isEditingItemDetails = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            ItemDetailsEditor(
+                item = trackedMedia.item,
+                accent = accent,
+                onDismiss = { headerActions.isEditingItemDetails = false },
+                onSaveMetadata = { title, originalTitle, releaseYear, progressTotal, genres, creators, coverUrl, synopsis, sourceUrl ->
+                    onUpdateMediaItemMetadata(
+                        trackedMedia.item.id,
+                        title,
+                        originalTitle,
+                        releaseYear,
+                        progressTotal,
+                        genres,
+                        creators,
+                        coverUrl,
+                        synopsis,
+                        sourceUrl,
+                    )
+                    headerActions.isEditingItemDetails = false
+                },
+            )
+        }
     }
 }

@@ -87,10 +87,6 @@ fun CurrentSessionSection(
     progressTotal: Int?,
     mediaType: MediaType,
     accent: Color,
-    onUpdateSessionProgress: (Long, Int) -> Unit,
-    onUpdateSessionStatus: (Long, TrackingStatus) -> Unit,
-    onUpdateSessionRating: (Long, Int?) -> Unit,
-    onUpdateSessionNotes: (Long, String?) -> Unit,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }

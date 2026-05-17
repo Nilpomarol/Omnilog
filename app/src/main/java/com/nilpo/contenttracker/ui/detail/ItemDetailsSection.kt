@@ -14,12 +14,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
-import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
-import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaItem
-import com.nilpo.contenttracker.core.model.OwnershipType
-import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.ui.common.MediaMetadataSecondary
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -28,12 +24,6 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 fun ItemDetailsSection(
     item: MediaItem,
     credits: List<MediaCredit>,
-    collection: MediaCollection?,
-    availableCollections: List<MediaCollection>,
-    currentSession: TrackingSession?,
-    isEditing: Boolean,
-    onSaveItemDetails: (String, Long?, String?, Int?, OwnershipType) -> Unit,
-    onSavePlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -50,23 +40,10 @@ fun ItemDetailsSection(
         }
         HorizontalDivider(color = OmnilogColors.AppLine)
 
-        if (isEditing) {
-            ItemDetailsEditor(
-                item = item,
-                collection = collection,
-                availableCollections = availableCollections,
-                currentSession = currentSession,
-                onSaveItemDetails = onSaveItemDetails,
-                onSavePlatform = onSavePlatform,
-            )
-        } else {
-            ItemDetailsSummary(
-                item = item,
-                credits = credits,
-                collection = collection,
-                currentSession = currentSession,
-            )
-        }
+        ItemDetailsSummary(
+            item = item,
+            credits = credits,
+        )
     }
 }
 
@@ -74,55 +51,8 @@ fun ItemDetailsSection(
 private fun ItemDetailsSummary(
     item: MediaItem,
     credits: List<MediaCredit>,
-    collection: MediaCollection?,
-    currentSession: TrackingSession?,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         MediaMetadataSecondary(metadata = item.toMediaMetadataUi(credits))
-
-        Text(
-            text = stringResource(R.string.field_ownership_type) + ": " + item.ownership.type.label(),
-            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        val totalText = item.progressTotal?.let { total ->
-            stringResource(R.string.progress_total_value, total)
-        } ?: stringResource(R.string.progress_total_unknown)
-
-        Text(
-            text = totalText,
-            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-
-        Text(
-            text = stringResource(
-                R.string.collection_summary,
-                collection?.name ?: stringResource(R.string.collection_none),
-            ),
-            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-
-        val platformText = currentSession?.platform?.let { platform ->
-            stringResource(R.string.platform_label, platform.name)
-        } ?: stringResource(R.string.platform_none)
-
-        Text(
-            text = platformText,
-            color = OmnilogColors.AppInk.copy(alpha = 0.78f),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-@Composable
-private fun OwnershipType.label(): String {
-    return when (this) {
-        OwnershipType.None -> stringResource(R.string.ownership_none)
-        OwnershipType.Physical -> stringResource(R.string.ownership_physical)
-        OwnershipType.Digital -> stringResource(R.string.ownership_digital)
-        OwnershipType.Subscription -> stringResource(R.string.ownership_subscription)
-        OwnershipType.Borrowed -> stringResource(R.string.ownership_borrowed)
     }
 }

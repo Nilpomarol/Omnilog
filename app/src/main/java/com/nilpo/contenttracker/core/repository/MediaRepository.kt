@@ -2,7 +2,6 @@ package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
-import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -38,14 +37,6 @@ interface MediaRepository {
     suspend fun startNewSession(request: AddTrackingSessionRequest)
 
     suspend fun addTrackedMedia(request: AddTrackedMediaRequest)
-
-    suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int)
-
-    suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus)
-
-    suspend fun updateSessionRating(sessionId: Long, rating: Int?)
-
-    suspend fun updateSessionNotes(sessionId: Long, notes: String?)
 
     suspend fun updateSessionDetails(
         sessionId: Long,
@@ -92,9 +83,16 @@ interface MediaRepository {
         ownershipType: OwnershipType,
     )
 
-    suspend fun updateSessionPlatform(
-        sessionId: Long,
-        platformName: String?,
-        platformType: ConsumptionPlatformType,
+    suspend fun updateMediaItemMetadata(
+        mediaItemId: Long,
+        title: String,
+        originalTitle: String?,
+        releaseYear: Int?,
+        progressTotal: Int?,
+        genres: List<String>,
+        creators: List<String>,
+        coverUrl: String?,
+        synopsis: String?,
+        sourceUrl: String?,
     )
 }

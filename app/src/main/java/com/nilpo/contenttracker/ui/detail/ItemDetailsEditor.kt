@@ -2,214 +2,211 @@ package com.nilpo.contenttracker.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
-import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
-import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
-import com.nilpo.contenttracker.core.model.OwnershipType
-import com.nilpo.contenttracker.core.model.TrackingSession
-import com.nilpo.contenttracker.ui.common.OptionSelector
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun ItemDetailsEditor(
     item: MediaItem,
-    collection: MediaCollection?,
-    availableCollections: List<MediaCollection>,
-    currentSession: TrackingSession?,
-    onSaveItemDetails: (String, Long?, String?, Int?, OwnershipType) -> Unit,
-    onSavePlatform: (Long, String?, ConsumptionPlatformType) -> Unit,
+    accent: Color,
+    onDismiss: () -> Unit,
+    onSaveMetadata: (
+        title: String,
+        originalTitle: String?,
+        releaseYear: Int?,
+        progressTotal: Int?,
+        genres: List<String>,
+        creators: List<String>,
+        coverUrl: String?,
+        synopsis: String?,
+        sourceUrl: String?,
+    ) -> Unit,
 ) {
-    var title by remember { mutableStateOf(item.title) }
-    var totalText by remember { mutableStateOf(item.progressTotal?.toString().orEmpty()) }
-    var selectedCollectionId by remember { mutableStateOf(item.collectionId) }
-    var newCollectionName by remember { mutableStateOf("") }
-    var selectedOwnershipType by remember { mutableStateOf(item.ownership.type) }
-    var platformName by remember { mutableStateOf(currentSession?.platform?.name.orEmpty()) }
-    var selectedPlatformType by remember {
-        mutableStateOf(currentSession?.platform?.type ?: ConsumptionPlatformType.Other)
-    }
+    var title by rememberSaveable(item.id) { mutableStateOf(item.title) }
+    var originalTitle by rememberSaveable(item.id) { mutableStateOf(item.originalTitle.orEmpty()) }
+    var releaseYearText by rememberSaveable(item.id) { mutableStateOf(item.releaseYear?.toString().orEmpty()) }
+    var totalText by rememberSaveable(item.id) { mutableStateOf(item.progressTotal?.toString().orEmpty()) }
+    var genresText by rememberSaveable(item.id) { mutableStateOf(item.genres.joinToString(", ")) }
+    var creatorsText by rememberSaveable(item.id) { mutableStateOf(item.creators.joinToString(", ")) }
+    var coverUrl by rememberSaveable(item.id) { mutableStateOf(item.coverUrl.orEmpty()) }
+    var sourceUrl by rememberSaveable(item.id) { mutableStateOf(item.sourceUrl.orEmpty()) }
+    var synopsis by rememberSaveable(item.id) { mutableStateOf(item.synopsis.orEmpty()) }
 
-    LaunchedEffect(item.id, item.title, item.progressTotal, item.ownership.type) {
-        title = item.title
-        totalText = item.progressTotal?.toString().orEmpty()
-        selectedCollectionId = item.collectionId
-        newCollectionName = ""
-        selectedOwnershipType = item.ownership.type
-    }
-
-    LaunchedEffect(currentSession?.id, currentSession?.platform) {
-        platformName = currentSession?.platform?.name.orEmpty()
-        selectedPlatformType = currentSession?.platform?.type ?: ConsumptionPlatformType.Other
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedTextField(
-            value = title,
-            onValueChange = { title = it },
-            label = { Text(stringResource(R.string.field_title)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-
-        OutlinedTextField(
-            value = totalText,
-            onValueChange = { value -> totalText = value.filter { it.isDigit() } },
-            label = { Text(stringResource(R.string.field_total_progress)) },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-        )
-
-        CollectionSelector(
-            collection = collection,
-            availableCollections = availableCollections,
-            selectedCollectionId = selectedCollectionId,
-            newCollectionName = newCollectionName,
-            onCollectionSelected = {
-                selectedCollectionId = it?.id
-                newCollectionName = ""
-            },
-            onNewCollectionNameChange = {
-                newCollectionName = it
-                selectedCollectionId = null
-            },
-        )
-
-        OptionSelector(
-            label = stringResource(R.string.field_ownership_type),
-            options = OwnershipType.entries,
-            selectedOption = selectedOwnershipType,
-            optionLabel = { ownershipType -> ownershipType.label() },
-            onOptionSelected = { ownershipType -> selectedOwnershipType = ownershipType },
-        )
-
-        Button(
-            enabled = title.isNotBlank(),
-            onClick = {
-                onSaveItemDetails(
-                    title,
-                    selectedCollectionId,
-                    newCollectionName,
-                    totalText.toIntOrNull(),
-                    selectedOwnershipType,
-                )
-            },
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.edit_metadata_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
+                actions = {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = stringResource(R.string.cancel), color = accent)
+                    }
+                    Button(
+                        enabled = title.isNotBlank(),
+                        onClick = {
+                            onSaveMetadata(
+                                title,
+                                originalTitle.trim().takeIf { it.isNotBlank() },
+                                releaseYearText.toIntOrNull(),
+                                totalText.toIntOrNull(),
+                                genresText.toMetadataList(),
+                                creatorsText.toMetadataList(),
+                                coverUrl.trim().takeIf { it.isNotBlank() },
+                                synopsis.trim().takeIf { it.isNotBlank() },
+                                sourceUrl.trim().takeIf { it.isNotBlank() },
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black),
+                    ) {
+                        Text(text = stringResource(R.string.save))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(text = stringResource(R.string.update_item_details))
-        }
-
-        currentSession?.let { session ->
-            OutlinedTextField(
-                value = platformName,
-                onValueChange = { platformName = it },
-                label = { Text(stringResource(R.string.field_platform)) },
-                modifier = Modifier.fillMaxWidth(),
+            MetadataEditorField(
+                value = title,
+                onValueChange = { title = it },
+                label = stringResource(R.string.field_title),
+                accent = accent,
                 singleLine = true,
             )
-
-            OptionSelector(
-                label = stringResource(R.string.field_platform_type),
-                options = ConsumptionPlatformType.entries,
-                selectedOption = selectedPlatformType,
-                optionLabel = { platformType -> platformType.label() },
-                onOptionSelected = { platformType -> selectedPlatformType = platformType },
+            MetadataEditorField(
+                value = originalTitle,
+                onValueChange = { originalTitle = it },
+                label = stringResource(R.string.field_original_title),
+                accent = accent,
+                singleLine = true,
             )
-
-            Button(
-                onClick = {
-                    onSavePlatform(session.id, platformName, selectedPlatformType)
-                },
-            ) {
-                Text(text = stringResource(R.string.update_platform))
-            }
+            MetadataEditorField(
+                value = releaseYearText,
+                onValueChange = { value -> releaseYearText = value.filter { it.isDigit() }.take(4) },
+                label = stringResource(R.string.field_release_year),
+                accent = accent,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+            MetadataEditorField(
+                value = totalText,
+                onValueChange = { value -> totalText = value.filter { it.isDigit() } },
+                label = stringResource(R.string.field_total_progress),
+                accent = accent,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+            MetadataEditorField(
+                value = creatorsText,
+                onValueChange = { creatorsText = it },
+                label = stringResource(R.string.field_creators),
+                accent = accent,
+                minLines = 2,
+            )
+            MetadataEditorField(
+                value = genresText,
+                onValueChange = { genresText = it },
+                label = stringResource(R.string.field_genres),
+                accent = accent,
+                minLines = 2,
+            )
+            MetadataEditorField(
+                value = coverUrl,
+                onValueChange = { coverUrl = it },
+                label = stringResource(R.string.field_cover_url),
+                accent = accent,
+                singleLine = true,
+            )
+            MetadataEditorField(
+                value = sourceUrl,
+                onValueChange = { sourceUrl = it },
+                label = stringResource(R.string.field_source_url),
+                accent = accent,
+                singleLine = true,
+            )
+            MetadataEditorField(
+                value = synopsis,
+                onValueChange = { synopsis = it },
+                label = stringResource(R.string.field_synopsis),
+                accent = accent,
+                minLines = 5,
+            )
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun CollectionSelector(
-    collection: MediaCollection?,
-    availableCollections: List<MediaCollection>,
-    selectedCollectionId: Long?,
-    newCollectionName: String,
-    onCollectionSelected: (MediaCollection?) -> Unit,
-    onNewCollectionNameChange: (String) -> Unit,
+private fun MetadataEditorField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    accent: Color,
+    singleLine: Boolean = false,
+    minLines: Int = 1,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
-    val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
-    Text(
-        text = stringResource(
-            R.string.collection_summary,
-            selectedCollection?.name ?: collection?.name ?: stringResource(R.string.collection_none),
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = singleLine,
+        minLines = minLines,
+        keyboardOptions = keyboardOptions,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = accent,
+            cursorColor = accent,
         ),
     )
-
-    if (availableCollections.isNotEmpty()) {
-        OptionSelector(
-            label = stringResource(R.string.field_collection),
-            options = listOf<MediaCollection?>(null) + availableCollections,
-            selectedOption = selectedCollection,
-            optionLabel = { option ->
-                option?.name ?: stringResource(R.string.collection_none)
-            },
-            onOptionSelected = onCollectionSelected,
-        )
-    }
-
-    OutlinedTextField(
-        value = newCollectionName,
-        onValueChange = onNewCollectionNameChange,
-        label = { Text(stringResource(R.string.field_new_collection)) },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-    )
-
-    if (selectedCollectionId != null || collection != null || newCollectionName.isNotBlank()) {
-        TextButton(
-            onClick = {
-                onCollectionSelected(null)
-                onNewCollectionNameChange("")
-            },
-        ) {
-            Text(text = stringResource(R.string.clear_collection))
-        }
-    }
 }
 
-@Composable
-private fun OwnershipType.label(): String {
-    return when (this) {
-        OwnershipType.None -> stringResource(R.string.ownership_none)
-        OwnershipType.Physical -> stringResource(R.string.ownership_physical)
-        OwnershipType.Digital -> stringResource(R.string.ownership_digital)
-        OwnershipType.Subscription -> stringResource(R.string.ownership_subscription)
-        OwnershipType.Borrowed -> stringResource(R.string.ownership_borrowed)
-    }
-}
-
-@Composable
-private fun ConsumptionPlatformType.label(): String {
-    return when (this) {
-        ConsumptionPlatformType.Physical -> stringResource(R.string.platform_type_physical)
-        ConsumptionPlatformType.DigitalStore -> stringResource(R.string.platform_type_digital_store)
-        ConsumptionPlatformType.Streaming -> stringResource(R.string.platform_type_streaming)
-        ConsumptionPlatformType.Ebook -> stringResource(R.string.platform_type_ebook)
-        ConsumptionPlatformType.Library -> stringResource(R.string.platform_type_library)
-        ConsumptionPlatformType.Other -> stringResource(R.string.platform_type_other)
-    }
-}
+private fun String.toMetadataList(): List<String> =
+    split(",", "\n")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()

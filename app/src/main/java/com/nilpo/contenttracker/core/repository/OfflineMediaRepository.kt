@@ -12,7 +12,6 @@ import com.nilpo.contenttracker.core.database.mapper.toEntity
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
-import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -221,52 +220,6 @@ class OfflineMediaRepository(
         )
     }
 
-    override suspend fun updateSessionProgress(sessionId: Long, progressCurrent: Int) {
-        val session = mediaDao.getTrackingSession(sessionId) ?: return
-        val mediaItem = mediaDao.getMediaItem(session.mediaItemId) ?: return
-        val validProgress = mediaItem.progressTotal?.let { maxProgress ->
-            progressCurrent.coerceIn(0, maxProgress)
-        } ?: progressCurrent.coerceAtLeast(0)
-
-        mediaDao.updateSessionProgress(
-            sessionId = sessionId,
-            progressCurrent = validProgress,
-            updatedAtEpochMillis = System.currentTimeMillis(),
-        )
-        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
-    }
-
-    override suspend fun updateSessionStatus(sessionId: Long, status: TrackingStatus) {
-        val session = mediaDao.getTrackingSession(sessionId) ?: return
-        mediaDao.updateSessionStatus(
-            sessionId = sessionId,
-            status = status.name,
-            updatedAtEpochMillis = System.currentTimeMillis(),
-        )
-        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
-    }
-
-    override suspend fun updateSessionRating(sessionId: Long, rating: Int?) {
-        val session = mediaDao.getTrackingSession(sessionId) ?: return
-        val validRating = rating?.coerceIn(1, 10)
-        mediaDao.updateSessionRating(
-            sessionId = sessionId,
-            rating = validRating,
-            updatedAtEpochMillis = System.currentTimeMillis(),
-        )
-        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
-    }
-
-    override suspend fun updateSessionNotes(sessionId: Long, notes: String?) {
-        val session = mediaDao.getTrackingSession(sessionId) ?: return
-        mediaDao.updateSessionNotes(
-            sessionId = sessionId,
-            notes = notes?.trim()?.takeIf { it.isNotBlank() },
-            updatedAtEpochMillis = System.currentTimeMillis(),
-        )
-        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
-    }
-
     override suspend fun updateSessionDetails(
         sessionId: Long,
         status: TrackingStatus,
@@ -412,22 +365,43 @@ class OfflineMediaRepository(
         }
     }
 
-    override suspend fun updateSessionPlatform(
-        sessionId: Long,
-        platformName: String?,
-        platformType: ConsumptionPlatformType,
+    override suspend fun updateMediaItemMetadata(
+        mediaItemId: Long,
+        title: String,
+        originalTitle: String?,
+        releaseYear: Int?,
+        progressTotal: Int?,
+        genres: List<String>,
+        creators: List<String>,
+        coverUrl: String?,
+        synopsis: String?,
+        sourceUrl: String?,
     ) {
-        val validPlatformName = platformName?.trim()?.takeIf { it.isNotBlank() }
+        val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
+        val validTotal = progressTotal?.coerceAtLeast(0)
 
-        mediaDao.updateSessionPlatform(
-            sessionId = sessionId,
-            platformName = validPlatformName,
-            platformType = validPlatformName?.let { platformType.name },
-            updatedAtEpochMillis = System.currentTimeMillis(),
+        mediaDao.updateMediaItemMetadata(
+            mediaItemId = mediaItemId,
+            title = validTitle,
+            originalTitle = originalTitle?.trim()?.takeIf { it.isNotBlank() },
+            releaseYear = releaseYear?.coerceAtLeast(0),
+            progressTotal = validTotal,
+            genresJson = genres.cleanMetadataList().toJsonArrayString(),
+            creatorsJson = creators.cleanMetadataList().toJsonArrayString(),
+            coverUrl = coverUrl?.trim()?.takeIf { it.isNotBlank() },
+            synopsis = synopsis?.trim()?.takeIf { it.isNotBlank() },
+            sourceUrl = sourceUrl?.trim()?.takeIf { it.isNotBlank() },
         )
-        val session = mediaDao.getTrackingSession(sessionId) ?: return
-        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
+
+        validTotal?.let { total ->
+            mediaDao.clampSessionsToMediaTotal(
+                mediaItemId = mediaItemId,
+                progressTotal = total,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+        }
     }
+
 }
 
 private fun parseBackupRoot(json: String): JSONObject {
@@ -655,3 +629,6 @@ private fun List<String>.toJsonArrayString(): String? {
     if (isEmpty()) return null
     return JSONArray(this).toString()
 }
+
+private fun List<String>.cleanMetadataList(): List<String> =
+    map { it.trim() }.filter { it.isNotBlank() }.distinct()

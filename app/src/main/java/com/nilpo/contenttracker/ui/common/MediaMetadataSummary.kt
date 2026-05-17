@@ -8,7 +8,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
@@ -182,29 +181,7 @@ fun MediaMetadataHero(
                 }
             }
 
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                metadata.sourceRatingText()?.let { sourceRating ->
-                    MetadataPill(value = sourceRating)
-                }
-                metadata.rankingText()?.let { ranking ->
-                    MetadataPill(value = ranking)
-                }
-                metadata.popularityScore?.let { popularity ->
-                    MetadataPill(
-                        label = stringResource(R.string.metadata_users),
-                        value = formatDecimal(popularity),
-                    )
-                }
-                metadata.progressTotal?.let { total ->
-                    MetadataPill(
-                        label = stringResource(metadata.totalUnitLabelRes()),
-                        value = total.toString(),
-                    )
-                }
-            }
+            HeroMetrics(metadata = metadata)
         }
     }
 }
@@ -302,22 +279,86 @@ private fun GenreRow(
 }
 
 @Composable
-private fun MetadataPill(
-    value: String,
-    label: String? = null,
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppBackground.copy(alpha = 0.72f),
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
-        contentColor = OmnilogColors.AppMuted,
-    ) {
-        Text(
-            text = label?.let { "$it $value" } ?: value,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-        )
+private fun HeroMetrics(metadata: MediaMetadataUi) {
+    val rating = metadata.externalRatingScore
+    val length = metadata.progressTotal
+    val supportingStats = listOfNotNull(
+        metadata.sourceName?.takeIf { rating == null },
+        metadata.rankingText(),
+        metadata.popularityScore?.let { popularity ->
+            stringResource(R.string.metadata_users) + " " + formatDecimal(popularity)
+        },
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            rating?.let { score ->
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = metadata.sourceName ?: stringResource(R.string.field_rating),
+                        color = OmnilogColors.AppMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        Text(
+                            text = formatDecimal(score),
+                            color = OmnilogColors.Dashboard,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                        metadata.externalRatingMax?.let { maxScore ->
+                            Text(
+                                text = "/${formatDecimal(maxScore)}",
+                                color = OmnilogColors.AppMuted,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(bottom = 3.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
+            length?.let { total ->
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = stringResource(metadata.totalUnitLabelRes()),
+                        color = OmnilogColors.AppMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = total.toString(),
+                        color = OmnilogColors.AppInk,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+            }
+        }
+
+        if (supportingStats.isNotEmpty()) {
+            Text(
+                text = supportingStats.joinToString("  |  "),
+                color = OmnilogColors.AppMuted,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

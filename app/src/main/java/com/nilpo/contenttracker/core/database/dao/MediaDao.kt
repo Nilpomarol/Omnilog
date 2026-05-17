@@ -132,74 +132,30 @@ interface MediaDao {
 
     @Query(
         """
-        UPDATE tracking_sessions
-        SET platformName = :platformName,
-            platformType = :platformType,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE id = :sessionId
+        UPDATE media_items
+        SET title = :title,
+            originalTitle = :originalTitle,
+            releaseYear = :releaseYear,
+            progressTotal = :progressTotal,
+            genresJson = :genresJson,
+            creatorsJson = :creatorsJson,
+            coverUrl = :coverUrl,
+            synopsis = :synopsis,
+            sourceUrl = :sourceUrl
+        WHERE id = :mediaItemId
         """,
     )
-    suspend fun updateSessionPlatform(
-        sessionId: Long,
-        platformName: String?,
-        platformType: String?,
-        updatedAtEpochMillis: Long,
-    )
-
-    @Query(
-        """
-        UPDATE tracking_sessions
-        SET progressCurrent = :progressCurrent,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE id = :sessionId
-        """,
-    )
-    suspend fun updateSessionProgress(
-        sessionId: Long,
-        progressCurrent: Int,
-        updatedAtEpochMillis: Long,
-    )
-
-    @Query(
-        """
-        UPDATE tracking_sessions
-        SET status = :status,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE id = :sessionId
-        """,
-    )
-    suspend fun updateSessionStatus(
-        sessionId: Long,
-        status: String,
-        updatedAtEpochMillis: Long,
-    )
-
-    @Query(
-        """
-        UPDATE tracking_sessions
-        SET rating = :rating,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE id = :sessionId
-        """,
-    )
-    suspend fun updateSessionRating(
-        sessionId: Long,
-        rating: Int?,
-        updatedAtEpochMillis: Long,
-    )
-
-    @Query(
-        """
-        UPDATE tracking_sessions
-        SET notes = :notes,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE id = :sessionId
-        """,
-    )
-    suspend fun updateSessionNotes(
-        sessionId: Long,
-        notes: String?,
-        updatedAtEpochMillis: Long,
+    suspend fun updateMediaItemMetadata(
+        mediaItemId: Long,
+        title: String,
+        originalTitle: String?,
+        releaseYear: Int?,
+        progressTotal: Int?,
+        genresJson: String?,
+        creatorsJson: String?,
+        coverUrl: String?,
+        synopsis: String?,
+        sourceUrl: String?,
     )
 
     @Query(
