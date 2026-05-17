@@ -78,21 +78,9 @@ fun HomeLandingScreen(
 
     Surface(
         modifier = modifier,
-        color = LogBackground,
+        color = OmnilogColors.AppBackground,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF1D1A18),
-                            LogBackground,
-                            Color(0xFF121110),
-                        ),
-                    ),
-                ),
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -154,8 +142,8 @@ private fun DashboardSearch() {
             .fillMaxWidth()
             .height(52.dp),
         shape = RoundedCornerShape(999.dp),
-        color = LogPanel,
-        border = BorderStroke(1.dp, LogLine),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp),
@@ -165,13 +153,13 @@ private fun DashboardSearch() {
             Icon(
                 imageVector = Icons.Filled.Search,
                 contentDescription = null,
-                tint = LogMuted,
+                tint = OmnilogColors.AppMuted,
             )
             Text(
                 text = stringResource(R.string.search_label),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = LogMuted,
+                color = OmnilogColors.AppMuted,
             )
         }
     }
@@ -203,7 +191,7 @@ private fun HomeStats(items: List<TrackedMedia>) {
             label = stringResource(R.string.home_stat_total_titles),
             value = items.size.toString(),
             icon = painterResource(R.drawable.ic_kpi_titles),
-            accent = MaterialTheme.colorScheme.primary,
+            accent = OmnilogColors.Dashboard,
             modifier = Modifier.weight(1f),
         )
         StatTile(
@@ -241,8 +229,8 @@ private fun StatTile(
     Surface(
         modifier = modifier.height(78.dp),
         shape = RoundedCornerShape(8.dp),
-        color = LogPanel,
-        border = BorderStroke(1.dp, LogLine),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Icon(
@@ -272,7 +260,7 @@ private fun StatTile(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = LogMuted,
+                    color = OmnilogColors.AppMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -312,13 +300,13 @@ private fun DashboardSectionTitle(title: String) {
             text = title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = LogInk,
+            color = OmnilogColors.AppInk,
         )
         Box(
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(LogLine),
+                .background(OmnilogColors.AppLine),
         )
     }
 }
@@ -337,8 +325,8 @@ private fun HomeMediaTile(
             .height(276.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = LogPanel,
-        border = BorderStroke(1.dp, LogLine),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             MetadataCoverImage(
@@ -369,7 +357,7 @@ private fun HomeMediaTile(
                     text = displayMediaTitle(trackedMedia.item.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = LogInk,
+                    color = OmnilogColors.AppInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -535,14 +523,14 @@ private fun EmptyHomeState() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = LogPanel,
-        border = BorderStroke(1.dp, LogLine),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
         Text(
             text = stringResource(R.string.home_empty_state),
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = LogMuted,
+            color = OmnilogColors.AppMuted,
         )
     }
 }
@@ -616,9 +604,3 @@ private fun List<TrackedMedia>.watchedMovieHours(): String {
         hours.toInt().toString()
     }
 }
-
-private val LogBackground = Color(0xFF141312)
-private val LogPanel = Color(0xFF23201D).copy(alpha = 0.94f)
-private val LogLine = Color(0xFF4A443C).copy(alpha = 0.58f)
-private val LogInk = Color(0xFFF2E9DD)
-private val LogMuted = Color(0xFFC8BDAE)

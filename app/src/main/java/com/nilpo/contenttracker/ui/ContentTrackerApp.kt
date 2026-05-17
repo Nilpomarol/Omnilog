@@ -15,9 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -45,6 +49,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.repository.BackupPreview
@@ -56,6 +61,7 @@ import com.nilpo.contenttracker.ui.home.HomeScreen
 import com.nilpo.contenttracker.ui.home.HomeLandingScreen
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -151,7 +157,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         topBar = {
             OmnilogTopBar(
                 accent = when (selectedDestination) {
-                    AppDestination.Home -> MaterialTheme.colorScheme.primary
+                    AppDestination.Home -> OmnilogColors.Dashboard
                     AppDestination.Section -> uiState.selectedSection.accent
                 },
                 showDetailActions = selectedMedia != null && !isAdding,
@@ -174,7 +180,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     icon = {
                         NavMark(
                             label = "O",
-                            accent = MaterialTheme.colorScheme.primary,
+                            accent = OmnilogColors.Dashboard,
                             selected = selectedDestination == AppDestination.Home,
                         )
                     },
@@ -403,15 +409,24 @@ private fun OmnilogTopBar(
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            containerColor = HeaderBackground,
+            titleContentColor = HeaderInk,
+            navigationIconContentColor = HeaderInk,
+            actionIconContentColor = HeaderInk,
         ),
         navigationIcon = {
             if (showDetailActions) {
                 IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        tint = HeaderInk,
+                    )
                     Text(
                         text = "‹",
-                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.Transparent,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
                     )
                 }
             }
@@ -419,31 +434,38 @@ private fun OmnilogTopBar(
         title = {
             Text(
                 text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
+                    withStyle(SpanStyle(color = accent, fontWeight = FontWeight.ExtraBold)) {
                         append("Omni")
                     }
-                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.SemiBold)) {
+                    withStyle(SpanStyle(color = HeaderInk, fontWeight = FontWeight.ExtraBold)) {
                         append("log")
                     }
                 },
-                style = MaterialTheme.typography.headlineSmall,
-            )
-        },
+                    style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp),
+                )
+            },
         actions = {
             if (showDetailActions) {
                 Box {
                     IconButton(onClick = { detailActions.isMenuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = null,
+                            tint = HeaderMuted,
+                        )
                         Text(
                             text = "⋮",
+                            color = Color.Transparent,
                             style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
                         )
                     }
                     DropdownMenu(
                         expanded = detailActions.isMenuExpanded,
                         onDismissRequest = { detailActions.isMenuExpanded = false },
-                        shape = RoundedCornerShape(8.dp),
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 2.dp,
+                        shape = RoundedCornerShape(10.dp),
+                        containerColor = HeaderPanel,
+                        tonalElevation = 0.dp,
                         shadowElevation = 8.dp,
                     ) {
                         HeaderMenuItem(
@@ -483,13 +505,13 @@ private fun HeaderMenuItem(
     val textColor = if (destructive) {
         MaterialTheme.colorScheme.error
     } else {
-        MaterialTheme.colorScheme.onSurface
+        HeaderInk
     }
 
     Row(
         modifier = Modifier
             .widthIn(min = 148.dp)
-            .background(MaterialTheme.colorScheme.surface)
+            .background(HeaderPanel)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
@@ -497,6 +519,7 @@ private fun HeaderMenuItem(
             text = text,
             color = textColor,
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -520,3 +543,9 @@ private fun NavMark(
         )
     }
 }
+
+private val HeaderBackground = OmnilogColors.AppBackground
+private val HeaderPanel = OmnilogColors.AppPanel
+private val HeaderLine = OmnilogColors.AppLine
+private val HeaderInk = OmnilogColors.AppInk
+private val HeaderMuted = OmnilogColors.AppMuted

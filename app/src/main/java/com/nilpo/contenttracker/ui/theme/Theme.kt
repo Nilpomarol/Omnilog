@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.nilpo.contenttracker.R
 
 object OmnilogColors {
+    val Dashboard = Color(0xFFC0693A)
     val Anime = Color(0xFFD88CA8)
     val Books = Color(0xFFC9A86A)
     val Tv = Color(0xFF7FA6C9)
@@ -21,25 +22,32 @@ object OmnilogColors {
     val Completed = Color(0xFF8DB7A2)
     val Paused = Color(0xFFC9A86A)
     val Dropped = Color(0xFFC47F7D)
+
+    val AppBackground = Color(0xFF141312)
+    val AppPanel = Color(0xFF23201D)
+    val AppPanelTranslucent = Color(0xEF23201D)
+    val AppLine = Color(0x944A443C)
+    val AppInk = Color(0xFFF2E9DD)
+    val AppMuted = Color(0xFFC8BDAE)
 }
 
 private val DarkColors = darkColorScheme(
-    primary = OmnilogColors.Tv,
+    primary = OmnilogColors.Dashboard,
     secondary = OmnilogColors.Books,
     tertiary = OmnilogColors.Games,
-    background = Color(0xFF151719),
-    surface = Color(0xFF202327),
-    surfaceVariant = Color(0xFF2A2E33),
+    background = OmnilogColors.AppBackground,
+    surface = OmnilogColors.AppPanel,
+    surfaceVariant = Color(0xFF302B25),
     primaryContainer = Color(0xFF25313A),
     secondaryContainer = Color(0xFF372F21),
     tertiaryContainer = Color(0xFF24342E),
     onPrimary = Color(0xFF101417),
     onSecondary = Color(0xFF17130B),
     onTertiary = Color(0xFF101714),
-    onBackground = Color(0xFFEDEAE4),
-    onSurface = Color(0xFFEDEAE4),
-    onSurfaceVariant = Color(0xFFC7C2BA),
-    outline = Color(0xFF696D72),
+    onBackground = OmnilogColors.AppInk,
+    onSurface = OmnilogColors.AppInk,
+    onSurfaceVariant = OmnilogColors.AppMuted,
+    outline = Color(0xFF74695C),
     error = Color(0xFFE19A94),
 )
 
