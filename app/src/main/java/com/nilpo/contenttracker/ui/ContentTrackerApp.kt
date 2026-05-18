@@ -217,6 +217,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         viewModel.selectMetadataSuggestion(suggestion)
                     }
                 },
+                isSuggestionInLibrary = { suggestion ->
+                    uiState.allTrackedItems.findDuplicateFor(suggestion) != null
+                },
                 onCancel = {
                     viewModel.clearMetadataSearch()
                     isAdding = false

@@ -77,6 +77,7 @@ fun AddMediaScreen(
     onMetadataQueryChange: (String) -> Unit,
     onMetadataSearch: () -> Unit,
     onMetadataSuggestionSelected: (MetadataSuggestion) -> Unit,
+    isSuggestionInLibrary: (MetadataSuggestion) -> Boolean,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -129,6 +130,7 @@ fun AddMediaScreen(
                     onQueryChange = onMetadataQueryChange,
                     onSearch = onMetadataSearch,
                     onSuggestionSelected = onMetadataSuggestionSelected,
+                    isSuggestionInLibrary = isSuggestionInLibrary,
                     onManualAdd = {
                         selectedMediaType = initialMediaType
                         title = ""
@@ -287,6 +289,7 @@ private fun MetadataSearchStep(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onSuggestionSelected: (MetadataSuggestion) -> Unit,
+    isSuggestionInLibrary: (MetadataSuggestion) -> Boolean,
     onManualAdd: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -321,6 +324,7 @@ private fun MetadataSearchStep(
             MetadataSearchResults(
                 uiState = uiState,
                 onSuggestionSelected = onSuggestionSelected,
+                isSuggestionInLibrary = isSuggestionInLibrary,
             )
         }
 
@@ -346,6 +350,7 @@ private fun MetadataSearchStep(
 private fun MetadataSearchResults(
     uiState: MetadataSearchUiState,
     onSuggestionSelected: (MetadataSuggestion) -> Unit,
+    isSuggestionInLibrary: (MetadataSuggestion) -> Boolean,
 ) {
     when {
         uiState.isLoading -> SearchStatePanel(text = stringResource(R.string.metadata_search_loading))
@@ -360,6 +365,7 @@ private fun MetadataSearchResults(
             MetadataSuggestionRow(
                 suggestion = suggestion,
                 accent = suggestion.mediaType.sectionAccent(),
+                isAlreadyInLibrary = isSuggestionInLibrary(suggestion),
                 onClick = { onSuggestionSelected(suggestion) },
             )
         }
@@ -1078,6 +1084,7 @@ private fun SearchStatePanel(
 private fun MetadataSuggestionRow(
     suggestion: MetadataSuggestion,
     accent: Color,
+    isAlreadyInLibrary: Boolean,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1117,6 +1124,12 @@ private fun MetadataSuggestionRow(
                     ResultChip(text = suggestion.mediaType.label(), accent = accent)
                     suggestion.releaseYear?.let { ResultChip(text = it.toString(), accent = accent) }
                     ResultChip(text = suggestion.source.name)
+                }
+                if (isAlreadyInLibrary) {
+                    ResultChip(
+                        text = stringResource(R.string.metadata_already_in_library),
+                        accent = OmnilogColors.Completed,
+                    )
                 }
                 suggestion.externalRating?.let { rating ->
                     Text(

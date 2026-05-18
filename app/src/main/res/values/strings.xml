@@ -81,6 +81,7 @@
     <string name="metadata_details_loading">Carregant detalls...</string>
     <string name="metadata_search_empty">No s\'han trobat resultats.</string>
     <string name="metadata_search_error">Error en la cerca. Comprova la connexió i torna-ho a intentar.</string>
+    <string name="metadata_already_in_library">Ja a Omnilog</string>
     <string name="metadata_suggestion_source">Font: %1$s</string>
     <string name="metadata_review_title">Revisa i crea seguiment</string>
     <string name="metadata_genres">Generes: %1$s</string>
