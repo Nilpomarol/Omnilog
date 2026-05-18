@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
@@ -202,7 +204,19 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 metadataUiState = metadataUiState,
                 onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
                 onMetadataSearch = viewModel::searchMetadataSuggestions,
-                onMetadataSuggestionSelected = viewModel::selectMetadataSuggestion,
+                onMetadataSuggestionSelected = { suggestion ->
+                    val existingItem = uiState.allTrackedItems.findDuplicateFor(suggestion)
+                    if (existingItem != null) {
+                        viewModel.clearMetadataSearch()
+                        viewModel.selectSection(existingItem.item.type.homeSection())
+                        selectedDestination = AppDestination.Section
+                        selectedCollectionId = null
+                        selectedMediaId = existingItem.item.id
+                        isAdding = false
+                    } else {
+                        viewModel.selectMetadataSuggestion(suggestion)
+                    }
+                },
                 onCancel = {
                     viewModel.clearMetadataSearch()
                     isAdding = false
@@ -365,6 +379,14 @@ class DetailHeaderActions {
 private enum class AppDestination {
     Home,
     Section,
+}
+
+private fun List<TrackedMedia>.findDuplicateFor(suggestion: MetadataSuggestion): TrackedMedia? {
+    return firstOrNull { trackedMedia ->
+        trackedMedia.item.type == suggestion.mediaType &&
+            trackedMedia.item.metadataSource == suggestion.source &&
+            trackedMedia.item.metadataExternalId == suggestion.externalId
+    }
 }
 
 private fun com.nilpo.contenttracker.core.model.MediaType.homeSection(): MediaSection =
