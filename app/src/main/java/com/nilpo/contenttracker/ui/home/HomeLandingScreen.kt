@@ -340,9 +340,9 @@ private fun HomeMediaTile(
                         Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.Transparent,
-                                Color(0xFF17110D).copy(alpha = 0.18f),
-                                Color(0xFF15110E).copy(alpha = 0.86f),
+                                Color(0xFF17110D).copy(alpha = 0.10f),
+                                Color(0xFF17110D).copy(alpha = 0.50f),
+                                Color(0xFF15110E).copy(alpha = 0.94f),
                             ),
                         ),
                     ),
