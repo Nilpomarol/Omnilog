@@ -219,15 +219,37 @@ fun AddMediaScreen(
                     title = title,
                     onTitleChange = { title = it },
                     totalProgress = totalProgress,
-                    onTotalProgressChange = { value -> totalProgress = value.filter { it.isDigit() } },
+                    onTotalProgressChange = { value ->
+                        val digits = value.filter { it.isDigit() }
+                        totalProgress = digits
+                        if (selectedStatus == TrackingStatus.Completed) {
+                            initialProgress = digits
+                        }
+                    },
                     platform = platform,
                     onPlatformChange = { platform = it },
                     selectedStatus = selectedStatus,
-                    onStatusSelected = { selectedStatus = it },
+                    onStatusSelected = applyStatus,
                     selectedOwnershipType = selectedOwnershipType,
                     onOwnershipTypeSelected = { selectedOwnershipType = it },
                     selectedPlatformType = selectedPlatformType,
                     onPlatformTypeSelected = { selectedPlatformType = it },
+                    initialProgress = initialProgress,
+                    onInitialProgressChange = { value ->
+                        val digits = value.filter { it.isDigit() }
+                        val maxProgress = totalProgress.toIntOrNull()
+                        initialProgress = maxProgress?.let { max ->
+                            digits.toIntOrNull()?.coerceIn(0, max)?.toString() ?: digits
+                        } ?: digits
+                    },
+                    initialRating = initialRating,
+                    onInitialRatingSelected = { initialRating = it },
+                    initialStartedAt = initialStartedAt,
+                    onInitialStartedAtChange = { initialStartedAt = it },
+                    initialFinishedAt = initialFinishedAt,
+                    onInitialFinishedAtChange = { initialFinishedAt = it },
+                    initialNotes = initialNotes,
+                    onInitialNotesChange = { initialNotes = it },
                     onBackToSearch = { step = AddMediaStep.Search },
                     onSave = {
                         onSave(
@@ -236,6 +258,11 @@ fun AddMediaScreen(
                                 title = title,
                                 progressTotal = totalProgress.toIntOrNull(),
                                 initialStatus = selectedStatus,
+                                initialProgress = initialProgress.toIntOrNull() ?: 0,
+                                initialRating = initialRating,
+                                initialNotes = initialNotes.takeIf { it.isNotBlank() },
+                                initialStartedAt = initialStartedAt.toLocalDateOrNull(),
+                                initialFinishedAt = initialFinishedAt.toLocalDateOrNull(),
                                 isOwned = selectedOwnershipType != OwnershipType.None,
                                 ownershipType = selectedOwnershipType,
                                 platformName = platform.takeIf { it.isNotBlank() },
@@ -799,22 +826,27 @@ private fun ManualAddStep(
     onOwnershipTypeSelected: (OwnershipType) -> Unit,
     selectedPlatformType: ConsumptionPlatformType,
     onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
+    initialProgress: String,
+    onInitialProgressChange: (String) -> Unit,
+    initialRating: Int?,
+    onInitialRatingSelected: (Int?) -> Unit,
+    initialStartedAt: String,
+    onInitialStartedAtChange: (String) -> Unit,
+    initialFinishedAt: String,
+    onInitialFinishedAtChange: (String) -> Unit,
+    initialNotes: String,
+    onInitialNotesChange: (String) -> Unit,
     onBackToSearch: () -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = onBackToSearch) {
-            Text(text = stringResource(R.string.back))
-        }
-        TextButton(onClick = onCancel) {
-            Text(text = stringResource(R.string.cancel))
-        }
-    }
+    val accent = selectedMediaType.sectionAccent()
 
     Text(
         text = stringResource(R.string.add_manual),
         style = MaterialTheme.typography.headlineLarge,
+        fontWeight = FontWeight.ExtraBold,
+        color = OmnilogColors.AppInk,
     )
 
     TrackingSetupForm(
@@ -827,20 +859,37 @@ private fun ManualAddStep(
         onTotalProgressChange = onTotalProgressChange,
         platform = platform,
         onPlatformChange = onPlatformChange,
-        selectedStatus = selectedStatus,
-        onStatusSelected = onStatusSelected,
         selectedOwnershipType = selectedOwnershipType,
         onOwnershipTypeSelected = onOwnershipTypeSelected,
         selectedPlatformType = selectedPlatformType,
         onPlatformTypeSelected = onPlatformTypeSelected,
     )
 
-    Button(
-        enabled = title.isNotBlank(),
-        onClick = onSave,
-    ) {
-        Text(text = stringResource(R.string.save))
-    }
+    ReviewActionRow(
+        title = title,
+        accent = accent,
+        onBackToSearch = onBackToSearch,
+        onCancel = onCancel,
+        onSave = onSave,
+    )
+
+    FirstSessionForm(
+        mediaType = selectedMediaType,
+        progressTotal = totalProgress.toIntOrNull(),
+        selectedStatus = selectedStatus,
+        onStatusSelected = onStatusSelected,
+        initialProgress = initialProgress,
+        onInitialProgressChange = onInitialProgressChange,
+        initialRating = initialRating,
+        onInitialRatingSelected = onInitialRatingSelected,
+        initialStartedAt = initialStartedAt,
+        onInitialStartedAtChange = onInitialStartedAtChange,
+        initialFinishedAt = initialFinishedAt,
+        onInitialFinishedAtChange = onInitialFinishedAtChange,
+        initialNotes = initialNotes,
+        onInitialNotesChange = onInitialNotesChange,
+        accent = accent,
+    )
 }
 
 @Composable
@@ -854,8 +903,6 @@ private fun TrackingSetupForm(
     onTotalProgressChange: (String) -> Unit,
     platform: String,
     onPlatformChange: (String) -> Unit,
-    selectedStatus: TrackingStatus,
-    onStatusSelected: (TrackingStatus) -> Unit,
     selectedOwnershipType: OwnershipType,
     onOwnershipTypeSelected: (OwnershipType) -> Unit,
     selectedPlatformType: ConsumptionPlatformType,
@@ -901,12 +948,6 @@ private fun TrackingSetupForm(
         singleLine = true,
         colors = reviewTextFieldColors(accent),
         shape = RoundedCornerShape(12.dp),
-    )
-
-    ReviewStatusSelector(
-        selectedStatus = selectedStatus,
-        accent = accent,
-        onStatusSelected = onStatusSelected,
     )
 
     OptionSelector(
