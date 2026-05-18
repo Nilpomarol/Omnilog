@@ -228,9 +228,15 @@ class OfflineMediaRepository(
                 mediaItemId = mediaItemId,
                 sessionNumber = 1,
                 status = request.initialStatus.name,
-                progressCurrent = 0,
+                progressCurrent = request.progressTotal?.let { total ->
+                    request.initialProgress.coerceIn(0, total)
+                } ?: request.initialProgress.coerceAtLeast(0),
+                rating = request.initialRating?.coerceIn(1, 10),
+                notes = request.initialNotes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = request.platformName?.trim()?.takeIf { it.isNotBlank() },
                 platformType = request.platformType.name,
+                startedAtEpochDay = request.initialStartedAt?.toEpochDay(),
+                finishedAtEpochDay = request.initialFinishedAt?.toEpochDay(),
                 updatedAtEpochMillis = System.currentTimeMillis(),
             ),
         )

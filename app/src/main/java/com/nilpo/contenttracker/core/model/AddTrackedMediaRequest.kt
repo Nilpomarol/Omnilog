@@ -1,10 +1,17 @@
 package com.nilpo.contenttracker.core.model
 
+import java.time.LocalDate
+
 data class AddTrackedMediaRequest(
     val type: MediaType,
     val title: String,
     val progressTotal: Int?,
     val initialStatus: TrackingStatus,
+    val initialProgress: Int = 0,
+    val initialRating: Int? = null,
+    val initialNotes: String? = null,
+    val initialStartedAt: LocalDate? = null,
+    val initialFinishedAt: LocalDate? = null,
     val isOwned: Boolean,
     val ownershipType: OwnershipType,
     val platformName: String?,

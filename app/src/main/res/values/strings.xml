@@ -75,7 +75,7 @@
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
     <string name="add_media_title">Afegeix contingut</string>
-    <string name="metadata_search_title">Cerca metadades</string>
+    <string name="metadata_search_title">Buscar %1$s</string>
     <string name="metadata_search_label">Titol a cercar</string>
     <string name="metadata_search_loading">Cercant...</string>
     <string name="metadata_details_loading">Carregant detalls...</string>

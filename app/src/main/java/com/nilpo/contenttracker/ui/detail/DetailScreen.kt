@@ -39,7 +39,6 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
-import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
@@ -98,12 +97,6 @@ fun DetailScreen(
                         isExternalTrackingUpdated = isExternalTrackingUpdated,
                         externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
                     ),
-                )
-            }
-
-            item {
-                MediaMetadataHeroGenres(
-                    metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits),
                 )
             }
 

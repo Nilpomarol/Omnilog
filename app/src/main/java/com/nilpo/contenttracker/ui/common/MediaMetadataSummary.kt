@@ -331,25 +331,6 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
                 }
             }
 
-            users?.let { userCount ->
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(
-                        text = stringResource(R.string.metadata_users),
-                        color = OmnilogColors.AppMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = formatCompactCount(userCount),
-                        color = OmnilogColors.AppInk,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                }
-            }
-
             length?.let { total ->
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
@@ -370,6 +351,25 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
             }
         }
 
+        users?.let { userCount ->
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = stringResource(R.string.metadata_users),
+                    color = OmnilogColors.AppMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = formatCompactCount(userCount),
+                    color = OmnilogColors.AppInk,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
+        }
+
         if (supportingStats.isNotEmpty()) {
             Text(
                 text = supportingStats.joinToString("  |  "),
@@ -387,6 +387,7 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
 fun MetadataCoverImage(
     coverUrl: String?,
     modifier: Modifier = Modifier,
+    shape: RoundedCornerShape = RoundedCornerShape(10.dp),
 ) {
     var image by remember(coverUrl) { mutableStateOf<ImageBitmap?>(null) }
 
@@ -404,7 +405,7 @@ fun MetadataCoverImage(
 
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = shape,
         color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
