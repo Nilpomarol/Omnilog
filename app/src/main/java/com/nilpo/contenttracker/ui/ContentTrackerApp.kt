@@ -3,6 +3,9 @@ package com.nilpo.contenttracker.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,9 +14,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,11 +25,10 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -43,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -167,47 +171,23 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedDestination == AppDestination.Home,
-                    onClick = {
-                        selectedDestination = AppDestination.Home
-                        selectedMediaId = null
-                        selectedCollectionId = null
-                        isAdding = false
-                    },
-                    label = { Text(stringResource(R.string.nav_home)) },
-                    icon = {
-                        NavMark(
-                            label = "O",
-                            accent = OmnilogColors.Dashboard,
-                            selected = selectedDestination == AppDestination.Home,
-                        )
-                    },
-                )
-                MediaSection.entries.forEach { section ->
-                    val title = stringResource(section.titleResId)
-                    val selected = selectedDestination == AppDestination.Section && uiState.selectedSection == section
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            selectedDestination = AppDestination.Section
-                            selectedMediaId = null
-                            selectedCollectionId = null
-                            isAdding = false
-                            viewModel.selectSection(section)
-                        },
-                        label = { Text(title) },
-                        icon = {
-                            NavMark(
-                                label = section.navMark,
-                                accent = section.accent,
-                                selected = selected,
-                            )
-                        },
-                    )
-                }
-            }
+            OmnilogBottomBar(
+                selectedDestination = selectedDestination,
+                selectedSection = uiState.selectedSection,
+                onHomeClick = {
+                    selectedDestination = AppDestination.Home
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                    isAdding = false
+                },
+                onSectionClick = { section ->
+                    selectedDestination = AppDestination.Section
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                    isAdding = false
+                    viewModel.selectSection(section)
+                },
+            )
         },
     ) { innerPadding ->
         if (isAdding) {
@@ -397,6 +377,104 @@ private fun com.nilpo.contenttracker.core.model.MediaType.homeSection(): MediaSe
         com.nilpo.contenttracker.core.model.MediaType.Game -> MediaSection.Games
     }
 
+@Composable
+private fun OmnilogBottomBar(
+    selectedDestination: AppDestination,
+    selectedSection: MediaSection,
+    onHomeClick: () -> Unit,
+    onSectionClick: (MediaSection) -> Unit,
+) {
+    Surface(
+        color = HeaderBackground,
+        contentColor = HeaderInk,
+        shadowElevation = 12.dp,
+    ) {
+        Column {
+            HorizontalDivider(color = HeaderLine.copy(alpha = 0.72f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(HeaderPanel.copy(alpha = 0.74f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                OmnilogNavItem(
+                    labelResId = R.string.nav_home,
+                    iconResId = R.drawable.ic_nav_home,
+                    accent = OmnilogColors.Dashboard,
+                    selected = selectedDestination == AppDestination.Home,
+                    onClick = onHomeClick,
+                    modifier = Modifier.weight(1f),
+                )
+                MediaSection.entries.forEach { section ->
+                    OmnilogNavItem(
+                        labelResId = section.titleResId,
+                        iconResId = section.navIconResId(),
+                        accent = section.accent,
+                        selected = selectedDestination == AppDestination.Section && selectedSection == section,
+                        onClick = { onSectionClick(section) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OmnilogNavItem(
+    @StringRes labelResId: Int,
+    @DrawableRes iconResId: Int,
+    accent: Color,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val contentColor = if (selected) accent else HeaderMuted.copy(alpha = 0.76f)
+    val containerColor = if (selected) accent.copy(alpha = 0.15f) else Color.Transparent
+    val borderColor = if (selected) accent.copy(alpha = 0.36f) else Color.Transparent
+
+    Surface(
+        modifier = modifier
+            .heightIn(min = 58.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor),
+        contentColor = contentColor,
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 4.dp, top = 7.dp, end = 4.dp, bottom = 11.dp),
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                painter = painterResource(iconResId),
+                contentDescription = null,
+                modifier = Modifier.size(if (selected) 28.dp else 26.dp),
+                tint = contentColor,
+            )
+            Text(
+                text = stringResource(labelResId),
+                color = if (selected) HeaderInk else HeaderMuted.copy(alpha = 0.82f),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@DrawableRes
+private fun MediaSection.navIconResId(): Int {
+    return when (this) {
+        MediaSection.Anime -> R.drawable.ic_nav_anime
+        MediaSection.Books -> R.drawable.ic_nav_books
+        MediaSection.Movies -> R.drawable.ic_nav_tv
+        MediaSection.Games -> R.drawable.ic_nav_games
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OmnilogTopBar(
@@ -524,26 +602,6 @@ private fun HeaderMenuItem(
             text = text,
             color = textColor,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
-private fun NavMark(
-    label: String,
-    accent: Color,
-    selected: Boolean,
-) {
-    Surface(
-        shape = CircleShape,
-        color = if (selected) accent else MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
         )
     }
