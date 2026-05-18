@@ -95,7 +95,7 @@ class TmdbMetadataRepository(
         }
         val posterPath = optString("poster_path").takeIf { it.isNotBlank() }
         val voteAverage = optDouble("vote_average", 0.0)
-        val popularity = optDouble("popularity", 0.0)
+        val voteCount = optInt("vote_count", 0)
 
         return MetadataSuggestion(
             source = MetadataSource.Tmdb,
@@ -106,7 +106,7 @@ class TmdbMetadataRepository(
             releaseYear = date.take(4).toIntOrNull(),
             coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" },
             synopsis = optString("overview").takeIf { it.isNotBlank() },
-            popularityScore = popularity.takeIf { it > 0.0 },
+            popularityScore = voteCount.takeIf { it > 0 }?.toDouble(),
             sourceUrl = when (mediaType) {
                 MediaType.Movie -> "https://www.themoviedb.org/movie/$id"
                 MediaType.TvShow -> "https://www.themoviedb.org/tv/$id"
@@ -116,7 +116,7 @@ class TmdbMetadataRepository(
                 MetadataRatingSuggestion(
                     score = voteAverage,
                     maxScore = 10.0,
-                    voteCount = optInt("vote_count", 0).takeIf { it > 0 },
+                    voteCount = voteCount.takeIf { it > 0 },
                 )
             } else {
                 null
@@ -162,7 +162,7 @@ class TmdbMetadataRepository(
             progressTotal = progressTotal ?: base.progressTotal,
             coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: base.coverUrl,
             synopsis = optString("overview").takeIf { it.isNotBlank() } ?: base.synopsis,
-            popularityScore = optDouble("popularity", 0.0).takeIf { it > 0.0 } ?: base.popularityScore,
+            popularityScore = optInt("vote_count", 0).takeIf { it > 0 }?.toDouble() ?: base.popularityScore,
         )
     }
 

@@ -281,13 +281,11 @@ private fun GenreRow(
 @Composable
 private fun HeroMetrics(metadata: MediaMetadataUi) {
     val rating = metadata.externalRatingScore
+    val users = metadata.externalRatingVoteCount?.toDouble() ?: metadata.popularityScore
     val length = metadata.progressTotal
     val supportingStats = listOfNotNull(
         metadata.sourceName?.takeIf { rating == null },
         metadata.rankingText(),
-        metadata.popularityScore?.let { popularity ->
-            stringResource(R.string.metadata_users) + " " + formatDecimal(popularity)
-        },
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -326,6 +324,25 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
                             )
                         }
                     }
+                }
+            }
+
+            users?.let { userCount ->
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = stringResource(R.string.metadata_users),
+                        color = OmnilogColors.AppMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = formatCompactCount(userCount),
+                        color = OmnilogColors.AppInk,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
                 }
             }
 
@@ -566,5 +583,15 @@ private fun formatDecimal(value: Double): String {
         value.toInt().toString()
     } else {
         "%.1f".format(value)
+    }
+}
+
+private fun formatCompactCount(value: Double): String {
+    val absValue = kotlin.math.abs(value)
+    return when {
+        absValue >= 1_000_000_000 -> "${formatDecimal(value / 1_000_000_000)}B"
+        absValue >= 1_000_000 -> "${formatDecimal(value / 1_000_000)}M"
+        absValue >= 1_000 -> "${formatDecimal(value / 1_000)}k"
+        else -> formatDecimal(value)
     }
 }
