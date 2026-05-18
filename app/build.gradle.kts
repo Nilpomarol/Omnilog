@@ -25,6 +25,13 @@ val rawgApiKey = providers.gradleProperty("RAWG_API_KEY")
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
+val omdbApiKey = providers.gradleProperty("OMDB_API_KEY")
+    .orElse(providers.environmentVariable("OMDB_API_KEY"))
+    .orElse("")
+    .get()
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "com.nilpo.contenttracker"
     compileSdk = 36
@@ -38,6 +45,7 @@ android {
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
         buildConfigField("String", "GOOGLE_BOOKS_API_KEY", "\"$googleBooksApiKey\"")
         buildConfigField("String", "RAWG_API_KEY", "\"$rawgApiKey\"")
+        buildConfigField("String", "OMDB_API_KEY", "\"$omdbApiKey\"")
     }
 
     buildFeatures {

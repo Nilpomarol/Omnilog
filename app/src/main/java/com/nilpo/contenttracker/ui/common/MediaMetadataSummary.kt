@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
@@ -68,6 +69,7 @@ data class MediaMetadataUi(
     val externalRatingScore: Double? = null,
     val externalRatingMax: Double? = null,
     val externalRatingVoteCount: Int? = null,
+    val externalRatingSourceName: String? = null,
     val popularityScore: Double? = null,
     val rankingPosition: Int? = null,
     val rankingLabel: String? = null,
@@ -297,7 +299,9 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
             rating?.let { score ->
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
-                        text = metadata.sourceName ?: stringResource(R.string.field_rating),
+                        text = metadata.externalRatingSourceName
+                            ?: metadata.sourceName
+                            ?: stringResource(R.string.field_rating),
                         color = OmnilogColors.AppMuted,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
@@ -433,10 +437,33 @@ fun MetadataSuggestion.toMediaMetadataUi(): MediaMetadataUi {
         externalRatingScore = externalRating?.score,
         externalRatingMax = externalRating?.maxScore,
         externalRatingVoteCount = externalRating?.voteCount,
+        externalRatingSourceName = externalRating?.let { rating ->
+            externalRatings.firstOrNull { externalRating ->
+                externalRating.score == rating.score && externalRating.maxScore == rating.maxScore
+            }?.source?.displayName()
+        },
         popularityScore = popularityScore,
         rankingPosition = rankingPosition,
         rankingLabel = rankingLabel,
     )
+}
+
+fun ExternalRatingSource.displayName(): String {
+    return when (this) {
+        ExternalRatingSource.AniList -> "AniList"
+        ExternalRatingSource.Mal -> "MAL"
+        ExternalRatingSource.Imdb -> "IMDb"
+        ExternalRatingSource.Metacritic -> "Metacritic"
+        ExternalRatingSource.Goodreads -> "Goodreads"
+        ExternalRatingSource.GoogleBooks -> "Google Books"
+        ExternalRatingSource.OpenLibrary -> "Open Library"
+        ExternalRatingSource.Tmdb -> "TMDb"
+        ExternalRatingSource.Rawg -> "RAWG"
+        ExternalRatingSource.RottenTomatoes -> "Rotten Tomatoes"
+        ExternalRatingSource.Steam -> "Steam"
+        ExternalRatingSource.FilmAffinity -> "FilmAffinity"
+        ExternalRatingSource.StoryGraph -> "StoryGraph"
+    }
 }
 
 fun MediaItem.toMediaMetadataUi(credits: List<MediaCredit>): MediaMetadataUi {

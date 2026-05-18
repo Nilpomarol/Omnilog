@@ -1,8 +1,10 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
+import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -35,11 +37,46 @@ class AniListMetadataRepository : MetadataRepository {
         }
     }
 
-    // AniList search already returns all needed fields; no separate detail fetch required.
-    override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion = suggestion
+    override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
+        if (suggestion.source != MetadataSource.AniList) return suggestion
+        val malId = runCatching {
+            JSONObject(suggestion.popularityJson ?: "{}").optInt("malId", 0).takeIf { it > 0 }
+        }.getOrNull() ?: return suggestion
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val jikan = getJson("https://api.jikan.moe/v4/anime/$malId")
+                    .optJSONObject("data")
+                    ?: return@runCatching suggestion
+                val score = jikan.optDouble("score", 0.0)
+                val scoredBy = jikan.optInt("scored_by", 0)
+                if (score <= 0.0) {
+                    suggestion
+                } else {
+                    suggestion.copy(
+                        externalRating = MetadataRatingSuggestion(
+                            score = score,
+                            maxScore = 10.0,
+                            voteCount = scoredBy.takeIf { it > 0 },
+                        ),
+                        externalRatings = (
+                            suggestion.externalRatings +
+                                MetadataExternalRatingSuggestion(
+                                    source = ExternalRatingSource.Mal,
+                                    score = score,
+                                    maxScore = 10.0,
+                                    voteCount = scoredBy.takeIf { it > 0 },
+                                )
+                            ).distinctBy { it.source },
+                    )
+                }
+            }.getOrElse { suggestion }
+        }
+    }
 
     private fun JSONObject.toMetadataSuggestion(): MetadataSuggestion? {
         val id = optLong("id", 0L).takeIf { it > 0L } ?: return null
+        val malId = optInt("idMal", 0).takeIf { it > 0 }
         val titleObj = optJSONObject("title") ?: return null
         val titleEnglish = titleObj.optString("english").takeIf { it.isNotBlank() }
         val titleRomaji = titleObj.optString("romaji").takeIf { it.isNotBlank() } ?: return null
@@ -76,6 +113,15 @@ class AniListMetadataRepository : MetadataRepository {
         val voiceCredits = optJSONObject("characters")
             ?.optJSONArray("edges")
             .toVoiceActorCredits()
+        val aniListRating = if (averageScore > 0) {
+            MetadataRatingSuggestion(
+                score = averageScore / 10.0,
+                maxScore = 10.0,
+                voteCount = popularity.takeIf { it > 0 },
+            )
+        } else {
+            null
+        }
 
         return MetadataSuggestion(
             source = MetadataSource.AniList,
@@ -95,17 +141,22 @@ class AniListMetadataRepository : MetadataRepository {
             rankingPosition = rankings.firstRank(),
             rankingLabel = rankings.firstRankLabel(),
             ratingDistributionJson = ratingDistribution?.toString(),
-            popularityJson = JSONObject().put("popularity", popularity).toString(),
+            popularityJson = JSONObject()
+                .put("popularity", popularity)
+                .apply { malId?.let { put("malId", it) } }
+                .toString(),
             rankingJson = rankings?.toString(),
-            externalRating = if (averageScore > 0) {
-                MetadataRatingSuggestion(
-                    score = averageScore / 10.0,
-                    maxScore = 10.0,
-                    voteCount = popularity.takeIf { it > 0 },
+            externalRating = aniListRating,
+            externalRatings = aniListRating?.let { rating ->
+                listOf(
+                    MetadataExternalRatingSuggestion(
+                        source = ExternalRatingSource.AniList,
+                        score = rating.score,
+                        maxScore = rating.maxScore,
+                        voteCount = rating.voteCount,
+                    ),
                 )
-            } else {
-                null
-            },
+            }.orEmpty(),
         )
     }
 
@@ -132,6 +183,7 @@ class AniListMetadataRepository : MetadataRepository {
               Page(perPage: ${'$'}perPage) {
                 media(search: ${'$'}search, type: ANIME, sort: SEARCH_MATCH) {
                   id
+                  idMal
                   title { english romaji }
                   coverImage { large }
                   description(asHtml: false)
@@ -155,6 +207,14 @@ class AniListMetadataRepository : MetadataRepository {
             }
         """.trimIndent()
     }
+}
+
+private fun getJson(url: String): JSONObject {
+    val connection = URL(url).openConnection() as HttpURLConnection
+    connection.connectTimeout = 10_000
+    connection.readTimeout = 10_000
+    connection.requestMethod = "GET"
+    return JSONObject(connection.inputStream.bufferedReader().readText())
 }
 
 private fun org.json.JSONArray?.firstRank(): Int? {

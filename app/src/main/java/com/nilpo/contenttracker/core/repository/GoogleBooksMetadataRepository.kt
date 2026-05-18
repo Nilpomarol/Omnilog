@@ -1,8 +1,10 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
+import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -64,6 +66,15 @@ class GoogleBooksMetadataRepository(
 
         val averageRating = info.optDouble("averageRating", 0.0)
         val ratingsCount = info.optInt("ratingsCount", 0)
+        val externalRating = if (averageRating > 0.0) {
+            MetadataRatingSuggestion(
+                score = averageRating,
+                maxScore = 5.0,
+                voteCount = ratingsCount.takeIf { it > 0 },
+            )
+        } else {
+            null
+        }
 
         return MetadataSuggestion(
             source = MetadataSource.GoogleBooks,
@@ -85,15 +96,17 @@ class GoogleBooksMetadataRepository(
             },
             genres = categories.standardBookGenres().ifEmpty { categories.take(3) },
             sourceUrl = info.optString("infoLink").takeIf { it.isNotBlank() },
-            externalRating = if (averageRating > 0.0) {
-                MetadataRatingSuggestion(
-                    score = averageRating,
-                    maxScore = 5.0,
-                    voteCount = ratingsCount.takeIf { it > 0 },
+            externalRating = externalRating,
+            externalRatings = externalRating?.let {
+                listOf(
+                    MetadataExternalRatingSuggestion(
+                        source = ExternalRatingSource.GoogleBooks,
+                        score = it.score,
+                        maxScore = it.maxScore,
+                        voteCount = it.voteCount,
+                    ),
                 )
-            } else {
-                null
-            },
+            }.orEmpty(),
         )
     }
 

@@ -207,6 +207,22 @@ class OfflineMediaRepository(
             )
         }
 
+        if (request.externalRatings.isNotEmpty()) {
+            request.externalRatings
+                .filter { it.score > 0.0 && it.maxScore > 0.0 }
+                .forEach { rating ->
+                    mediaDao.insertExternalRating(
+                        ExternalRatingEntity(
+                            mediaItemId = mediaItemId,
+                            source = rating.source.name,
+                            score = rating.score,
+                            maxScore = rating.maxScore,
+                            voteCount = rating.voteCount,
+                        ),
+                    )
+                }
+        }
+
         mediaDao.insertTrackingSession(
             TrackingSessionEntity(
                 mediaItemId = mediaItemId,

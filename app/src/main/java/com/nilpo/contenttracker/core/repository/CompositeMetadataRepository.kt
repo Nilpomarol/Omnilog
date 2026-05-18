@@ -76,6 +76,7 @@ private fun List<MetadataSuggestion>.mergeBookSuggestions(): MetadataSuggestion 
         creators = preferred.creators.ifEmpty { fallback?.creators.orEmpty() },
         credits = preferred.credits.ifEmpty { fallback?.credits.orEmpty() },
         externalRating = preferred.externalRating ?: fallback?.externalRating,
+        externalRatings = (preferred.externalRatings + fallback?.externalRatings.orEmpty()).distinctBy { it.source },
         popularityScore = preferred.popularityScore ?: fallback?.popularityScore,
     )
 }

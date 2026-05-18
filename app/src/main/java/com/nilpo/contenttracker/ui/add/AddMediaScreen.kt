@@ -138,6 +138,7 @@ fun AddMediaScreen(
                                 credits = selectedMetadataSuggestion?.credits.orEmpty(),
                                 sourceUrl = selectedMetadataSuggestion?.sourceUrl,
                                 externalRating = selectedMetadataSuggestion?.externalRating,
+                                externalRatings = selectedMetadataSuggestion?.externalRatings.orEmpty(),
                                 popularityScore = selectedMetadataSuggestion?.popularityScore,
                                 rankingPosition = selectedMetadataSuggestion?.rankingPosition,
                                 rankingLabel = selectedMetadataSuggestion?.rankingLabel,

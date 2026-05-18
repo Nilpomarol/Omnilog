@@ -10,11 +10,17 @@ data class ExternalRating(
 )
 
 enum class ExternalRatingSource {
+    AniList,
     Mal,
     Imdb,
     Metacritic,
     Goodreads,
     GoogleBooks,
+    OpenLibrary,
     Tmdb,
     Rawg,
+    RottenTomatoes,
+    Steam,
+    FilmAffinity,
+    StoryGraph,
 }

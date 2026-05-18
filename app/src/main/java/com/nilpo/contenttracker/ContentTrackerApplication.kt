@@ -30,7 +30,10 @@ class ContentTrackerApplication : Application() {
 
     val metadataRepository: MetadataRepository by lazy {
         CompositeMetadataRepository(
-            tmdb = TmdbMetadataRepository(BuildConfig.TMDB_API_KEY),
+            tmdb = TmdbMetadataRepository(
+                apiKey = BuildConfig.TMDB_API_KEY,
+                omdbApiKey = BuildConfig.OMDB_API_KEY,
+            ),
             aniList = AniListMetadataRepository(),
             openLibrary = OpenLibraryMetadataRepository(),
             googleBooks = GoogleBooksMetadataRepository(BuildConfig.GOOGLE_BOOKS_API_KEY),

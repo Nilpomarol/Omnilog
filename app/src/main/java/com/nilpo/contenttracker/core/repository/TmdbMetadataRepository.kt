@@ -1,8 +1,10 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
+import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -16,6 +18,7 @@ import java.net.URLEncoder
 
 class TmdbMetadataRepository(
     private val apiKey: String,
+    private val omdbApiKey: String = "",
 ) : MetadataRepository {
     override suspend fun searchSuggestions(
         request: MetadataSearchRequest,
@@ -49,10 +52,10 @@ class TmdbMetadataRepository(
                 val url = when (suggestion.mediaType) {
                     MediaType.Movie ->
                         "https://api.themoviedb.org/3/movie/${suggestion.externalId}" +
-                            "?api_key=$apiKey&language=en-US&append_to_response=credits"
+                            "?api_key=$apiKey&language=en-US&append_to_response=credits,external_ids"
                     MediaType.TvShow ->
                         "https://api.themoviedb.org/3/tv/${suggestion.externalId}" +
-                            "?api_key=$apiKey&language=en-US&append_to_response=credits"
+                            "?api_key=$apiKey&language=en-US&append_to_response=credits,external_ids"
                     else -> return@withContext suggestion
                 }
                 getJson(url).toDetailedSuggestion(suggestion)
@@ -96,6 +99,15 @@ class TmdbMetadataRepository(
         val posterPath = optString("poster_path").takeIf { it.isNotBlank() }
         val voteAverage = optDouble("vote_average", 0.0)
         val voteCount = optInt("vote_count", 0)
+        val externalRating = if (voteAverage > 0.0) {
+            MetadataRatingSuggestion(
+                score = voteAverage,
+                maxScore = 10.0,
+                voteCount = voteCount.takeIf { it > 0 },
+            )
+        } else {
+            null
+        }
 
         return MetadataSuggestion(
             source = MetadataSource.Tmdb,
@@ -112,15 +124,17 @@ class TmdbMetadataRepository(
                 MediaType.TvShow -> "https://www.themoviedb.org/tv/$id"
                 else -> null
             },
-            externalRating = if (voteAverage > 0.0) {
-                MetadataRatingSuggestion(
-                    score = voteAverage,
-                    maxScore = 10.0,
-                    voteCount = voteCount.takeIf { it > 0 },
+            externalRating = externalRating,
+            externalRatings = externalRating?.let {
+                listOf(
+                    MetadataExternalRatingSuggestion(
+                        source = ExternalRatingSource.Tmdb,
+                        score = it.score,
+                        maxScore = it.maxScore,
+                        voteCount = it.voteCount,
+                    ),
                 )
-            } else {
-                null
-            },
+            }.orEmpty(),
         )
     }
 
@@ -154,6 +168,16 @@ class TmdbMetadataRepository(
             ?.optJSONArray("cast")
             .toCredits(MediaCreditRole.Cast, MetadataSource.Tmdb, limit = 20)
 
+        val imdbId = optJSONObject("external_ids")
+            ?.optString("imdb_id")
+            ?.takeIf { it.isNotBlank() }
+        val omdbRatings = imdbId?.let(::fetchOmdbRatings).orEmpty()
+
+        val preferredRating = omdbRatings
+            .firstOrNull { it.source == ExternalRatingSource.Imdb }
+            ?.toPrimaryRating()
+            ?: base.externalRating
+
         return base.copy(
             collectionTitle = collectionTitle ?: base.collectionTitle,
             genres = optJSONArray("genres").toStringList("name"),
@@ -163,7 +187,69 @@ class TmdbMetadataRepository(
             coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: base.coverUrl,
             synopsis = optString("overview").takeIf { it.isNotBlank() } ?: base.synopsis,
             popularityScore = optInt("vote_count", 0).takeIf { it > 0 }?.toDouble() ?: base.popularityScore,
+            externalRating = preferredRating,
+            externalRatings = (base.externalRatings + omdbRatings).distinctBy { it.source },
         )
+    }
+
+    private fun fetchOmdbRatings(imdbId: String): List<MetadataExternalRatingSuggestion> {
+        if (omdbApiKey.isBlank()) return emptyList()
+
+        return runCatching {
+            val json = getJson(
+                "https://www.omdbapi.com/?apikey=$omdbApiKey&i=$imdbId&r=json",
+            )
+            if (json.optString("Response") == "False") {
+                return@runCatching emptyList()
+            }
+            buildList {
+                json.optString("imdbRating")
+                    .toDoubleOrNull()
+                    ?.takeIf { it > 0.0 }
+                    ?.let { score ->
+                        add(
+                            MetadataExternalRatingSuggestion(
+                                source = ExternalRatingSource.Imdb,
+                                score = score,
+                                maxScore = 10.0,
+                                voteCount = json.optString("imdbVotes").ratingVoteCount(),
+                            ),
+                        )
+                    }
+                json.optJSONArray("Ratings")?.let { ratings ->
+                    List(ratings.length()) { ratings.getJSONObject(it) }.forEach { rating ->
+                        val source = rating.optString("Source")
+                        val value = rating.optString("Value")
+                        when (source) {
+                            "Rotten Tomatoes" -> value.removeSuffix("%")
+                                .toDoubleOrNull()
+                                ?.takeIf { it > 0.0 }
+                                ?.let { score ->
+                                    add(
+                                        MetadataExternalRatingSuggestion(
+                                            source = ExternalRatingSource.RottenTomatoes,
+                                            score = score,
+                                            maxScore = 100.0,
+                                        ),
+                                    )
+                                }
+                            "Metacritic" -> value.substringBefore("/")
+                                .toDoubleOrNull()
+                                ?.takeIf { it > 0.0 }
+                                ?.let { score ->
+                                    add(
+                                        MetadataExternalRatingSuggestion(
+                                            source = ExternalRatingSource.Metacritic,
+                                            score = score,
+                                            maxScore = 100.0,
+                                        ),
+                                    )
+                                }
+                        }
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
     }
 
     private fun getJson(url: String): JSONObject {
@@ -176,6 +262,21 @@ class TmdbMetadataRepository(
             JSONObject(reader.readText())
         }
     }
+}
+
+private fun String.ratingVoteCount(): Int? {
+    return replace(",", "")
+        .trim()
+        .toIntOrNull()
+        ?.takeIf { it > 0 }
+}
+
+private fun MetadataExternalRatingSuggestion.toPrimaryRating(): MetadataRatingSuggestion {
+    return MetadataRatingSuggestion(
+        score = score,
+        maxScore = maxScore,
+        voteCount = voteCount,
+    )
 }
 
 private fun org.json.JSONArray?.toStringList(

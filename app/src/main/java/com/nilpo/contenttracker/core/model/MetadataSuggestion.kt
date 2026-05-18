@@ -22,9 +22,17 @@ data class MetadataSuggestion(
     val popularityJson: String? = null,
     val rankingJson: String? = null,
     val externalRating: MetadataRatingSuggestion? = null,
+    val externalRatings: List<MetadataExternalRatingSuggestion> = emptyList(),
 )
 
 data class MetadataRatingSuggestion(
+    val score: Double,
+    val maxScore: Double,
+    val voteCount: Int? = null,
+)
+
+data class MetadataExternalRatingSuggestion(
+    val source: ExternalRatingSource,
     val score: Double,
     val maxScore: Double,
     val voteCount: Int? = null,

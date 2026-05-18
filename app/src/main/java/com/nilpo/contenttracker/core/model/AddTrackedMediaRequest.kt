@@ -16,6 +16,7 @@ data class AddTrackedMediaRequest(
     val credits: List<MediaCredit> = emptyList(),
     val sourceUrl: String? = null,
     val externalRating: MetadataRatingSuggestion? = null,
+    val externalRatings: List<MetadataExternalRatingSuggestion> = emptyList(),
     val popularityScore: Double? = null,
     val rankingPosition: Int? = null,
     val rankingLabel: String? = null,

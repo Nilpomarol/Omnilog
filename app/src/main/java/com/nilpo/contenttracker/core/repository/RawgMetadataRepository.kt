@@ -1,8 +1,10 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
+import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -64,7 +66,17 @@ class RawgMetadataRepository(
 
         val rating = optDouble("rating", 0.0)
         val ratingsCount = optInt("ratings_count", 0)
+        val metacritic = optInt("metacritic", 0)
         val playtime = optInt("playtime", 0).takeIf { it > 0 }
+        val rawgRating = if (rating > 0.0) {
+            MetadataRatingSuggestion(
+                score = rating,
+                maxScore = 5.0,
+                voteCount = ratingsCount.takeIf { it > 0 },
+            )
+        } else {
+            null
+        }
 
         return MetadataSuggestion(
             source = MetadataSource.Rawg,
@@ -76,14 +88,32 @@ class RawgMetadataRepository(
             progressTotal = playtime,
             genres = genres,
             sourceUrl = slug?.let { "https://rawg.io/games/$it" },
-            externalRating = if (rating > 0.0) {
+            externalRating = metacritic.takeIf { it > 0 }?.let {
                 MetadataRatingSuggestion(
-                    score = rating,
-                    maxScore = 5.0,
-                    voteCount = ratingsCount.takeIf { it > 0 },
+                    score = it.toDouble(),
+                    maxScore = 100.0,
                 )
-            } else {
-                null
+            } ?: rawgRating,
+            externalRatings = buildList {
+                rawgRating?.let {
+                    add(
+                        MetadataExternalRatingSuggestion(
+                            source = ExternalRatingSource.Rawg,
+                            score = it.score,
+                            maxScore = it.maxScore,
+                            voteCount = it.voteCount,
+                        ),
+                    )
+                }
+                metacritic.takeIf { it > 0 }?.let { score ->
+                    add(
+                        MetadataExternalRatingSuggestion(
+                            source = ExternalRatingSource.Metacritic,
+                            score = score.toDouble(),
+                            maxScore = 100.0,
+                        ),
+                    )
+                }
             },
         )
     }
@@ -96,8 +126,26 @@ class RawgMetadataRepository(
             ?.takeIf { it > 0 }
         val rating = optDouble("rating", 0.0)
         val ratingsCount = optInt("ratings_count", 0)
+        val metacritic = optInt("metacritic", 0)
         val playtime = optInt("playtime", 0).takeIf { it > 0 }
         val ratingsDistribution = optJSONArray("ratings")?.toString()
+        val steamRating = fetchSteamRating(base.externalId)
+        val rawgRating = if (rating > 0.0) {
+            MetadataRatingSuggestion(
+                score = rating,
+                maxScore = 5.0,
+                voteCount = ratingsCount.takeIf { it > 0 },
+            )
+        } else {
+            base.externalRating
+            }
+
+        val preferredRating = metacritic.takeIf { it > 0 }?.let {
+            MetadataRatingSuggestion(
+                score = it.toDouble(),
+                maxScore = 100.0,
+            )
+        } ?: rawgRating
 
         return base.copy(
             releaseYear = releaseYear ?: base.releaseYear,
@@ -115,16 +163,65 @@ class RawgMetadataRepository(
                 .put("ratingsCount", ratingsCount)
                 .put("suggestionsCount", optInt("suggestions_count", 0))
                 .toString(),
-            externalRating = if (rating > 0.0) {
-                MetadataRatingSuggestion(
-                    score = rating,
-                    maxScore = 5.0,
-                    voteCount = ratingsCount.takeIf { it > 0 },
-                )
-            } else {
-                base.externalRating
-            },
+            externalRating = preferredRating,
+            externalRatings = (
+                base.externalRatings +
+                    buildList {
+                        rawgRating?.let {
+                            add(
+                                MetadataExternalRatingSuggestion(
+                                    source = ExternalRatingSource.Rawg,
+                                    score = it.score,
+                                    maxScore = it.maxScore,
+                                    voteCount = it.voteCount,
+                                ),
+                            )
+                        }
+                        metacritic.takeIf { it > 0 }?.let { score ->
+                            add(
+                                MetadataExternalRatingSuggestion(
+                                    source = ExternalRatingSource.Metacritic,
+                                    score = score.toDouble(),
+                                    maxScore = 100.0,
+                                ),
+                            )
+                        }
+                        steamRating?.let(::add)
+                    }
+                ).distinctBy { it.source },
         )
+    }
+
+    private fun fetchSteamRating(rawgGameId: String): MetadataExternalRatingSuggestion? {
+        return runCatching {
+            val stores = getJson("https://api.rawg.io/api/games/$rawgGameId/stores?key=$apiKey")
+                .optJSONArray("results")
+                ?: return@runCatching null
+            val steamStore = List(stores.length()) { stores.getJSONObject(it) }
+                .firstOrNull { store ->
+                    store.optJSONObject("store")?.optInt("id", 0) == 1
+                }
+                ?: return@runCatching null
+            val steamUrl = steamStore.optString("url").takeIf { it.isNotBlank() }
+                ?: return@runCatching null
+            val appId = Regex("""/app/(\d+)""").find(steamUrl)?.groupValues?.getOrNull(1)
+                ?: return@runCatching null
+            val reviewSummary = getJson(
+                "https://store.steampowered.com/appreviews/$appId?json=1&language=all&purchase_type=all&num_per_page=0",
+            ).optJSONObject("query_summary") ?: return@runCatching null
+            val positive = reviewSummary.optInt("total_positive", 0)
+            val total = reviewSummary.optInt("total_reviews", 0)
+            if (positive <= 0 || total <= 0) {
+                null
+            } else {
+                MetadataExternalRatingSuggestion(
+                    source = ExternalRatingSource.Steam,
+                    score = positive.toDouble() / total.toDouble() * 100.0,
+                    maxScore = 100.0,
+                    voteCount = total,
+                )
+            }
+        }.getOrNull()
     }
 
     private fun getJson(url: String): JSONObject {

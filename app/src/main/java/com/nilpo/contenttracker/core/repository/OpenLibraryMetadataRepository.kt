@@ -2,7 +2,9 @@ package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
@@ -59,6 +61,15 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         val rating = optDouble("ratings_average", 0.0)
         val ratingCount = optInt("ratings_count", 0)
         val pages = optInt("number_of_pages_median", 0).takeIf { it > 0 }
+        val externalRating = if (rating > 0.0) {
+            MetadataRatingSuggestion(
+                score = rating,
+                maxScore = 5.0,
+                voteCount = ratingCount.takeIf { it > 0 },
+            )
+        } else {
+            null
+        }
 
         return MetadataSuggestion(
             source = MetadataSource.OpenLibrary,
@@ -74,15 +85,17 @@ class OpenLibraryMetadataRepository : MetadataRepository {
             genres = optJSONArray("subject").toStringList().standardBookGenres(),
             sourceUrl = "https://openlibrary.org$key",
             popularityScore = optJSONArray("edition_key")?.length()?.toDouble(),
-            externalRating = if (rating > 0.0) {
-                MetadataRatingSuggestion(
-                    score = rating,
-                    maxScore = 5.0,
-                    voteCount = ratingCount.takeIf { it > 0 },
+            externalRating = externalRating,
+            externalRatings = externalRating?.let {
+                listOf(
+                    MetadataExternalRatingSuggestion(
+                        source = ExternalRatingSource.OpenLibrary,
+                        score = it.score,
+                        maxScore = it.maxScore,
+                        voteCount = it.voteCount,
+                    ),
                 )
-            } else {
-                null
-            },
+            }.orEmpty(),
         )
     }
 

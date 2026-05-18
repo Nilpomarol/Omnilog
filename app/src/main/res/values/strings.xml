@@ -70,7 +70,7 @@
     <string name="detail_item_details">Dades de l\'element</string>
     <string name="detail_history">Historial</string>
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
-    <string name="detail_external_scores">Notes externes</string>
+    <string name="detail_external_scores">Puntuacions</string>
     <string name="detail_external_tracking">Seguiment extern</string>
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>

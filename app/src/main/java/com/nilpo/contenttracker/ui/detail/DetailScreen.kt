@@ -1,10 +1,16 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -15,14 +21,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
+import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -30,8 +40,10 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
+import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.LocalDate
 
 @Composable
@@ -84,6 +96,7 @@ fun DetailScreen(
                         collectionName = trackedMedia.collection?.name,
                         isOwned = trackedMedia.item.ownership.isOwned,
                         isExternalTrackingUpdated = isExternalTrackingUpdated,
+                        externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
                     ),
                 )
             }
@@ -168,19 +181,14 @@ fun DetailScreen(
                 )
             }
 
-            if (trackedMedia.externalRatings.isNotEmpty()) {
+            if (trackedMedia.externalRatings.size > 1) {
                 item {
                     DetailSectionTitle(text = stringResource(R.string.detail_external_scores))
                 }
-                items(trackedMedia.externalRatings) { rating ->
-                    Text(
-                        text = stringResource(
-                            R.string.external_rating,
-                            rating.source.name,
-                            rating.score,
-                            rating.maxScore,
-                        ),
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
+                item {
+                    ExternalScoreTiles(
+                        ratings = trackedMedia.externalRatings,
+                        accent = accent,
                     )
                 }
             }
@@ -259,5 +267,115 @@ fun DetailScreen(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun ExternalScoreTiles(
+    ratings: List<ExternalRating>,
+    accent: Color,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ratings.chunked(3).forEach { rowRatings ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                rowRatings.forEach { rating ->
+                    ExternalScoreTile(
+                        rating = rating,
+                        accent = accent,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                repeat(3 - rowRatings.size) {
+                    Column(modifier = Modifier.weight(1f)) {}
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExternalScoreTile(
+    rating: ExternalRating,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.height(112.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+    ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = rating.source.displayName(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogColors.AppMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(
+                    text = formatScore(rating.score),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accent,
+                )
+                Text(
+                    text = "/${formatScore(rating.maxScore)}",
+                    modifier = Modifier.padding(bottom = 3.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmnilogColors.AppMuted,
+                )
+            }
+            rating.voteCount?.let { voteCount ->
+                Text(
+                    text = stringResource(R.string.metadata_users) + " " + formatCompactCount(voteCount.toDouble()),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmnilogColors.AppMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+private fun formatScore(value: Double): String {
+    return if (value % 1.0 == 0.0) {
+        value.toInt().toString()
+    } else {
+        "%.1f".format(value)
+    }
+}
+
+private fun TrackedMedia.primaryRatingSourceName(): String? {
+    val score = item.externalRatingScore ?: return null
+    val maxScore = item.externalRatingMax ?: return null
+    return externalRatings.firstOrNull { rating ->
+        rating.score.closeTo(score) && rating.maxScore.closeTo(maxScore)
+    }?.source?.displayName()
+}
+
+private fun Double.closeTo(other: Double): Boolean = kotlin.math.abs(this - other) < 0.001
+
+private fun formatCompactCount(value: Double): String {
+    val absValue = kotlin.math.abs(value)
+    return when {
+        absValue >= 1_000_000_000 -> "${formatScore(value / 1_000_000_000)}B"
+        absValue >= 1_000_000 -> "${formatScore(value / 1_000_000)}M"
+        absValue >= 1_000 -> "${formatScore(value / 1_000)}k"
+        else -> formatScore(value)
     }
 }
