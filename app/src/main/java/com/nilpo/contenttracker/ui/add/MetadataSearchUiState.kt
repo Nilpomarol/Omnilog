@@ -10,4 +10,5 @@ data class MetadataSearchUiState(
     val isLoadingDetails: Boolean = false,
     val hasSearched: Boolean = false,
     val hasError: Boolean = false,
+    val hasDetailsError: Boolean = false,
 )

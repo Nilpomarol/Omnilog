@@ -157,6 +157,7 @@ fun AddMediaScreen(
                         AddMediaStep.Review -> MetadataReviewStep(
                     suggestion = selectedMetadataSuggestion,
                     isLoadingDetails = metadataUiState.isLoadingDetails,
+                    hasDetailsError = metadataUiState.hasDetailsError,
                     selectedMediaType = selectedMediaType,
                     title = title,
                     totalProgress = totalProgress,
@@ -366,6 +367,9 @@ private fun MetadataSearchResults(
         uiState.hasSearched && uiState.suggestions.isEmpty() -> SearchStatePanel(
             text = stringResource(R.string.metadata_search_empty),
         )
+        !uiState.hasSearched -> SearchStatePanel(
+            text = stringResource(R.string.metadata_search_prompt),
+        )
         else -> uiState.suggestions.forEach { suggestion ->
             MetadataSuggestionRow(
                 suggestion = suggestion,
@@ -381,6 +385,7 @@ private fun MetadataSearchResults(
 private fun MetadataReviewStep(
     suggestion: MetadataSuggestion?,
     isLoadingDetails: Boolean,
+    hasDetailsError: Boolean,
     selectedMediaType: MediaType,
     title: String,
     totalProgress: String,
@@ -406,12 +411,14 @@ private fun MetadataReviewStep(
         MetadataReviewPreview(
             suggestion = it,
             isLoadingDetails = isLoadingDetails,
+            hasDetailsError = hasDetailsError,
         )
     }
 
     ReviewActionRow(
         title = title,
         accent = accent,
+        isLoadingDetails = isLoadingDetails,
         onBackToSearch = onBackToSearch,
         onCancel = onCancel,
         onSave = onSave,
@@ -440,6 +447,7 @@ private fun MetadataReviewStep(
 private fun MetadataReviewPreview(
     suggestion: MetadataSuggestion,
     isLoadingDetails: Boolean,
+    hasDetailsError: Boolean,
 ) {
     val metadata = suggestion.toMediaMetadataUi()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -447,6 +455,12 @@ private fun MetadataReviewPreview(
             metadata = metadata,
             isLoadingDetails = isLoadingDetails,
         )
+        if (hasDetailsError) {
+            SearchStatePanel(
+                text = stringResource(R.string.metadata_details_error),
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
         MediaMetadataHeroGenres(metadata = metadata)
         metadata.synopsis?.let { synopsis ->
             ReviewMetadataSection(
@@ -496,6 +510,7 @@ private fun ReviewMetadataSection(
 private fun ReviewActionRow(
     title: String,
     accent: Color,
+    isLoadingDetails: Boolean,
     onBackToSearch: () -> Unit,
     onCancel: () -> Unit,
     onSave: () -> Unit,
@@ -512,7 +527,7 @@ private fun ReviewActionRow(
             Text(text = stringResource(R.string.cancel))
         }
         Button(
-            enabled = title.isNotBlank(),
+            enabled = title.isNotBlank() && !isLoadingDetails,
             onClick = onSave,
             colors = ButtonDefaults.buttonColors(
                 containerColor = accent,
@@ -879,6 +894,7 @@ private fun ManualAddStep(
     ReviewActionRow(
         title = title,
         accent = accent,
+        isLoadingDetails = false,
         onBackToSearch = onBackToSearch,
         onCancel = onCancel,
         onSave = onSave,

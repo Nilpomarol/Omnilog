@@ -157,10 +157,14 @@ class HomeViewModel(
         metadataSearchState.value = metadataSearchState.value.copy(
             selectedSuggestion = suggestion,
             isLoadingDetails = true,
+            hasDetailsError = false,
         )
 
         viewModelScope.launch {
-            val detailedSuggestion = metadataRepository.getSuggestionDetails(suggestion)
+            val result = runCatching {
+                metadataRepository.getSuggestionDetails(suggestion)
+            }
+            val detailedSuggestion = result.getOrDefault(suggestion)
             metadataSearchState.value = metadataSearchState.value.copy(
                 suggestions = metadataSearchState.value.suggestions.map { existingSuggestion ->
                     if (
@@ -174,6 +178,7 @@ class HomeViewModel(
                 },
                 selectedSuggestion = detailedSuggestion,
                 isLoadingDetails = false,
+                hasDetailsError = result.isFailure,
             )
         }
     }
