@@ -86,7 +86,11 @@ fun AddMediaScreen(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var step by remember { mutableStateOf(AddMediaStep.Search) }
+    var step by remember {
+        mutableStateOf(
+            if (metadataUiState.selectedSuggestion != null) AddMediaStep.Review else AddMediaStep.Search,
+        )
+    }
     var title by remember { mutableStateOf("") }
     var totalProgress by remember { mutableStateOf("") }
     var platform by remember { mutableStateOf("") }
@@ -1020,7 +1024,7 @@ private fun AddScreenHeader(
 }
 
 @Composable
-private fun DashboardStyleSearchBar(
+internal fun DashboardStyleSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     isLoading: Boolean,
@@ -1081,7 +1085,7 @@ private fun DashboardStyleSearchBar(
 }
 
 @Composable
-private fun SearchStatePanel(
+internal fun SearchStatePanel(
     text: String,
     color: Color = OmnilogColors.AppMuted,
 ) {
@@ -1102,7 +1106,7 @@ private fun SearchStatePanel(
 }
 
 @Composable
-private fun MetadataSuggestionRow(
+internal fun MetadataSuggestionRow(
     suggestion: MetadataSuggestion,
     accent: Color,
     duplicateState: MetadataDuplicateState,
@@ -1172,13 +1176,13 @@ private fun MetadataSuggestionRow(
     }
 }
 
-private class DuplicateMarker(
+internal class DuplicateMarker(
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val tint: Color,
     val contentDescriptionResId: Int,
 )
 
-private fun MetadataDuplicateState.marker(): DuplicateMarker? {
+internal fun MetadataDuplicateState.marker(): DuplicateMarker? {
     return when (this) {
         MetadataDuplicateState.None -> null
         MetadataDuplicateState.Exact -> DuplicateMarker(
@@ -1201,7 +1205,7 @@ enum class MetadataDuplicateState {
 }
 
 @Composable
-private fun ResultChip(
+internal fun ResultChip(
     text: String,
     accent: Color? = null,
 ) {

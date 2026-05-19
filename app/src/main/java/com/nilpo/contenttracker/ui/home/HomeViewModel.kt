@@ -404,7 +404,8 @@ private fun List<TrackedMedia>.filterBySearch(query: String): List<TrackedMedia>
 
     return filter { trackedMedia ->
         trackedMedia.item.title.contains(normalizedQuery, ignoreCase = true) ||
-            trackedMedia.collection?.name?.contains(normalizedQuery, ignoreCase = true) == true
+            trackedMedia.collection?.name?.contains(normalizedQuery, ignoreCase = true) == true ||
+            trackedMedia.item.creators.any { it.contains(normalizedQuery, ignoreCase = true) }
     }
 }
 

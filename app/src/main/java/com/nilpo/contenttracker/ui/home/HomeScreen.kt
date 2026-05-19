@@ -7,29 +7,49 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCollection
+import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
+import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
+import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
+import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
+import com.nilpo.contenttracker.ui.add.SearchStatePanel
 import com.nilpo.contenttracker.ui.common.OptionSelector
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
+    metadataUiState: MetadataSearchUiState,
     onMediaClick: (TrackedMedia) -> Unit,
     onCollectionClick: (MediaCollection) -> Unit,
-    onAddClick: () -> Unit,
+    onManualAddClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
+    onMetadataQueryChange: (String) -> Unit,
+    onMetadataSearch: () -> Unit,
+    onApiSuggestionSelected: (MetadataSuggestion) -> Unit,
+    duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
@@ -38,43 +58,71 @@ fun HomeScreen(
     val section = uiState.selectedSection
     val groupedItems = uiState.trackedItems.groupBy { it.collection }
     val showCollectionGroups = uiState.sortMode == HomeSortMode.Collection && groupedItems.isNotEmpty()
+    val apiResults = metadataUiState.suggestions.filter { suggestion ->
+        duplicateStateForSuggestion(suggestion) != MetadataDuplicateState.Exact
+    }
+    val showApiSection = metadataUiState.isLoading || metadataUiState.hasSearched
+
+    LaunchedEffect(uiState.searchQuery) {
+        if (uiState.searchQuery.trim().length >= 2) {
+            delay(450)
+            onMetadataSearch()
+        } else if (uiState.searchQuery.isBlank()) {
+            onMetadataSearch()
+        }
+    }
 
     Surface(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.background,
+        color = OmnilogColors.AppBackground,
     ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                SectionHeader(
-                    section = section,
-                    onAddClick = onAddClick,
-                )
+                DashboardStyleSearchBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = { query ->
+                        onSearchQueryChange(query)
+                        onMetadataQueryChange(query)
+                    },
+                    isLoading = metadataUiState.isLoading,
+                    accent = section.accent,
+                    onSearch = onMetadataSearch,
+                ) {
+                    IconButton(
+                        onClick = onManualAddClick,
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.add_item),
+                            tint = section.accent,
+                        )
+                    }
+                }
             }
 
             item {
                 BrowseControls(
-                    searchQuery = uiState.searchQuery,
                     statusFilter = uiState.statusFilter,
                     sortMode = uiState.sortMode,
                     sortDirection = uiState.sortDirection,
-                    onSearchQueryChange = onSearchQueryChange,
                     onStatusFilterChange = onStatusFilterChange,
                     onSortModeChange = onSortModeChange,
                     onSortDirectionChange = onSortDirectionChange,
                 )
             }
 
-            if (uiState.trackedItems.isEmpty()) {
+            if (uiState.trackedItems.isEmpty() && uiState.searchQuery.isBlank()) {
                 item {
                     Text(
                         text = stringResource(section.emptyMessageResId),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                        color = OmnilogColors.AppMuted,
                     )
                 }
             } else if (showCollectionGroups) {
@@ -94,7 +142,6 @@ fun HomeScreen(
                         )
                     }
                 }
-
             } else {
                 items(uiState.trackedItems) { trackedMedia ->
                     MediaCard(
@@ -104,30 +151,54 @@ fun HomeScreen(
                     )
                 }
             }
+
+            if (showApiSection) {
+                if (uiState.trackedItems.isNotEmpty() && (apiResults.isNotEmpty() || metadataUiState.isLoading)) {
+                    item {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = OmnilogColors.AppLine.copy(alpha = 0.60f),
+                        )
+                    }
+                }
+
+                when {
+                    metadataUiState.isLoading -> item {
+                        SearchStatePanel(text = stringResource(R.string.metadata_search_loading))
+                    }
+                    metadataUiState.hasError -> item {
+                        SearchStatePanel(
+                            text = stringResource(R.string.metadata_search_error),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    metadataUiState.hasSearched && apiResults.isEmpty() && uiState.trackedItems.isEmpty() -> item {
+                        SearchStatePanel(text = stringResource(R.string.metadata_search_empty))
+                    }
+                    else -> items(apiResults) { suggestion ->
+                        MetadataSuggestionRow(
+                            suggestion = suggestion,
+                            accent = suggestion.mediaType.sectionAccent(),
+                            duplicateState = duplicateStateForSuggestion(suggestion),
+                            onClick = { onApiSuggestionSelected(suggestion) },
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun BrowseControls(
-    searchQuery: String,
     statusFilter: TrackingStatus?,
     sortMode: HomeSortMode,
     sortDirection: HomeSortDirection,
-    onSearchQueryChange: (String) -> Unit,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            label = { Text(stringResource(R.string.search_label)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-
         OptionSelector(
             label = stringResource(R.string.filter_status),
             options = listOf<TrackingStatus?>(null) + TrackingStatus.entries,
@@ -221,4 +292,11 @@ private fun CollectionHeader(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
         )
     }
+}
+
+private fun MediaType.sectionAccent() = when (this) {
+    MediaType.Anime -> MediaSection.Anime.accent
+    MediaType.Book -> MediaSection.Books.accent
+    MediaType.Movie, MediaType.TvShow -> MediaSection.Movies.accent
+    MediaType.Game -> MediaSection.Games.accent
 }

@@ -230,6 +230,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         selectedMediaId = null
                         selectedCollectionId = null
                         isAdding = false
+                        viewModel.clearMetadataSearch()
                     },
                     onSectionClick = { section ->
                         selectedDestination = AppDestination.Section
@@ -237,6 +238,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         selectedCollectionId = null
                         isAdding = false
                         viewModel.selectSection(section)
+                        viewModel.clearMetadataSearch()
                     },
                 )
             },
@@ -311,17 +313,44 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         } else if (selectedMedia == null) {
             HomeScreen(
                 uiState = uiState,
+                metadataUiState = metadataUiState,
                 onMediaClick = { selectedMediaId = it.item.id },
                 onCollectionClick = {
                     selectedCollectionId = it.id
                     isAdding = false
                 },
-                onAddClick = {
+                onManualAddClick = {
                     viewModel.clearMetadataSearch()
                     isAdding = true
                     selectedCollectionId = null
                 },
                 onSearchQueryChange = viewModel::updateSearchQuery,
+                onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
+                onMetadataSearch = viewModel::searchMetadataSuggestions,
+                onApiSuggestionSelected = { suggestion ->
+                    when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                        is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
+                        is DuplicateMatch.Possible -> {
+                            pendingPossibleDuplicate = PendingPossibleDuplicate(
+                                suggestion = suggestion,
+                                trackedMedia = duplicate.trackedMedia,
+                                requiresAddTransition = true,
+                            )
+                        }
+                        DuplicateMatch.None -> {
+                            viewModel.selectMetadataSuggestion(suggestion)
+                            isAdding = true
+                            selectedCollectionId = null
+                        }
+                    }
+                },
+                duplicateStateForSuggestion = { suggestion ->
+                    when (uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                        is DuplicateMatch.Exact -> MetadataDuplicateState.Exact
+                        is DuplicateMatch.Possible -> MetadataDuplicateState.Possible
+                        DuplicateMatch.None -> MetadataDuplicateState.None
+                    }
+                },
                 onStatusFilterChange = viewModel::updateStatusFilter,
                 onSortModeChange = viewModel::updateSortMode,
                 onSortDirectionChange = viewModel::updateSortDirection,
@@ -562,8 +591,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 TextButton(
                     onClick = {
                         val suggestion = duplicate.suggestion
+                        val needsTransition = duplicate.requiresAddTransition
                         pendingPossibleDuplicate = null
                         viewModel.selectMetadataSuggestion(suggestion)
+                        if (needsTransition) {
+                            isAdding = true
+                            selectedCollectionId = null
+                        }
                     },
                 ) {
                     Text(text = stringResource(R.string.possible_duplicate_continue_create))
@@ -582,6 +616,7 @@ private data class PendingBackupImport(
 private data class PendingPossibleDuplicate(
     val suggestion: MetadataSuggestion,
     val trackedMedia: TrackedMedia,
+    val requiresAddTransition: Boolean = false,
 )
 
 class DetailHeaderActions {

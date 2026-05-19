@@ -112,6 +112,7 @@
     <string name="metadata_credits_developers">Desenvolupadors</string>
     <string name="metadata_credits_cast">Repartiment</string>
     <string name="metadata_credits_voice_actors">Veus</string>
+    <string name="add_item">Afegeix</string>
     <string name="add_manual">Afegeix manualment</string>
     <string name="search_action">Cerca</string>
     <string name="field_title">Titol</string>
