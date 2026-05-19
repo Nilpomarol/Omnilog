@@ -9,10 +9,12 @@ import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
-import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
+import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
@@ -84,6 +86,7 @@ class OfflineMediaRepository(
     override suspend fun exportBackupJson(): String {
         return JSONObject()
             .put("schemaVersion", 3)
+            .put("exportedAtEpochMillis", System.currentTimeMillis())
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
             .put("mediaCredits", JSONArray(mediaDao.getMediaCredits().map { it.toJson() }))
@@ -94,27 +97,29 @@ class OfflineMediaRepository(
     }
 
     override suspend fun previewBackupJson(json: String): BackupPreview {
-        val root = parseBackupRoot(json)
+        val backup = parseBackupData(json)
 
         return BackupPreview(
-            collectionCount = root.getJSONArray("collections").length(),
-            mediaItemCount = root.getJSONArray("mediaItems").length(),
-            mediaCreditCount = root.optJSONArray("mediaCredits")?.length() ?: 0,
-            trackingSessionCount = root.getJSONArray("trackingSessions").length(),
-            externalRatingCount = root.getJSONArray("externalRatings").length(),
-            externalTrackingCount = root.getJSONArray("externalTracking").length(),
+            schemaVersion = backup.schemaVersion,
+            exportedAtEpochMillis = backup.exportedAtEpochMillis,
+            collectionCount = backup.collections.size,
+            mediaItemCount = backup.mediaItems.size,
+            mediaCreditCount = backup.mediaCredits.size,
+            trackingSessionCount = backup.sessions.size,
+            externalRatingCount = backup.externalRatings.size,
+            externalTrackingCount = backup.externalTracking.size,
         )
     }
 
     override suspend fun importBackupJson(json: String) {
-        val root = parseBackupRoot(json)
+        val backup = parseBackupData(json)
         mediaDao.replaceAllData(
-            collections = root.getJSONArray("collections").mapObjects { it.toMediaCollectionEntity() },
-            mediaItems = root.getJSONArray("mediaItems").mapObjects { it.toMediaItemEntity() },
-            mediaCredits = root.optJSONArray("mediaCredits")?.mapObjects { it.toMediaCreditEntity() } ?: emptyList(),
-            sessions = root.getJSONArray("trackingSessions").mapObjects { it.toTrackingSessionEntity() },
-            externalRatings = root.getJSONArray("externalRatings").mapObjects { it.toExternalRatingEntity() },
-            externalTracking = root.getJSONArray("externalTracking").mapObjects { it.toExternalTrackingEntity() },
+            collections = backup.collections,
+            mediaItems = backup.mediaItems,
+            mediaCredits = backup.mediaCredits,
+            sessions = backup.sessions,
+            externalRatings = backup.externalRatings,
+            externalTracking = backup.externalTracking,
         )
     }
 
@@ -566,6 +571,116 @@ private fun parseBackupRoot(json: String): JSONObject {
     return root
 }
 
+private data class ParsedBackup(
+    val schemaVersion: Int,
+    val exportedAtEpochMillis: Long?,
+    val collections: List<MediaCollectionEntity>,
+    val mediaItems: List<MediaItemEntity>,
+    val mediaCredits: List<MediaCreditEntity>,
+    val sessions: List<TrackingSessionEntity>,
+    val externalRatings: List<ExternalRatingEntity>,
+    val externalTracking: List<ExternalTrackingEntity>,
+)
+
+private fun parseBackupData(json: String): ParsedBackup {
+    val root = parseBackupRoot(json)
+    return ParsedBackup(
+        schemaVersion = root.getInt("schemaVersion"),
+        exportedAtEpochMillis = root.optNullableLong("exportedAtEpochMillis"),
+        collections = root.optJSONArray("collections").orEmptyArray()
+            .mapObjects { it.toMediaCollectionEntity() },
+        mediaItems = root.getJSONArray("mediaItems")
+            .mapObjects { it.toMediaItemEntity() },
+        mediaCredits = root.optJSONArray("mediaCredits").orEmptyArray()
+            .mapObjects { it.toMediaCreditEntity() },
+        sessions = root.getJSONArray("trackingSessions")
+            .mapObjects { it.toTrackingSessionEntity() },
+        externalRatings = root.optJSONArray("externalRatings").orEmptyArray()
+            .mapObjects { it.toExternalRatingEntity() },
+        externalTracking = root.optJSONArray("externalTracking").orEmptyArray()
+            .mapObjects { it.toExternalTrackingEntity() },
+    ).also { it.validate() }
+}
+
+private fun ParsedBackup.validate() {
+    collections.requireUniquePositiveIds("collections") { it.id }
+    mediaItems.requireUniquePositiveIds("media items") { it.id }
+    mediaCredits.requireUniquePositiveIds("media credits") { it.id }
+    sessions.requireUniquePositiveIds("tracking sessions") { it.id }
+    externalRatings.requireUniquePositiveIds("external ratings") { it.id }
+    externalTracking.requireUniquePositiveIds("external tracking") { it.id }
+
+    val collectionIds = collections.map { it.id }.toSet()
+    val mediaItemIds = mediaItems.map { it.id }.toSet()
+
+    collections.forEach { collection ->
+        require(collection.name.isNotBlank()) { "Collection names cannot be blank" }
+    }
+
+    mediaItems.forEach { item ->
+        require(item.title.isNotBlank()) { "Media item titles cannot be blank" }
+        requireEnum<MediaType>(item.type) { "Unknown media type: ${item.type}" }
+        requireEnum<OwnershipType>(item.ownershipType) { "Unknown ownership type: ${item.ownershipType}" }
+        item.metadataSource?.let { source ->
+            requireEnum<MetadataSource>(source) { "Unknown metadata source: $source" }
+        }
+        item.collectionId?.let { collectionId ->
+            require(collectionId in collectionIds) { "Media item references a missing collection" }
+        }
+        item.progressTotal?.let { total ->
+            require(total >= 0) { "Progress totals cannot be negative" }
+        }
+        item.externalRatingScore?.let { score ->
+            require(score > 0.0) { "External rating scores must be positive" }
+        }
+        item.externalRatingMax?.let { maxScore ->
+            require(maxScore > 0.0) { "External rating max scores must be positive" }
+        }
+        item.externalRatingVoteCount?.let { count ->
+            require(count >= 0) { "External rating vote counts cannot be negative" }
+        }
+    }
+
+    mediaCredits.forEach { credit ->
+        require(credit.mediaItemId in mediaItemIds) { "Credit references a missing media item" }
+        require(credit.personName.isNotBlank()) { "Credit names cannot be blank" }
+        requireEnum<MediaCreditRole>(credit.roleType) { "Unknown credit role: ${credit.roleType}" }
+        credit.metadataSource?.let { source ->
+            requireEnum<MetadataSource>(source) { "Unknown metadata source: $source" }
+        }
+    }
+
+    sessions.forEach { session ->
+        require(session.mediaItemId in mediaItemIds) { "Session references a missing media item" }
+        require(session.sessionNumber > 0) { "Session numbers must be positive" }
+        require(session.progressCurrent >= 0) { "Session progress cannot be negative" }
+        requireEnum<TrackingStatus>(session.status) { "Unknown tracking status: ${session.status}" }
+        session.platformType?.let { platformType ->
+            requireEnum<ConsumptionPlatformType>(platformType) { "Unknown platform type: $platformType" }
+        }
+        session.rating?.let { rating ->
+            require(rating in 1..10) { "Session ratings must be between 1 and 10" }
+        }
+    }
+
+    externalRatings.forEach { rating ->
+        require(rating.mediaItemId in mediaItemIds) { "External rating references a missing media item" }
+        requireEnum<ExternalRatingSource>(rating.source) { "Unknown external rating source: ${rating.source}" }
+        require(rating.score > 0.0) { "External rating scores must be positive" }
+        require(rating.maxScore > 0.0) { "External rating max scores must be positive" }
+        rating.voteCount?.let { count ->
+            require(count >= 0) { "External rating vote counts cannot be negative" }
+        }
+    }
+
+    externalTracking.forEach { tracking ->
+        require(tracking.mediaItemId in mediaItemIds) { "External tracking references a missing media item" }
+        requireEnum<ExternalTrackingSource>(tracking.source) {
+            "Unknown external tracking source: ${tracking.source}"
+        }
+    }
+}
+
 private fun MediaCollectionEntity.toJson(): JSONObject {
     return JSONObject()
         .put("id", id)
@@ -760,8 +875,28 @@ private fun JSONObject.optNullableLong(name: String): Long? {
     return if (isNull(name)) null else optLong(name)
 }
 
+private fun JSONArray?.orEmptyArray(): JSONArray {
+    return this ?: JSONArray()
+}
+
 private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {
     return List(length()) { index -> transform(getJSONObject(index)) }
+}
+
+private fun <T> List<T>.requireUniquePositiveIds(
+    label: String,
+    idSelector: (T) -> Long,
+) {
+    val ids = map(idSelector)
+    require(ids.all { it > 0L }) { "Backup $label contain invalid ids" }
+    require(ids.size == ids.toSet().size) { "Backup $label contain duplicate ids" }
+}
+
+private inline fun <reified T : Enum<T>> requireEnum(
+    value: String,
+    lazyMessage: () -> String,
+) {
+    require(runCatching { enumValueOf<T>(value) }.isSuccess, lazyMessage)
 }
 
 private fun JSONObject.optStringArray(name: String): List<String> {

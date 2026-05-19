@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -38,12 +39,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -66,6 +69,7 @@ import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
 import com.nilpo.contenttracker.ui.home.HomeLandingScreen
+import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -90,6 +94,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
+    val backupActions = remember { BackupHeaderActions() }
     val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
     val selectedCollection = uiState.trackedItems
         .mapNotNull { it.collection }
@@ -102,6 +107,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val importSuccessMessage = stringResource(R.string.backup_import_success)
     val importInvalidMessage = stringResource(R.string.backup_import_invalid)
     val importUnsupportedMessage = stringResource(R.string.backup_import_unsupported)
+    val metadataRefreshSuccessMessage = stringResource(R.string.metadata_refresh_success)
+    val metadataRefreshUnavailableMessage = stringResource(R.string.metadata_refresh_unavailable)
+    val metadataRefreshErrorMessage = stringResource(R.string.metadata_refresh_error)
     val openTrackedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
         viewModel.selectSection(trackedMedia.item.type.homeSection())
@@ -169,40 +177,60 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             }
         }
     }
+    backupActions.onExportBackupRequested = {
+        exportBackupLauncher.launch("omnilog-backup-${LocalDate.now()}.json")
+    }
+    backupActions.onImportBackupRequested = {
+        importBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+    }
 
-    Scaffold(
-        topBar = {
-            OmnilogTopBar(
-                accent = when (selectedDestination) {
-                    AppDestination.Home -> OmnilogColors.Dashboard
-                    AppDestination.Section -> uiState.selectedSection.accent
-                },
-                showDetailActions = selectedMedia != null && !isAdding,
-                detailActions = detailActions,
-                onBack = { selectedMediaId = null },
-            )
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        bottomBar = {
-            OmnilogBottomBar(
-                selectedDestination = selectedDestination,
-                selectedSection = uiState.selectedSection,
-                onHomeClick = {
-                    selectedDestination = AppDestination.Home
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                    isAdding = false
-                },
-                onSectionClick = { section ->
-                    selectedDestination = AppDestination.Section
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                    isAdding = false
-                    viewModel.selectSection(section)
-                },
-            )
-        },
-    ) { innerPadding ->
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            val message = when (event) {
+                HomeUiEvent.MetadataRefreshSucceeded -> metadataRefreshSuccessMessage
+                HomeUiEvent.MetadataRefreshUnavailable -> metadataRefreshUnavailableMessage
+                HomeUiEvent.MetadataRefreshFailed -> metadataRefreshErrorMessage
+            }
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                OmnilogTopBar(
+                    accent = when (selectedDestination) {
+                        AppDestination.Home -> OmnilogColors.Dashboard
+                        AppDestination.Section -> uiState.selectedSection.accent
+                    },
+                    showDetailActions = selectedMedia != null && !isAdding,
+                    showBackupActions = selectedMedia == null && !isAdding,
+                    detailActions = detailActions,
+                    backupActions = backupActions,
+                    onBack = { selectedMediaId = null },
+                )
+            },
+            snackbarHost = {},
+            bottomBar = {
+                OmnilogBottomBar(
+                    selectedDestination = selectedDestination,
+                    selectedSection = uiState.selectedSection,
+                    onHomeClick = {
+                        selectedDestination = AppDestination.Home
+                        selectedMediaId = null
+                        selectedCollectionId = null
+                        isAdding = false
+                    },
+                    onSectionClick = { section ->
+                        selectedDestination = AppDestination.Section
+                        selectedMediaId = null
+                        selectedCollectionId = null
+                        isAdding = false
+                        viewModel.selectSection(section)
+                    },
+                )
+            },
+        ) { innerPadding ->
         if (isAdding) {
             AddMediaScreen(
                 initialMediaType = uiState.selectedSection.defaultType,
@@ -287,12 +315,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onStatusFilterChange = viewModel::updateStatusFilter,
                 onSortModeChange = viewModel::updateSortMode,
                 onSortDirectionChange = viewModel::updateSortDirection,
-                onExportBackup = {
-                    exportBackupLauncher.launch("content-tracker-backup-${LocalDate.now()}.json")
-                },
-                onImportBackup = {
-                    importBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
-                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -301,6 +323,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             val actions = remember(selectedMedia.item.id) {
                 DetailHeaderActions()
             }
+            actions.isRefreshingMetadata = uiState.refreshingMetadataItemId == selectedMedia.item.id
             detailActions = actions
             DetailScreen(
                 trackedMedia = selectedMedia,
@@ -328,6 +351,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         }
     }
 
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(start = 16.dp, top = 82.dp, end = 16.dp),
+        )
+    }
+
     pendingImport?.let { backupImport ->
         AlertDialog(
             onDismissRequest = { pendingImport = null },
@@ -336,6 +367,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 Text(
                     text = stringResource(
                         R.string.import_backup_message_with_summary,
+                        backupImport.preview.schemaVersion,
                         backupImport.preview.collectionCount,
                         backupImport.preview.mediaItemCount,
                         backupImport.preview.mediaCreditCount,
@@ -431,9 +463,16 @@ private data class PendingPossibleDuplicate(
 class DetailHeaderActions {
     var isEditingItemDetails by mutableStateOf(false)
     var isMenuExpanded by mutableStateOf(false)
+    var isRefreshingMetadata by mutableStateOf(false)
     var onDeleteRequested: () -> Unit = {}
     var onManageExternalTrackingRequested: () -> Unit = {}
     var onRefreshMetadataRequested: () -> Unit = {}
+}
+
+class BackupHeaderActions {
+    var isMenuExpanded by mutableStateOf(false)
+    var onExportBackupRequested: () -> Unit = {}
+    var onImportBackupRequested: () -> Unit = {}
 }
 
 private enum class AppDestination {
@@ -606,7 +645,9 @@ private fun MediaSection.navIconResId(): Int {
 private fun OmnilogTopBar(
     accent: Color,
     showDetailActions: Boolean,
+    showBackupActions: Boolean,
     detailActions: DetailHeaderActions,
+    backupActions: BackupHeaderActions,
     onBack: () -> Unit,
 ) {
     TopAppBar(
@@ -691,7 +732,14 @@ private fun OmnilogTopBar(
                             },
                         )
                         HeaderMenuItem(
-                            text = stringResource(R.string.refresh_metadata),
+                            text = stringResource(
+                                if (detailActions.isRefreshingMetadata) {
+                                    R.string.refresh_metadata_loading
+                                } else {
+                                    R.string.refresh_metadata
+                                },
+                            ),
+                            enabled = !detailActions.isRefreshingMetadata,
                             onClick = {
                                 detailActions.isMenuExpanded = false
                                 detailActions.onRefreshMetadataRequested()
@@ -707,6 +755,39 @@ private fun OmnilogTopBar(
                         )
                     }
                 }
+            } else if (showBackupActions) {
+                Box {
+                    IconButton(onClick = { backupActions.isMenuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.AccountCircle,
+                            contentDescription = stringResource(R.string.account_menu),
+                            tint = HeaderMuted,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = backupActions.isMenuExpanded,
+                        onDismissRequest = { backupActions.isMenuExpanded = false },
+                        shape = RoundedCornerShape(10.dp),
+                        containerColor = HeaderPanel,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 8.dp,
+                    ) {
+                        HeaderMenuItem(
+                            text = stringResource(R.string.export_backup),
+                            onClick = {
+                                backupActions.isMenuExpanded = false
+                                backupActions.onExportBackupRequested()
+                            },
+                        )
+                        HeaderMenuItem(
+                            text = stringResource(R.string.import_backup),
+                            onClick = {
+                                backupActions.isMenuExpanded = false
+                                backupActions.onImportBackupRequested()
+                            },
+                        )
+                    }
+                }
             }
         },
     )
@@ -716,19 +797,20 @@ private fun OmnilogTopBar(
 private fun HeaderMenuItem(
     text: String,
     destructive: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val textColor = if (destructive) {
-        MaterialTheme.colorScheme.error
-    } else {
-        HeaderInk
+    val textColor = when {
+        !enabled -> HeaderMuted.copy(alpha = 0.62f)
+        destructive -> MaterialTheme.colorScheme.error
+        else -> HeaderInk
     }
 
     Row(
         modifier = Modifier
             .widthIn(min = 148.dp)
             .background(HeaderPanel)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         Text(

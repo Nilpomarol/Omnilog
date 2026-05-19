@@ -9,12 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,8 +33,6 @@ fun HomeScreen(
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
-    onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
@@ -70,8 +66,6 @@ fun HomeScreen(
                     onStatusFilterChange = onStatusFilterChange,
                     onSortModeChange = onSortModeChange,
                     onSortDirectionChange = onSortDirectionChange,
-                    onExportBackup = onExportBackup,
-                    onImportBackup = onImportBackup,
                 )
             }
 
@@ -124,8 +118,6 @@ private fun BrowseControls(
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
-    onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
@@ -167,15 +159,6 @@ private fun BrowseControls(
                 onOptionSelected = onSortDirectionChange,
                 modifier = Modifier.weight(1f),
             )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onExportBackup) {
-                Text(text = stringResource(R.string.export_backup))
-            }
-            TextButton(onClick = onImportBackup) {
-                Text(text = stringResource(R.string.import_backup))
-            }
         }
     }
 }

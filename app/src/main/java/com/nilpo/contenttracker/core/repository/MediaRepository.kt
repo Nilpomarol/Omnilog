@@ -15,6 +15,8 @@ class UnsupportedBackupSchemaException(
 ) : IllegalArgumentException("Unsupported backup schema version: $schemaVersion")
 
 data class BackupPreview(
+    val schemaVersion: Int,
+    val exportedAtEpochMillis: Long?,
     val collectionCount: Int,
     val mediaItemCount: Int,
     val mediaCreditCount: Int,

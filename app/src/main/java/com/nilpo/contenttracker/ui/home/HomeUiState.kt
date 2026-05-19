@@ -11,6 +11,7 @@ data class HomeUiState(
     val statusFilter: TrackingStatus? = null,
     val sortMode: HomeSortMode = HomeSortMode.Title,
     val sortDirection: HomeSortDirection = HomeSortDirection.Ascending,
+    val refreshingMetadataItemId: Long? = null,
 )
 
 enum class HomeSortMode {

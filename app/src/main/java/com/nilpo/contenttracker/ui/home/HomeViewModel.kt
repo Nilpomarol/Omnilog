@@ -16,9 +16,11 @@ import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,8 +36,11 @@ class HomeViewModel(
     private val sortMode = MutableStateFlow(HomeSortMode.Title)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Ascending)
     private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
+    private val refreshingMetadataItemId = MutableStateFlow<Long?>(null)
+    private val mutableEvents = MutableSharedFlow<HomeUiEvent>()
 
     val metadataUiState = metadataSearchState.asStateFlow()
+    val events = mutableEvents.asSharedFlow()
 
     private val filters = combine(
         searchQuery,
@@ -55,7 +60,8 @@ class HomeViewModel(
         selectedSection,
         mediaRepository.observeTrackedMedia(MediaType.entries.toSet()),
         filters,
-    ) { section, allTrackedItems, filters ->
+        refreshingMetadataItemId,
+    ) { section, allTrackedItems, filters, refreshingItemId ->
         val visibleItems = allTrackedItems
             .filter { it.item.type in section.types }
             .filterBySearch(filters.query)
@@ -70,6 +76,7 @@ class HomeViewModel(
             statusFilter = filters.status,
             sortMode = filters.sort,
             sortDirection = filters.direction,
+            refreshingMetadataItemId = refreshingItemId,
         )
         }
         .stateIn(
@@ -338,8 +345,22 @@ class HomeViewModel(
     }
 
     fun refreshMediaItemMetadata(mediaItemId: Long) {
+        if (refreshingMetadataItemId.value != null) return
+
         viewModelScope.launch {
-            mediaRepository.refreshMediaItemMetadata(mediaItemId, metadataRepository)
+            refreshingMetadataItemId.value = mediaItemId
+            val result = runCatching {
+                mediaRepository.refreshMediaItemMetadata(mediaItemId, metadataRepository)
+            }
+            refreshingMetadataItemId.value = null
+
+            mutableEvents.emit(
+                when {
+                    result.isFailure -> HomeUiEvent.MetadataRefreshFailed
+                    result.getOrDefault(false) -> HomeUiEvent.MetadataRefreshSucceeded
+                    else -> HomeUiEvent.MetadataRefreshUnavailable
+                },
+            )
         }
     }
 
@@ -355,6 +376,12 @@ class HomeViewModel(
             ) as T
         }
     }
+}
+
+sealed interface HomeUiEvent {
+    data object MetadataRefreshSucceeded : HomeUiEvent
+    data object MetadataRefreshUnavailable : HomeUiEvent
+    data object MetadataRefreshFailed : HomeUiEvent
 }
 
 private data class HomeFilters(
