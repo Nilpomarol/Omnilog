@@ -158,6 +158,9 @@
     <string name="import_backup_message">Aixo substituira totes les dades locals actuals per les de la copia.</string>
     <string name="import_backup_message_with_summary">Copia v%1$d validada.\n\nAixo substituira totes les dades locals actuals per les de la copia.\n\nLa copia conte:\n%2$d col·leccions\n%3$d elements\n%4$d credits\n%5$d sessions\n%6$d notes externes\n%7$d seguiments externs</string>
     <string name="import_backup_confirm">Importa</string>
+    <string name="import_backup_final_title">Substitueix totes les dades?</string>
+    <string name="import_backup_final_message">Aquesta accio eliminara totes les dades locals actuals i les substituira per la copia validada. No es pot desfer des d\'Omnilog.</string>
+    <string name="import_backup_final_confirm">Substitueix dades</string>
     <string name="possible_duplicate_title">Possible duplicat</string>
     <string name="possible_duplicate_message">Pot ser que ja tinguis \"%1$s\" a Omnilog.</string>
     <string name="possible_duplicate_open_existing">Obre existent</string>

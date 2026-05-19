@@ -90,6 +90,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
+    var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
@@ -380,18 +381,40 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             confirmButton = {
                 TextButton(
                     onClick = {
+                        pendingImport = null
+                        pendingImportConfirmation = backupImport
+                    },
+                ) {
+                    Text(text = stringResource(R.string.import_backup_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImport = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    pendingImportConfirmation?.let { backupImport ->
+        AlertDialog(
+            onDismissRequest = { pendingImportConfirmation = null },
+            title = { Text(text = stringResource(R.string.import_backup_final_title)) },
+            text = { Text(text = stringResource(R.string.import_backup_final_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
                         coroutineScope.launch {
                             val result = runCatching {
                                 viewModel.importBackupJson(backupImport.json)
                             }
+                            pendingImportConfirmation = null
                             if (result.isSuccess) {
                                 selectedMediaId = null
                                 selectedCollectionId = null
                                 isAdding = false
-                                pendingImport = null
                                 snackbarHostState.showSnackbar(importSuccessMessage)
                             } else {
-                                pendingImport = null
                                 val message = when (result.exceptionOrNull()) {
                                     is UnsupportedBackupSchemaException -> importUnsupportedMessage
                                     else -> importInvalidMessage
@@ -401,11 +424,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         }
                     },
                 ) {
-                    Text(text = stringResource(R.string.import_backup_confirm))
+                    Text(text = stringResource(R.string.import_backup_final_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingImport = null }) {
+                TextButton(onClick = { pendingImportConfirmation = null }) {
                     Text(text = stringResource(R.string.cancel))
                 }
             },
