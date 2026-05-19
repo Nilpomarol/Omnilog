@@ -76,8 +76,13 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.Normalizer
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,6 +94,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
+    var showRestoreList by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
@@ -183,6 +189,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
     backupActions.onImportBackupRequested = {
         importBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+    }
+    backupActions.onRestoreBackupRequested = {
+        showRestoreList = true
     }
 
     LaunchedEffect(viewModel) {
@@ -360,6 +369,86 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         )
     }
 
+    if (showRestoreList) {
+        val displayFormatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy, HH:mm") }
+        val safetyBackups = remember {
+            context.getExternalFilesDir(null)
+                ?.listFiles { _, name ->
+                    name.startsWith("omnilog-pre-import-") && name.endsWith(".json")
+                }
+                ?.sortedByDescending { it.lastModified() }
+                ?: emptyList()
+        }
+        AlertDialog(
+            onDismissRequest = { showRestoreList = false },
+            title = { Text(text = stringResource(R.string.restore_previous_backup_title)) },
+            text = {
+                if (safetyBackups.isEmpty()) {
+                    Text(text = stringResource(R.string.restore_previous_backup_empty))
+                } else {
+                    Column {
+                        safetyBackups.forEach { file ->
+                            val label = remember(file) {
+                                val dt = LocalDateTime.ofInstant(
+                                    Instant.ofEpochMilli(file.lastModified()),
+                                    ZoneId.systemDefault(),
+                                )
+                                dt.format(displayFormatter)
+                            }
+                            TextButton(
+                                onClick = {
+                                    showRestoreList = false
+                                    coroutineScope.launch {
+                                        val readResult = runCatching {
+                                            withContext(Dispatchers.IO) {
+                                                file.readText(Charsets.UTF_8)
+                                            }
+                                        }
+                                        val backupJson = readResult.getOrNull()
+                                        if (backupJson == null) {
+                                            snackbarHostState.showSnackbar(importReadErrorMessage)
+                                            return@launch
+                                        }
+                                        val previewResult = runCatching {
+                                            PendingBackupImport(
+                                                json = backupJson,
+                                                preview = viewModel.previewBackupJson(backupJson),
+                                            )
+                                        }
+                                        pendingImport = previewResult.getOrNull()
+                                        previewResult.exceptionOrNull()?.let { error ->
+                                            val message = when (error) {
+                                                is UnsupportedBackupSchemaException -> importUnsupportedMessage
+                                                else -> importInvalidMessage
+                                            }
+                                            snackbarHostState.showSnackbar(message)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    horizontal = 0.dp,
+                                    vertical = 4.dp,
+                                ),
+                            ) {
+                                Text(
+                                    text = label,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showRestoreList = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     pendingImport?.let { backupImport ->
         AlertDialog(
             onDismissRequest = { pendingImport = null },
@@ -405,6 +494,18 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 TextButton(
                     onClick = {
                         coroutineScope.launch {
+                            runCatching {
+                                val safetyJson = viewModel.exportBackupJson()
+                                val timestamp = LocalDateTime.now()
+                                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm"))
+                                val file = File(
+                                    context.getExternalFilesDir(null),
+                                    "omnilog-pre-import-$timestamp.json",
+                                )
+                                withContext(Dispatchers.IO) {
+                                    file.writeText(safetyJson, Charsets.UTF_8)
+                                }
+                            }
                             val result = runCatching {
                                 viewModel.importBackupJson(backupImport.json)
                             }
@@ -496,6 +597,7 @@ class BackupHeaderActions {
     var isMenuExpanded by mutableStateOf(false)
     var onExportBackupRequested: () -> Unit = {}
     var onImportBackupRequested: () -> Unit = {}
+    var onRestoreBackupRequested: () -> Unit = {}
 }
 
 private enum class AppDestination {
@@ -807,6 +909,13 @@ private fun OmnilogTopBar(
                             onClick = {
                                 backupActions.isMenuExpanded = false
                                 backupActions.onImportBackupRequested()
+                            },
+                        )
+                        HeaderMenuItem(
+                            text = stringResource(R.string.restore_previous_backup),
+                            onClick = {
+                                backupActions.isMenuExpanded = false
+                                backupActions.onRestoreBackupRequested()
                             },
                         )
                     }
