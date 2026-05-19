@@ -61,6 +61,7 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
+import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
@@ -71,6 +72,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.Normalizer
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,6 +86,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
+    var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
@@ -99,6 +102,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val importSuccessMessage = stringResource(R.string.backup_import_success)
     val importInvalidMessage = stringResource(R.string.backup_import_invalid)
     val importUnsupportedMessage = stringResource(R.string.backup_import_unsupported)
+    val openTrackedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
+        viewModel.clearMetadataSearch()
+        viewModel.selectSection(trackedMedia.item.type.homeSection())
+        selectedDestination = AppDestination.Section
+        selectedCollectionId = null
+        selectedMediaId = trackedMedia.item.id
+        isAdding = false
+    }
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri: Uri? ->
@@ -205,20 +216,23 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
                 onMetadataSearch = viewModel::searchMetadataSuggestions,
                 onMetadataSuggestionSelected = { suggestion ->
-                    val existingItem = uiState.allTrackedItems.findDuplicateFor(suggestion)
-                    if (existingItem != null) {
-                        viewModel.clearMetadataSearch()
-                        viewModel.selectSection(existingItem.item.type.homeSection())
-                        selectedDestination = AppDestination.Section
-                        selectedCollectionId = null
-                        selectedMediaId = existingItem.item.id
-                        isAdding = false
-                    } else {
-                        viewModel.selectMetadataSuggestion(suggestion)
+                    when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                        is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
+                        is DuplicateMatch.Possible -> {
+                            pendingPossibleDuplicate = PendingPossibleDuplicate(
+                                suggestion = suggestion,
+                                trackedMedia = duplicate.trackedMedia,
+                            )
+                        }
+                        DuplicateMatch.None -> viewModel.selectMetadataSuggestion(suggestion)
                     }
                 },
-                isSuggestionInLibrary = { suggestion ->
-                    uiState.allTrackedItems.findDuplicateFor(suggestion) != null
+                duplicateStateForSuggestion = { suggestion ->
+                    when (uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                        is DuplicateMatch.Exact -> MetadataDuplicateState.Exact
+                        is DuplicateMatch.Possible -> MetadataDuplicateState.Possible
+                        DuplicateMatch.None -> MetadataDuplicateState.None
+                    }
                 },
                 onCancel = {
                     viewModel.clearMetadataSearch()
@@ -365,11 +379,52 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         )
     }
 
+    pendingPossibleDuplicate?.let { duplicate ->
+        AlertDialog(
+            onDismissRequest = { pendingPossibleDuplicate = null },
+            title = { Text(text = stringResource(R.string.possible_duplicate_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.possible_duplicate_message,
+                        duplicate.trackedMedia.item.title,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingPossibleDuplicate = null
+                        openTrackedMedia(duplicate.trackedMedia)
+                    },
+                ) {
+                    Text(text = stringResource(R.string.possible_duplicate_open_existing))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        val suggestion = duplicate.suggestion
+                        pendingPossibleDuplicate = null
+                        viewModel.selectMetadataSuggestion(suggestion)
+                    },
+                ) {
+                    Text(text = stringResource(R.string.possible_duplicate_continue_create))
+                }
+            },
+        )
+    }
+
 }
 
 private data class PendingBackupImport(
     val json: String,
     val preview: BackupPreview,
+)
+
+private data class PendingPossibleDuplicate(
+    val suggestion: MetadataSuggestion,
+    val trackedMedia: TrackedMedia,
 )
 
 class DetailHeaderActions {
@@ -384,12 +439,56 @@ private enum class AppDestination {
     Section,
 }
 
-private fun List<TrackedMedia>.findDuplicateFor(suggestion: MetadataSuggestion): TrackedMedia? {
-    return firstOrNull { trackedMedia ->
+private sealed interface DuplicateMatch {
+    data object None : DuplicateMatch
+    data class Exact(val trackedMedia: TrackedMedia) : DuplicateMatch
+    data class Possible(val trackedMedia: TrackedMedia) : DuplicateMatch
+}
+
+private fun List<TrackedMedia>.findDuplicateFor(suggestion: MetadataSuggestion): DuplicateMatch {
+    val exactMatch = firstOrNull { trackedMedia ->
         trackedMedia.item.type == suggestion.mediaType &&
             trackedMedia.item.metadataSource == suggestion.source &&
             trackedMedia.item.metadataExternalId == suggestion.externalId
     }
+    if (exactMatch != null) {
+        return DuplicateMatch.Exact(exactMatch)
+    }
+
+    val possibleMatch = firstOrNull { trackedMedia ->
+        trackedMedia.item.type == suggestion.mediaType &&
+            trackedMedia.hasCompatibleReleaseYear(suggestion) &&
+            trackedMedia.titleCandidates().intersect(suggestion.titleCandidates()).isNotEmpty()
+    }
+
+    return possibleMatch?.let(DuplicateMatch::Possible) ?: DuplicateMatch.None
+}
+
+private fun TrackedMedia.hasCompatibleReleaseYear(suggestion: MetadataSuggestion): Boolean {
+    val existingYear = item.releaseYear
+    val suggestionYear = suggestion.releaseYear
+    return existingYear == null || suggestionYear == null || existingYear == suggestionYear
+}
+
+private fun TrackedMedia.titleCandidates(): Set<String> {
+    return listOf(item.title, item.originalTitle)
+        .mapNotNull { it?.normalizedDuplicateTitle()?.takeIf(String::isNotBlank) }
+        .toSet()
+}
+
+private fun MetadataSuggestion.titleCandidates(): Set<String> {
+    return listOf(title, originalTitle)
+        .mapNotNull { it?.normalizedDuplicateTitle()?.takeIf(String::isNotBlank) }
+        .toSet()
+}
+
+private fun String.normalizedDuplicateTitle(): String {
+    val withoutMarks = Normalizer.normalize(this, Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+    return withoutMarks
+        .lowercase()
+        .replace(Regex("[^a-z0-9]+"), " ")
+        .trim()
 }
 
 private fun com.nilpo.contenttracker.core.model.MediaType.homeSection(): MediaSection =

@@ -82,6 +82,7 @@
     <string name="metadata_search_empty">No s\'han trobat resultats.</string>
     <string name="metadata_search_error">Error en la cerca. Comprova la connexió i torna-ho a intentar.</string>
     <string name="metadata_already_in_library">Ja a Omnilog</string>
+    <string name="metadata_possible_duplicate">Possible duplicat</string>
     <string name="metadata_suggestion_source">Font: %1$s</string>
     <string name="metadata_review_title">Revisa i crea seguiment</string>
     <string name="metadata_genres">Generes: %1$s</string>
@@ -155,6 +156,10 @@
     <string name="import_backup_message">Aixo substituira totes les dades locals actuals per les de la copia.</string>
     <string name="import_backup_message_with_summary">Aixo substituira totes les dades locals actuals per les de la copia.\n\nLa copia conte:\n%1$d colleccions\n%2$d elements\n%3$d credits\n%4$d sessions\n%5$d notes externes\n%6$d seguiments externs</string>
     <string name="import_backup_confirm">Importa</string>
+    <string name="possible_duplicate_title">Possible duplicat</string>
+    <string name="possible_duplicate_message">Pot ser que ja tinguis \"%1$s\" a Omnilog.</string>
+    <string name="possible_duplicate_open_existing">Obre existent</string>
+    <string name="possible_duplicate_continue_create">Continua</string>
     <string name="backup_export_success">Copia exportada.</string>
     <string name="backup_export_error">No s\'ha pogut exportar la copia.</string>
     <string name="backup_import_success">Copia importada.</string>

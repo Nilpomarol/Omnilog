@@ -21,12 +21,16 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -77,7 +81,7 @@ fun AddMediaScreen(
     onMetadataQueryChange: (String) -> Unit,
     onMetadataSearch: () -> Unit,
     onMetadataSuggestionSelected: (MetadataSuggestion) -> Unit,
-    isSuggestionInLibrary: (MetadataSuggestion) -> Boolean,
+    duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -130,7 +134,7 @@ fun AddMediaScreen(
                     onQueryChange = onMetadataQueryChange,
                     onSearch = onMetadataSearch,
                     onSuggestionSelected = onMetadataSuggestionSelected,
-                    isSuggestionInLibrary = isSuggestionInLibrary,
+                    duplicateStateForSuggestion = duplicateStateForSuggestion,
                     onManualAdd = {
                         selectedMediaType = initialMediaType
                         title = ""
@@ -289,7 +293,7 @@ private fun MetadataSearchStep(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onSuggestionSelected: (MetadataSuggestion) -> Unit,
-    isSuggestionInLibrary: (MetadataSuggestion) -> Boolean,
+    duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onManualAdd: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -324,7 +328,7 @@ private fun MetadataSearchStep(
             MetadataSearchResults(
                 uiState = uiState,
                 onSuggestionSelected = onSuggestionSelected,
-                isSuggestionInLibrary = isSuggestionInLibrary,
+                duplicateStateForSuggestion = duplicateStateForSuggestion,
             )
         }
 
@@ -350,7 +354,7 @@ private fun MetadataSearchStep(
 private fun MetadataSearchResults(
     uiState: MetadataSearchUiState,
     onSuggestionSelected: (MetadataSuggestion) -> Unit,
-    isSuggestionInLibrary: (MetadataSuggestion) -> Boolean,
+    duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
 ) {
     when {
         uiState.isLoading -> SearchStatePanel(text = stringResource(R.string.metadata_search_loading))
@@ -365,7 +369,7 @@ private fun MetadataSearchResults(
             MetadataSuggestionRow(
                 suggestion = suggestion,
                 accent = suggestion.mediaType.sectionAccent(),
-                isAlreadyInLibrary = isSuggestionInLibrary(suggestion),
+                duplicateState = duplicateStateForSuggestion(suggestion),
                 onClick = { onSuggestionSelected(suggestion) },
             )
         }
@@ -1084,7 +1088,7 @@ private fun SearchStatePanel(
 private fun MetadataSuggestionRow(
     suggestion: MetadataSuggestion,
     accent: Color,
-    isAlreadyInLibrary: Boolean,
+    duplicateState: MetadataDuplicateState,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1095,53 +1099,88 @@ private fun MetadataSuggestionRow(
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
-        Row(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            MetadataCoverImage(
-                coverUrl = suggestion.coverUrl,
-                modifier = Modifier.size(width = 58.dp, height = 86.dp),
-                shape = RoundedCornerShape(6.dp),
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+        Box {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = displayMediaTitle(suggestion.title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                MetadataCoverImage(
+                    coverUrl = suggestion.coverUrl,
+                    modifier = Modifier.size(width = 58.dp, height = 86.dp),
+                    shape = RoundedCornerShape(6.dp),
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    ResultChip(text = suggestion.mediaType.label(), accent = accent)
-                    suggestion.releaseYear?.let { ResultChip(text = it.toString(), accent = accent) }
-                    ResultChip(text = suggestion.source.name)
-                }
-                if (isAlreadyInLibrary) {
-                    ResultChip(
-                        text = stringResource(R.string.metadata_already_in_library),
-                        accent = OmnilogColors.Completed,
-                    )
-                }
-                suggestion.externalRating?.let { rating ->
                     Text(
-                        text = "${formatDecimal(rating.score)}/${formatDecimal(rating.maxScore)}",
-                        style = MaterialTheme.typography.labelMedium,
+                        text = displayMediaTitle(suggestion.title),
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = accent,
+                        color = OmnilogColors.AppInk,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ResultChip(text = suggestion.mediaType.label(), accent = accent)
+                        suggestion.releaseYear?.let { ResultChip(text = it.toString(), accent = accent) }
+                        ResultChip(text = suggestion.source.name)
+                    }
+                    suggestion.externalRating?.let { rating ->
+                        Text(
+                            text = "${formatDecimal(rating.score)}/${formatDecimal(rating.maxScore)}",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accent,
+                        )
+                    }
                 }
+            }
+            val duplicateMarker = duplicateState.marker()
+            if (duplicateMarker != null) {
+                Icon(
+                    imageVector = duplicateMarker.icon,
+                    contentDescription = stringResource(duplicateMarker.contentDescriptionResId),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    tint = duplicateMarker.tint,
+                )
             }
         }
     }
+}
+
+private class DuplicateMarker(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val tint: Color,
+    val contentDescriptionResId: Int,
+)
+
+private fun MetadataDuplicateState.marker(): DuplicateMarker? {
+    return when (this) {
+        MetadataDuplicateState.None -> null
+        MetadataDuplicateState.Exact -> DuplicateMarker(
+            icon = Icons.Filled.CheckCircle,
+            tint = OmnilogColors.Completed,
+            contentDescriptionResId = R.string.metadata_already_in_library,
+        )
+        MetadataDuplicateState.Possible -> DuplicateMarker(
+            icon = Icons.Filled.Warning,
+            tint = OmnilogColors.Paused,
+            contentDescriptionResId = R.string.metadata_possible_duplicate,
+        )
+    }
+}
+
+enum class MetadataDuplicateState {
+    None,
+    Exact,
+    Possible,
 }
 
 @Composable
