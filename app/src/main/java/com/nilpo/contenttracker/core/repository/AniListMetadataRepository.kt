@@ -41,35 +41,51 @@ class AniListMetadataRepository : MetadataRepository {
         if (suggestion.source != MetadataSource.AniList) return suggestion
         val malId = runCatching {
             JSONObject(suggestion.popularityJson ?: "{}").optInt("malId", 0).takeIf { it > 0 }
-        }.getOrNull() ?: return suggestion
+        }.getOrNull()
 
         return withContext(Dispatchers.IO) {
             runCatching {
-                val jikan = getJson("https://api.jikan.moe/v4/anime/$malId")
-                    .optJSONObject("data")
-                    ?: return@runCatching suggestion
-                val score = jikan.optDouble("score", 0.0)
-                val scoredBy = jikan.optInt("scored_by", 0)
-                if (score <= 0.0) {
-                    suggestion
-                } else {
-                    suggestion.copy(
-                        externalRating = MetadataRatingSuggestion(
+                val aniListId = suggestion.externalId.toLongOrNull() ?: return@runCatching suggestion
+                val detailed = postGraphQL(
+                    DETAILS_QUERY,
+                    JSONObject().apply { put("id", aniListId) },
+                )
+                    .getJSONObject("data")
+                    .getJSONObject("Media")
+                    .toMetadataSuggestion()
+                    ?: suggestion
+
+                val malDetails = malId?.let { id ->
+                    getJson("https://api.jikan.moe/v4/anime/$id")
+                        .optJSONObject("data")
+                }
+                val malRating = malDetails?.let { jikan ->
+                    val score = jikan.optDouble("score", 0.0)
+                    val scoredBy = jikan.optInt("scored_by", 0)
+                    if (score > 0.0) {
+                        MetadataExternalRatingSuggestion(
+                            source = ExternalRatingSource.Mal,
                             score = score,
                             maxScore = 10.0,
                             voteCount = scoredBy.takeIf { it > 0 },
-                        ),
-                        externalRatings = (
-                            suggestion.externalRatings +
-                                MetadataExternalRatingSuggestion(
-                                    source = ExternalRatingSource.Mal,
-                                    score = score,
-                                    maxScore = 10.0,
-                                    voteCount = scoredBy.takeIf { it > 0 },
-                                )
-                            ).distinctBy { it.source },
-                    )
+                        )
+                    } else {
+                        null
+                    }
                 }
+                val externalRatings = (listOfNotNull(malRating) + suggestion.externalRatings + detailed.externalRatings)
+                    .distinctBy { it.source }
+
+                detailed.copy(
+                    externalRating = malRating?.let {
+                        MetadataRatingSuggestion(
+                            score = it.score,
+                            maxScore = it.maxScore,
+                            voteCount = it.voteCount,
+                        )
+                    } ?: detailed.externalRating ?: suggestion.externalRating,
+                    externalRatings = externalRatings,
+                )
             }.getOrElse { suggestion }
         }
     }
@@ -203,6 +219,33 @@ class AniListMetadataRepository : MetadataRepository {
                   }
                   siteUrl
                 }
+              }
+            }
+        """.trimIndent()
+
+        private val DETAILS_QUERY = """
+            query (${'$'}id: Int) {
+              Media(id: ${'$'}id, type: ANIME) {
+                id
+                idMal
+                title { english romaji }
+                coverImage { large }
+                description(asHtml: false)
+                episodes
+                averageScore
+                popularity
+                rankings { rank type allTime context }
+                stats { scoreDistribution { score amount } }
+                startDate { year }
+                genres
+                studios(isMain: true) { nodes { name } }
+                characters(perPage: 12, sort: ROLE) {
+                  edges {
+                    node { name { full } }
+                    voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } }
+                  }
+                }
+                siteUrl
               }
             }
         """.trimIndent()

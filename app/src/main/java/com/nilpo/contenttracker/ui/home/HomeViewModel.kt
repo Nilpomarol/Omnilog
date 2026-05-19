@@ -337,6 +337,12 @@ class HomeViewModel(
         }
     }
 
+    fun refreshMediaItemMetadata(mediaItemId: Long) {
+        viewModelScope.launch {
+            mediaRepository.refreshMediaItemMetadata(mediaItemId, metadataRepository)
+        }
+    }
+
     class Factory(
         private val mediaRepository: MediaRepository,
         private val metadataRepository: MetadataRepository,

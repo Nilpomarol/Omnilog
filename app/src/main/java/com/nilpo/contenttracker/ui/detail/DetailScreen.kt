@@ -61,6 +61,7 @@ fun DetailScreen(
     onDeleteExternalTracking: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Int?, OwnershipType) -> Unit,
     onUpdateMediaItemMetadata: (Long, String, String?, Int?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
+    onRefreshMediaItemMetadata: (Long) -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -78,6 +79,9 @@ fun DetailScreen(
     }
     headerActions.onManageExternalTrackingRequested = {
         showExternalTrackingManager = true
+    }
+    headerActions.onRefreshMetadataRequested = {
+        onRefreshMediaItemMetadata(trackedMedia.item.id)
     }
 
     Surface(

@@ -316,6 +316,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onDeleteExternalTracking = viewModel::deleteExternalTracking,
                 onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
                 onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
+                onRefreshMediaItemMetadata = viewModel::refreshMediaItemMetadata,
                 onDeleteMediaItem = { mediaItemId ->
                     viewModel.deleteMediaItem(mediaItemId)
                     selectedMediaId = null
@@ -432,6 +433,7 @@ class DetailHeaderActions {
     var isMenuExpanded by mutableStateOf(false)
     var onDeleteRequested: () -> Unit = {}
     var onManageExternalTrackingRequested: () -> Unit = {}
+    var onRefreshMetadataRequested: () -> Unit = {}
 }
 
 private enum class AppDestination {
@@ -686,6 +688,13 @@ private fun OmnilogTopBar(
                             onClick = {
                                 detailActions.isMenuExpanded = false
                                 detailActions.onManageExternalTrackingRequested()
+                            },
+                        )
+                        HeaderMenuItem(
+                            text = stringResource(R.string.refresh_metadata),
+                            onClick = {
+                                detailActions.isMenuExpanded = false
+                                detailActions.onRefreshMetadataRequested()
                             },
                         )
                         HeaderMenuItem(

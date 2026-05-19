@@ -95,4 +95,6 @@ interface MediaRepository {
         synopsis: String?,
         sourceUrl: String?,
     )
+
+    suspend fun refreshMediaItemMetadata(mediaItemId: Long, metadataRepository: MetadataRepository): Boolean
 }

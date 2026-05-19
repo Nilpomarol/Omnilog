@@ -50,6 +50,9 @@ interface MediaDao {
     @Query("SELECT * FROM external_ratings ORDER BY id")
     suspend fun getExternalRatings(): List<ExternalRatingEntity>
 
+    @Query("SELECT * FROM external_ratings WHERE mediaItemId = :mediaItemId ORDER BY id")
+    suspend fun getExternalRatingsForItem(mediaItemId: Long): List<ExternalRatingEntity>
+
     @Query("SELECT * FROM external_tracking ORDER BY id")
     suspend fun getExternalTracking(): List<ExternalTrackingEntity>
 
@@ -160,6 +163,56 @@ interface MediaDao {
 
     @Query(
         """
+        UPDATE media_items
+        SET title = :title,
+            originalTitle = :originalTitle,
+            releaseYear = :releaseYear,
+            progressTotal = :progressTotal,
+            genresJson = :genresJson,
+            creatorsJson = :creatorsJson,
+            coverUrl = :coverUrl,
+            synopsis = :synopsis,
+            sourceUrl = :sourceUrl,
+            externalRatingScore = :externalRatingScore,
+            externalRatingMax = :externalRatingMax,
+            externalRatingVoteCount = :externalRatingVoteCount,
+            popularityScore = :popularityScore,
+            rankingPosition = :rankingPosition,
+            rankingLabel = :rankingLabel,
+            providerCollectionTitle = :providerCollectionTitle,
+            ratingDistributionJson = :ratingDistributionJson,
+            popularityJson = :popularityJson,
+            rankingJson = :rankingJson,
+            metadataLastFetchedAtEpochMillis = :metadataLastFetchedAtEpochMillis
+        WHERE id = :mediaItemId
+        """,
+    )
+    suspend fun refreshMediaItemMetadata(
+        mediaItemId: Long,
+        title: String,
+        originalTitle: String?,
+        releaseYear: Int?,
+        progressTotal: Int?,
+        genresJson: String?,
+        creatorsJson: String?,
+        coverUrl: String?,
+        synopsis: String?,
+        sourceUrl: String?,
+        externalRatingScore: Double?,
+        externalRatingMax: Double?,
+        externalRatingVoteCount: Int?,
+        popularityScore: Double?,
+        rankingPosition: Int?,
+        rankingLabel: String?,
+        providerCollectionTitle: String?,
+        ratingDistributionJson: String?,
+        popularityJson: String?,
+        rankingJson: String?,
+        metadataLastFetchedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
         UPDATE tracking_sessions
         SET status = :status,
             progressCurrent = :progressCurrent,
@@ -201,6 +254,12 @@ interface MediaDao {
 
     @Query("DELETE FROM media_items WHERE id = :mediaItemId")
     suspend fun deleteMediaItem(mediaItemId: Long)
+
+    @Query("DELETE FROM media_credits WHERE mediaItemId = :mediaItemId")
+    suspend fun deleteMediaCreditsForItem(mediaItemId: Long)
+
+    @Query("DELETE FROM external_ratings WHERE mediaItemId = :mediaItemId")
+    suspend fun deleteExternalRatingsForItem(mediaItemId: Long)
 
     @Query("DELETE FROM external_tracking")
     suspend fun deleteAllExternalTracking()

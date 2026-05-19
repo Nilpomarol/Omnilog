@@ -14,6 +14,10 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
+import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
+import com.nilpo.contenttracker.core.model.MetadataSource
+import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -422,6 +426,132 @@ class OfflineMediaRepository(
                 updatedAtEpochMillis = System.currentTimeMillis(),
             )
         }
+    }
+
+    override suspend fun refreshMediaItemMetadata(
+        mediaItemId: Long,
+        metadataRepository: MetadataRepository,
+    ): Boolean {
+        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return false
+        val metadataSource = currentItem.metadataSource?.let { source ->
+            runCatching { MetadataSource.valueOf(source) }.getOrNull()
+        } ?: return false
+        val metadataExternalId = currentItem.metadataExternalId?.takeIf { it.isNotBlank() } ?: return false
+        val mediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
+        val existingRatings = mediaDao.getExternalRatingsForItem(mediaItemId)
+            .map { it.toDomain() }
+            .map { rating ->
+                MetadataExternalRatingSuggestion(
+                    source = rating.source,
+                    score = rating.score,
+                    maxScore = rating.maxScore,
+                    voteCount = rating.voteCount,
+                )
+            }
+        val existingPrimaryRating = currentItem.externalRatingScore?.let { score ->
+            val maxScore = currentItem.externalRatingMax ?: return@let null
+            if (score > 0.0 && maxScore > 0.0) {
+                MetadataRatingSuggestion(
+                    score = score,
+                    maxScore = maxScore,
+                    voteCount = currentItem.externalRatingVoteCount,
+                )
+            } else {
+                null
+            }
+        }
+        val refreshed = metadataRepository.getSuggestionDetails(
+            MetadataSuggestion(
+                source = metadataSource,
+                externalId = metadataExternalId,
+                mediaType = mediaType,
+                title = currentItem.title,
+                originalTitle = currentItem.originalTitle,
+                releaseYear = currentItem.releaseYear,
+                genres = currentItem.genresJson.toStringList(),
+                creators = currentItem.creatorsJson.toStringList(),
+                progressTotal = currentItem.progressTotal,
+                coverUrl = currentItem.coverUrl,
+                synopsis = currentItem.synopsis,
+                sourceUrl = currentItem.sourceUrl,
+                popularityScore = currentItem.popularityScore,
+                rankingPosition = currentItem.rankingPosition,
+                rankingLabel = currentItem.rankingLabel,
+                ratingDistributionJson = currentItem.ratingDistributionJson,
+                popularityJson = currentItem.popularityJson,
+                rankingJson = currentItem.rankingJson,
+                externalRating = existingPrimaryRating,
+                externalRatings = existingRatings,
+            ),
+        )
+        val refreshedTotal = refreshed.progressTotal?.coerceAtLeast(0)
+        val refreshedRatings = refreshed.externalRatings
+            .ifEmpty { existingRatings }
+
+        mediaDao.refreshMediaItemMetadata(
+            mediaItemId = mediaItemId,
+            title = refreshed.title.trim().takeIf { it.isNotBlank() } ?: currentItem.title,
+            originalTitle = refreshed.originalTitle?.trim()?.takeIf { it.isNotBlank() },
+            releaseYear = refreshed.releaseYear,
+            progressTotal = refreshedTotal,
+            genresJson = refreshed.genres.cleanMetadataList().toJsonArrayString(),
+            creatorsJson = refreshed.creators.cleanMetadataList().toJsonArrayString(),
+            coverUrl = refreshed.coverUrl?.trim()?.takeIf { it.isNotBlank() },
+            synopsis = refreshed.synopsis?.trim()?.takeIf { it.isNotBlank() },
+            sourceUrl = refreshed.sourceUrl?.trim()?.takeIf { it.isNotBlank() },
+            externalRatingScore = refreshed.externalRating?.score,
+            externalRatingMax = refreshed.externalRating?.maxScore,
+            externalRatingVoteCount = refreshed.externalRating?.voteCount,
+            popularityScore = refreshed.popularityScore,
+            rankingPosition = refreshed.rankingPosition,
+            rankingLabel = refreshed.rankingLabel,
+            providerCollectionTitle = refreshed.collectionTitle,
+            ratingDistributionJson = refreshed.ratingDistributionJson,
+            popularityJson = refreshed.popularityJson,
+            rankingJson = refreshed.rankingJson,
+            metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
+        )
+
+        mediaDao.deleteMediaCreditsForItem(mediaItemId)
+        refreshed.credits
+            .filter { it.personName.isNotBlank() }
+            .mapIndexed { index, credit ->
+                credit.copy(
+                    id = 0,
+                    mediaItemId = mediaItemId,
+                    personName = credit.personName.trim(),
+                    characterName = credit.characterName?.trim()?.takeIf { it.isNotBlank() },
+                    sortOrder = credit.sortOrder.takeIf { it > 0 } ?: index,
+                    metadataSource = credit.metadataSource ?: metadataSource,
+                ).toEntity()
+            }
+            .takeIf { it.isNotEmpty() }
+            ?.let { credits -> mediaDao.insertMediaCredits(credits) }
+
+        mediaDao.deleteExternalRatingsForItem(mediaItemId)
+        refreshedRatings
+            .filter { it.score > 0.0 && it.maxScore > 0.0 }
+            .forEach { rating ->
+                mediaDao.insertExternalRating(
+                    ExternalRatingEntity(
+                        mediaItemId = mediaItemId,
+                        source = rating.source.name,
+                        score = rating.score,
+                        maxScore = rating.maxScore,
+                        voteCount = rating.voteCount,
+                    ),
+                )
+            }
+
+        refreshedTotal?.let { total ->
+            mediaDao.clampSessionsToMediaTotal(
+                mediaItemId = mediaItemId,
+                progressTotal = total,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+        }
+
+        return true
     }
 
 }

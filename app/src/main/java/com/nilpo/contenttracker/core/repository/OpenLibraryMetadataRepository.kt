@@ -104,6 +104,7 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         editions: JSONObject,
     ): MetadataSuggestion {
         val description = work.descriptionText()
+        val remoteTitle = work.optString("title").takeIf { it.isNotBlank() }
         val subjects = work.optJSONArray("subjects").toStringList().standardBookGenres()
         val entries = editions.optJSONArray("entries")
         val editionWithPages = entries.firstObjectWithPositiveInt("number_of_pages")
@@ -115,6 +116,7 @@ class OpenLibraryMetadataRepository : MetadataRepository {
             ?.takeIf { it > 0L }
 
         return copy(
+            title = remoteTitle ?: title,
             synopsis = description ?: synopsis,
             genres = subjects.ifEmpty { genres },
             progressTotal = progressTotal ?: pageCount,

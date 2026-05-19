@@ -139,6 +139,21 @@ class TmdbMetadataRepository(
     }
 
     private fun JSONObject.toDetailedSuggestion(base: MetadataSuggestion): MetadataSuggestion {
+        val title = when (base.mediaType) {
+            MediaType.Movie -> optString("title").takeIf { it.isNotBlank() }
+            MediaType.TvShow -> optString("name").takeIf { it.isNotBlank() }
+            else -> null
+        }
+        val originalTitle = when (base.mediaType) {
+            MediaType.Movie -> optString("original_title").takeIf { it.isNotBlank() && it != title }
+            MediaType.TvShow -> optString("original_name").takeIf { it.isNotBlank() && it != title }
+            else -> null
+        }
+        val releaseDate = when (base.mediaType) {
+            MediaType.Movie -> optString("release_date")
+            MediaType.TvShow -> optString("first_air_date")
+            else -> ""
+        }
         val posterPath = optString("poster_path").takeIf { it.isNotBlank() }
         val collectionTitle = optJSONObject("belongs_to_collection")
             ?.optString("name")
@@ -179,7 +194,10 @@ class TmdbMetadataRepository(
             ?: base.externalRating
 
         return base.copy(
+            title = title ?: base.title,
+            originalTitle = originalTitle ?: base.originalTitle,
             collectionTitle = collectionTitle ?: base.collectionTitle,
+            releaseYear = releaseDate.take(4).toIntOrNull() ?: base.releaseYear,
             genres = optJSONArray("genres").toStringList("name"),
             creators = creators.ifEmpty { base.creators },
             credits = (creatorCredits + castCredits).ifEmpty { base.credits },

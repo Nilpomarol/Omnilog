@@ -119,6 +119,7 @@ class RawgMetadataRepository(
     }
 
     private fun JSONObject.toDetailedSuggestion(base: MetadataSuggestion): MetadataSuggestion {
+        val title = optString("name").takeIf { it.isNotBlank() }
         val coverUrl = optString("background_image").takeIf { it.isNotBlank() }
         val releaseYear = optString("released")
             .take(4)
@@ -148,6 +149,7 @@ class RawgMetadataRepository(
         } ?: rawgRating
 
         return base.copy(
+            title = title ?: base.title,
             releaseYear = releaseYear ?: base.releaseYear,
             coverUrl = coverUrl ?: base.coverUrl,
             synopsis = optString("description_raw").takeIf { it.isNotBlank() } ?: base.synopsis,

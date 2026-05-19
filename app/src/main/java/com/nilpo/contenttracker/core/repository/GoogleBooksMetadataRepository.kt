@@ -38,8 +38,26 @@ class GoogleBooksMetadataRepository(
         }
     }
 
-    // Google Books search results already contain all needed fields.
-    override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion = suggestion
+    override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
+        if (apiKey.isBlank() || suggestion.source != MetadataSource.GoogleBooks) return suggestion
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val fields = "id,volumeInfo(title,authors,description,pageCount," +
+                    "averageRating,ratingsCount,publishedDate,categories,imageLinks/thumbnail,infoLink)"
+                val detailed = getJson(
+                    "https://www.googleapis.com/books/v1/volumes/${suggestion.externalId}" +
+                        "?fields=$fields&key=$apiKey",
+                ).toMetadataSuggestion() ?: return@runCatching suggestion
+
+                detailed.copy(
+                    externalRating = detailed.externalRating ?: suggestion.externalRating,
+                    externalRatings = (suggestion.externalRatings + detailed.externalRatings)
+                        .distinctBy { it.source },
+                )
+            }.getOrElse { suggestion }
+        }
+    }
 
     private fun JSONObject.toMetadataSuggestion(): MetadataSuggestion? {
         val id = optString("id").takeIf { it.isNotBlank() } ?: return null
