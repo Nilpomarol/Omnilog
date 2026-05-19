@@ -155,6 +155,8 @@ fun MediaMetadataHero(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = OmnilogColors.AppInk,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 metadata.originalTitle?.let { originalTitle ->
                     Text(
@@ -170,7 +172,7 @@ fun MediaMetadataHero(
                         text = metadata.creators.joinToString(", "),
                         style = MaterialTheme.typography.titleSmall,
                         color = OmnilogColors.AppInk.copy(alpha = 0.84f),
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -293,81 +295,33 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            rating?.let { score ->
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(
-                        text = metadata.externalRatingSourceName
-                            ?: metadata.sourceName
-                            ?: stringResource(R.string.field_rating),
-                        color = OmnilogColors.AppMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        verticalAlignment = Alignment.Bottom,
-                    ) {
-                        Text(
-                            text = formatDecimal(score),
-                            color = OmnilogColors.Dashboard,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                        metadata.externalRatingMax?.let { maxScore ->
-                            Text(
-                                text = "/${formatDecimal(maxScore)}",
-                                color = OmnilogColors.AppMuted,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(bottom = 3.dp),
-                            )
-                        }
-                    }
-                }
-            }
-
-            length?.let { total ->
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(
-                        text = stringResource(metadata.totalUnitLabelRes()),
-                        color = OmnilogColors.AppMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = total.toString(),
-                        color = OmnilogColors.AppInk,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                }
-            }
-        }
-
-        users?.let { userCount ->
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = stringResource(R.string.metadata_users),
-                    color = OmnilogColors.AppMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = formatCompactCount(userCount),
-                    color = OmnilogColors.AppInk,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
+            HeroMetric(
+                label = metadata.externalRatingSourceName
+                    ?: metadata.sourceName
+                    ?: stringResource(R.string.field_rating),
+                value = rating?.let { score ->
+                    metadata.externalRatingMax?.let { maxScore ->
+                        formatExternalRatingOnTen(score, maxScore)
+                    } ?: "${formatDecimal(score)}/10"
+                } ?: "-",
+                color = OmnilogColors.Dashboard,
+                modifier = Modifier.weight(1f),
+            )
+            HeroMetric(
+                label = stringResource(metadata.totalUnitLabelRes()),
+                value = length?.toString() ?: "-",
+                color = OmnilogColors.AppInk,
+                modifier = Modifier.weight(1f),
+            )
+            HeroMetric(
+                label = stringResource(R.string.metadata_users),
+                value = users?.let(::formatCompactCount) ?: "-",
+                color = OmnilogColors.AppInk,
+                modifier = Modifier.weight(1f),
+            )
         }
 
         if (supportingStats.isNotEmpty()) {
@@ -380,6 +334,36 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun HeroMetric(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        Text(
+            text = label,
+            color = OmnilogColors.AppMuted,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            color = color,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

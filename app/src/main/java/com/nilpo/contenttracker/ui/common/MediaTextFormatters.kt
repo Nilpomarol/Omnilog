@@ -18,6 +18,15 @@ fun displayMediaTitle(title: String): String {
     return cleanedTitle.ifBlank { title.trim() }
 }
 
+fun formatExternalRatingOnTen(score: Double, maxScore: Double): String {
+    val normalizedScore = if (maxScore > 0.0) {
+        score / maxScore * 10.0
+    } else {
+        score
+    }
+    return "${formatDecimal(normalizedScore)}/10"
+}
+
 @Composable
 fun MetadataSummary(
     trackedMedia: TrackedMedia,
@@ -26,12 +35,7 @@ fun MetadataSummary(
     val platform = session.platform?.let { stringResource(R.string.platform_label, it.name) }
     val ownership = stringResource(R.string.owned_label).takeIf { trackedMedia.item.ownership.isOwned }
     val externalRating = trackedMedia.externalRatings.firstOrNull()?.let {
-        stringResource(
-            R.string.external_rating,
-            it.source.name,
-            it.score,
-            it.maxScore,
-        )
+        "${it.source.name} ${formatExternalRatingOnTen(it.score, it.maxScore)}"
     }
     val externalTracking = trackedMedia.externalTracking.takeIf { it.isNotEmpty() }?.let { tracking ->
         stringResource(
@@ -48,6 +52,14 @@ fun MetadataSummary(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f),
             style = MaterialTheme.typography.bodySmall,
         )
+    }
+}
+
+private fun formatDecimal(value: Double): String {
+    return if (value % 1.0 == 0.0) {
+        value.toInt().toString()
+    } else {
+        "%.1f".format(value)
     }
 }
 

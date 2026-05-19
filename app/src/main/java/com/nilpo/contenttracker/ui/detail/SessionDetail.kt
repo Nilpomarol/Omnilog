@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -28,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,13 +55,13 @@ fun SessionDetail(
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
     var showDeleteConfirmation by rememberSaveable(session.id) { mutableStateOf(false) }
-    val statusColor = session.status.detailColor(accent)
+    val visualState = session.status.detailVisualState(accent)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        border = BorderStroke(1.dp, visualState.color.copy(alpha = 0.30f)),
         tonalElevation = 0.dp,
     ) {
         Column(
@@ -76,8 +81,9 @@ fun SessionDetail(
                         fontWeight = FontWeight.ExtraBold,
                     )
                     StatusChip(
-                        label = session.status.label(),
-                        color = statusColor,
+                        label = visualState.label,
+                        icon = visualState.icon,
+                        color = visualState.color,
                     )
                 }
                 Row(
@@ -99,10 +105,10 @@ fun SessionDetail(
             SessionProgress(
                 session = session,
                 progressTotal = progressTotal,
-                color = statusColor,
+                color = visualState.color,
             )
 
-            SessionRating(rating = session.rating, color = statusColor)
+            SessionRating(rating = session.rating, color = visualState.color)
 
             SessionMetaRow(session = session)
 
@@ -159,19 +165,25 @@ private fun TrackingSession.visitLabel(): String =
     }
 
 @Composable
-private fun StatusChip(label: String, color: Color) {
+private fun StatusChip(label: String, icon: ImageVector, color: Color) {
     Surface(
-        shape = RoundedCornerShape(999.dp),
+        shape = RoundedCornerShape(8.dp),
         color = color.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.34f)),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.32f)),
         contentColor = color,
     ) {
-        Text(
-            text = label,
+        Row(
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.ExtraBold,
-        )
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(13.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+        }
     }
 }
 
@@ -286,14 +298,47 @@ private fun TrackingStatus.label(): String =
         TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
     }
 
-private fun TrackingStatus.detailColor(accent: Color): Color =
+private data class SessionDetailVisualState(
+    val label: String,
+    val icon: ImageVector,
+    val color: Color,
+)
+
+@Composable
+private fun TrackingStatus.detailVisualState(accent: Color): SessionDetailVisualState =
     when (this) {
-        TrackingStatus.Planned -> OmnilogColors.Planned
-        TrackingStatus.InProgress -> OmnilogColors.InProgress
-        TrackingStatus.Completed -> OmnilogColors.Completed
-        TrackingStatus.Paused -> OmnilogColors.Paused
-        TrackingStatus.Dropped -> OmnilogColors.Dropped
-    }.takeIf { it != Color.Unspecified } ?: accent
+        TrackingStatus.Planned -> SessionDetailVisualState(
+            label = stringResource(R.string.status_planned),
+            icon = Icons.Filled.Star,
+            color = OmnilogColors.Planned,
+        )
+        TrackingStatus.InProgress -> SessionDetailVisualState(
+            label = stringResource(R.string.status_in_progress),
+            icon = Icons.Filled.PlayArrow,
+            color = OmnilogColors.InProgress,
+        )
+        TrackingStatus.Completed -> SessionDetailVisualState(
+            label = stringResource(R.string.status_completed),
+            icon = Icons.Filled.CheckCircle,
+            color = OmnilogColors.Completed,
+        )
+        TrackingStatus.Paused -> SessionDetailVisualState(
+            label = stringResource(R.string.status_paused),
+            icon = Icons.Filled.Edit,
+            color = OmnilogColors.Paused,
+        )
+        TrackingStatus.Dropped -> SessionDetailVisualState(
+            label = stringResource(R.string.status_dropped),
+            icon = Icons.Filled.Close,
+            color = OmnilogColors.Dropped,
+        )
+    }.let { visualState ->
+        if (visualState.color == Color.Unspecified) {
+            visualState.copy(color = accent)
+        } else {
+            visualState
+        }
+    }
 
 private fun TrackingSession.updatedDate(): LocalDate? {
     if (updatedAtEpochMillis <= 0L) return null

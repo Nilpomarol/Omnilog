@@ -41,6 +41,7 @@ import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.LocalDate
@@ -318,17 +319,10 @@ private fun ExternalScoreTile(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Text(
-                    text = formatScore(rating.score),
+                    text = formatExternalRatingOnTen(rating.score, rating.maxScore),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = accent,
-                )
-                Text(
-                    text = "/${formatScore(rating.maxScore)}",
-                    modifier = Modifier.padding(bottom = 3.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
                 )
             }
             rating.voteCount?.let { voteCount ->

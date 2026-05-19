@@ -50,6 +50,7 @@
     <string name="collection_action_add">Afegeix a colleccio</string>
     <string name="collection_modal_title">Colleccio</string>
     <string name="collection_search">Cerca colleccions</string>
+    <string name="collection_create_from_search">Crea \"%1$s\"</string>
     <string name="platform_label">Plataforma: %1$s</string>
     <string name="platform_none">Sense plataforma</string>
     <string name="progress_total_value">Total: %1$d</string>

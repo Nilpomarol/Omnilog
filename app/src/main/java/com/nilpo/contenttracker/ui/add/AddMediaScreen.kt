@@ -65,6 +65,7 @@ import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.delay
@@ -1132,7 +1133,7 @@ private fun MetadataSuggestionRow(
                     }
                     suggestion.externalRating?.let { rating ->
                         Text(
-                            text = "${formatDecimal(rating.score)}/${formatDecimal(rating.maxScore)}",
+                            text = formatExternalRatingOnTen(rating.score, rating.maxScore),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = accent,
@@ -1217,14 +1218,6 @@ private fun MediaType.sectionAccent(): Color {
         MediaType.TvShow,
             -> OmnilogColors.Tv
         MediaType.Game -> OmnilogColors.Games
-    }
-}
-
-private fun formatDecimal(value: Double): String {
-    return if (value % 1.0 == 0.0) {
-        value.toInt().toString()
-    } else {
-        "%.1f".format(value)
     }
 }
 

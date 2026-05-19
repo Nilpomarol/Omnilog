@@ -226,12 +226,16 @@ private fun CollectionDialog(
     onSave: (Long?, String?) -> Unit,
 ) {
     var selectedCollectionId by rememberSaveable(collection?.id) { mutableStateOf(collection?.id) }
-    var newCollectionName by rememberSaveable { mutableStateOf("") }
-    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchQuery by rememberSaveable(collection?.id) { mutableStateOf(collection?.name.orEmpty()) }
     val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
+    val trimmedQuery = searchQuery.trim()
     val visibleCollections = availableCollections.filter { availableCollection ->
-        availableCollection.name.contains(searchQuery.trim(), ignoreCase = true)
+        availableCollection.name.contains(trimmedQuery, ignoreCase = true)
     }
+    val exactCollectionNameMatch = availableCollections.firstOrNull { availableCollection ->
+        availableCollection.name.equals(trimmedQuery, ignoreCase = true)
+    }
+    val canCreateCollection = trimmedQuery.isNotBlank() && exactCollectionNameMatch == null
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -253,9 +257,14 @@ private fun CollectionDialog(
                         }
                         Button(
                             onClick = {
+                                val collectionIdToSave = selectedCollectionId ?: exactCollectionNameMatch?.id
                                 onSave(
-                                    selectedCollectionId,
-                                    newCollectionName.trim().takeIf { it.isNotBlank() },
+                                    collectionIdToSave,
+                                    if (collectionIdToSave == null) {
+                                        trimmedQuery.takeIf { it.isNotBlank() }
+                                    } else {
+                                        null
+                                    },
                                 )
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black),
@@ -278,7 +287,10 @@ private fun CollectionDialog(
                 ) {
                     OutlinedTextField(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = {
+                            searchQuery = it
+                            selectedCollectionId = null
+                        },
                         label = { Text(stringResource(R.string.collection_search)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -297,47 +309,38 @@ private fun CollectionDialog(
                         item {
                             CollectionOptionRow(
                                 text = stringResource(R.string.collection_none),
-                                selected = selectedCollection == null && newCollectionName.isBlank(),
+                                selected = selectedCollection == null && trimmedQuery.isBlank(),
                                 accent = accent,
                                 onClick = {
                                     selectedCollectionId = null
-                                    newCollectionName = ""
+                                    searchQuery = ""
                                 },
                             )
                         }
                         items(visibleCollections) { availableCollection ->
                             CollectionOptionRow(
                                 text = availableCollection.name,
-                                selected = availableCollection.id == selectedCollectionId && newCollectionName.isBlank(),
+                                selected = availableCollection.id == selectedCollectionId,
                                 accent = accent,
                                 onClick = {
                                     selectedCollectionId = availableCollection.id
-                                    newCollectionName = ""
+                                    searchQuery = availableCollection.name
                                 },
                             )
                         }
+                        if (canCreateCollection) {
+                            item {
+                                CollectionOptionRow(
+                                    text = stringResource(R.string.collection_create_from_search, trimmedQuery),
+                                    selected = selectedCollection == null,
+                                    accent = accent,
+                                    onClick = {
+                                        selectedCollectionId = null
+                                    },
+                                )
+                            }
+                        }
                     }
-
-                    Text(
-                        text = stringResource(R.string.field_new_collection),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f),
-                    )
-                    OutlinedTextField(
-                        value = newCollectionName,
-                        onValueChange = {
-                            newCollectionName = it
-                            selectedCollectionId = null
-                        },
-                        label = { Text(stringResource(R.string.field_new_collection)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = accent,
-                            cursorColor = accent,
-                        ),
-                    )
                 }
             }
         }
@@ -374,6 +377,7 @@ private fun CollectionOptionRow(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun ExternalTrackingDialog(
     externalTracking: List<ExternalTracking>,
     accent: Color,
@@ -387,74 +391,111 @@ fun ExternalTrackingDialog(
     var externalItemId by rememberSaveable { mutableStateOf("") }
     var url by rememberSaveable { mutableStateOf("") }
 
-    androidx.compose.material3.AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.detail_external_tracking)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (externalTracking.isEmpty()) {
-                    OptionSelector(
-                        label = stringResource(R.string.field_external_tracking_source),
-                        options = ExternalTrackingSource.entries,
-                        selectedOption = selectedSource,
-                        optionLabel = { source -> source.label() },
-                        onOptionSelected = { source -> selectedSource = source },
-                    )
-                    OutlinedTextField(
-                        value = externalItemId,
-                        onValueChange = { externalItemId = it },
-                        label = { Text(stringResource(R.string.field_external_tracking_id)) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = accent,
-                            cursorColor = accent,
-                        ),
-                    )
-                    OutlinedTextField(
-                        value = url,
-                        onValueChange = { url = it },
-                        label = { Text(stringResource(R.string.field_external_tracking_url)) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = accent,
-                            cursorColor = accent,
-                        ),
-                    )
-                } else {
-                    externalTracking.forEach { tracking ->
-                        ExternalTrackingManageRow(
-                            tracking = tracking,
-                            accent = accent,
-                            onUpdateExternalTracking = onUpdateExternalTracking,
-                            onUpdateSynced = onUpdateSynced,
-                            onDelete = onDelete,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.detail_external_tracking),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                         )
+                    },
+                    actions = {
+                        TextButton(onClick = onDismiss) {
+                            Text(text = stringResource(R.string.cancel), color = accent)
+                        }
+                        if (externalTracking.isEmpty()) {
+                            Button(
+                                onClick = {
+                                    onAddExternalTracking(
+                                        selectedSource,
+                                        externalItemId,
+                                        url,
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = accent,
+                                    contentColor = Color.Black,
+                                ),
+                            ) {
+                                Text(text = stringResource(R.string.add_external_tracking))
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) { innerPadding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (externalTracking.isEmpty()) {
+                    item {
+                        OptionSelector(
+                            label = stringResource(R.string.field_external_tracking_source),
+                            options = ExternalTrackingSource.entries,
+                            selectedOption = selectedSource,
+                            optionLabel = { source -> source.label() },
+                            onOptionSelected = { source -> selectedSource = source },
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = externalItemId,
+                            onValueChange = { externalItemId = it },
+                            label = { Text(stringResource(R.string.field_external_tracking_id)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = accent,
+                                cursorColor = accent,
+                            ),
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            label = { Text(stringResource(R.string.field_external_tracking_url)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = accent,
+                                cursorColor = accent,
+                            ),
+                        )
+                    }
+                } else {
+                    items(externalTracking) { tracking ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = OmnilogColors.AppPanel,
+                            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                        ) {
+                            ExternalTrackingManageRow(
+                                tracking = tracking,
+                                accent = accent,
+                                onUpdateExternalTracking = onUpdateExternalTracking,
+                                onUpdateSynced = onUpdateSynced,
+                                onDelete = onDelete,
+                            )
+                        }
                     }
                 }
             }
-        },
-        confirmButton = {
-            if (externalTracking.isEmpty()) {
-                Button(
-                    onClick = {
-                        onAddExternalTracking(
-                            selectedSource,
-                            externalItemId,
-                            url,
-                        )
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black),
-                ) {
-                    Text(text = stringResource(R.string.add_external_tracking))
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel))
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable
@@ -469,7 +510,10 @@ private fun ExternalTrackingManageRow(
     var externalItemId by rememberSaveable(tracking.id) { mutableStateOf(tracking.externalItemId.orEmpty()) }
     var url by rememberSaveable(tracking.id) { mutableStateOf(tracking.url.orEmpty()) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = Modifier.padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         OptionSelector(
             label = stringResource(R.string.field_external_tracking_source),
             options = ExternalTrackingSource.entries,
@@ -491,16 +535,18 @@ private fun ExternalTrackingManageRow(
             value = externalItemId,
             onValueChange = { externalItemId = it },
             label = { Text(stringResource(R.string.field_external_tracking_id)) },
+            modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = accent,
                 cursorColor = accent,
-            )
+            ),
         )
         OutlinedTextField(
             value = url,
             onValueChange = { url = it },
             label = { Text(stringResource(R.string.field_external_tracking_url)) },
+            modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = accent,
