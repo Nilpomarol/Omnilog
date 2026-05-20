@@ -105,6 +105,19 @@ class HomeViewModel(
 
     fun selectSection(section: MediaSection) {
         selectedSection.value = section
+        searchQuery.value = ""
+        statusFilter.value = null
+        sortMode.value = HomeSortMode.Title
+        sortDirection.value = HomeSortDirection.Ascending
+    }
+
+    fun selectSectionWithSearch(section: MediaSection, query: String) {
+        selectedSection.value = section
+        searchQuery.value = query
+        statusFilter.value = null
+        sortMode.value = HomeSortMode.Title
+        sortDirection.value = HomeSortDirection.Ascending
+        metadataSearchState.value = MetadataSearchUiState(query = query)
     }
 
     fun updateSearchQuery(query: String) {

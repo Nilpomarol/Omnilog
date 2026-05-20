@@ -293,6 +293,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     selectedCollectionId = null
                     selectedMediaId = trackedMedia.item.id
                 },
+                onSectionSearch = { section, query ->
+                    viewModel.selectSectionWithSearch(section, query)
+                    selectedDestination = AppDestination.Section
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                    isAdding = false
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

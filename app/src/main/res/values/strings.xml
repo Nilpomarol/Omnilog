@@ -13,10 +13,11 @@
     <string name="home_top_rated_title">Millors notes</string>
     <string name="home_recent_title">Activitat recent</string>
     <string name="home_stat_total_titles">Titols totals</string>
-    <string name="home_stat_hours_watched">Hores Totals</string>
+    <string name="home_stat_in_progress">En curs</string>
     <string name="home_stat_average_rating">Nota mitjana</string>
     <string name="home_stat_titles_this_year">Aquest any</string>
     <string name="home_redesign_placeholder">Aquest espai sera el resum visual d\'Omnilog: lectures, visionats, partides, estadistiques i activitat recent.</string>
+    <string name="dashboard_search_in_section">Busca \"%1$s\" a %2$s</string>
 
     <string name="empty_anime">L\'anime que segueixis apareixerà aquí.</string>
     <string name="empty_books">Els llibres que llegeixis i rellegeixis apareixeran aquí.</string>
