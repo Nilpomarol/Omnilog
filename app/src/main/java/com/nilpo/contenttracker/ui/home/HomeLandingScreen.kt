@@ -11,19 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -51,7 +46,6 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeLandingScreen(
@@ -62,18 +56,18 @@ fun HomeLandingScreen(
     val items = uiState.allTrackedItems
     val activeItems = items
         .filter { it.currentSession?.status == TrackingStatus.InProgress }
-        .sortedByDescending { it.currentSession?.updatedAtEpochMillis ?: 0L }
+        .sortedByDescending { it.latestActivityMillis() }
         .take(8)
     val topRatedItems = items
-        .filter { it.currentSession?.rating != null }
+        .filter { it.bestRating() != null }
         .sortedWith(
-            compareByDescending<TrackedMedia> { it.currentSession?.rating ?: 0 }
-                .thenByDescending { it.currentSession?.updatedAtEpochMillis ?: 0L },
+            compareByDescending<TrackedMedia> { it.bestRating() ?: 0 }
+                .thenByDescending { it.latestActivityMillis() },
         )
         .take(8)
     val recentItems = items
-        .filter { (it.currentSession?.updatedAtEpochMillis ?: 0L) > 0L }
-        .sortedByDescending { it.currentSession?.updatedAtEpochMillis ?: 0L }
+        .filter { it.latestActivityMillis() > 0L }
+        .sortedByDescending { it.latestActivityMillis() }
         .take(8)
 
     Surface(
@@ -168,13 +162,15 @@ private fun DashboardSearch() {
 @Composable
 private fun HomeStats(items: List<TrackedMedia>) {
     val currentYear = LocalDate.now().year
-    val ratedSessions = items.mapNotNull { it.currentSession?.rating }
+    val ratedSessions = items.flatMap { trackedMedia ->
+        trackedMedia.sessions.mapNotNull { it.rating }
+    }
     val averageRating = ratedSessions
         .takeIf { it.isNotEmpty() }
         ?.average()
         ?.let { "%.1f".format(it) }
         ?: "-"
-    val watchedHours = items.watchedMovieHours()
+    val watchedHours = items.totalTrackedHours()
     val titlesThisYear = items.count { trackedMedia ->
         trackedMedia.sessions.any { session ->
             session.finishedAt?.year == currentYear ||
@@ -321,10 +317,10 @@ private fun HomeMediaTile(
 
     Surface(
         modifier = Modifier
-            .width(176.dp)
-            .height(276.dp)
+            .width(164.dp)
+            .height(246.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
@@ -332,6 +328,12 @@ private fun HomeMediaTile(
             MetadataCoverImage(
                 coverUrl = trackedMedia.item.coverUrl,
                 modifier = Modifier.fillMaxSize(),
+            )
+            CardStatusIcon(
+                status = session?.status,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp),
             )
             Box(
                 modifier = Modifier
@@ -351,146 +353,96 @@ private fun HomeMediaTile(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Text(
-                    text = displayMediaTitle(trackedMedia.item.title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                session?.let {
-                    StatePill(
-                        status = it.status,
-                    )
-                    SessionStateInfo(
-                        session = it,
-                        progressTotal = trackedMedia.item.progressTotal,
-                        color = accent,
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        Text(
+                            text = displayMediaTitle(trackedMedia.item.title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = OmnilogColors.AppInk,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = session.progressLabel(
+                                progressTotal = trackedMedia.item.progressTotal,
+                                mediaType = trackedMedia.item.type,
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White.copy(alpha = 0.78f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    RatingSlot(rating = session?.rating, accent = accent)
                 }
+                ProgressBar(
+                    fraction = session.progressFraction(trackedMedia.item.progressTotal),
+                    color = accent,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun StatePill(
-    status: TrackingStatus,
+private fun CardStatusIcon(
+    status: TrackingStatus?,
+    modifier: Modifier = Modifier,
 ) {
-    val color = status.stateColor
+    val color = status?.stateColor ?: Color.White.copy(alpha = 0.28f)
 
     Surface(
+        modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = color.copy(alpha = 0.92f),
-        contentColor = Color.Black,
+        color = color.copy(alpha = if (status == null) 0.10f else 0.92f),
+        contentColor = if (status == null) Color.White.copy(alpha = 0.34f) else Color.Black,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier.size(24.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(status.iconResId),
-                contentDescription = null,
-                modifier = Modifier.height(13.dp),
-            )
-            Text(
-                text = status.label(),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-            )
+            if (status != null) {
+                Icon(
+                    painter = painterResource(status.iconResId),
+                    contentDescription = status.label(),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun SessionStateInfo(
-    session: TrackingSession,
-    progressTotal: Int?,
-    color: Color,
-) {
-    when (session.status) {
-        TrackingStatus.Planned -> Unit
-        TrackingStatus.Completed -> {
-            RatingDateLine(
-                rating = session.rating,
-                date = session.finishedAt?.formatDate(),
-                accent = color,
-            )
-        }
-        TrackingStatus.Dropped,
-        TrackingStatus.Paused,
-            -> {
-            RatingDateLine(
-                rating = session.rating,
-                date = session.finishedAt?.formatDate(),
-                accent = color,
-            )
-            ProgressBar(
-                fraction = session.progressFraction(progressTotal),
-                color = color.copy(alpha = 0.82f),
-            )
-        }
-        TrackingStatus.InProgress -> {
-            ProgressBar(
-                fraction = session.progressFraction(progressTotal),
-                color = color,
-            )
-            RatingDateLine(
-                rating = session.rating,
-                date = session.updatedDate()?.formatDate(),
-                accent = color,
-            )
-        }
-    }
-}
-
-@Composable
-private fun RatingDateLine(
+private fun RatingSlot(
     rating: Int?,
-    date: String?,
     accent: Color,
 ) {
-    if (rating == null && date == null) return
-
     Row(
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        modifier = Modifier
+            .width(30.dp)
+            .height(32.dp),
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.Bottom,
     ) {
-        rating?.let {
+        if (rating == null) {
+            Box(modifier = Modifier.height(32.dp))
+        } else {
             Text(
-                text = it.toString(),
-                style = MaterialTheme.typography.headlineSmall,
+                text = rating.toString(),
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = accent,
-            )
-            Text(
-                text = "/10",
-                modifier = Modifier.padding(bottom = 3.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.78f),
-            )
-        }
-        if (rating != null && date != null) {
-            Text(
-                text = "|",
-                modifier = Modifier.padding(bottom = 3.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.46f),
-            )
-        }
-        date?.let {
-            Text(
-                text = it,
-                modifier = Modifier.padding(bottom = 3.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.82f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -573,9 +525,25 @@ private fun MediaType.sectionAccent(): Color =
         MediaType.Game -> MediaSection.Games.accent
     }
 
-private fun TrackingSession.progressFraction(progressTotal: Int?): Float {
+private fun TrackingSession?.progressFraction(progressTotal: Int?): Float {
+    val current = this?.progressCurrent ?: 0
     if (progressTotal == null || progressTotal <= 0) return 0f
-    return progressCurrent.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
+    return current.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
+}
+
+private fun TrackingSession?.progressLabel(progressTotal: Int?, mediaType: MediaType): String {
+    val current = this?.progressCurrent ?: 0
+    val unit = mediaType.progressUnit()
+    return if (progressTotal != null) "$current/$progressTotal $unit" else "$current $unit"
+}
+
+private fun MediaType.progressUnit(): String = when (this) {
+    MediaType.Anime,
+    MediaType.TvShow,
+        -> "episodis"
+    MediaType.Book -> "pagines"
+    MediaType.Movie -> "min"
+    MediaType.Game -> "h"
 }
 
 private fun TrackingSession.updatedDate(): LocalDate? {
@@ -585,22 +553,29 @@ private fun TrackingSession.updatedDate(): LocalDate? {
         .toLocalDate()
 }
 
-private fun LocalDate.formatDate(): String =
-    format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-
-private fun List<TrackedMedia>.watchedMovieHours(): String {
-    val watchedMinutes = sumOf { trackedMedia ->
-        if (trackedMedia.item.type == MediaType.Movie) {
-            trackedMedia.currentSession?.progressCurrent ?: 0
-        } else {
-            0
+private fun List<TrackedMedia>.totalTrackedHours(): String {
+    val hours = sumOf { trackedMedia ->
+        trackedMedia.sessions.sumOf { session ->
+            when (trackedMedia.item.type) {
+                MediaType.Movie -> session.progressCurrent / 60.0
+                MediaType.Game -> session.progressCurrent.toDouble()
+                MediaType.Anime,
+                MediaType.Book,
+                MediaType.TvShow,
+                    -> 0.0
+            }
         }
     }
-    val hours = watchedMinutes / 60.0
 
-    return if (hours < 10.0 && watchedMinutes % 60 != 0) {
+    return if (hours < 10.0 && hours % 1.0 != 0.0) {
         "%.1f".format(hours)
     } else {
         hours.toInt().toString()
     }
 }
+
+private fun TrackedMedia.latestActivityMillis(): Long =
+    sessions.maxOfOrNull { it.updatedAtEpochMillis } ?: 0L
+
+private fun TrackedMedia.bestRating(): Int? =
+    sessions.mapNotNull { it.rating }.maxOrNull()
