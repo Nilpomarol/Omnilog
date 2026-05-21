@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.repository.BackupPreview
@@ -74,6 +75,7 @@ import com.nilpo.contenttracker.ui.home.HomeLandingScreen
 import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
+import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -101,6 +103,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
+    var addTargetCollection by remember { mutableStateOf<MediaCollection?>(null) }
+    var addTargetCollectionOrder by remember { mutableStateOf<Double?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
     var detailReturnTarget by remember { mutableStateOf<DetailReturnTarget>(DetailReturnTarget.Section) }
@@ -245,12 +249,20 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         val trackedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == mediaItemId }
             ?: return@LaunchedEffect
 
+        val targetCollection = addTargetCollection
         viewModel.selectSection(trackedMedia.item.type.homeSection())
         selectedDestination = AppDestination.Section
-        selectedCollectionId = null
-        detailReturnTarget = DetailReturnTarget.Section
-        selectedMediaId = mediaItemId
+        if (targetCollection != null) {
+            selectedCollectionId = targetCollection.id
+            selectedMediaId = null
+        } else {
+            selectedCollectionId = null
+            detailReturnTarget = DetailReturnTarget.Section
+            selectedMediaId = mediaItemId
+        }
         isAdding = false
+        addTargetCollection = null
+        addTargetCollectionOrder = null
         pendingCreatedMediaId = null
     }
 
@@ -273,6 +285,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             isAdding -> {
                 viewModel.clearMetadataSearch()
                 isAdding = false
+                addTargetCollection = null
+                addTargetCollectionOrder = null
                 selectedCollectionId = null
             }
             selectedCollectionId != null -> selectedCollectionId = null
@@ -309,17 +323,21 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     onHomeClick = {
                         selectedDestination = AppDestination.Home
                         selectedMediaId = null
-                        selectedCollectionId = null
-                        detailReturnTarget = DetailReturnTarget.Section
-                        isAdding = false
-                        viewModel.clearMetadataSearch()
-                    },
+                selectedCollectionId = null
+                detailReturnTarget = DetailReturnTarget.Section
+                isAdding = false
+                addTargetCollection = null
+                addTargetCollectionOrder = null
+                viewModel.clearMetadataSearch()
+            },
                     onSectionClick = { section ->
                         selectedDestination = AppDestination.Section
                         selectedMediaId = null
                         selectedCollectionId = null
                         detailReturnTarget = DetailReturnTarget.Section
                         isAdding = false
+                        addTargetCollection = null
+                        addTargetCollectionOrder = null
                         viewModel.selectSection(section)
                         viewModel.clearMetadataSearch()
                     },
@@ -327,10 +345,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             },
         ) { innerPadding ->
         if (isAdding) {
+            val targetCollection = addTargetCollection
+            val initialAddType = selectedCollectionItems.firstOrNull()?.item?.type
+                ?: uiState.selectedSection.defaultType
             AddMediaScreen(
-                initialMediaType = uiState.selectedSection.defaultType,
+                initialMediaType = initialAddType,
                 availableMediaTypes = uiState.selectedSection.types.toList(),
                 availableCollections = uiState.allTrackedItems.toAddCollectionOptions(),
+                initialCollection = targetCollection,
+                initialCollectionName = targetCollection?.name,
+                initialCollectionOrder = addTargetCollectionOrder?.let { formatCollectionOrder(it) },
                 onSave = { request ->
                     viewModel.addTrackedMedia(request)
                     viewModel.clearMetadataSearch()
@@ -361,6 +385,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onCancel = {
                     viewModel.clearMetadataSearch()
                     isAdding = false
+                    addTargetCollection = null
+                    addTargetCollectionOrder = null
                     selectedCollectionId = null
                 },
                 modifier = Modifier
@@ -399,9 +425,26 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     detailReturnTarget = DetailReturnTarget.Collection(selectedCollection.id)
                     selectedMediaId = it.item.id
                 },
+                onAddToCollection = { collection, nextOrder ->
+                    viewModel.clearMetadataSearch()
+                    addTargetCollection = collection
+                    addTargetCollectionOrder = nextOrder
+                    isAdding = true
+                },
                 onRenameCollection = viewModel::updateMediaCollectionName,
                 onDeleteCollection = viewModel::deleteMediaCollection,
                 onUpdateCollectionItemOrder = viewModel::updateCollectionItemOrder,
+                onUpdateMediaItemCollection = { trackedMedia, collectionId, collectionSortOrder ->
+                    viewModel.updateMediaItemDetails(
+                        mediaItemId = trackedMedia.item.id,
+                        title = trackedMedia.item.title,
+                        collectionId = collectionId,
+                        newCollectionName = null,
+                        collectionSortOrder = collectionSortOrder,
+                        progressTotal = trackedMedia.item.progressTotal,
+                        ownershipType = trackedMedia.item.ownership.type,
+                    )
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -421,6 +464,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onManualAddClick = {
                     viewModel.clearMetadataSearch()
                     isAdding = true
+                    addTargetCollection = null
+                    addTargetCollectionOrder = null
                     selectedCollectionId = null
                 },
                 onSearchQueryChange = viewModel::updateSearchQuery,
@@ -439,6 +484,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         DuplicateMatch.None -> {
                             viewModel.selectMetadataSuggestion(suggestion)
                             isAdding = true
+                            addTargetCollection = null
+                            addTargetCollectionOrder = null
                             selectedCollectionId = null
                         }
                     }

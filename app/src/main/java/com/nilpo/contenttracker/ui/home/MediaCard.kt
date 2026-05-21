@@ -49,6 +49,7 @@ fun MediaCard(
     trackedMedia: TrackedMedia,
     accent: Color,
     onClick: () -> Unit,
+    trailingAction: (@Composable () -> Unit)? = null,
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
@@ -143,8 +144,14 @@ fun MediaCard(
                             }
                         }
                     }
-                    if (session != null) {
-                        CardStateIconBadge(status = session.status)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        if (session != null) {
+                            CardStateIconBadge(status = session.status)
+                        }
+                        trailingAction?.invoke()
                     }
                 }
 

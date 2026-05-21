@@ -145,6 +145,15 @@
     <string name="collection_rename_title">Reanomena la col·lecció</string>
     <string name="collection_empty">Aquesta col·lecció no té elements.</string>
     <string name="collection_reorder">Reordena</string>
+    <string name="collection_add_item">Afegeix element</string>
+    <string name="collection_unsaved_reorder_title">Descarta els canvis?</string>
+    <string name="collection_unsaved_reorder_message">Tens canvis de reordenació sense desar.</string>
+    <string name="collection_remove_item">Treu de la col·lecció</string>
+    <string name="collection_remove_item_message">Vols treure %1$s de la col·lecció?</string>
+    <string name="collection_move_item">Mou</string>
+    <string name="collection_move_item_title">Mou a una altra col·lecció</string>
+    <string name="collection_move_item_empty">No hi ha altres col·leccions disponibles per a aquest tipus.</string>
+    <string name="collection_move_item_no_matches">No hi ha col·leccions que coincideixin amb la cerca.</string>
     <string name="collection_suggestion_existing">Col·lecció existent</string>
     <string name="collection_suggestion_provider">Suggerit per les metadades</string>
     <string name="collection_suggestion_title">Crea des del títol</string>
@@ -222,6 +231,7 @@
     <string name="platform_type_other">Altres</string>
     <string name="save">Desa</string>
     <string name="cancel">Cancel·la</string>
+    <string name="discard">Descarta</string>
     <string name="show_more">Veure mes</string>
     <string name="show_less">Mostra menys</string>
     <string name="delete">Elimina</string>

@@ -82,7 +82,7 @@ fun HomeScreen(
     val collapsedGroupKeysState = remember(section, uiState.groupMode, groupedItems.map { it.key }) {
         mutableStateOf(
             if (uiState.groupMode == HomeGroupMode.Collection) {
-                groupedItems.filter { it.collection != null }.map { it.key }
+                groupedItems.map { it.key }
             } else {
                 emptyList()
             },
@@ -185,10 +185,10 @@ fun HomeScreen(
                             )
                             AnimatedVisibility(
                                 visible = !isCollapsed,
-                                enter = expandVertically(tween(300), expandFrom = Alignment.Top) +
-                                    fadeIn(tween(220, delayMillis = 80)),
-                                exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top) +
-                                    fadeOut(tween(150)),
+                                enter = expandVertically(tween(300, delayMillis = 70), expandFrom = Alignment.Top) +
+                                    fadeIn(tween(180, delayMillis = 120)),
+                                exit = shrinkVertically(tween(210), shrinkTowards = Alignment.Top) +
+                                    fadeOut(tween(110)),
                             ) {
                                 Column(
                                     modifier = Modifier.padding(top = 12.dp),

@@ -1,20 +1,26 @@
 package com.nilpo.contenttracker.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -44,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -61,17 +68,22 @@ fun CollectionDetailScreen(
     accent: Color,
     onBack: () -> Unit,
     onMediaClick: (TrackedMedia) -> Unit,
+    onAddToCollection: (MediaCollection, Double?) -> Unit,
     onRenameCollection: (Long, String) -> Unit,
     onDeleteCollection: (Long) -> Unit,
     onUpdateCollectionItemOrder: (Long, List<CollectionItemOrder>) -> Unit,
+    onUpdateMediaItemCollection: (TrackedMedia, Long?, Double?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var nameText by rememberSaveable(collection.id) { mutableStateOf(collection.name) }
     var showRenameDialog by rememberSaveable(collection.id) { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable(collection.id) { mutableStateOf(false) }
+    var showDiscardReorderConfirmation by rememberSaveable(collection.id) { mutableStateOf(false) }
     var isReordering by rememberSaveable(collection.id) { mutableStateOf(false) }
     var draftOrderValues by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
     var menuExpanded by remember { mutableStateOf(false) }
+    var itemPendingRemoval by remember { mutableStateOf<TrackedMedia?>(null) }
+    var itemPendingMove by remember { mutableStateOf<TrackedMedia?>(null) }
     val sortedItems = items.sortedWith(collectionItemComparator())
     val displayedItems = if (isReordering) {
         sortedItems.sortedWith(
@@ -85,6 +97,18 @@ fun CollectionDetailScreen(
     } else {
         sortedItems
     }
+    val hasUnsavedReorder = isReordering && draftOrderValues != sortedItems.toDraftOrderValues()
+    val nextCollectionOrder = (items.maxOfOrNull { it.item.collectionSortOrder ?: 0.0 } ?: 0.0) + 1.0
+    val requestBack = {
+        if (hasUnsavedReorder) {
+            showDiscardReorderConfirmation = true
+        } else if (isReordering) {
+            isReordering = false
+            draftOrderValues = sortedItems.toDraftOrderValues()
+        } else {
+            onBack()
+        }
+    }
 
     // Keep nameText in sync if the collection name changes externally (e.g. after a save)
     LaunchedEffect(collection.id, collection.name) {
@@ -94,6 +118,9 @@ fun CollectionDetailScreen(
         if (!isReordering) {
             draftOrderValues = sortedItems.toDraftOrderValues()
         }
+    }
+    BackHandler(enabled = isReordering) {
+        requestBack()
     }
 
     Surface(
@@ -110,14 +137,7 @@ fun CollectionDetailScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    onClick = {
-                        if (isReordering) {
-                            isReordering = false
-                            draftOrderValues = sortedItems.toDraftOrderValues()
-                        } else {
-                            onBack()
-                        }
-                    },
+                    onClick = requestBack,
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -141,8 +161,12 @@ fun CollectionDetailScreen(
                 if (isReordering) {
                     TextButton(
                         onClick = {
-                            isReordering = false
-                            draftOrderValues = sortedItems.toDraftOrderValues()
+                            if (hasUnsavedReorder) {
+                                showDiscardReorderConfirmation = true
+                            } else {
+                                isReordering = false
+                                draftOrderValues = sortedItems.toDraftOrderValues()
+                            }
                         },
                     ) {
                         Text(text = stringResource(R.string.cancel))
@@ -159,6 +183,19 @@ fun CollectionDetailScreen(
                         Text(text = stringResource(R.string.save), color = accent)
                     }
                 } else {
+                    Text(
+                        text = stringResource(R.string.collection_item_count, items.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 1,
+                    )
+                    IconButton(onClick = { onAddToCollection(collection, nextCollectionOrder) }) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.collection_add_item),
+                            tint = accent,
+                        )
+                    }
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {
                             Icon(
@@ -211,14 +248,6 @@ fun CollectionDetailScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item {
-                    Text(
-                        text = stringResource(R.string.collection_item_count, items.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppMuted,
-                    )
-                }
-
                 if (items.isEmpty()) {
                     item {
                         Text(
@@ -247,31 +276,23 @@ fun CollectionDetailScreen(
                                         )
                                 },
                                 onMoveUp = {
-                                    draftOrderValues = draftOrderValues + (
-                                        trackedMedia.item.id to displayedItems
-                                            .suggestOrderBetween(
-                                                beforeIndex = index - 2,
-                                                afterIndex = index - 1,
-                                                draftOrderValues = draftOrderValues,
-                                            )
-                                        )
+                                    draftOrderValues = displayedItems
+                                        .moveItem(fromIndex = index, toIndex = index - 1)
+                                        .toSequentialDraftOrderValues()
                                 },
                                 onMoveDown = {
-                                    draftOrderValues = draftOrderValues + (
-                                        trackedMedia.item.id to displayedItems
-                                            .suggestOrderBetween(
-                                                beforeIndex = index + 1,
-                                                afterIndex = index + 2,
-                                                draftOrderValues = draftOrderValues,
-                                            )
-                                        )
+                                    draftOrderValues = displayedItems
+                                        .moveItem(fromIndex = index, toIndex = index + 1)
+                                        .toSequentialDraftOrderValues()
                                 },
                             )
                         } else {
-                            MediaCard(
+                            CollectionItemCard(
                                 trackedMedia = trackedMedia,
                                 accent = accent,
-                                onClick = { onMediaClick(trackedMedia) },
+                                onMediaClick = onMediaClick,
+                                onMoveClick = { itemPendingMove = trackedMedia },
+                                onRemoveClick = { itemPendingRemoval = trackedMedia },
                             )
                         }
                     }
@@ -345,6 +366,270 @@ fun CollectionDetailScreen(
             },
         )
     }
+
+    if (showDiscardReorderConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDiscardReorderConfirmation = false },
+            title = { Text(text = stringResource(R.string.collection_unsaved_reorder_title)) },
+            text = { Text(text = stringResource(R.string.collection_unsaved_reorder_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardReorderConfirmation = false
+                        isReordering = false
+                        draftOrderValues = sortedItems.toDraftOrderValues()
+                    },
+                ) {
+                    Text(text = stringResource(R.string.discard))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardReorderConfirmation = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    itemPendingRemoval?.let { trackedMedia ->
+        AlertDialog(
+            onDismissRequest = { itemPendingRemoval = null },
+            title = { Text(text = stringResource(R.string.collection_remove_item)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.collection_remove_item_message,
+                        displayMediaTitle(trackedMedia.item.title),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUpdateMediaItemCollection(trackedMedia, null, null)
+                        itemPendingRemoval = null
+                    },
+                ) {
+                    Text(text = stringResource(R.string.collection_remove_item))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { itemPendingRemoval = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    itemPendingMove?.let { trackedMedia ->
+        val targetCollections = trackedMedia.availableCollections
+            .filter { availableCollection -> availableCollection.id != collection.id }
+        MoveCollectionDialog(
+            availableCollections = targetCollections,
+            accent = accent,
+            onDismiss = { itemPendingMove = null },
+            onMove = { targetCollection ->
+                onUpdateMediaItemCollection(
+                    trackedMedia,
+                    targetCollection.id,
+                    null,
+                )
+                itemPendingMove = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun MoveCollectionDialog(
+    availableCollections: List<MediaCollection>,
+    accent: Color,
+    onDismiss: () -> Unit,
+    onMove: (MediaCollection) -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    var selectedCollectionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val trimmedQuery = query.trim()
+    val visibleCollections = availableCollections.filter { availableCollection ->
+        availableCollection.name.contains(trimmedQuery, ignoreCase = true)
+    }
+    val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.collection_move_item_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = {
+                        query = it
+                        selectedCollectionId = null
+                    },
+                    placeholder = { Text(stringResource(R.string.collection_search)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                )
+
+                when {
+                    availableCollections.isEmpty() -> Text(
+                        text = stringResource(R.string.collection_move_item_empty),
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OmnilogColors.AppMuted,
+                    )
+                    visibleCollections.isEmpty() -> Text(
+                        text = stringResource(R.string.collection_move_item_no_matches),
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OmnilogColors.AppMuted,
+                    )
+                    else -> LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 238.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp),
+                    ) {
+                        items(
+                            items = visibleCollections,
+                            key = { collection -> collection.id },
+                        ) { targetCollection ->
+                            CollectionMoveOptionRow(
+                                collection = targetCollection,
+                                selected = targetCollection.id == selectedCollectionId,
+                                accent = accent,
+                                onClick = {
+                                    selectedCollectionId = targetCollection.id
+                                    query = targetCollection.name
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = stringResource(R.string.cancel))
+                    }
+                    TextButton(
+                        enabled = selectedCollection != null,
+                        onClick = {
+                            selectedCollection?.let(onMove)
+                        },
+                    ) {
+                        Text(text = stringResource(R.string.collection_move_item), color = accent)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectionMoveOptionRow(
+    collection: MediaCollection,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, if (selected) accent.copy(alpha = 0.58f) else OmnilogColors.AppLine),
+        contentColor = if (selected) accent else OmnilogColors.AppInk,
+    ) {
+        Text(
+            text = collection.name,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun CollectionItemCard(
+    trackedMedia: TrackedMedia,
+    accent: Color,
+    onMediaClick: (TrackedMedia) -> Unit,
+    onMoveClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    MediaCard(
+        trackedMedia = trackedMedia,
+        accent = accent,
+        onClick = { onMediaClick(trackedMedia) },
+        trailingAction = {
+            Box {
+                Surface(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(28.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = OmnilogColors.AppLine,
+                    contentColor = OmnilogColors.AppMuted,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.collection_move_item)) },
+                        onClick = {
+                            menuExpanded = false
+                            onMoveClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = stringResource(R.string.collection_remove_item),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onRemoveClick()
+                        },
+                    )
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -521,6 +806,20 @@ private fun List<TrackedMedia>.toDraftOrderValues(): Map<Long, String> {
     }.toMap()
 }
 
+private fun List<TrackedMedia>.toSequentialDraftOrderValues(): Map<Long, String> {
+    return mapIndexed { index, trackedMedia ->
+        trackedMedia.item.id to (index + 1).toString()
+    }.toMap()
+}
+
+private fun List<TrackedMedia>.moveItem(fromIndex: Int, toIndex: Int): List<TrackedMedia> {
+    if (fromIndex !in indices || toIndex !in indices || fromIndex == toIndex) return this
+
+    return toMutableList().apply {
+        add(toIndex, removeAt(fromIndex))
+    }
+}
+
 private fun List<TrackedMedia>.toCollectionItemOrders(
     draftOrderValues: Map<Long, String>,
 ): List<CollectionItemOrder> {
@@ -532,30 +831,6 @@ private fun List<TrackedMedia>.toCollectionItemOrders(
                 ?: (index + 1).toDouble(),
         )
     }
-}
-
-private fun List<TrackedMedia>.suggestOrderBetween(
-    beforeIndex: Int,
-    afterIndex: Int,
-    draftOrderValues: Map<Long, String>,
-): String {
-    val beforeItem = getOrNull(beforeIndex)
-    val afterItem = getOrNull(afterIndex)
-    val before = beforeItem?.let { trackedMedia ->
-        draftOrderValues[trackedMedia.item.id].toCollectionOrderOrNull()
-            ?: trackedMedia.item.collectionSortOrder
-    }
-    val after = afterItem?.let { trackedMedia ->
-        draftOrderValues[trackedMedia.item.id].toCollectionOrderOrNull()
-            ?: trackedMedia.item.collectionSortOrder
-    }
-    val suggestion = when {
-        before != null && after != null -> (before + after) / 2.0
-        before != null -> before + 1.0
-        after != null -> (after - 1.0).coerceAtLeast(0.0)
-        else -> 0.0
-    }
-    return formatCollectionOrder(suggestion)
 }
 
 private fun String.toCollectionOrderInput(): String {

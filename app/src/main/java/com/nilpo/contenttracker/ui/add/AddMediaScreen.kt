@@ -85,6 +85,9 @@ fun AddMediaScreen(
     initialMediaType: MediaType,
     availableMediaTypes: List<MediaType>,
     availableCollections: List<AddCollectionOption>,
+    initialCollection: MediaCollection? = null,
+    initialCollectionName: String? = null,
+    initialCollectionOrder: String? = null,
     onSave: (AddTrackedMediaRequest) -> Unit,
     metadataUiState: MetadataSearchUiState,
     onMetadataQueryChange: (String) -> Unit,
@@ -111,13 +114,16 @@ fun AddMediaScreen(
     var initialNotes by remember { mutableStateOf("") }
     var initialStartedAt by remember { mutableStateOf(LocalDate.now().toString()) }
     var initialFinishedAt by remember { mutableStateOf("") }
-    var collectionName by remember { mutableStateOf("") }
-    var collectionOrder by remember { mutableStateOf("") }
+    var collectionName by remember { mutableStateOf(initialCollection?.name ?: initialCollectionName.orEmpty()) }
+    var collectionOrder by remember { mutableStateOf(initialCollectionOrder.orEmpty()) }
     val selectedMetadataSuggestion = metadataUiState.selectedSuggestion
     val availableCollectionsForType = availableCollections
         .filter { option -> selectedMediaType in option.mediaTypes }
         .map { option -> option.collection }
     val matchedCollection = availableCollectionsForType.bestCollectionMatch(collectionName)
+        ?: initialCollection?.takeIf { collection ->
+            collection.name.equals(collectionName.trim(), ignoreCase = true)
+        }
 
     LaunchedEffect(selectedMetadataSuggestion) {
         selectedMetadataSuggestion?.let { suggestion ->
