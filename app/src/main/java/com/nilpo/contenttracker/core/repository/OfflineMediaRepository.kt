@@ -168,7 +168,7 @@ class OfflineMediaRepository(
         mediaDao.updateExternalTrackingSyncedForMedia(request.mediaItemId, isSynced = false)
     }
 
-    override suspend fun addTrackedMedia(request: AddTrackedMediaRequest) {
+    override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long {
         val validNewCollectionName = request.newCollectionName?.trim()?.takeIf { it.isNotBlank() }
         val validCollectionId = when {
             validNewCollectionName != null -> mediaDao.insertMediaCollection(
@@ -263,6 +263,7 @@ class OfflineMediaRepository(
                 updatedAtEpochMillis = System.currentTimeMillis(),
             ),
         )
+        return mediaItemId
     }
 
     override suspend fun updateSessionDetails(

@@ -99,6 +99,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
+    var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
@@ -198,13 +199,37 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
-            val message = when (event) {
-                HomeUiEvent.MetadataRefreshSucceeded -> metadataRefreshSuccessMessage
-                HomeUiEvent.MetadataRefreshUnavailable -> metadataRefreshUnavailableMessage
-                HomeUiEvent.MetadataRefreshFailed -> metadataRefreshErrorMessage
+            when (event) {
+                is HomeUiEvent.MediaItemCreated -> {
+                    pendingCreatedMediaId = event.mediaItemId
+                }
+                HomeUiEvent.MetadataRefreshSucceeded,
+                HomeUiEvent.MetadataRefreshUnavailable,
+                HomeUiEvent.MetadataRefreshFailed,
+                    -> {
+                    val message = when (event) {
+                        HomeUiEvent.MetadataRefreshSucceeded -> metadataRefreshSuccessMessage
+                        HomeUiEvent.MetadataRefreshUnavailable -> metadataRefreshUnavailableMessage
+                        HomeUiEvent.MetadataRefreshFailed -> metadataRefreshErrorMessage
+                        is HomeUiEvent.MediaItemCreated -> return@collect
+                    }
+                    snackbarHostState.showSnackbar(message)
+                }
             }
-            snackbarHostState.showSnackbar(message)
         }
+    }
+
+    LaunchedEffect(uiState.allTrackedItems, pendingCreatedMediaId) {
+        val mediaItemId = pendingCreatedMediaId ?: return@LaunchedEffect
+        val trackedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == mediaItemId }
+            ?: return@LaunchedEffect
+
+        viewModel.selectSection(trackedMedia.item.type.homeSection())
+        selectedDestination = AppDestination.Section
+        selectedCollectionId = null
+        selectedMediaId = mediaItemId
+        isAdding = false
+        pendingCreatedMediaId = null
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

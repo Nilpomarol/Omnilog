@@ -43,7 +43,7 @@ interface MediaRepository {
 
     suspend fun startNewSession(request: AddTrackingSessionRequest)
 
-    suspend fun addTrackedMedia(request: AddTrackedMediaRequest)
+    suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long
 
     suspend fun updateSessionDetails(
         sessionId: Long,

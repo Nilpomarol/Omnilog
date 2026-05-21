@@ -218,7 +218,8 @@ class HomeViewModel(
 
     fun addTrackedMedia(request: AddTrackedMediaRequest) {
         viewModelScope.launch {
-            mediaRepository.addTrackedMedia(request)
+            val mediaItemId = mediaRepository.addTrackedMedia(request)
+            mutableEvents.emit(HomeUiEvent.MediaItemCreated(mediaItemId))
         }
     }
 
@@ -409,6 +410,7 @@ class HomeViewModel(
 }
 
 sealed interface HomeUiEvent {
+    data class MediaItemCreated(val mediaItemId: Long) : HomeUiEvent
     data object MetadataRefreshSucceeded : HomeUiEvent
     data object MetadataRefreshUnavailable : HomeUiEvent
     data object MetadataRefreshFailed : HomeUiEvent

@@ -708,13 +708,14 @@ private fun ReviewStatusSelector(
     ) {
         items(TrackingStatus.entries) { status ->
             val isSelected = status == selectedStatus
+            val statusColor = status.stateColor
             Surface(
                 onClick = { onStatusSelected(status) },
                 shape = RoundedCornerShape(8.dp),
-                color = if (isSelected) accent.copy(alpha = 0.18f) else OmnilogColors.AppPanel,
+                color = if (isSelected) statusColor.copy(alpha = 0.18f) else OmnilogColors.AppPanel,
                 border = BorderStroke(
                     width = if (isSelected) 1.5.dp else 1.dp,
-                    color = if (isSelected) accent.copy(alpha = 0.78f) else OmnilogColors.AppLine,
+                    color = if (isSelected) statusColor.copy(alpha = 0.78f) else OmnilogColors.AppLine,
                 ),
             ) {
                 Text(
@@ -722,7 +723,7 @@ private fun ReviewStatusSelector(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                    color = if (isSelected) accent else OmnilogColors.AppMuted,
+                    color = if (isSelected) statusColor else OmnilogColors.AppMuted,
                 )
             }
         }
@@ -1525,6 +1526,15 @@ private fun TrackingStatus.label(): String {
         TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
     }
 }
+
+private val TrackingStatus.stateColor: Color
+    get() = when (this) {
+        TrackingStatus.Planned -> OmnilogColors.Planned
+        TrackingStatus.InProgress -> OmnilogColors.InProgress
+        TrackingStatus.Completed -> OmnilogColors.Completed
+        TrackingStatus.Paused -> OmnilogColors.Paused
+        TrackingStatus.Dropped -> OmnilogColors.Dropped
+    }
 
 @Composable
 private fun progressUnitLabel(mediaType: MediaType, value: Int): String {
