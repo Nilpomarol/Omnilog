@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.ui
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -102,9 +103,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
+    var detailReturnTarget by remember { mutableStateOf<DetailReturnTarget>(DetailReturnTarget.Section) }
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val backupActions = remember { BackupHeaderActions() }
-    val selectedMedia = uiState.trackedItems.firstOrNull { it.item.id == selectedMediaId }
+    val selectedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == selectedMediaId }
     val selectedCollection = uiState.trackedItems
         .mapNotNull { it.collection }
         .firstOrNull { it.id == selectedCollectionId }
@@ -120,11 +122,30 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val metadataRefreshSuccessMessage = stringResource(R.string.metadata_refresh_success)
     val metadataRefreshUnavailableMessage = stringResource(R.string.metadata_refresh_unavailable)
     val metadataRefreshErrorMessage = stringResource(R.string.metadata_refresh_error)
+    val navigateBackFromDetail = {
+        when (val returnTarget = detailReturnTarget) {
+            DetailReturnTarget.Home -> {
+                selectedDestination = AppDestination.Home
+                selectedMediaId = null
+                selectedCollectionId = null
+            }
+            is DetailReturnTarget.Collection -> {
+                selectedDestination = AppDestination.Section
+                selectedMediaId = null
+                selectedCollectionId = returnTarget.collectionId
+            }
+            DetailReturnTarget.Section -> {
+                selectedMediaId = null
+            }
+        }
+        detailReturnTarget = DetailReturnTarget.Section
+    }
     val openTrackedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
         viewModel.selectSection(trackedMedia.item.type.homeSection())
         selectedDestination = AppDestination.Section
         selectedCollectionId = null
+        detailReturnTarget = DetailReturnTarget.Section
         selectedMediaId = trackedMedia.item.id
         isAdding = false
     }
@@ -227,9 +248,42 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         viewModel.selectSection(trackedMedia.item.type.homeSection())
         selectedDestination = AppDestination.Section
         selectedCollectionId = null
+        detailReturnTarget = DetailReturnTarget.Section
         selectedMediaId = mediaItemId
         isAdding = false
         pendingCreatedMediaId = null
+    }
+
+    BackHandler(
+        enabled = pendingPossibleDuplicate != null ||
+            pendingImportConfirmation != null ||
+            pendingImport != null ||
+            showRestoreList ||
+            selectedMediaId != null ||
+            isAdding ||
+            selectedCollectionId != null ||
+            selectedDestination != AppDestination.Home,
+    ) {
+        when {
+            pendingPossibleDuplicate != null -> pendingPossibleDuplicate = null
+            pendingImportConfirmation != null -> pendingImportConfirmation = null
+            pendingImport != null -> pendingImport = null
+            showRestoreList -> showRestoreList = false
+            selectedMediaId != null -> navigateBackFromDetail()
+            isAdding -> {
+                viewModel.clearMetadataSearch()
+                isAdding = false
+                selectedCollectionId = null
+            }
+            selectedCollectionId != null -> selectedCollectionId = null
+            selectedDestination != AppDestination.Home -> {
+                selectedDestination = AppDestination.Home
+                selectedCollectionId = null
+                selectedMediaId = null
+                isAdding = false
+                viewModel.clearMetadataSearch()
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -244,7 +298,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     showBackupActions = selectedMedia == null && !isAdding,
                     detailActions = detailActions,
                     backupActions = backupActions,
-                    onBack = { selectedMediaId = null },
+                    onBack = navigateBackFromDetail,
                 )
             },
             snackbarHost = {},
@@ -256,6 +310,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         selectedDestination = AppDestination.Home
                         selectedMediaId = null
                         selectedCollectionId = null
+                        detailReturnTarget = DetailReturnTarget.Section
                         isAdding = false
                         viewModel.clearMetadataSearch()
                     },
@@ -263,6 +318,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         selectedDestination = AppDestination.Section
                         selectedMediaId = null
                         selectedCollectionId = null
+                        detailReturnTarget = DetailReturnTarget.Section
                         isAdding = false
                         viewModel.selectSection(section)
                         viewModel.clearMetadataSearch()
@@ -319,6 +375,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     viewModel.selectSection(section)
                     selectedDestination = AppDestination.Section
                     selectedCollectionId = null
+                    detailReturnTarget = DetailReturnTarget.Home
                     selectedMediaId = trackedMedia.item.id
                 },
                 onSectionSearch = { section, query ->
@@ -338,7 +395,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 items = selectedCollectionItems,
                 accent = uiState.selectedSection.accent,
                 onBack = { selectedCollectionId = null },
-                onMediaClick = { selectedMediaId = it.item.id },
+                onMediaClick = {
+                    detailReturnTarget = DetailReturnTarget.Collection(selectedCollection.id)
+                    selectedMediaId = it.item.id
+                },
                 onRenameCollection = viewModel::updateMediaCollectionName,
                 onDeleteCollection = viewModel::deleteMediaCollection,
                 onUpdateCollectionItemOrder = viewModel::updateCollectionItemOrder,
@@ -350,7 +410,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             HomeScreen(
                 uiState = uiState,
                 metadataUiState = metadataUiState,
-                onMediaClick = { selectedMediaId = it.item.id },
+                onMediaClick = {
+                    detailReturnTarget = DetailReturnTarget.Section
+                    selectedMediaId = it.item.id
+                },
                 onCollectionClick = {
                     selectedCollectionId = it.id
                     isAdding = false
@@ -404,7 +467,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 trackedMedia = selectedMedia,
                 accent = uiState.selectedSection.accent,
                 headerActions = actions,
-                onBack = { selectedMediaId = null },
+                onBack = navigateBackFromDetail,
                 onStartNewSession = viewModel::startNewSession,
                 onUpdateSessionDetails = viewModel::updateSessionDetails,
                 onDeletePastSession = viewModel::deletePastSession,
@@ -674,6 +737,12 @@ class BackupHeaderActions {
 private enum class AppDestination {
     Home,
     Section,
+}
+
+private sealed interface DetailReturnTarget {
+    data object Home : DetailReturnTarget
+    data object Section : DetailReturnTarget
+    data class Collection(val collectionId: Long) : DetailReturnTarget
 }
 
 private sealed interface DuplicateMatch {
