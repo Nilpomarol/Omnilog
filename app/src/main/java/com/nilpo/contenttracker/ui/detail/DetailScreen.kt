@@ -39,6 +39,7 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
+import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
@@ -73,6 +74,13 @@ fun DetailScreen(
     var showExternalTrackingManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     val isExternalTrackingUpdated = trackedMedia.externalTracking.isNotEmpty() &&
         trackedMedia.externalTracking.all { it.isSynced }
+    val metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
+        collectionName = trackedMedia.collection?.name,
+        collectionSortOrder = trackedMedia.item.collectionSortOrder,
+        isOwned = trackedMedia.item.ownership.isOwned,
+        isExternalTrackingUpdated = isExternalTrackingUpdated,
+        externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
+    )
 
     headerActions.onDeleteRequested = {
         showDeleteConfirmation = true
@@ -96,14 +104,14 @@ fun DetailScreen(
         ) {
             item {
                 MediaMetadataHero(
-                    metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
-                        collectionName = trackedMedia.collection?.name,
-                        collectionSortOrder = trackedMedia.item.collectionSortOrder,
-                        isOwned = trackedMedia.item.ownership.isOwned,
-                        isExternalTrackingUpdated = isExternalTrackingUpdated,
-                        externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
-                    ),
+                    metadata = metadata,
                 )
+            }
+
+            if (metadata.genres.isNotEmpty()) {
+                item {
+                    MediaMetadataHeroGenres(metadata = metadata)
+                }
             }
 
             if (currentSession != null) {
