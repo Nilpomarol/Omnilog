@@ -34,6 +34,7 @@ class HomeViewModel(
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
     private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
+    private val groupMode = MutableStateFlow(HomeGroupMode.None)
     private val sortMode = MutableStateFlow(HomeSortMode.Title)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Ascending)
     private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
@@ -46,12 +47,14 @@ class HomeViewModel(
     private val filters = combine(
         searchQuery,
         statusFilter,
+        groupMode,
         sortMode,
         sortDirection,
-    ) { query, status, sort, direction ->
+    ) { query, status, group, sort, direction ->
         HomeFilters(
             query = query,
             status = status,
+            group = group,
             sort = sort,
             direction = direction,
         )
@@ -75,6 +78,7 @@ class HomeViewModel(
             trackedItems = visibleItems,
             searchQuery = filters.query,
             statusFilter = filters.status,
+            groupMode = filters.group,
             sortMode = filters.sort,
             sortDirection = filters.direction,
             refreshingMetadataItemId = refreshingItemId,
@@ -108,6 +112,7 @@ class HomeViewModel(
         selectedSection.value = section
         searchQuery.value = ""
         statusFilter.value = null
+        groupMode.value = HomeGroupMode.None
         sortMode.value = HomeSortMode.Title
         sortDirection.value = HomeSortDirection.Ascending
     }
@@ -116,6 +121,7 @@ class HomeViewModel(
         selectedSection.value = section
         searchQuery.value = query
         statusFilter.value = null
+        groupMode.value = HomeGroupMode.None
         sortMode.value = HomeSortMode.Title
         sortDirection.value = HomeSortDirection.Ascending
         metadataSearchState.value = MetadataSearchUiState(query = query)
@@ -199,6 +205,10 @@ class HomeViewModel(
 
     fun updateStatusFilter(status: TrackingStatus?) {
         statusFilter.value = status
+    }
+
+    fun updateGroupMode(mode: HomeGroupMode) {
+        groupMode.value = mode
     }
 
     fun updateSortMode(mode: HomeSortMode) {
@@ -419,6 +429,7 @@ sealed interface HomeUiEvent {
 private data class HomeFilters(
     val query: String,
     val status: TrackingStatus?,
+    val group: HomeGroupMode,
     val sort: HomeSortMode,
     val direction: HomeSortDirection,
 )
@@ -448,9 +459,6 @@ private fun List<TrackedMedia>.sortByMode(
 ): List<TrackedMedia> {
     val comparator = when (mode) {
         HomeSortMode.Title -> compareBy<TrackedMedia> { it.item.title.lowercase() }
-        HomeSortMode.Collection -> compareBy<TrackedMedia> { it.collection?.name?.lowercase().orEmpty() }
-            .thenBy { it.item.collectionSortOrder ?: Double.MAX_VALUE }
-            .thenBy { it.item.title.lowercase() }
         HomeSortMode.Progress -> compareBy<TrackedMedia> { it.progressSortValue() }
             .thenBy { it.item.title.lowercase() }
         HomeSortMode.Rating -> compareBy<TrackedMedia> { it.currentSession?.rating ?: 0 }
@@ -478,9 +486,7 @@ private fun TrackedMedia.progressSortValue(): Double {
 
 private fun HomeSortMode.defaultDirection(): HomeSortDirection {
     return when (this) {
-        HomeSortMode.Title,
-        HomeSortMode.Collection,
-        -> HomeSortDirection.Ascending
+        HomeSortMode.Title -> HomeSortDirection.Ascending
         HomeSortMode.Progress,
         HomeSortMode.Rating,
         HomeSortMode.Recent,

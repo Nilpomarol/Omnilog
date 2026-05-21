@@ -451,6 +451,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     }
                 },
                 onStatusFilterChange = viewModel::updateStatusFilter,
+                onGroupModeChange = viewModel::updateGroupMode,
                 onSortModeChange = viewModel::updateSortMode,
                 onSortDirectionChange = viewModel::updateSortDirection,
                 modifier = Modifier

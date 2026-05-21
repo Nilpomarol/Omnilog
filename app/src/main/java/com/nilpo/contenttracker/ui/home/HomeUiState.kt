@@ -9,14 +9,21 @@ data class HomeUiState(
     val trackedItems: List<TrackedMedia> = emptyList(),
     val searchQuery: String = "",
     val statusFilter: TrackingStatus? = null,
+    val groupMode: HomeGroupMode = HomeGroupMode.None,
     val sortMode: HomeSortMode = HomeSortMode.Title,
     val sortDirection: HomeSortDirection = HomeSortDirection.Ascending,
     val refreshingMetadataItemId: Long? = null,
 )
 
+enum class HomeGroupMode {
+    None,
+    Status,
+    Collection,
+    Author,
+}
+
 enum class HomeSortMode {
     Title,
-    Collection,
     Progress,
     Rating,
     Recent,
