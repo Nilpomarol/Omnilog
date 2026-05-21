@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
+import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -69,14 +70,21 @@ import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.delay
+import java.text.Normalizer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+
+data class AddCollectionOption(
+    val collection: MediaCollection,
+    val mediaTypes: Set<MediaType>,
+)
 
 @Composable
 fun AddMediaScreen(
     initialMediaType: MediaType,
     availableMediaTypes: List<MediaType>,
+    availableCollections: List<AddCollectionOption>,
     onSave: (AddTrackedMediaRequest) -> Unit,
     metadataUiState: MetadataSearchUiState,
     onMetadataQueryChange: (String) -> Unit,
@@ -103,7 +111,13 @@ fun AddMediaScreen(
     var initialNotes by remember { mutableStateOf("") }
     var initialStartedAt by remember { mutableStateOf(LocalDate.now().toString()) }
     var initialFinishedAt by remember { mutableStateOf("") }
+    var collectionName by remember { mutableStateOf("") }
+    var collectionOrder by remember { mutableStateOf("") }
     val selectedMetadataSuggestion = metadataUiState.selectedSuggestion
+    val availableCollectionsForType = availableCollections
+        .filter { option -> selectedMediaType in option.mediaTypes }
+        .map { option -> option.collection }
+    val matchedCollection = availableCollectionsForType.bestCollectionMatch(collectionName)
 
     LaunchedEffect(selectedMetadataSuggestion) {
         selectedMetadataSuggestion?.let { suggestion ->
@@ -183,6 +197,13 @@ fun AddMediaScreen(
                     onInitialFinishedAtChange = { initialFinishedAt = it },
                     initialNotes = initialNotes,
                     onInitialNotesChange = { initialNotes = it },
+                    availableCollections = availableCollectionsForType,
+                    itemTitle = title,
+                    providerCollectionTitle = selectedMetadataSuggestion?.collectionTitle,
+                    collectionName = collectionName,
+                    onCollectionNameChange = { collectionName = it },
+                    collectionOrder = collectionOrder,
+                    onCollectionOrderChange = { collectionOrder = it.toCollectionOrderInput() },
                     onBackToSearch = { step = AddMediaStep.Search },
                     onSave = {
                         onSave(
@@ -200,6 +221,13 @@ fun AddMediaScreen(
                                 ownershipType = selectedOwnershipType,
                                 platformName = platform.takeIf { it.isNotBlank() },
                                 platformType = selectedPlatformType,
+                                collectionId = matchedCollection?.id,
+                                newCollectionName = if (matchedCollection == null) {
+                                    collectionName.trim().takeIf { it.isNotBlank() }
+                                } else {
+                                    null
+                                },
+                                collectionSortOrder = collectionOrder.toCollectionOrderOrNull(),
                                 originalTitle = selectedMetadataSuggestion?.originalTitle,
                                 releaseYear = selectedMetadataSuggestion?.releaseYear,
                                 genres = selectedMetadataSuggestion?.genres.orEmpty(),
@@ -262,6 +290,13 @@ fun AddMediaScreen(
                     onInitialFinishedAtChange = { initialFinishedAt = it },
                     initialNotes = initialNotes,
                     onInitialNotesChange = { initialNotes = it },
+                    availableCollections = availableCollectionsForType,
+                    itemTitle = title,
+                    providerCollectionTitle = null,
+                    collectionName = collectionName,
+                    onCollectionNameChange = { collectionName = it },
+                    collectionOrder = collectionOrder,
+                    onCollectionOrderChange = { collectionOrder = it.toCollectionOrderInput() },
                     onBackToSearch = { step = AddMediaStep.Search },
                     onSave = {
                         onSave(
@@ -279,6 +314,13 @@ fun AddMediaScreen(
                                 ownershipType = selectedOwnershipType,
                                 platformName = platform.takeIf { it.isNotBlank() },
                                 platformType = selectedPlatformType,
+                                collectionId = matchedCollection?.id,
+                                newCollectionName = if (matchedCollection == null) {
+                                    collectionName.trim().takeIf { it.isNotBlank() }
+                                } else {
+                                    null
+                                },
+                                collectionSortOrder = collectionOrder.toCollectionOrderOrNull(),
                             ),
                         )
                     },
@@ -405,6 +447,13 @@ private fun MetadataReviewStep(
     onInitialFinishedAtChange: (String) -> Unit,
     initialNotes: String,
     onInitialNotesChange: (String) -> Unit,
+    availableCollections: List<MediaCollection>,
+    itemTitle: String,
+    providerCollectionTitle: String?,
+    collectionName: String,
+    onCollectionNameChange: (String) -> Unit,
+    collectionOrder: String,
+    onCollectionOrderChange: (String) -> Unit,
     onBackToSearch: () -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
@@ -426,6 +475,17 @@ private fun MetadataReviewStep(
         onBackToSearch = onBackToSearch,
         onCancel = onCancel,
         onSave = onSave,
+    )
+
+    CollectionAssignmentForm(
+        availableCollections = availableCollections,
+        itemTitle = itemTitle,
+        providerCollectionTitle = providerCollectionTitle,
+        collectionName = collectionName,
+        onCollectionNameChange = onCollectionNameChange,
+        collectionOrder = collectionOrder,
+        onCollectionOrderChange = onCollectionOrderChange,
+        accent = accent,
     )
 
     FirstSessionForm(
@@ -866,6 +926,13 @@ private fun ManualAddStep(
     onInitialFinishedAtChange: (String) -> Unit,
     initialNotes: String,
     onInitialNotesChange: (String) -> Unit,
+    availableCollections: List<MediaCollection>,
+    itemTitle: String,
+    providerCollectionTitle: String?,
+    collectionName: String,
+    onCollectionNameChange: (String) -> Unit,
+    collectionOrder: String,
+    onCollectionOrderChange: (String) -> Unit,
     onBackToSearch: () -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
@@ -893,6 +960,17 @@ private fun ManualAddStep(
         onOwnershipTypeSelected = onOwnershipTypeSelected,
         selectedPlatformType = selectedPlatformType,
         onPlatformTypeSelected = onPlatformTypeSelected,
+    )
+
+    CollectionAssignmentForm(
+        availableCollections = availableCollections,
+        itemTitle = itemTitle,
+        providerCollectionTitle = providerCollectionTitle,
+        collectionName = collectionName,
+        onCollectionNameChange = onCollectionNameChange,
+        collectionOrder = collectionOrder,
+        onCollectionOrderChange = onCollectionOrderChange,
+        accent = accent,
     )
 
     ReviewActionRow(
@@ -996,6 +1074,161 @@ private fun TrackingSetupForm(
         optionLabel = { it.label() },
         onOptionSelected = onPlatformTypeSelected,
     )
+}
+
+@Composable
+private fun CollectionAssignmentForm(
+    availableCollections: List<MediaCollection>,
+    itemTitle: String,
+    providerCollectionTitle: String?,
+    collectionName: String,
+    onCollectionNameChange: (String) -> Unit,
+    collectionOrder: String,
+    onCollectionOrderChange: (String) -> Unit,
+    accent: Color,
+) {
+    val query = collectionName.trim()
+    val visibleCollections = availableCollections
+        .filter { collection ->
+            query.isBlank() || collection.name.contains(query, ignoreCase = true)
+        }
+        .take(4)
+    val quickSuggestions = if (query.isBlank()) {
+        buildCollectionQuickSuggestions(
+            availableCollections = availableCollections,
+            providerCollectionTitle = providerCollectionTitle,
+            itemTitle = itemTitle,
+        )
+    } else {
+        emptyList()
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedTextField(
+            value = collectionName,
+            onValueChange = onCollectionNameChange,
+            label = { Text(stringResource(R.string.field_collection)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = reviewTextFieldColors(accent),
+            shape = RoundedCornerShape(12.dp),
+        )
+        if (quickSuggestions.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                quickSuggestions.forEach { suggestion ->
+                    CollectionSuggestionRow(
+                        title = suggestion.name,
+                        subtitle = suggestion.label,
+                        selected = false,
+                        accent = accent,
+                        onClick = { onCollectionNameChange(suggestion.name) },
+                    )
+                }
+            }
+        } else if (visibleCollections.isNotEmpty() && collectionName.isNotBlank()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                visibleCollections.forEach { collection ->
+                    CollectionSuggestionRow(
+                        title = collection.name,
+                        subtitle = stringResource(R.string.collection_suggestion_existing),
+                        selected = collection.name.equals(query, ignoreCase = true),
+                        accent = accent,
+                        onClick = { onCollectionNameChange(collection.name) },
+                    )
+                }
+            }
+        }
+        OutlinedTextField(
+            value = collectionOrder,
+            onValueChange = onCollectionOrderChange,
+            label = { Text(stringResource(R.string.field_collection_order)) },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            colors = reviewTextFieldColors(accent),
+            shape = RoundedCornerShape(12.dp),
+        )
+    }
+}
+
+@Composable
+private fun CollectionSuggestionRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = if (selected) accent.copy(alpha = 0.15f) else OmnilogColors.AppPanel,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) accent.copy(alpha = 0.62f) else OmnilogColors.AppLine,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                color = if (selected) accent else OmnilogColors.AppInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = OmnilogColors.AppMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private data class CollectionQuickSuggestion(
+    val name: String,
+    val label: String,
+)
+
+@Composable
+private fun buildCollectionQuickSuggestions(
+    availableCollections: List<MediaCollection>,
+    providerCollectionTitle: String?,
+    itemTitle: String,
+): List<CollectionQuickSuggestion> {
+    val candidates = listOfNotNull(
+        providerCollectionTitle?.trim()?.takeIf { it.isNotBlank() }
+            ?.let { it to stringResource(R.string.collection_suggestion_provider) },
+        itemTitle.trim().takeIf { it.isNotBlank() }
+            ?.let { it to stringResource(R.string.collection_suggestion_title) },
+    )
+
+    return candidates
+        .distinctBy { (name, _) -> name.normalizedCollectionName() }
+        .map { (name, sourceLabel) ->
+            val existing = availableCollections.bestCollectionMatch(name)
+            if (existing != null) {
+                CollectionQuickSuggestion(
+                    name = existing.name,
+                    label = stringResource(R.string.collection_suggestion_existing),
+                )
+            } else {
+                CollectionQuickSuggestion(
+                    name = name,
+                    label = sourceLabel,
+                )
+            }
+        }
+        .distinctBy { suggestion -> suggestion.name.normalizedCollectionName() }
+        .take(3)
 }
 
 @Composable
@@ -1208,11 +1441,12 @@ enum class MetadataDuplicateState {
 internal fun ResultChip(
     text: String,
     accent: Color? = null,
+    modifier: Modifier = Modifier,
 ) {
     val chipColor = accent?.copy(alpha = 0.18f) ?: OmnilogColors.AppLine.copy(alpha = 0.46f)
     val textColor = accent ?: OmnilogColors.AppMuted
     Box(
-        modifier = Modifier
+        modifier = modifier
             .background(
                 color = chipColor,
                 shape = RoundedCornerShape(999.dp),
@@ -1323,5 +1557,77 @@ private fun progressUnitLabel(mediaType: MediaType, value: Int): String {
 private fun String.toLocalDateOrNull(): LocalDate? {
     return trim().takeIf { it.isNotBlank() }?.let { value ->
         runCatching { LocalDate.parse(value) }.getOrNull()
+    }
+}
+
+private fun String.toCollectionOrderInput(): String {
+    val normalized = replace(',', '.')
+    val builder = StringBuilder()
+    var hasSeparator = false
+
+    normalized.forEach { character ->
+        when {
+            character.isDigit() -> builder.append(character)
+            character == '.' && !hasSeparator -> {
+                builder.append(character)
+                hasSeparator = true
+            }
+        }
+    }
+
+    return builder.toString().take(8)
+}
+
+private fun String.toCollectionOrderOrNull(): Double? {
+    return replace(',', '.')
+        .toDoubleOrNull()
+        ?.takeIf { it >= 0.0 }
+}
+
+private fun String.normalizedCollectionName(): String {
+    return Normalizer.normalize(trim().lowercase(), Normalizer.Form.NFD)
+        .replace("\\p{Mn}+".toRegex(), "")
+        .replace("&", " and ")
+        .replace(Regex("""['’]"""), "")
+        .replace(Regex("""[^a-z0-9]+"""), " ")
+        .trim()
+        .replace(Regex("""\s+"""), " ")
+}
+
+private fun String.collectionMatchKey(): String {
+    return substringBeforeCollectionSeparator()
+        .normalizedCollectionName()
+        .replace(Regex("""\b(season|temporada|series|serie|book|libro|vol|volume|tome|part|parte|cour)\s+\d+(\.\d+)?\b.*$"""), "")
+        .replace(Regex("""\b(s\d+|part\s*[ivx]+|parte\s*[ivx]+)\b.*$"""), "")
+        .replace(Regex("""\b\d+(st|nd|rd|th)?\s+(season|temporada|book|libro|part|parte)\b.*$"""), "")
+        .replace(Regex("""\b(sequel|prequel|ova|special|especial|movie|film)\b.*$"""), "")
+        .trim()
+        .replace(Regex("""\s+"""), " ")
+}
+
+private fun String.substringBeforeCollectionSeparator(): String {
+    return split(Regex("""\s*[:;|/\\]\s*|\s+[–—-]\s+"""), limit = 2)
+        .firstOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?: this
+}
+
+private fun List<MediaCollection>.bestCollectionMatch(candidateName: String): MediaCollection? {
+    val normalizedCandidate = candidateName.normalizedCollectionName()
+    if (normalizedCandidate.isBlank()) return null
+
+    firstOrNull { collection ->
+        collection.name.normalizedCollectionName() == normalizedCandidate
+    }?.let { return it }
+
+    val candidateKey = candidateName.collectionMatchKey()
+    if (candidateKey.length < 4) return null
+
+    return firstOrNull { collection ->
+        val collectionKey = collection.name.collectionMatchKey()
+        collectionKey.length >= 4 &&
+            (candidateKey == collectionKey ||
+                candidateKey.startsWith("$collectionKey ") ||
+                collectionKey.startsWith("$candidateKey "))
     }
 }

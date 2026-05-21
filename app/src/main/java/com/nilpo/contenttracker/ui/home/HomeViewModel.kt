@@ -12,6 +12,7 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import com.nilpo.contenttracker.core.repository.MetadataRepository
@@ -314,11 +315,21 @@ class HomeViewModel(
         }
     }
 
+    fun updateCollectionItemOrder(collectionId: Long, itemOrders: List<CollectionItemOrder>) {
+        viewModelScope.launch {
+            mediaRepository.updateCollectionItemOrder(
+                collectionId = collectionId,
+                itemOrders = itemOrders,
+            )
+        }
+    }
+
     fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
         collectionId: Long?,
         newCollectionName: String?,
+        collectionSortOrder: Double?,
         progressTotal: Int?,
         ownershipType: OwnershipType,
     ) {
@@ -328,6 +339,7 @@ class HomeViewModel(
                 title = title,
                 collectionId = collectionId,
                 newCollectionName = newCollectionName,
+                collectionSortOrder = collectionSortOrder,
                 progressTotal = progressTotal,
                 ownershipType = ownershipType,
             )
@@ -435,6 +447,7 @@ private fun List<TrackedMedia>.sortByMode(
     val comparator = when (mode) {
         HomeSortMode.Title -> compareBy<TrackedMedia> { it.item.title.lowercase() }
         HomeSortMode.Collection -> compareBy<TrackedMedia> { it.collection?.name?.lowercase().orEmpty() }
+            .thenBy { it.item.collectionSortOrder ?: Double.MAX_VALUE }
             .thenBy { it.item.title.lowercase() }
         HomeSortMode.Progress -> compareBy<TrackedMedia> { it.progressSortValue() }
             .thenBy { it.item.title.lowercase() }

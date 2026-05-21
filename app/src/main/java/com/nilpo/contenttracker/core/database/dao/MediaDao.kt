@@ -12,6 +12,7 @@ import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.relation.TrackedMediaRelation
+import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -59,6 +60,9 @@ interface MediaDao {
     @Query("SELECT * FROM media_collections WHERE id = :collectionId LIMIT 1")
     suspend fun getMediaCollection(collectionId: Long): MediaCollectionEntity?
 
+    @Query("SELECT COALESCE(MAX(collectionSortOrder), 0.0) FROM media_items WHERE collectionId = :collectionId")
+    suspend fun getMaxCollectionSortOrder(collectionId: Long): Double
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaCollection(collection: MediaCollectionEntity): Long
 
@@ -67,6 +71,30 @@ interface MediaDao {
 
     @Query("DELETE FROM media_collections WHERE id = :collectionId")
     suspend fun deleteMediaCollection(collectionId: Long)
+
+    @Query(
+        """
+        UPDATE media_items
+        SET collectionSortOrder = :collectionSortOrder
+        WHERE id = :mediaItemId AND collectionId = :collectionId
+        """,
+    )
+    suspend fun updateCollectionSortOrder(
+        mediaItemId: Long,
+        collectionId: Long,
+        collectionSortOrder: Double,
+    )
+
+    @Transaction
+    suspend fun updateCollectionSortOrders(collectionId: Long, itemOrders: List<CollectionItemOrder>) {
+        itemOrders.forEach { itemOrder ->
+            updateCollectionSortOrder(
+                mediaItemId = itemOrder.mediaItemId,
+                collectionId = collectionId,
+                collectionSortOrder = itemOrder.sortOrder,
+            )
+        }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaItem(item: MediaItemEntity): Long
@@ -118,6 +146,7 @@ interface MediaDao {
         UPDATE media_items
         SET title = :title,
             collectionId = :collectionId,
+            collectionSortOrder = :collectionSortOrder,
             progressTotal = :progressTotal,
             isOwned = :isOwned,
             ownershipType = :ownershipType
@@ -128,6 +157,7 @@ interface MediaDao {
         mediaItemId: Long,
         title: String,
         collectionId: Long?,
+        collectionSortOrder: Double?,
         progressTotal: Int?,
         isOwned: Boolean,
         ownershipType: String,

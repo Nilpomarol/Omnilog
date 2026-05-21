@@ -57,6 +57,7 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.Instant
 import java.time.LocalDate
@@ -339,7 +340,10 @@ private fun DashboardSearchResultRow(
 ) {
     val section = trackedMedia.item.type.dashboardSection()
     val creator = trackedMedia.item.creators.firstOrNull()
-    val collection = trackedMedia.collection?.name
+    val collection = formatCollectionDisplayName(
+        trackedMedia.collection?.name,
+        trackedMedia.item.collectionSortOrder,
+    )
     val typeLabel = stringResource(section.titleResId)
     val secondary = listOfNotNull(
         typeLabel,

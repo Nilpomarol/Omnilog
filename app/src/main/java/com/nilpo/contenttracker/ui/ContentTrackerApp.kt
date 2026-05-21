@@ -64,6 +64,7 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
+import com.nilpo.contenttracker.ui.add.AddCollectionOption
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
@@ -108,6 +109,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         .firstOrNull { it.id == selectedCollectionId }
     val selectedCollectionItems = uiState.trackedItems
         .filter { it.collection?.id == selectedCollectionId }
+        .sortedWith(collectionItemComparator())
     val exportSuccessMessage = stringResource(R.string.backup_export_success)
     val exportErrorMessage = stringResource(R.string.backup_export_error)
     val importReadErrorMessage = stringResource(R.string.backup_import_read_error)
@@ -247,6 +249,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             AddMediaScreen(
                 initialMediaType = uiState.selectedSection.defaultType,
                 availableMediaTypes = uiState.selectedSection.types.toList(),
+                availableCollections = uiState.allTrackedItems.toAddCollectionOptions(),
                 onSave = { request ->
                     viewModel.addTrackedMedia(request)
                     viewModel.clearMetadataSearch()
@@ -313,6 +316,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onMediaClick = { selectedMediaId = it.item.id },
                 onRenameCollection = viewModel::updateMediaCollectionName,
                 onDeleteCollection = viewModel::deleteMediaCollection,
+                onUpdateCollectionItemOrder = viewModel::updateCollectionItemOrder,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -994,6 +998,25 @@ private fun HeaderMenuItem(
             fontWeight = FontWeight.SemiBold,
         )
     }
+}
+
+private fun collectionItemComparator(): Comparator<TrackedMedia> =
+    compareBy<TrackedMedia> { it.item.collectionSortOrder ?: Double.MAX_VALUE }
+        .thenBy { it.item.releaseYear ?: Int.MAX_VALUE }
+        .thenBy { it.item.title.lowercase() }
+
+private fun List<TrackedMedia>.toAddCollectionOptions(): List<AddCollectionOption> {
+    return filter { trackedMedia -> trackedMedia.collection != null }
+        .groupBy { trackedMedia -> trackedMedia.collection!!.id }
+        .mapNotNull { (_, trackedItems) ->
+            val collection = trackedItems.firstNotNullOfOrNull { trackedMedia -> trackedMedia.collection }
+                ?: return@mapNotNull null
+            AddCollectionOption(
+                collection = collection,
+                mediaTypes = trackedItems.map { trackedMedia -> trackedMedia.item.type }.toSet(),
+            )
+        }
+        .sortedBy { option -> option.collection.name.lowercase() }
 }
 
 private val HeaderBackground = OmnilogColors.AppBackground

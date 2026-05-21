@@ -23,6 +23,7 @@ data class MediaItemEntity(
     val type: String,
     val title: String,
     val collectionId: Long? = null,
+    val collectionSortOrder: Double? = null,
     val progressTotal: Int? = null,
     val originalTitle: String? = null,
     val releaseYear: Int? = null,

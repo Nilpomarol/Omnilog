@@ -74,6 +74,7 @@ data class MediaMetadataUi(
     val rankingPosition: Int? = null,
     val rankingLabel: String? = null,
     val collectionName: String? = null,
+    val collectionSortOrder: Double? = null,
     val isOwned: Boolean = false,
     val isExternalTrackingUpdated: Boolean = false,
 )
@@ -140,7 +141,7 @@ fun MediaMetadataHero(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                metadata.collectionName?.let { collectionName ->
+                metadata.collectionDisplayName()?.let { collectionName ->
                     Text(
                         text = collectionName,
                         style = MaterialTheme.typography.labelMedium,
@@ -547,6 +548,23 @@ private fun CreditGroups(credits: List<MediaCredit>) {
 
 private fun MediaMetadataUi.displayTitle(): String {
     return displayMediaTitle(title)
+}
+
+fun formatCollectionDisplayName(name: String?, sortOrder: Double?): String? {
+    val collectionName = name?.takeIf { it.isNotBlank() } ?: return null
+    return sortOrder?.let { "$collectionName #${formatCollectionOrder(it)}" } ?: collectionName
+}
+
+private fun MediaMetadataUi.collectionDisplayName(): String? {
+    return formatCollectionDisplayName(collectionName, collectionSortOrder)
+}
+
+fun formatCollectionOrder(sortOrder: Double): String {
+    return if (sortOrder % 1.0 == 0.0) {
+        sortOrder.toInt().toString()
+    } else {
+        sortOrder.toString().trimEnd('0').trimEnd('.')
+    }
 }
 
 private fun MediaMetadataUi.sourceRatingText(): String? {

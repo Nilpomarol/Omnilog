@@ -25,6 +25,11 @@ data class BackupPreview(
     val externalTrackingCount: Int,
 )
 
+data class CollectionItemOrder(
+    val mediaItemId: Long,
+    val sortOrder: Double,
+)
+
 interface MediaRepository {
     fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>>
 
@@ -76,11 +81,14 @@ interface MediaRepository {
 
     suspend fun deleteMediaCollection(collectionId: Long)
 
+    suspend fun updateCollectionItemOrder(collectionId: Long, itemOrders: List<CollectionItemOrder>)
+
     suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
         collectionId: Long?,
         newCollectionName: String?,
+        collectionSortOrder: Double?,
         progressTotal: Int?,
         ownershipType: OwnershipType,
     )

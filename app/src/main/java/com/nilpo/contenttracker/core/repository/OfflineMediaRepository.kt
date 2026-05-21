@@ -169,10 +169,24 @@ class OfflineMediaRepository(
     }
 
     override suspend fun addTrackedMedia(request: AddTrackedMediaRequest) {
+        val validNewCollectionName = request.newCollectionName?.trim()?.takeIf { it.isNotBlank() }
+        val validCollectionId = when {
+            validNewCollectionName != null -> mediaDao.insertMediaCollection(
+                MediaCollectionEntity(name = validNewCollectionName),
+            )
+            request.collectionId != null && mediaDao.getMediaCollection(request.collectionId) != null -> request.collectionId
+            else -> null
+        }
+        val validCollectionSortOrder = validCollectionId?.let { collectionId ->
+            request.collectionSortOrder?.coerceAtLeast(0.0)
+                ?: (mediaDao.getMaxCollectionSortOrder(collectionId) + 1.0)
+        }
         val mediaItemId = mediaDao.insertMediaItem(
             MediaItemEntity(
                 type = request.type.name,
                 title = request.title.trim(),
+                collectionId = validCollectionId,
+                collectionSortOrder = validCollectionSortOrder,
                 progressTotal = request.progressTotal?.coerceAtLeast(0),
                 originalTitle = request.originalTitle?.trim()?.takeIf { it.isNotBlank() },
                 releaseYear = request.releaseYear,
@@ -359,14 +373,30 @@ class OfflineMediaRepository(
         mediaDao.deleteMediaCollection(collectionId)
     }
 
+    override suspend fun updateCollectionItemOrder(collectionId: Long, itemOrders: List<CollectionItemOrder>) {
+        val validItemOrders = itemOrders
+            .filter { itemOrder -> itemOrder.sortOrder >= 0.0 }
+            .distinctBy { itemOrder -> itemOrder.mediaItemId }
+        if (mediaDao.getMediaCollection(collectionId) == null || validItemOrders.isEmpty()) {
+            return
+        }
+
+        mediaDao.updateCollectionSortOrders(
+            collectionId = collectionId,
+            itemOrders = validItemOrders,
+        )
+    }
+
     override suspend fun updateMediaItemDetails(
         mediaItemId: Long,
         title: String,
         collectionId: Long?,
         newCollectionName: String?,
+        collectionSortOrder: Double?,
         progressTotal: Int?,
         ownershipType: OwnershipType,
     ) {
+        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return
         val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
         val validTotal = progressTotal?.coerceAtLeast(0)
         val validNewCollectionName = newCollectionName?.trim()?.takeIf { it.isNotBlank() }
@@ -377,11 +407,17 @@ class OfflineMediaRepository(
             collectionId != null && mediaDao.getMediaCollection(collectionId) != null -> collectionId
             else -> null
         }
+        val validCollectionSortOrder = validCollectionId?.let { targetCollectionId ->
+            collectionSortOrder?.coerceAtLeast(0.0)
+                ?: currentItem.collectionSortOrder.takeIf { currentItem.collectionId == targetCollectionId }
+                ?: (mediaDao.getMaxCollectionSortOrder(targetCollectionId) + 1.0)
+        }
 
         mediaDao.updateMediaItemDetails(
             mediaItemId = mediaItemId,
             title = validTitle,
             collectionId = validCollectionId,
+            collectionSortOrder = validCollectionSortOrder,
             progressTotal = validTotal,
             isOwned = ownershipType != OwnershipType.None,
             ownershipType = ownershipType.name,
@@ -627,6 +663,10 @@ private fun ParsedBackup.validate() {
         item.collectionId?.let { collectionId ->
             require(collectionId in collectionIds) { "Media item references a missing collection" }
         }
+        item.collectionSortOrder?.let { sortOrder ->
+            require(sortOrder >= 0.0) { "Collection order cannot be negative" }
+            require(item.collectionId != null) { "Collection order requires a collection" }
+        }
         item.progressTotal?.let { total ->
             require(total >= 0) { "Progress totals cannot be negative" }
         }
@@ -693,6 +733,7 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .put("type", type)
         .put("title", title)
         .putNullable("collectionId", collectionId)
+        .putNullable("collectionSortOrder", collectionSortOrder)
         .putNullable("progressTotal", progressTotal)
         .putNullable("originalTitle", originalTitle)
         .putNullable("releaseYear", releaseYear)
@@ -778,6 +819,7 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         type = getString("type"),
         title = getString("title"),
         collectionId = optNullableLong("collectionId"),
+        collectionSortOrder = optNullableDouble("collectionSortOrder"),
         progressTotal = optNullableInt("progressTotal"),
         originalTitle = optNullableString("originalTitle"),
         releaseYear = optNullableInt("releaseYear"),

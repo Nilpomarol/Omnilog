@@ -59,7 +59,7 @@ fun DetailScreen(
     onUpdateExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     onDeleteExternalTracking: (Long) -> Unit,
-    onUpdateMediaItemDetails: (Long, String, Long?, String?, Int?, OwnershipType) -> Unit,
+    onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
     onUpdateMediaItemMetadata: (Long, String, String?, Int?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
@@ -98,6 +98,7 @@ fun DetailScreen(
                 MediaMetadataHero(
                     metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
                         collectionName = trackedMedia.collection?.name,
+                        collectionSortOrder = trackedMedia.item.collectionSortOrder,
                         isOwned = trackedMedia.item.ownership.isOwned,
                         isExternalTrackingUpdated = isExternalTrackingUpdated,
                         externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
@@ -125,12 +126,13 @@ fun DetailScreen(
                     currentSession = currentSession,
                     externalTracking = trackedMedia.externalTracking,
                     accent = accent,
-                    onSaveItemDetails = { title, collectionId, newCollectionName, progressTotal, ownershipType ->
+                    onSaveItemDetails = { title, collectionId, newCollectionName, collectionSortOrder, progressTotal, ownershipType ->
                         onUpdateMediaItemDetails(
                             trackedMedia.item.id,
                             title,
                             collectionId,
                             newCollectionName,
+                            collectionSortOrder,
                             progressTotal,
                             ownershipType,
                         )

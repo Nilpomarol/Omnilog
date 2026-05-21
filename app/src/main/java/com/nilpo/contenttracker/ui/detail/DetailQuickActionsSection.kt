@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.ui.detail
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -45,6 +47,8 @@ import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OptionSelector
+import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
+import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 
 @Composable
@@ -55,7 +59,7 @@ fun DetailQuickActionsSection(
     currentSession: TrackingSession?,
     externalTracking: List<ExternalTracking>,
     accent: Color,
-    onSaveItemDetails: (String, Long?, String?, Int?, OwnershipType) -> Unit,
+    onSaveItemDetails: (String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     onAddExternalTracking: (ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
@@ -85,13 +89,15 @@ fun DetailQuickActionsSection(
                         item.title,
                         item.collectionId,
                         null,
+                        item.collectionSortOrder,
                         item.progressTotal,
                         if (item.ownership.isOwned) OwnershipType.None else OwnershipType.Physical,
                     )
                 },
             )
             QuickActionButton(
-                text = collection?.name ?: stringResource(R.string.collection_action_add),
+                text = formatCollectionDisplayName(collection?.name, item.collectionSortOrder)
+                    ?: stringResource(R.string.collection_action_add),
                 accent = accent,
                 selected = collection != null,
                 modifier = Modifier.weight(1f),
@@ -129,13 +135,15 @@ fun DetailQuickActionsSection(
         CollectionDialog(
             collection = collection,
             availableCollections = availableCollections,
+            currentSortOrder = item.collectionSortOrder,
             accent = accent,
             onDismiss = { showCollectionDialog = false },
-            onSave = { collectionId, newCollectionName ->
+            onSave = { collectionId, newCollectionName, collectionSortOrder ->
                 onSaveItemDetails(
                     item.title,
                     collectionId,
                     newCollectionName,
+                    collectionSortOrder,
                     item.progressTotal,
                     item.ownership.type,
                 )
@@ -221,12 +229,16 @@ private fun QuickActionButton(
 private fun CollectionDialog(
     collection: MediaCollection?,
     availableCollections: List<MediaCollection>,
+    currentSortOrder: Double?,
     accent: Color,
     onDismiss: () -> Unit,
-    onSave: (Long?, String?) -> Unit,
+    onSave: (Long?, String?, Double?) -> Unit,
 ) {
     var selectedCollectionId by rememberSaveable(collection?.id) { mutableStateOf(collection?.id) }
     var searchQuery by rememberSaveable(collection?.id) { mutableStateOf(collection?.name.orEmpty()) }
+    var orderText by rememberSaveable(collection?.id, currentSortOrder) {
+        mutableStateOf(currentSortOrder?.let(::formatCollectionOrder).orEmpty())
+    }
     val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
     val trimmedQuery = searchQuery.trim()
     val visibleCollections = availableCollections.filter { availableCollection ->
@@ -258,13 +270,16 @@ private fun CollectionDialog(
                         Button(
                             onClick = {
                                 val collectionIdToSave = selectedCollectionId ?: exactCollectionNameMatch?.id
+                                val newCollectionName = if (collectionIdToSave == null) {
+                                    trimmedQuery.takeIf { it.isNotBlank() }
+                                } else {
+                                    null
+                                }
+                                val hasCollection = collectionIdToSave != null || newCollectionName != null
                                 onSave(
                                     collectionIdToSave,
-                                    if (collectionIdToSave == null) {
-                                        trimmedQuery.takeIf { it.isNotBlank() }
-                                    } else {
-                                        null
-                                    },
+                                    newCollectionName,
+                                    orderText.toCollectionOrderOrNull()?.takeIf { hasCollection },
                                 )
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black),
@@ -294,6 +309,21 @@ private fun CollectionDialog(
                         label = { Text(stringResource(R.string.collection_search)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = accent,
+                            cursorColor = accent,
+                        ),
+                    )
+
+                    OutlinedTextField(
+                        value = orderText,
+                        onValueChange = { value ->
+                            orderText = value.toCollectionOrderInput()
+                        },
+                        label = { Text(stringResource(R.string.field_collection_order)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = accent,
                             cursorColor = accent,
@@ -374,6 +404,30 @@ private fun CollectionOptionRow(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+private fun String.toCollectionOrderInput(): String {
+    val normalized = replace(',', '.')
+    val builder = StringBuilder()
+    var hasSeparator = false
+
+    normalized.forEach { character ->
+        when {
+            character.isDigit() -> builder.append(character)
+            character == '.' && !hasSeparator -> {
+                builder.append(character)
+                hasSeparator = true
+            }
+        }
+    }
+
+    return builder.toString().take(8)
+}
+
+private fun String.toCollectionOrderOrNull(): Double? {
+    return replace(',', '.')
+        .toDoubleOrNull()
+        ?.takeIf { it >= 0.0 }
 }
 
 @Composable
