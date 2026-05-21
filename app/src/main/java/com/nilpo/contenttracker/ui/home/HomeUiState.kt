@@ -10,8 +10,8 @@ data class HomeUiState(
     val searchQuery: String = "",
     val statusFilter: TrackingStatus? = null,
     val groupMode: HomeGroupMode = HomeGroupMode.None,
-    val sortMode: HomeSortMode = HomeSortMode.Title,
-    val sortDirection: HomeSortDirection = HomeSortDirection.Ascending,
+    val sortMode: HomeSortMode = HomeSortMode.Recent,
+    val sortDirection: HomeSortDirection = HomeSortDirection.Descending,
     val refreshingMetadataItemId: Long? = null,
 )
 

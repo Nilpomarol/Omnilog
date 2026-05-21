@@ -35,8 +35,8 @@ class HomeViewModel(
     private val searchQuery = MutableStateFlow("")
     private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
     private val groupMode = MutableStateFlow(HomeGroupMode.None)
-    private val sortMode = MutableStateFlow(HomeSortMode.Title)
-    private val sortDirection = MutableStateFlow(HomeSortDirection.Ascending)
+    private val sortMode = MutableStateFlow(HomeSortMode.Recent)
+    private val sortDirection = MutableStateFlow(HomeSortDirection.Descending)
     private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
     private val refreshingMetadataItemId = MutableStateFlow<Long?>(null)
     private val mutableEvents = MutableSharedFlow<HomeUiEvent>()
@@ -113,8 +113,8 @@ class HomeViewModel(
         searchQuery.value = ""
         statusFilter.value = null
         groupMode.value = HomeGroupMode.None
-        sortMode.value = HomeSortMode.Title
-        sortDirection.value = HomeSortDirection.Ascending
+        sortMode.value = HomeSortMode.Recent
+        sortDirection.value = HomeSortDirection.Descending
     }
 
     fun selectSectionWithSearch(section: MediaSection, query: String) {
@@ -122,8 +122,8 @@ class HomeViewModel(
         searchQuery.value = query
         statusFilter.value = null
         groupMode.value = HomeGroupMode.None
-        sortMode.value = HomeSortMode.Title
-        sortDirection.value = HomeSortDirection.Ascending
+        sortMode.value = HomeSortMode.Recent
+        sortDirection.value = HomeSortDirection.Descending
         metadataSearchState.value = MetadataSearchUiState(query = query)
     }
 

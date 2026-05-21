@@ -364,7 +364,6 @@ private fun MetadataSearchStep(
             onQueryChange = onQueryChange,
             isLoading = uiState.isLoading,
             accent = accent,
-            onSearch = onSearch,
         )
 
         Column(
@@ -1263,7 +1262,6 @@ internal fun DashboardStyleSearchBar(
     onQueryChange: (String) -> Unit,
     isLoading: Boolean,
     accent: Color,
-    onSearch: () -> Unit,
     content: @Composable () -> Unit = {},
 ) {
     Surface(
@@ -1306,13 +1304,6 @@ internal fun DashboardStyleSearchBar(
                     }
                 },
             )
-            TextButton(
-                enabled = query.isNotBlank() && !isLoading,
-                onClick = onSearch,
-                colors = ButtonDefaults.textButtonColors(contentColor = accent),
-            ) {
-                Text(text = stringResource(R.string.search_action))
-            }
             content()
         }
     }

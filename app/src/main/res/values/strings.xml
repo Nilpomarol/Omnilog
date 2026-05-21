@@ -173,13 +173,14 @@
     <string name="group_unit_items">elements</string>
     <string name="sort_label">Ordena</string>
     <string name="sort_title">Títol</string>
-    <string name="sort_collection">Col·lecció</string>
     <string name="sort_progress">Progres</string>
     <string name="sort_rating">Nota</string>
     <string name="sort_recent">Actualitzat</string>
     <string name="sort_direction_label">Direccio</string>
     <string name="sort_direction_ascending">Ascendent</string>
     <string name="sort_direction_descending">Descendent</string>
+    <string name="sort_direction_asc">Asc</string>
+    <string name="sort_direction_desc">Desc</string>
     <string name="export_backup">Exporta còpia</string>
     <string name="import_backup">Importa còpia</string>
     <string name="account_menu">Compte</string>
