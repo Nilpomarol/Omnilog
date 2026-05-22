@@ -111,7 +111,7 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -191,8 +191,8 @@ fun HomeScreen(
                                     fadeOut(tween(110)),
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(top = 12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
                                     groupItems.forEach { trackedMedia ->
                                         MediaCard(

@@ -40,8 +40,8 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-private val CoverWidth = 100.dp
-private val CoverHeight = 150.dp  // 2:3 ratio
+private val CoverWidth = 84.dp
+private val CoverHeight = 126.dp  // 2:3 ratio
 
 @Composable
 fun MediaCard(
@@ -68,8 +68,8 @@ fun MediaCard(
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
         Row(
-            modifier = Modifier.padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             MetadataCoverImage(
                 coverUrl = item.coverUrl,
@@ -90,15 +90,15 @@ fun MediaCard(
                         .fillMaxWidth()
                         .weight(1f)
                         .clipToBounds(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(1.dp),
                     ) {
                         Text(
                             text = displayMediaTitle(item.title),
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = OmnilogColors.AppInk,
                             maxLines = 1,
@@ -124,7 +124,7 @@ fun MediaCard(
                             )
                         }
                         if (genres.isNotEmpty()) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                                 genres.forEach { genre ->
                                     Surface(
                                         shape = RoundedCornerShape(999.dp),
@@ -133,8 +133,11 @@ fun MediaCard(
                                     ) {
                                         Text(
                                             text = genre,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 9.sp,
+                                                lineHeight = 10.sp,
+                                            ),
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
                                         )
@@ -144,7 +147,7 @@ fun MediaCard(
                         }
                     }
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
                         if (session != null) {
@@ -175,7 +178,7 @@ private fun CardProgressFooter(
     accent: Color,
 ) {
     val isGame = mediaType == MediaType.Game
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -184,7 +187,7 @@ private fun CardProgressFooter(
             Text(
                 text = session.progressLabel(progressTotal, mediaType),
                 style = if (isGame) {
-                    MaterialTheme.typography.titleLarge.copy(fontSize = 21.sp)
+                    MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp)
                 } else {
                     MaterialTheme.typography.bodySmall
                 },
@@ -200,7 +203,7 @@ private fun CardProgressFooter(
                 ) {
                     Text(
                         text = rating.toString(),
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = accent,
                     )
@@ -240,8 +243,8 @@ private fun CardStateIconBadge(
             painter = painterResource(status.iconResId),
             contentDescription = status.label(),
             modifier = Modifier
-                .padding(6.dp)
-                .size(15.dp),
+                .padding(4.dp)
+                .size(13.dp),
         )
     }
 }
@@ -251,14 +254,14 @@ private fun CardProgressBar(fraction: Float, color: Color) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(6.dp)
+            .height(4.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(OmnilogColors.AppLine),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(6.dp)
+                .height(4.dp)
                 .clip(RoundedCornerShape(999.dp))
                 .background(color),
         )
