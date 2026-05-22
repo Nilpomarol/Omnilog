@@ -463,38 +463,42 @@ private fun HomeStats(items: List<TrackedMedia>) {
         }
     }
 
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        StatTile(
-            label = stringResource(R.string.home_stat_total_titles),
-            value = items.size.toString(),
-            icon = painterResource(R.drawable.ic_kpi_titles),
-            accent = OmnilogColors.Dashboard,
-            modifier = Modifier.weight(1f),
-        )
-        StatTile(
-            label = stringResource(R.string.home_stat_in_progress),
-            value = activeCount.toString(),
-            icon = painterResource(R.drawable.ic_kpi_in_progress),
-            accent = OmnilogColors.Tv,
-            modifier = Modifier.weight(1f),
-        )
-        StatTile(
-            label = stringResource(R.string.home_stat_average_rating),
-            value = averageRating,
-            icon = painterResource(R.drawable.ic_kpi_rating),
-            accent = OmnilogColors.Books,
-            modifier = Modifier.weight(1f),
-        )
-        StatTile(
-            label = stringResource(R.string.home_stat_titles_this_year),
-            value = titlesThisYear.toString(),
-            icon = painterResource(R.drawable.ic_kpi_completed),
-            accent = OmnilogColors.Games,
-            modifier = Modifier.weight(1f),
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile(
+                label = stringResource(R.string.home_stat_total_titles),
+                value = items.size.toString(),
+                icon = painterResource(R.drawable.ic_kpi_titles),
+                accent = OmnilogColors.Dashboard,
+                modifier = Modifier.weight(1f),
+            )
+            StatTile(
+                label = stringResource(R.string.home_stat_in_progress),
+                value = activeCount.toString(),
+                icon = painterResource(R.drawable.ic_kpi_in_progress),
+                accent = OmnilogColors.Tv,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile(
+                label = stringResource(R.string.home_stat_average_rating),
+                value = averageRating,
+                icon = painterResource(R.drawable.ic_kpi_rating),
+                accent = OmnilogColors.Books,
+                modifier = Modifier.weight(1f),
+            )
+            StatTile(
+                label = stringResource(R.string.home_stat_titles_this_year),
+                value = titlesThisYear.toString(),
+                icon = painterResource(R.drawable.ic_kpi_completed),
+                accent = OmnilogColors.Games,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
