@@ -50,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -476,7 +477,7 @@ private fun HomeStats(items: List<TrackedMedia>) {
         StatTile(
             label = stringResource(R.string.home_stat_in_progress),
             value = activeCount.toString(),
-            icon = painterResource(R.drawable.ic_state_in_progress),
+            icon = painterResource(R.drawable.ic_kpi_in_progress),
             accent = OmnilogColors.Tv,
             modifier = Modifier.weight(1f),
         )
@@ -490,7 +491,7 @@ private fun HomeStats(items: List<TrackedMedia>) {
         StatTile(
             label = stringResource(R.string.home_stat_titles_this_year),
             value = titlesThisYear.toString(),
-            icon = painterResource(R.drawable.ic_state_completed),
+            icon = painterResource(R.drawable.ic_kpi_completed),
             accent = OmnilogColors.Games,
             modifier = Modifier.weight(1f),
         )
@@ -597,6 +598,7 @@ private fun HomeMediaTile(
     onClick: () -> Unit,
 ) {
     val session = trackedMedia.currentSession
+    val isGame = trackedMedia.item.type == MediaType.Game
 
     Surface(
         modifier = Modifier
@@ -657,22 +659,32 @@ private fun HomeMediaTile(
                         )
                         Text(
                             text = session.progressLabel(
-                                progressTotal = trackedMedia.item.progressTotal,
+                                progressTotal = trackedMedia.item.progressTotal
+                                    .takeUnless { trackedMedia.item.type == MediaType.Game },
                                 mediaType = trackedMedia.item.type,
                             ),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.78f),
+                            style = if (isGame) {
+                                MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp)
+                            } else {
+                                MaterialTheme.typography.labelSmall
+                            },
+                            fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
+                            color = if (isGame) accent else Color.White.copy(alpha = 0.78f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                     RatingSlot(rating = session?.rating, accent = accent)
                 }
-                ProgressBar(
-                    fraction = session.progressFraction(trackedMedia.item.progressTotal),
-                    color = accent,
-                )
+                trackedMedia.item.progressTotal
+                    .takeUnless { trackedMedia.item.type == MediaType.Game }
+                    ?.takeIf { it > 0 }
+                    ?.let { progressTotal ->
+                        ProgressBar(
+                            fraction = session.progressFraction(progressTotal),
+                            color = accent,
+                        )
+                    }
             }
         }
     }
@@ -713,7 +725,7 @@ private fun RatingSlot(
 ) {
     Row(
         modifier = Modifier
-            .width(30.dp)
+            .width(42.dp)
             .height(32.dp),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.Bottom,

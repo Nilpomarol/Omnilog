@@ -128,7 +128,10 @@ fun AddMediaScreen(
     LaunchedEffect(selectedMetadataSuggestion) {
         selectedMetadataSuggestion?.let { suggestion ->
             title = suggestion.title
-            totalProgress = suggestion.progressTotal?.toString().orEmpty()
+            totalProgress = suggestion.progressTotal
+                ?.takeUnless { suggestion.mediaType == MediaType.Game }
+                ?.toString()
+                .orEmpty()
             selectedMediaType = suggestion.mediaType
             if (step != AddMediaStep.Manual) {
                 step = AddMediaStep.Review
@@ -138,7 +141,7 @@ fun AddMediaScreen(
     val applyStatus: (TrackingStatus) -> Unit = { status ->
         selectedStatus = status
         if (status == TrackingStatus.Completed) {
-            totalProgress.toIntOrNull()?.let { maxProgress ->
+            selectedMediaType.effectiveProgressTotal(totalProgress)?.let { maxProgress ->
                 initialProgress = maxProgress.toString()
             }
             if (initialFinishedAt.isBlank()) {
@@ -190,7 +193,7 @@ fun AddMediaScreen(
                     initialProgress = initialProgress,
                     onInitialProgressChange = { value ->
                         val digits = value.filter { it.isDigit() }
-                        val maxProgress = totalProgress.toIntOrNull()
+                        val maxProgress = selectedMediaType.effectiveProgressTotal(totalProgress)
                         initialProgress = maxProgress?.let { max ->
                             digits.toIntOrNull()?.coerceIn(0, max)?.toString() ?: digits
                         } ?: digits
@@ -216,7 +219,7 @@ fun AddMediaScreen(
                             AddTrackedMediaRequest(
                                 type = selectedMediaType,
                                 title = title,
-                                progressTotal = totalProgress.toIntOrNull(),
+                                progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
                                 initialStatus = selectedStatus,
                                 initialProgress = initialProgress.toIntOrNull() ?: 0,
                                 initialRating = initialRating,
@@ -261,7 +264,12 @@ fun AddMediaScreen(
                         AddMediaStep.Manual -> ManualAddStep(
                     availableMediaTypes = availableMediaTypes,
                     selectedMediaType = selectedMediaType,
-                    onMediaTypeSelected = { selectedMediaType = it },
+                    onMediaTypeSelected = {
+                        selectedMediaType = it
+                        if (it == MediaType.Game) {
+                            totalProgress = ""
+                        }
+                    },
                     title = title,
                     onTitleChange = { title = it },
                     totalProgress = totalProgress,
@@ -283,7 +291,7 @@ fun AddMediaScreen(
                     initialProgress = initialProgress,
                     onInitialProgressChange = { value ->
                         val digits = value.filter { it.isDigit() }
-                        val maxProgress = totalProgress.toIntOrNull()
+                        val maxProgress = selectedMediaType.effectiveProgressTotal(totalProgress)
                         initialProgress = maxProgress?.let { max ->
                             digits.toIntOrNull()?.coerceIn(0, max)?.toString() ?: digits
                         } ?: digits
@@ -309,7 +317,7 @@ fun AddMediaScreen(
                             AddTrackedMediaRequest(
                                 type = selectedMediaType,
                                 title = title,
-                                progressTotal = totalProgress.toIntOrNull(),
+                                progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
                                 initialStatus = selectedStatus,
                                 initialProgress = initialProgress.toIntOrNull() ?: 0,
                                 initialRating = initialRating,
@@ -495,7 +503,7 @@ private fun MetadataReviewStep(
 
     FirstSessionForm(
         mediaType = selectedMediaType,
-        progressTotal = totalProgress.toIntOrNull(),
+        progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
         selectedStatus = selectedStatus,
         onStatusSelected = onStatusSelected,
         initialProgress = initialProgress,
@@ -518,7 +526,9 @@ private fun MetadataReviewPreview(
     isLoadingDetails: Boolean,
     hasDetailsError: Boolean,
 ) {
-    val metadata = suggestion.toMediaMetadataUi()
+    val metadata = suggestion
+        .copy(progressTotal = suggestion.progressTotal.takeUnless { suggestion.mediaType == MediaType.Game })
+        .toMediaMetadataUi()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         MediaMetadataHero(
             metadata = metadata,
@@ -990,7 +1000,7 @@ private fun ManualAddStep(
 
     FirstSessionForm(
         mediaType = selectedMediaType,
-        progressTotal = totalProgress.toIntOrNull(),
+        progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
         selectedStatus = selectedStatus,
         onStatusSelected = onStatusSelected,
         initialProgress = initialProgress,
@@ -1044,16 +1054,18 @@ private fun TrackingSetupForm(
         shape = RoundedCornerShape(12.dp),
     )
 
-    OutlinedTextField(
-        value = totalProgress,
-        onValueChange = onTotalProgressChange,
-        label = { Text(stringResource(R.string.field_total_progress)) },
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        singleLine = true,
-        colors = reviewTextFieldColors(accent),
-        shape = RoundedCornerShape(12.dp),
-    )
+    if (selectedMediaType != MediaType.Game) {
+        OutlinedTextField(
+            value = totalProgress,
+            onValueChange = onTotalProgressChange,
+            label = { Text(stringResource(R.string.field_total_progress)) },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            colors = reviewTextFieldColors(accent),
+            shape = RoundedCornerShape(12.dp),
+        )
+    }
 
     OutlinedTextField(
         value = platform,
@@ -1565,6 +1577,10 @@ private fun String.toLocalDateOrNull(): LocalDate? {
     return trim().takeIf { it.isNotBlank() }?.let { value ->
         runCatching { LocalDate.parse(value) }.getOrNull()
     }
+}
+
+private fun MediaType.effectiveProgressTotal(totalProgress: String): Int? {
+    return totalProgress.toIntOrNull().takeUnless { this == MediaType.Game }
 }
 
 private fun String.toCollectionOrderInput(): String {

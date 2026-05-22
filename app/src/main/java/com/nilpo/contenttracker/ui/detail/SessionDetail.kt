@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,8 +37,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.Instant
 import java.time.LocalDate
@@ -50,7 +51,9 @@ import java.time.format.DateTimeFormatter
 fun SessionDetail(
     session: TrackingSession,
     progressTotal: Int?,
+    mediaType: MediaType,
     accent: Color,
+    onDeleteProgressUpdate: (Long) -> Unit,
     onDelete: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
@@ -90,6 +93,12 @@ fun SessionDetail(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    ProgressHistoryAction(
+                        updates = session.progressUpdates,
+                        mediaType = mediaType,
+                        accent = visualState.color,
+                        onDeleteProgressUpdate = onDeleteProgressUpdate,
+                    )
                     trailingContent?.invoke()
                     if (onDelete != null) {
                         TextButton(onClick = { showDeleteConfirmation = true }) {
@@ -110,7 +119,7 @@ fun SessionDetail(
 
             SessionRating(rating = session.rating, color = visualState.color)
 
-            SessionMetaRow(session = session)
+            SessionMetaRow(session = session, mediaType = mediaType)
 
             session.platform?.let { platform ->
                 Text(
@@ -134,9 +143,9 @@ fun SessionDetail(
     }
 
     if (showDeleteConfirmation) {
-        AlertDialog(
+        OmnilogAlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text(text = stringResource(R.string.delete_session_title)) },
+            title = stringResource(R.string.delete_session_title),
             text = { Text(text = stringResource(R.string.delete_session_message, session.sessionNumber)) },
             confirmButton = {
                 TextButton(
@@ -263,11 +272,20 @@ private fun SessionRating(rating: Int?, color: Color) {
 }
 
 @Composable
-private fun SessionMetaRow(session: TrackingSession) {
-    val finishedAt = session.finishedAt?.let { stringResource(R.string.session_finished_at, it.formatDate()) }
+private fun SessionMetaRow(session: TrackingSession, mediaType: MediaType) {
     val startedAt = session.startedAt?.let { stringResource(R.string.session_started_at, it.formatDate()) }
-    val updatedAt = session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
-    val values = listOfNotNull(finishedAt, startedAt, updatedAt)
+    val finishedAt = session.finishedAt?.let {
+        stringResource(
+            if (startedAt == null) mediaType.finishedOnlyDateLabelRes() else R.string.session_finished_at,
+            it.formatDate(),
+        )
+    }
+    val updatedAt = if (finishedAt == null) {
+        session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
+    } else {
+        null
+    }
+    val values = listOfNotNull(startedAt, finishedAt, updatedAt)
     if (values.isEmpty()) return
 
     Row(
@@ -346,6 +364,16 @@ private fun TrackingSession.updatedDate(): LocalDate? {
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
 }
+
+private fun MediaType.finishedOnlyDateLabelRes(): Int =
+    when (this) {
+        MediaType.Book -> R.string.session_finished_read_at
+        MediaType.Game -> R.string.session_finished_played_at
+        MediaType.Anime,
+        MediaType.Movie,
+        MediaType.TvShow,
+            -> R.string.session_finished_watched_at
+    }
 
 private fun LocalDate.formatDate(): String =
     format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))

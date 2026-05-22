@@ -67,7 +67,6 @@ class RawgMetadataRepository(
         val rating = optDouble("rating", 0.0)
         val ratingsCount = optInt("ratings_count", 0)
         val metacritic = optInt("metacritic", 0)
-        val playtime = optInt("playtime", 0).takeIf { it > 0 }
         val rawgRating = if (rating > 0.0) {
             MetadataRatingSuggestion(
                 score = rating,
@@ -85,7 +84,7 @@ class RawgMetadataRepository(
             title = name,
             releaseYear = releaseYear,
             coverUrl = coverUrl,
-            progressTotal = playtime,
+            progressTotal = null,
             genres = genres,
             sourceUrl = slug?.let { "https://rawg.io/games/$it" },
             externalRating = metacritic.takeIf { it > 0 }?.let {
@@ -128,7 +127,6 @@ class RawgMetadataRepository(
         val rating = optDouble("rating", 0.0)
         val ratingsCount = optInt("ratings_count", 0)
         val metacritic = optInt("metacritic", 0)
-        val playtime = optInt("playtime", 0).takeIf { it > 0 }
         val ratingsDistribution = optJSONArray("ratings")?.toString()
         val steamRating = fetchSteamRating(base.externalId)
         val rawgRating = if (rating > 0.0) {
@@ -157,7 +155,7 @@ class RawgMetadataRepository(
             creators = optJSONArray("developers").toStringList("name").ifEmpty { base.creators },
             credits = optJSONArray("developers").toCredits(MediaCreditRole.Developer, MetadataSource.Rawg)
                 .ifEmpty { base.credits },
-            progressTotal = playtime ?: base.progressTotal,
+            progressTotal = null,
             popularityScore = optInt("added", 0).takeIf { it > 0 }?.toDouble() ?: base.popularityScore,
             ratingDistributionJson = ratingsDistribution ?: base.ratingDistributionJson,
             popularityJson = JSONObject()

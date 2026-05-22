@@ -35,6 +35,13 @@
 
     <string name="progress_value">Progrés %1$d</string>
     <string name="progress_with_total">Progrés %1$d/%2$d</string>
+    <string name="progress_history_title">Historial de progres</string>
+    <string name="progress_history_open">Veure historial (%1$d)</string>
+    <string name="progress_history_entry">%1$s · +%2$d %3$s</string>
+    <string name="progress_history_delta">%1$+d %2$s · total %3$d</string>
+    <string name="progress_history_more">+%1$d actualitzacions mes</string>
+    <string name="delete_progress_update_title">Elimina actualització</string>
+    <string name="delete_progress_update_message">Vols eliminar l\'actualització del %1$s (%2$s)? El progres de la sessió es recalcularà.</string>
     <string name="progress_unit_episode_one">episodi</string>
     <string name="progress_unit_episode_many">episodis</string>
     <string name="progress_unit_page_one">pagina</string>
@@ -62,8 +69,11 @@
     <string name="detail_current_session">Sessió actual</string>
     <string name="edit_current_session">Edita seguiment</string>
     <string name="session_planned_prompt">Preparat per comencar quan vulguis.</string>
-    <string name="session_started_at">Inici: %1$s</string>
-    <string name="session_finished_at">Final: %1$s</string>
+    <string name="session_started_at">Començat: %1$s</string>
+    <string name="session_finished_at">Acabat: %1$s</string>
+    <string name="session_finished_watched_at">Vist: %1$s</string>
+    <string name="session_finished_read_at">Llegit: %1$s</string>
+    <string name="session_finished_played_at">Jugat: %1$s</string>
     <string name="session_updated_at">Actualitzat: %1$s</string>
     <string name="session_dates">Dates</string>
     <string name="session_started_label">Data d\'inici</string>
@@ -150,10 +160,12 @@
     <string name="collection_unsaved_reorder_message">Tens canvis de reordenació sense desar.</string>
     <string name="collection_remove_item">Treu de la col·lecció</string>
     <string name="collection_remove_item_message">Vols treure %1$s de la col·lecció?</string>
+    <string name="collection_remove_item_done">%1$s s\'ha tret de la col·lecció.</string>
     <string name="collection_move_item">Mou</string>
     <string name="collection_move_item_title">Mou a una altra col·lecció</string>
     <string name="collection_move_item_empty">No hi ha altres col·leccions disponibles per a aquest tipus.</string>
     <string name="collection_move_item_no_matches">No hi ha col·leccions que coincideixin amb la cerca.</string>
+    <string name="collection_move_item_done">%1$s s\'ha mogut a %2$s.</string>
     <string name="collection_suggestion_existing">Col·lecció existent</string>
     <string name="collection_suggestion_provider">Suggerit per les metadades</string>
     <string name="collection_suggestion_title">Crea des del títol</string>
@@ -195,7 +207,7 @@
     <string name="account_menu">Compte</string>
     <string name="import_backup_title">Importa còpia</string>
     <string name="import_backup_message">Aixo substituira totes les dades locals actuals per les de la còpia.</string>
-    <string name="import_backup_message_with_summary">Copia v%1$d validada.\n\nAixo substituira totes les dades locals actuals per les de la còpia.\n\nLa còpia conte:\n%2$d col·leccions\n%3$d elements\n%4$d credits\n%5$d sessions\n%6$d notes externes\n%7$d seguiments externs</string>
+    <string name="import_backup_message_with_summary">Copia v%1$d validada.\n\nAixo substituira totes les dades locals actuals per les de la còpia.\n\nLa còpia conte:\n%2$d col·leccions\n%3$d elements\n%4$d credits\n%5$d sessions\n%6$d actualitzacions de progres\n%7$d notes externes\n%8$d seguiments externs</string>
     <string name="import_backup_confirm">Importa</string>
     <string name="import_backup_final_title">Substitueix totes les dades?</string>
     <string name="import_backup_final_message">Omnilog guardarà automaticament una còpia de seguretat de les dades actuals a la carpeta de l\'aplicació. Després, eliminarà totes les dades locals i les substituira per la còpia importada.</string>
@@ -259,7 +271,7 @@
     <string name="field_external_tracking_source">App externa</string>
     <string name="field_external_tracking_id">ID extern</string>
     <string name="field_external_tracking_url">URL</string>
-    <string name="add_external_tracking">Afegeix seguiment extern</string>
+    <string name="add_external_tracking">Afegeix seguiment</string>
     <string name="mark_external_tracking_synced">Marca actualitzat</string>
     <string name="mark_external_tracking_pending">Marca pendent</string>
     <string name="delete_external_tracking">Elimina</string>

@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaItem
+import com.nilpo.contenttracker.core.model.MediaType
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,7 +85,7 @@ fun ItemDetailsEditor(
                                 title,
                                 originalTitle.trim().takeIf { it.isNotBlank() },
                                 releaseYearText.toIntOrNull(),
-                                totalText.toIntOrNull(),
+                                totalText.toIntOrNull().takeUnless { item.type == MediaType.Game },
                                 genresText.toMetadataList(),
                                 creatorsText.toMetadataList(),
                                 coverUrl.trim().takeIf { it.isNotBlank() },
@@ -132,14 +133,16 @@ fun ItemDetailsEditor(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
-            MetadataEditorField(
-                value = totalText,
-                onValueChange = { value -> totalText = value.filter { it.isDigit() } },
-                label = stringResource(R.string.field_total_progress),
-                accent = accent,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
+            if (item.type != MediaType.Game) {
+                MetadataEditorField(
+                    value = totalText,
+                    onValueChange = { value -> totalText = value.filter { it.isDigit() } },
+                    label = stringResource(R.string.field_total_progress),
+                    accent = accent,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            }
             MetadataEditorField(
                 value = creatorsText,
                 onValueChange = { creatorsText = it },

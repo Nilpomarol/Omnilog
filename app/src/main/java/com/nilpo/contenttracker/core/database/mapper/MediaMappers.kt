@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.ConsumptionPlatform
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
@@ -20,6 +21,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.Ownership
 import com.nilpo.contenttracker.core.model.OwnershipType
+import com.nilpo.contenttracker.core.model.ProgressUpdate
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.json.JSONArray
@@ -131,7 +133,18 @@ fun MediaCollection.toEntity(): MediaCollectionEntity {
     )
 }
 
-fun TrackingSessionEntity.toDomain(): TrackingSession {
+fun ProgressUpdateEntity.toDomain(): ProgressUpdate {
+    return ProgressUpdate(
+        id = id,
+        mediaItemId = mediaItemId,
+        sessionId = sessionId,
+        progressValue = progressValue,
+        loggedAt = LocalDate.ofEpochDay(loggedAtEpochDay),
+        createdAtEpochMillis = createdAtEpochMillis,
+    )
+}
+
+fun TrackingSessionEntity.toDomain(progressUpdates: List<ProgressUpdateEntity> = emptyList()): TrackingSession {
     return TrackingSession(
         id = id,
         mediaItemId = mediaItemId,
@@ -149,6 +162,10 @@ fun TrackingSessionEntity.toDomain(): TrackingSession {
         startedAt = startedAtEpochDay?.let(LocalDate::ofEpochDay),
         finishedAt = finishedAtEpochDay?.let(LocalDate::ofEpochDay),
         updatedAtEpochMillis = updatedAtEpochMillis,
+        progressUpdates = progressUpdates
+            .filter { update -> update.sessionId == id }
+            .sortedWith(compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }.thenBy { it.createdAtEpochMillis })
+            .map { it.toDomain() },
     )
 }
 

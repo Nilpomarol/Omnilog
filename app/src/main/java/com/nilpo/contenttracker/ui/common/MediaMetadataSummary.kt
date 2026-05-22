@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,6 +101,7 @@ fun MediaMetadataHero(
     metadata: MediaMetadataUi,
     modifier: Modifier = Modifier,
     isLoadingDetails: Boolean = false,
+    onCollectionClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -144,6 +146,11 @@ fun MediaMetadataHero(
                 metadata.collectionDisplayName()?.let { collectionName ->
                     Text(
                         text = collectionName,
+                        modifier = if (onCollectionClick != null) {
+                            Modifier.clickable(onClick = onCollectionClick)
+                        } else {
+                            Modifier
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = OmnilogColors.AppMuted,
@@ -287,7 +294,7 @@ private fun GenreRow(
 private fun HeroMetrics(metadata: MediaMetadataUi) {
     val rating = metadata.externalRatingScore
     val users = metadata.externalRatingVoteCount?.toDouble() ?: metadata.popularityScore
-    val length = metadata.progressTotal
+    val length = metadata.progressTotal.takeUnless { metadata.mediaType == MediaType.Game }
     val supportingStats = listOfNotNull(
         metadata.sourceName?.takeIf { rating == null },
         metadata.rankingText(),
@@ -311,12 +318,14 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
                 color = OmnilogColors.Dashboard,
                 modifier = Modifier.weight(1f),
             )
-            HeroMetric(
-                label = stringResource(metadata.totalUnitLabelRes()),
-                value = length?.toString() ?: "-",
-                color = OmnilogColors.AppInk,
-                modifier = Modifier.weight(1f),
-            )
+            if (metadata.mediaType != MediaType.Game) {
+                HeroMetric(
+                    label = stringResource(metadata.totalUnitLabelRes()),
+                    value = length?.toString() ?: "-",
+                    color = OmnilogColors.AppInk,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             HeroMetric(
                 label = stringResource(R.string.metadata_users),
                 value = users?.let(::formatCompactCount) ?: "-",

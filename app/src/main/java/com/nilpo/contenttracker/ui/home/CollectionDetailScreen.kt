@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -45,12 +44,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -58,7 +57,10 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
+import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
+import com.nilpo.contenttracker.ui.common.OmnilogModal
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 
 @Composable
@@ -73,6 +75,7 @@ fun CollectionDetailScreen(
     onDeleteCollection: (Long) -> Unit,
     onUpdateCollectionItemOrder: (Long, List<CollectionItemOrder>) -> Unit,
     onUpdateMediaItemCollection: (TrackedMedia, Long?, Double?) -> Unit,
+    onCollectionActionMessage: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var nameText by rememberSaveable(collection.id) { mutableStateOf(collection.name) }
@@ -84,6 +87,11 @@ fun CollectionDetailScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var itemPendingRemoval by remember { mutableStateOf<TrackedMedia?>(null) }
     var itemPendingMove by remember { mutableStateOf<TrackedMedia?>(null) }
+    val context = LocalContext.current
+    val removeDoneMessage = stringResource(
+        R.string.collection_remove_item_done,
+        itemPendingRemoval?.item?.title?.let(::displayMediaTitle).orEmpty(),
+    )
     val sortedItems = items.sortedWith(collectionItemComparator())
     val displayedItems = if (isReordering) {
         sortedItems.sortedWith(
@@ -303,12 +311,12 @@ fun CollectionDetailScreen(
 
     // ── Rename dialog ──────────────────────────────────────────────────────
     if (showRenameDialog) {
-        AlertDialog(
+        OmnilogAlertDialog(
             onDismissRequest = {
                 showRenameDialog = false
                 nameText = collection.name
             },
-            title = { Text(text = stringResource(R.string.collection_rename_title)) },
+            title = stringResource(R.string.collection_rename_title),
             text = {
                 OutlinedTextField(
                     value = nameText,
@@ -344,9 +352,9 @@ fun CollectionDetailScreen(
 
     // ── Delete confirmation dialog ─────────────────────────────────────────
     if (showDeleteConfirmation) {
-        AlertDialog(
+        OmnilogAlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text(text = stringResource(R.string.delete_collection_title)) },
+            title = stringResource(R.string.delete_collection_title),
             text = { Text(text = stringResource(R.string.delete_collection_message, collection.name)) },
             confirmButton = {
                 TextButton(
@@ -368,9 +376,9 @@ fun CollectionDetailScreen(
     }
 
     if (showDiscardReorderConfirmation) {
-        AlertDialog(
+        OmnilogAlertDialog(
             onDismissRequest = { showDiscardReorderConfirmation = false },
-            title = { Text(text = stringResource(R.string.collection_unsaved_reorder_title)) },
+            title = stringResource(R.string.collection_unsaved_reorder_title),
             text = { Text(text = stringResource(R.string.collection_unsaved_reorder_message)) },
             confirmButton = {
                 TextButton(
@@ -392,9 +400,9 @@ fun CollectionDetailScreen(
     }
 
     itemPendingRemoval?.let { trackedMedia ->
-        AlertDialog(
+        OmnilogAlertDialog(
             onDismissRequest = { itemPendingRemoval = null },
-            title = { Text(text = stringResource(R.string.collection_remove_item)) },
+            title = stringResource(R.string.collection_remove_item),
             text = {
                 Text(
                     text = stringResource(
@@ -407,6 +415,7 @@ fun CollectionDetailScreen(
                 TextButton(
                     onClick = {
                         onUpdateMediaItemCollection(trackedMedia, null, null)
+                        onCollectionActionMessage(removeDoneMessage)
                         itemPendingRemoval = null
                     },
                 ) {
@@ -434,6 +443,13 @@ fun CollectionDetailScreen(
                     targetCollection.id,
                     null,
                 )
+                onCollectionActionMessage(
+                    context.getString(
+                        R.string.collection_move_item_done,
+                        displayMediaTitle(trackedMedia.item.title),
+                        targetCollection.name,
+                    ),
+                )
                 itemPendingMove = null
             },
         )
@@ -455,91 +471,82 @@ private fun MoveCollectionDialog(
     }
     val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
+    OmnilogModal(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.collection_move_item_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = {
-                        query = it
-                        selectedCollectionId = null
-                    },
-                    placeholder = { Text(stringResource(R.string.collection_search)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                )
+            Text(
+                text = stringResource(R.string.collection_move_item_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogColors.AppInk,
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = {
+                    query = it
+                    selectedCollectionId = null
+                },
+                placeholder = { Text(stringResource(R.string.collection_search)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                colors = omnilogModalTextFieldColors(accent),
+            )
 
-                when {
-                    availableCollections.isEmpty() -> Text(
-                        text = stringResource(R.string.collection_move_item_empty),
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = OmnilogColors.AppMuted,
-                    )
-                    visibleCollections.isEmpty() -> Text(
-                        text = stringResource(R.string.collection_move_item_no_matches),
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = OmnilogColors.AppMuted,
-                    )
-                    else -> LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 238.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                        contentPadding = PaddingValues(vertical = 2.dp),
-                    ) {
-                        items(
-                            items = visibleCollections,
-                            key = { collection -> collection.id },
-                        ) { targetCollection ->
-                            CollectionMoveOptionRow(
-                                collection = targetCollection,
-                                selected = targetCollection.id == selectedCollectionId,
-                                accent = accent,
-                                onClick = {
-                                    selectedCollectionId = targetCollection.id
-                                    query = targetCollection.name
-                                },
-                            )
-                        }
+            when {
+                availableCollections.isEmpty() -> Text(
+                    text = stringResource(R.string.collection_move_item_empty),
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmnilogColors.AppMuted,
+                )
+                visibleCollections.isEmpty() -> Text(
+                    text = stringResource(R.string.collection_move_item_no_matches),
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmnilogColors.AppMuted,
+                )
+                else -> LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 238.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp),
+                ) {
+                    items(
+                        items = visibleCollections,
+                        key = { collection -> collection.id },
+                    ) { targetCollection ->
+                        CollectionMoveOptionRow(
+                            collection = targetCollection,
+                            selected = targetCollection.id == selectedCollectionId,
+                            accent = accent,
+                            onClick = {
+                                selectedCollectionId = targetCollection.id
+                                query = targetCollection.name
+                            },
+                        )
                     }
                 }
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+                TextButton(
+                    enabled = selectedCollection != null,
+                    onClick = {
+                        selectedCollection?.let(onMove)
+                    },
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    TextButton(
-                        enabled = selectedCollection != null,
-                        onClick = {
-                            selectedCollection?.let(onMove)
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.collection_move_item), color = accent)
-                    }
+                    Text(text = stringResource(R.string.collection_move_item), color = accent)
                 }
             }
         }

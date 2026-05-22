@@ -10,6 +10,7 @@ import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.relation.TrackedMediaRelation
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
@@ -48,6 +49,15 @@ interface MediaDao {
     @Query("SELECT * FROM tracking_sessions ORDER BY id")
     suspend fun getAllTrackingSessions(): List<TrackingSessionEntity>
 
+    @Query("SELECT * FROM progress_updates ORDER BY id")
+    suspend fun getProgressUpdates(): List<ProgressUpdateEntity>
+
+    @Query("SELECT * FROM progress_updates WHERE id = :progressUpdateId LIMIT 1")
+    suspend fun getProgressUpdate(progressUpdateId: Long): ProgressUpdateEntity?
+
+    @Query("SELECT * FROM progress_updates WHERE sessionId = :sessionId ORDER BY loggedAtEpochDay, createdAtEpochMillis, id")
+    suspend fun getProgressUpdatesForSession(sessionId: Long): List<ProgressUpdateEntity>
+
     @Query("SELECT * FROM external_ratings ORDER BY id")
     suspend fun getExternalRatings(): List<ExternalRatingEntity>
 
@@ -71,6 +81,16 @@ interface MediaDao {
 
     @Query("DELETE FROM media_collections WHERE id = :collectionId")
     suspend fun deleteMediaCollection(collectionId: Long)
+
+    @Query(
+        """
+        DELETE FROM media_collections
+        WHERE id NOT IN (
+            SELECT DISTINCT collectionId FROM media_items WHERE collectionId IS NOT NULL
+        )
+        """,
+    )
+    suspend fun deleteEmptyMediaCollections()
 
     @Query(
         """
@@ -107,6 +127,9 @@ interface MediaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrackingSession(session: TrackingSessionEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProgressUpdate(update: ProgressUpdateEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExternalRating(externalRating: ExternalRatingEntity): Long
@@ -268,6 +291,20 @@ interface MediaDao {
     @Query(
         """
         UPDATE tracking_sessions
+        SET progressCurrent = :progressCurrent,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :sessionId
+        """,
+    )
+    suspend fun updateSessionProgress(
+        sessionId: Long,
+        progressCurrent: Int,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
         SET progressCurrent = :progressTotal,
             updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE mediaItemId = :mediaItemId AND progressCurrent > :progressTotal
@@ -281,6 +318,12 @@ interface MediaDao {
 
     @Query("DELETE FROM tracking_sessions WHERE id = :sessionId")
     suspend fun deleteTrackingSession(sessionId: Long)
+
+    @Query("DELETE FROM progress_updates WHERE sessionId = :sessionId")
+    suspend fun deleteProgressUpdatesForSession(sessionId: Long)
+
+    @Query("DELETE FROM progress_updates WHERE id = :progressUpdateId")
+    suspend fun deleteProgressUpdate(progressUpdateId: Long)
 
     @Query("DELETE FROM media_items WHERE id = :mediaItemId")
     suspend fun deleteMediaItem(mediaItemId: Long)
@@ -300,6 +343,9 @@ interface MediaDao {
     @Query("DELETE FROM tracking_sessions")
     suspend fun deleteAllTrackingSessions()
 
+    @Query("DELETE FROM progress_updates")
+    suspend fun deleteAllProgressUpdates()
+
     @Query("DELETE FROM media_items")
     suspend fun deleteAllMediaItems()
 
@@ -315,11 +361,13 @@ interface MediaDao {
         mediaItems: List<MediaItemEntity>,
         mediaCredits: List<MediaCreditEntity>,
         sessions: List<TrackingSessionEntity>,
+        progressUpdates: List<ProgressUpdateEntity>,
         externalRatings: List<ExternalRatingEntity>,
         externalTracking: List<ExternalTrackingEntity>,
     ) {
         deleteAllExternalTracking()
         deleteAllExternalRatings()
+        deleteAllProgressUpdates()
         deleteAllTrackingSessions()
         deleteAllMediaCredits()
         deleteAllMediaItems()
@@ -329,7 +377,9 @@ interface MediaDao {
         mediaItems.forEach { insertMediaItem(it) }
         mediaCredits.forEach { insertMediaCredit(it) }
         sessions.forEach { insertTrackingSession(it) }
+        progressUpdates.forEach { insertProgressUpdate(it) }
         externalRatings.forEach { insertExternalRating(it) }
         externalTracking.forEach { insertExternalTracking(it) }
+        deleteEmptyMediaCollections()
     }
 }

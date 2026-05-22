@@ -261,6 +261,12 @@ class HomeViewModel(
         }
     }
 
+    fun deleteProgressUpdate(progressUpdateId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteProgressUpdate(progressUpdateId)
+        }
+    }
+
     fun deleteMediaItem(mediaItemId: Long) {
         viewModelScope.launch {
             mediaRepository.deleteMediaItem(mediaItemId)
@@ -475,7 +481,7 @@ private fun List<TrackedMedia>.sortByMode(
 
 private fun TrackedMedia.progressSortValue(): Double {
     val progressCurrent = currentSession?.progressCurrent ?: 0
-    val progressTotal = item.progressTotal
+    val progressTotal = item.progressTotal.takeUnless { item.type == MediaType.Game }
 
     return if (progressTotal != null && progressTotal > 0) {
         progressCurrent.toDouble() / progressTotal.toDouble()

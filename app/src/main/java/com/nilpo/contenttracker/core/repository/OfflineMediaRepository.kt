@@ -6,6 +6,7 @@ import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
@@ -52,7 +53,9 @@ class OfflineMediaRepository(
                     item = relation.item.toDomain(),
                     collection = relation.collection?.toDomain(),
                     availableCollections = availableCollections,
-                    sessions = relation.sessions.map { it.toDomain() },
+                    sessions = relation.sessions.map { session ->
+                        session.toDomain(relation.progressUpdates)
+                    },
                     credits = relation.credits.map { it.toDomain() },
                     externalRatings = relation.externalRatings.map { it.toDomain() },
                     externalTracking = relation.externalTracking.map { it.toDomain() },
@@ -85,12 +88,13 @@ class OfflineMediaRepository(
 
     override suspend fun exportBackupJson(): String {
         return JSONObject()
-            .put("schemaVersion", 3)
+            .put("schemaVersion", 4)
             .put("exportedAtEpochMillis", System.currentTimeMillis())
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
             .put("mediaCredits", JSONArray(mediaDao.getMediaCredits().map { it.toJson() }))
             .put("trackingSessions", JSONArray(mediaDao.getAllTrackingSessions().map { it.toJson() }))
+            .put("progressUpdates", JSONArray(mediaDao.getProgressUpdates().map { it.toJson() }))
             .put("externalRatings", JSONArray(mediaDao.getExternalRatings().map { it.toJson() }))
             .put("externalTracking", JSONArray(mediaDao.getExternalTracking().map { it.toJson() }))
             .toString(2)
@@ -106,6 +110,7 @@ class OfflineMediaRepository(
             mediaItemCount = backup.mediaItems.size,
             mediaCreditCount = backup.mediaCredits.size,
             trackingSessionCount = backup.sessions.size,
+            progressUpdateCount = backup.progressUpdates.size,
             externalRatingCount = backup.externalRatings.size,
             externalTrackingCount = backup.externalTracking.size,
         )
@@ -118,6 +123,7 @@ class OfflineMediaRepository(
             mediaItems = backup.mediaItems,
             mediaCredits = backup.mediaCredits,
             sessions = backup.sessions,
+            progressUpdates = backup.progressUpdates,
             externalRatings = backup.externalRatings,
             externalTracking = backup.externalTracking,
         )
@@ -129,7 +135,9 @@ class OfflineMediaRepository(
         val mediaItem = mediaDao.getMediaItem(request.mediaItemId) ?: return
         val newSessionNumber = (latestSession?.sessionNumber ?: 0) + 1
         val updatedAtEpochMillis = System.currentTimeMillis()
-        val validProgress = mediaItem.progressTotal?.let { maxProgress ->
+        val validProgressTotal = mediaItem.progressTotal
+            ?.takeUnless { mediaItem.type == MediaType.Game.name }
+        val validProgress = validProgressTotal?.let { maxProgress ->
             request.progressCurrent.coerceIn(0, maxProgress)
         } ?: request.progressCurrent.coerceAtLeast(0)
         val validPlatformName = request.platformName?.trim()?.takeIf { it.isNotBlank() }
@@ -164,11 +172,20 @@ class OfflineMediaRepository(
             )
         }
 
-        mediaDao.insertTrackingSession(newSession)
+        val sessionId = mediaDao.insertTrackingSession(newSession)
+        mediaDao.insertProgressUpdateIfNeeded(
+            mediaItemId = request.mediaItemId,
+            sessionId = sessionId,
+            progressValue = validProgress,
+            createdAtEpochMillis = updatedAtEpochMillis,
+        )
         mediaDao.updateExternalTrackingSyncedForMedia(request.mediaItemId, isSynced = false)
     }
 
     override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long {
+        val validTotal = request.progressTotal
+            ?.takeUnless { request.type == MediaType.Game }
+            ?.coerceAtLeast(0)
         val validNewCollectionName = request.newCollectionName?.trim()?.takeIf { it.isNotBlank() }
         val validCollectionId = when {
             validNewCollectionName != null -> mediaDao.insertMediaCollection(
@@ -187,7 +204,7 @@ class OfflineMediaRepository(
                 title = request.title.trim(),
                 collectionId = validCollectionId,
                 collectionSortOrder = validCollectionSortOrder,
-                progressTotal = request.progressTotal?.coerceAtLeast(0),
+                progressTotal = validTotal,
                 originalTitle = request.originalTitle?.trim()?.takeIf { it.isNotBlank() },
                 releaseYear = request.releaseYear,
                 genresJson = request.genres.toJsonArrayString(),
@@ -246,22 +263,30 @@ class OfflineMediaRepository(
                 }
         }
 
-        mediaDao.insertTrackingSession(
+        val initialUpdatedAtEpochMillis = System.currentTimeMillis()
+        val initialProgress = validTotal?.let { total ->
+            request.initialProgress.coerceIn(0, total)
+        } ?: request.initialProgress.coerceAtLeast(0)
+        val initialSessionId = mediaDao.insertTrackingSession(
             TrackingSessionEntity(
                 mediaItemId = mediaItemId,
                 sessionNumber = 1,
                 status = request.initialStatus.name,
-                progressCurrent = request.progressTotal?.let { total ->
-                    request.initialProgress.coerceIn(0, total)
-                } ?: request.initialProgress.coerceAtLeast(0),
+                progressCurrent = initialProgress,
                 rating = request.initialRating?.coerceIn(1, 10),
                 notes = request.initialNotes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = request.platformName?.trim()?.takeIf { it.isNotBlank() },
                 platformType = request.platformType.name,
                 startedAtEpochDay = request.initialStartedAt?.toEpochDay(),
                 finishedAtEpochDay = request.initialFinishedAt?.toEpochDay(),
-                updatedAtEpochMillis = System.currentTimeMillis(),
+                updatedAtEpochMillis = initialUpdatedAtEpochMillis,
             ),
+        )
+        mediaDao.insertProgressUpdateIfNeeded(
+            mediaItemId = mediaItemId,
+            sessionId = initialSessionId,
+            progressValue = initialProgress,
+            createdAtEpochMillis = initialUpdatedAtEpochMillis,
         )
         return mediaItemId
     }
@@ -277,10 +302,13 @@ class OfflineMediaRepository(
     ) {
         val session = mediaDao.getTrackingSession(sessionId) ?: return
         val mediaItem = mediaDao.getMediaItem(session.mediaItemId) ?: return
-        val validProgress = mediaItem.progressTotal?.let { maxProgress ->
+        val validProgressTotal = mediaItem.progressTotal
+            ?.takeUnless { mediaItem.type == MediaType.Game.name }
+        val validProgress = validProgressTotal?.let { maxProgress ->
             progressCurrent.coerceIn(0, maxProgress)
         } ?: progressCurrent.coerceAtLeast(0)
 
+        val updatedAtEpochMillis = System.currentTimeMillis()
         mediaDao.updateSessionDetails(
             sessionId = sessionId,
             status = status.name,
@@ -289,8 +317,16 @@ class OfflineMediaRepository(
             notes = notes?.trim()?.takeIf { it.isNotBlank() },
             startedAtEpochDay = startedAt?.toEpochDay(),
             finishedAtEpochDay = finishedAt?.toEpochDay(),
-            updatedAtEpochMillis = System.currentTimeMillis(),
+            updatedAtEpochMillis = updatedAtEpochMillis,
         )
+        if (validProgress != session.progressCurrent) {
+            mediaDao.insertProgressUpdateIfNeeded(
+                mediaItemId = session.mediaItemId,
+                sessionId = sessionId,
+                progressValue = validProgress,
+                createdAtEpochMillis = updatedAtEpochMillis,
+            )
+        }
         mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 
@@ -303,7 +339,26 @@ class OfflineMediaRepository(
             return
         }
 
+        mediaDao.deleteProgressUpdatesForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
+    }
+
+    override suspend fun deleteProgressUpdate(progressUpdateId: Long) {
+        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return
+        mediaDao.deleteProgressUpdate(progressUpdateId)
+        val recalculatedProgress = mediaDao.getProgressUpdatesForSession(update.sessionId)
+            .maxWithOrNull(compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }
+                .thenBy { it.createdAtEpochMillis }
+                .thenBy { it.id })
+            ?.progressValue
+            ?: 0
+
+        mediaDao.updateSessionProgress(
+            sessionId = update.sessionId,
+            progressCurrent = recalculatedProgress,
+            updatedAtEpochMillis = System.currentTimeMillis(),
+        )
+        mediaDao.updateExternalTrackingSyncedForMedia(update.mediaItemId, isSynced = false)
     }
 
     override suspend fun deleteMediaItem(mediaItemId: Long) {
@@ -312,6 +367,7 @@ class OfflineMediaRepository(
         }
 
         mediaDao.deleteMediaItem(mediaItemId)
+        mediaDao.deleteEmptyMediaCollections()
     }
 
     override suspend fun addExternalTracking(
@@ -399,7 +455,9 @@ class OfflineMediaRepository(
     ) {
         val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return
         val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
-        val validTotal = progressTotal?.coerceAtLeast(0)
+        val validTotal = progressTotal
+            ?.takeUnless { currentItem.type == MediaType.Game.name }
+            ?.coerceAtLeast(0)
         val validNewCollectionName = newCollectionName?.trim()?.takeIf { it.isNotBlank() }
         val validCollectionId = when {
             validNewCollectionName != null -> mediaDao.insertMediaCollection(
@@ -423,6 +481,7 @@ class OfflineMediaRepository(
             isOwned = ownershipType != OwnershipType.None,
             ownershipType = ownershipType.name,
         )
+        mediaDao.deleteEmptyMediaCollections()
 
         validTotal?.let { total ->
             mediaDao.clampSessionsToMediaTotal(
@@ -446,7 +505,10 @@ class OfflineMediaRepository(
         sourceUrl: String?,
     ) {
         val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
-        val validTotal = progressTotal?.coerceAtLeast(0)
+        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return
+        val validTotal = progressTotal
+            ?.takeUnless { currentItem.type == MediaType.Game.name }
+            ?.coerceAtLeast(0)
 
         mediaDao.updateMediaItemMetadata(
             mediaItemId = mediaItemId,
@@ -526,7 +588,9 @@ class OfflineMediaRepository(
                 externalRatings = existingRatings,
             ),
         )
-        val refreshedTotal = refreshed.progressTotal?.coerceAtLeast(0)
+        val refreshedTotal = refreshed.progressTotal
+            ?.takeUnless { mediaType == MediaType.Game }
+            ?.coerceAtLeast(0)
         val refreshedRatings = refreshed.externalRatings
             .ifEmpty { existingRatings }
 
@@ -598,10 +662,29 @@ class OfflineMediaRepository(
 
 }
 
+private suspend fun MediaDao.insertProgressUpdateIfNeeded(
+    mediaItemId: Long,
+    sessionId: Long,
+    progressValue: Int,
+    createdAtEpochMillis: Long,
+) {
+    if (progressValue <= 0) return
+
+    insertProgressUpdate(
+        ProgressUpdateEntity(
+            mediaItemId = mediaItemId,
+            sessionId = sessionId,
+            progressValue = progressValue,
+            loggedAtEpochDay = LocalDate.now().toEpochDay(),
+            createdAtEpochMillis = createdAtEpochMillis,
+        ),
+    )
+}
+
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
     val schemaVersion = root.optInt("schemaVersion", -1)
-    if (schemaVersion !in 1..3) {
+    if (schemaVersion !in 1..4) {
         throw UnsupportedBackupSchemaException(schemaVersion)
     }
 
@@ -615,6 +698,7 @@ private data class ParsedBackup(
     val mediaItems: List<MediaItemEntity>,
     val mediaCredits: List<MediaCreditEntity>,
     val sessions: List<TrackingSessionEntity>,
+    val progressUpdates: List<ProgressUpdateEntity>,
     val externalRatings: List<ExternalRatingEntity>,
     val externalTracking: List<ExternalTrackingEntity>,
 )
@@ -632,6 +716,8 @@ private fun parseBackupData(json: String): ParsedBackup {
             .mapObjects { it.toMediaCreditEntity() },
         sessions = root.getJSONArray("trackingSessions")
             .mapObjects { it.toTrackingSessionEntity() },
+        progressUpdates = root.optJSONArray("progressUpdates").orEmptyArray()
+            .mapObjects { it.toProgressUpdateEntity() },
         externalRatings = root.optJSONArray("externalRatings").orEmptyArray()
             .mapObjects { it.toExternalRatingEntity() },
         externalTracking = root.optJSONArray("externalTracking").orEmptyArray()
@@ -644,11 +730,13 @@ private fun ParsedBackup.validate() {
     mediaItems.requireUniquePositiveIds("media items") { it.id }
     mediaCredits.requireUniquePositiveIds("media credits") { it.id }
     sessions.requireUniquePositiveIds("tracking sessions") { it.id }
+    progressUpdates.requireUniquePositiveIds("progress updates") { it.id }
     externalRatings.requireUniquePositiveIds("external ratings") { it.id }
     externalTracking.requireUniquePositiveIds("external tracking") { it.id }
 
     val collectionIds = collections.map { it.id }.toSet()
     val mediaItemIds = mediaItems.map { it.id }.toSet()
+    val sessionIds = sessions.map { it.id }.toSet()
 
     collections.forEach { collection ->
         require(collection.name.isNotBlank()) { "Collection names cannot be blank" }
@@ -702,6 +790,12 @@ private fun ParsedBackup.validate() {
         session.rating?.let { rating ->
             require(rating in 1..10) { "Session ratings must be between 1 and 10" }
         }
+    }
+
+    progressUpdates.forEach { update ->
+        require(update.mediaItemId in mediaItemIds) { "Progress update references a missing media item" }
+        require(update.sessionId in sessionIds) { "Progress update references a missing session" }
+        require(update.progressValue >= 0) { "Progress update values cannot be negative" }
     }
 
     externalRatings.forEach { rating ->
@@ -785,6 +879,16 @@ private fun TrackingSessionEntity.toJson(): JSONObject {
         .putNullable("startedAtEpochDay", startedAtEpochDay)
         .putNullable("finishedAtEpochDay", finishedAtEpochDay)
         .put("updatedAtEpochMillis", updatedAtEpochMillis)
+}
+
+private fun ProgressUpdateEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("mediaItemId", mediaItemId)
+        .put("sessionId", sessionId)
+        .put("progressValue", progressValue)
+        .put("loggedAtEpochDay", loggedAtEpochDay)
+        .put("createdAtEpochMillis", createdAtEpochMillis)
 }
 
 private fun ExternalRatingEntity.toJson(): JSONObject {
@@ -873,6 +977,17 @@ private fun JSONObject.toTrackingSessionEntity(): TrackingSessionEntity {
         startedAtEpochDay = optNullableLong("startedAtEpochDay"),
         finishedAtEpochDay = optNullableLong("finishedAtEpochDay"),
         updatedAtEpochMillis = optLong("updatedAtEpochMillis", 0),
+    )
+}
+
+private fun JSONObject.toProgressUpdateEntity(): ProgressUpdateEntity {
+    return ProgressUpdateEntity(
+        id = getLong("id"),
+        mediaItemId = getLong("mediaItemId"),
+        sessionId = getLong("sessionId"),
+        progressValue = optInt("progressValue", 0),
+        loggedAtEpochDay = optLong("loggedAtEpochDay", LocalDate.now().toEpochDay()),
+        createdAtEpochMillis = optLong("createdAtEpochMillis", 0),
     )
 }
 

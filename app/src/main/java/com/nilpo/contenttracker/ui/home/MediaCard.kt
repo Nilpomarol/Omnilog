@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -36,9 +37,7 @@ import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val CoverWidth = 100.dp
@@ -157,7 +156,7 @@ fun MediaCard(
 
                 CardProgressFooter(
                     session = session,
-                    progressTotal = item.progressTotal,
+                    progressTotal = item.progressTotal.takeUnless { item.type == MediaType.Game },
                     mediaType = item.type,
                     progressColor = session?.status?.stateColor ?: accent,
                     accent = accent,
@@ -175,6 +174,7 @@ private fun CardProgressFooter(
     progressColor: Color,
     accent: Color,
 ) {
+    val isGame = mediaType == MediaType.Game
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -183,9 +183,13 @@ private fun CardProgressFooter(
         ) {
             Text(
                 text = session.progressLabel(progressTotal, mediaType),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppMuted,
+                style = if (isGame) {
+                    MaterialTheme.typography.titleLarge.copy(fontSize = 21.sp)
+                } else {
+                    MaterialTheme.typography.bodySmall
+                },
+                fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
+                color = if (isGame) accent else OmnilogColors.AppMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -210,10 +214,12 @@ private fun CardProgressFooter(
                 }
             }
         }
-        CardProgressBar(
-            fraction = session.progressFraction(progressTotal),
-            color = progressColor,
-        )
+        if (progressTotal != null && progressTotal > 0) {
+            CardProgressBar(
+                fraction = session.progressFraction(progressTotal),
+                color = progressColor,
+            )
+        }
         CardDates(session = session)
     }
 }

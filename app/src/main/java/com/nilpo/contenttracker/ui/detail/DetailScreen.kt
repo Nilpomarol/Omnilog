@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,12 +33,15 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.MediaItem
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
+import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
@@ -56,6 +58,7 @@ fun DetailScreen(
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeletePastSession: (Long) -> Unit,
+    onDeleteProgressUpdate: (Long) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
@@ -64,6 +67,7 @@ fun DetailScreen(
     onUpdateMediaItemMetadata: (Long, String, String?, Int?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
+    onCollectionClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -77,6 +81,7 @@ fun DetailScreen(
     val metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
         collectionName = trackedMedia.collection?.name,
         collectionSortOrder = trackedMedia.item.collectionSortOrder,
+        progressTotal = trackedMedia.item.effectiveProgressTotal(),
         isOwned = trackedMedia.item.ownership.isOwned,
         isExternalTrackingUpdated = isExternalTrackingUpdated,
         externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
@@ -105,6 +110,7 @@ fun DetailScreen(
             item {
                 MediaMetadataHero(
                     metadata = metadata,
+                    onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
                 )
             }
 
@@ -118,10 +124,11 @@ fun DetailScreen(
                 item {
                     CurrentSessionSection(
                         session = currentSession,
-                        progressTotal = trackedMedia.item.progressTotal,
+                        progressTotal = trackedMedia.item.effectiveProgressTotal(),
                         mediaType = trackedMedia.item.type,
                         accent = accent,
                         onUpdateSessionDetails = onUpdateSessionDetails,
+                        onDeleteProgressUpdate = onDeleteProgressUpdate,
                     )
                 }
             }
@@ -181,10 +188,11 @@ fun DetailScreen(
             items(pastSessions) { session ->
                 PastSessionSection(
                     session = session,
-                    progressTotal = trackedMedia.item.progressTotal,
+                    progressTotal = trackedMedia.item.effectiveProgressTotal(),
                     mediaType = trackedMedia.item.type,
                     accent = accent,
                     onUpdateSessionDetails = onUpdateSessionDetails,
+                    onDeleteProgressUpdate = onDeleteProgressUpdate,
                     onDeleteSession = { onDeletePastSession(session.id) },
                 )
             }
@@ -204,9 +212,9 @@ fun DetailScreen(
     }
 
     if (showDeleteConfirmation) {
-        AlertDialog(
+        OmnilogAlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text(text = stringResource(R.string.delete_media_title)) },
+            title = stringResource(R.string.delete_media_title),
             text = {
                 Text(
                     text = stringResource(
@@ -367,6 +375,10 @@ private fun TrackedMedia.primaryRatingSourceName(): String? {
     return externalRatings.firstOrNull { rating ->
         rating.score.closeTo(score) && rating.maxScore.closeTo(maxScore)
     }?.source?.displayName()
+}
+
+private fun MediaItem.effectiveProgressTotal(): Int? {
+    return progressTotal.takeUnless { type == MediaType.Game }
 }
 
 private fun Double.closeTo(other: Double): Boolean = kotlin.math.abs(this - other) < 0.001

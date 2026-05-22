@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,6 +89,7 @@ fun CurrentSessionSection(
     mediaType: MediaType,
     accent: Color,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
+    onDeleteProgressUpdate: (Long) -> Unit,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -97,6 +99,7 @@ fun CurrentSessionSection(
         mediaType = mediaType,
         accent = accent,
         onEditClick = { showEditor = true },
+        onDeleteProgressUpdate = onDeleteProgressUpdate,
     )
 
     if (showEditor) {
@@ -127,6 +130,7 @@ private fun SessionCard(
     mediaType: MediaType,
     accent: Color,
     onEditClick: () -> Unit,
+    onDeleteProgressUpdate: (Long) -> Unit,
 ) {
     val visualState = session.visualState(accent = accent)
     val progressFraction = session.progressFraction(progressTotal)
@@ -153,21 +157,33 @@ private fun SessionCard(
                     icon = visualState.icon,
                     color = visualState.color,
                 )
-                FilledTonalIconButton(
-                    onClick = onEditClick,
-                    modifier = Modifier.size(32.dp),
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Edit,
-                        contentDescription = stringResource(R.string.edit),
-                        modifier = Modifier.size(16.dp),
+                    ProgressHistoryAction(
+                        updates = session.progressUpdates,
+                        mediaType = mediaType,
+                        accent = visualState.color,
+                        onDeleteProgressUpdate = onDeleteProgressUpdate,
                     )
+                    FilledTonalIconButton(
+                        onClick = onEditClick,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.edit),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
 
             when (session.status) {
                 TrackingStatus.Planned -> PlannedSummary(
                     session = session,
+                    mediaType = mediaType,
                     color = visualState.color,
                 )
                 TrackingStatus.InProgress,
@@ -689,7 +705,7 @@ private fun NotesEditorField(
 // ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun PlannedSummary(session: TrackingSession, color: Color) {
+private fun PlannedSummary(session: TrackingSession, mediaType: MediaType, color: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.session_planned_prompt),
@@ -705,7 +721,7 @@ private fun PlannedSummary(session: TrackingSession, color: Color) {
             color = color,
         )
         InlineRatingDisplay(rating = session.rating, color = color)
-        SessionDates(session = session)
+        SessionDates(session = session, mediaType = mediaType)
     }
 }
 
@@ -738,10 +754,13 @@ private fun ProgressSummary(
                 )
             }
         }
-        ThickProgressBar(fraction = progressFraction, color = color)
+        if (progressTotal != null && progressTotal > 0) {
+            ThickProgressBar(fraction = progressFraction, color = color)
+        }
         InlineRatingDisplay(rating = session.rating, color = color)
         SessionDates(
             session = session,
+            mediaType = mediaType,
             highlightedStartedAt = true,
             highlightColor = color,
         )
@@ -764,13 +783,15 @@ private fun CompletedSummary(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         RatingDisplay(rating = session.rating, color = color)
-        ThickProgressBar(fraction = 1f, color = color)
+        if (progressTotal != null && progressTotal > 0) {
+            ThickProgressBar(fraction = 1f, color = color)
+        }
         Text(
             text = progressText(session, progressTotal, mediaType),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
             style = MaterialTheme.typography.bodyMedium,
         )
-        SessionDates(session = session)
+        SessionDates(session = session, mediaType = mediaType)
     }
 }
 
@@ -794,7 +815,9 @@ private fun DroppedSummary(
             )
         }
         // Faded bar signals "abandoned" vs a solid completed bar
-        ThickProgressBar(fraction = progressFraction, color = color.copy(alpha = 0.40f))
+        if (progressTotal != null && progressTotal > 0) {
+            ThickProgressBar(fraction = progressFraction, color = color.copy(alpha = 0.40f))
+        }
         if (session.rating != null) {
             Text(
                 text = progressText(session, progressTotal, mediaType),
@@ -802,7 +825,7 @@ private fun DroppedSummary(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        SessionDates(session = session)
+        SessionDates(session = session, mediaType = mediaType)
     }
 }
 
@@ -920,43 +943,54 @@ private fun InlineRatingDisplay(rating: Int?, color: Color) {
 @Composable
 private fun SessionDates(
     session: TrackingSession,
+    mediaType: MediaType,
     highlightedStartedAt: Boolean = false,
     highlightColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val startedAt = session.startedAt?.let { stringResource(R.string.session_started_at, it.formatDate()) }
-    val finishedAt = session.finishedAt?.let { stringResource(R.string.session_finished_at, it.formatDate()) }
-    val updatedAt = session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
+    val finishedAt = session.finishedAt?.let {
+        stringResource(
+            if (startedAt == null) mediaType.finishedOnlyDateLabelRes() else R.string.session_finished_at,
+            it.formatDate(),
+        )
+    }
+    val updatedAt = if (finishedAt == null) {
+        session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
+    } else {
+        null
+    }
     if (startedAt == null && finishedAt == null && updatedAt == null) return
 
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (startedAt != null || finishedAt != null) {
-            val primaryDateColor = if (highlightedStartedAt && startedAt != null) {
-                highlightColor
-            } else {
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                startedAt?.let { label ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (highlightedStartedAt) FontWeight.Bold else FontWeight.SemiBold,
-                        color = primaryDateColor,
-                    )
-                }
-                finishedAt?.let { label ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
-                    )
-                }
-            }
+    val primaryDateColor = if (highlightedStartedAt && startedAt != null) {
+        highlightColor
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        startedAt?.let { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (highlightedStartedAt) FontWeight.Bold else FontWeight.SemiBold,
+                color = primaryDateColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        finishedAt?.let { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         updatedAt?.let { label ->
             Text(
@@ -964,7 +998,8 @@ private fun SessionDates(
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
-                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -1124,6 +1159,16 @@ private fun TrackingSession.updatedDate(): LocalDate? {
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
 }
+
+private fun MediaType.finishedOnlyDateLabelRes(): Int =
+    when (this) {
+        MediaType.Book -> R.string.session_finished_read_at
+        MediaType.Game -> R.string.session_finished_played_at
+        MediaType.Anime,
+        MediaType.Movie,
+        MediaType.TvShow,
+            -> R.string.session_finished_watched_at
+    }
 
 private fun LocalDate.formatDate(): String =
     format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))

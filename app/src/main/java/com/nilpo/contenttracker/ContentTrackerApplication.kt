@@ -23,7 +23,7 @@ class ContentTrackerApplication : Application() {
             "content-tracker.db",
         )
             .fallbackToDestructiveMigration(false)
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .build()
     }
 
@@ -155,5 +155,26 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("DROP TABLE media_items")
         db.execSQL("ALTER TABLE media_items_new RENAME TO media_items")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_media_items_collectionId ON media_items(collectionId)")
+    }
+}
+
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS progress_updates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                mediaItemId INTEGER NOT NULL,
+                sessionId INTEGER NOT NULL,
+                progressValue INTEGER NOT NULL,
+                loggedAtEpochDay INTEGER NOT NULL,
+                createdAtEpochMillis INTEGER NOT NULL,
+                FOREIGN KEY(mediaItemId) REFERENCES media_items(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(sessionId) REFERENCES tracking_sessions(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_progress_updates_mediaItemId ON progress_updates(mediaItemId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_progress_updates_sessionId ON progress_updates(sessionId)")
     }
 }

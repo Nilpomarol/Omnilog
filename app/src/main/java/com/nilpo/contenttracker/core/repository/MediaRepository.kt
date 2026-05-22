@@ -21,6 +21,7 @@ data class BackupPreview(
     val mediaItemCount: Int,
     val mediaCreditCount: Int,
     val trackingSessionCount: Int,
+    val progressUpdateCount: Int,
     val externalRatingCount: Int,
     val externalTrackingCount: Int,
 )
@@ -56,6 +57,8 @@ interface MediaRepository {
     )
 
     suspend fun deletePastSession(sessionId: Long)
+
+    suspend fun deleteProgressUpdate(progressUpdateId: Long)
 
     suspend fun deleteMediaItem(mediaItemId: Long)
 

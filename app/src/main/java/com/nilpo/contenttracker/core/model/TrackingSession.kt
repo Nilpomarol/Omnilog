@@ -14,6 +14,7 @@ data class TrackingSession(
     val startedAt: LocalDate? = null,
     val finishedAt: LocalDate? = null,
     val updatedAtEpochMillis: Long = 0,
+    val progressUpdates: List<ProgressUpdate> = emptyList(),
 ) {
     val isRevisit: Boolean
         get() = sessionNumber > 1
