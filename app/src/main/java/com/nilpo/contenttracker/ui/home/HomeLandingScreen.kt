@@ -28,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -73,9 +73,15 @@ fun HomeLandingScreen(
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
+    val context = LocalContext.current
+    val dashboardPreferences = remember(context) {
+        context.getSharedPreferences("omnilog_dashboard_preferences", android.content.Context.MODE_PRIVATE)
+    }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearchOverlay by rememberSaveable { mutableStateOf(false) }
-    var hideGamesFromActive by rememberSaveable { mutableStateOf(false) }
+    var hideGamesFromActive by rememberSaveable {
+        mutableStateOf(dashboardPreferences.getBoolean(HideGamesFromActivePreferenceKey, false))
+    }
     val dashboardListState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val normalizedSearchQuery = searchQuery.trim()
@@ -158,7 +164,13 @@ fun HomeLandingScreen(
                                         DashboardToggle(
                                             label = stringResource(R.string.home_active_hide_games),
                                             checked = hideGamesFromActive,
-                                            onCheckedChange = { hideGamesFromActive = it },
+                                            onCheckedChange = { isChecked ->
+                                                hideGamesFromActive = isChecked
+                                                dashboardPreferences
+                                                    .edit()
+                                                    .putBoolean(HideGamesFromActivePreferenceKey, isChecked)
+                                                    .apply()
+                                            },
                                         )
                                     }
                                 } else {
@@ -311,7 +323,7 @@ private fun DashboardSearchOverlay(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = 372.dp),
+            .heightIn(max = 336.dp),
         shape = RoundedCornerShape(8.dp),
         color = OmnilogColors.AppPanel.copy(alpha = 0.98f),
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
@@ -371,7 +383,7 @@ private fun DashboardSearchResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(74.dp)
+            .height(66.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -379,7 +391,7 @@ private fun DashboardSearchResultRow(
     ) {
         MetadataCoverImage(
             coverUrl = trackedMedia.item.coverUrl,
-            modifier = Modifier.size(width = 42.dp, height = 62.dp),
+            modifier = Modifier.size(width = 38.dp, height = 56.dp),
             shape = RoundedCornerShape(5.dp),
         )
         Column(
@@ -407,13 +419,13 @@ private fun DashboardSearchResultRow(
         }
         trackedMedia.currentSession?.let { session ->
             Box(
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     painter = painterResource(session.status.iconResId),
                     contentDescription = session.status.label(),
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(18.dp),
                     tint = session.status.stateColor,
                 )
             }
@@ -430,7 +442,7 @@ private fun DashboardSectionSearchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(40.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -439,7 +451,7 @@ private fun DashboardSectionSearchRow(
         Icon(
             painter = painterResource(section.iconResId),
             contentDescription = null,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(22.dp),
             tint = section.accent,
         )
         Text(
@@ -481,9 +493,8 @@ private fun HomeStats(items: List<TrackedMedia>) {
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             StatTile(
                 label = stringResource(R.string.home_stat_total_titles),
                 value = items.size.toString(),
@@ -498,8 +509,6 @@ private fun HomeStats(items: List<TrackedMedia>) {
                 accent = OmnilogColors.Tv,
                 modifier = Modifier.weight(1f),
             )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
                 label = stringResource(R.string.home_stat_average_rating),
                 value = averageRating,
@@ -527,7 +536,7 @@ private fun StatTile(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.height(78.dp),
+        modifier = modifier.height(62.dp),
         shape = RoundedCornerShape(8.dp),
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
@@ -538,19 +547,19 @@ private fun StatTile(
                 contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .height(27.dp)
-                    .padding(top = 8.dp, end = 10.dp),
-                tint = accent.copy(alpha = 0.80f),
+                    .height(22.dp)
+                    .padding(top = 7.dp, end = 8.dp),
+                tint = accent.copy(alpha = 0.68f),
             )
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                    .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = accent,
                     maxLines = 1,
@@ -561,7 +570,7 @@ private fun StatTile(
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = OmnilogColors.AppMuted,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -581,15 +590,37 @@ private fun HomeCarousel(
             title = title,
             trailingContent = trailingContent,
         )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(items) { trackedMedia ->
-                HomeMediaTile(
-                    trackedMedia = trackedMedia,
-                    accent = trackedMedia.item.type.sectionAccent(),
-                    onClick = { onMediaClick(trackedMedia) },
-                )
+        if (items.isEmpty()) {
+            EmptyCarouselState()
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(items) { trackedMedia ->
+                    HomeMediaTile(
+                        trackedMedia = trackedMedia,
+                        accent = trackedMedia.item.type.sectionAccent(),
+                        onClick = { onMediaClick(trackedMedia) },
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyCarouselState() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = OmnilogColors.AppPanel.copy(alpha = 0.64f),
+        border = BorderStroke(1.dp, OmnilogColors.AppLine.copy(alpha = 0.74f)),
+    ) {
+        Text(
+            text = stringResource(R.string.home_active_filtered_empty),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = OmnilogColors.AppMuted,
+        )
     }
 }
 
@@ -625,21 +656,25 @@ private fun DashboardToggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = Modifier
+            .height(24.dp)
+            .clickable { onCheckedChange(!checked) },
+        shape = RoundedCornerShape(999.dp),
+        color = if (checked) OmnilogColors.Dashboard.copy(alpha = 0.16f) else Color.Transparent,
+        border = BorderStroke(
+            1.dp,
+            if (checked) OmnilogColors.Dashboard.copy(alpha = 0.42f) else OmnilogColors.AppLine.copy(alpha = 0.70f),
+        ),
     ) {
         Text(
             text = label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppMuted,
+            fontWeight = FontWeight.SemiBold,
+            color = if (checked) OmnilogColors.Dashboard else OmnilogColors.AppMuted.copy(alpha = 0.70f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
         )
     }
 }
@@ -680,9 +715,9 @@ private fun HomeMediaTile(
                         Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color(0xFF17110D).copy(alpha = 0.10f),
-                                Color(0xFF17110D).copy(alpha = 0.50f),
-                                Color(0xFF15110E).copy(alpha = 0.94f),
+                                Color(0xFF17110D).copy(alpha = 0.16f),
+                                Color(0xFF17110D).copy(alpha = 0.62f),
+                                Color(0xFF15110E).copy(alpha = 0.98f),
                             ),
                         ),
                     ),
@@ -933,3 +968,5 @@ private fun TrackedMedia.latestActivityMillis(): Long =
 
 private fun TrackedMedia.bestRating(): Int? =
     sessions.mapNotNull { it.rating }.maxOrNull()
+
+private const val HideGamesFromActivePreferenceKey = "hide_games_from_active"
