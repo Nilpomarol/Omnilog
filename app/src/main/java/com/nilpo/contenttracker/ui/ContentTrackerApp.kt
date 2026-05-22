@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -57,18 +60,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.repository.BackupPreview
+import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
+import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
+import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.add.AddCollectionOption
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
+import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
+import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
 import com.nilpo.contenttracker.ui.home.HomeLandingScreen
@@ -101,6 +111,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var showRestoreList by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
+    var pendingImdbCsvImport by remember { mutableStateOf<PendingImdbCsvImport?>(null) }
+    var pendingStoryGraphCsvImport by remember { mutableStateOf<PendingStoryGraphCsvImport?>(null) }
+    var pendingMyAnimeListXmlImport by remember { mutableStateOf<PendingMyAnimeListXmlImport?>(null) }
+    var metadataLinkTarget by remember { mutableStateOf<TrackedMedia?>(null) }
+    var metadataLinkQuery by remember { mutableStateOf("") }
+    var metadataLinkSuggestions by remember { mutableStateOf<List<MetadataSuggestion>>(emptyList()) }
+    var isMetadataLinkLoading by remember { mutableStateOf(false) }
+    var hasMetadataLinkError by remember { mutableStateOf(false) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
     var addTargetCollection by remember { mutableStateOf<MediaCollection?>(null) }
@@ -124,9 +142,20 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val importSuccessMessage = stringResource(R.string.backup_import_success)
     val importInvalidMessage = stringResource(R.string.backup_import_invalid)
     val importUnsupportedMessage = stringResource(R.string.backup_import_unsupported)
+    val imdbImportReadErrorMessage = stringResource(R.string.imdb_import_read_error)
+    val imdbImportInvalidMessage = stringResource(R.string.imdb_import_invalid)
+    val imdbImportEmptyMessage = stringResource(R.string.imdb_import_empty)
+    val storyGraphImportReadErrorMessage = stringResource(R.string.storygraph_import_read_error)
+    val storyGraphImportInvalidMessage = stringResource(R.string.storygraph_import_invalid)
+    val storyGraphImportEmptyMessage = stringResource(R.string.storygraph_import_empty)
+    val myAnimeListImportReadErrorMessage = stringResource(R.string.mal_import_read_error)
+    val myAnimeListImportInvalidMessage = stringResource(R.string.mal_import_invalid)
+    val myAnimeListImportEmptyMessage = stringResource(R.string.mal_import_empty)
     val metadataRefreshSuccessMessage = stringResource(R.string.metadata_refresh_success)
     val metadataRefreshUnavailableMessage = stringResource(R.string.metadata_refresh_unavailable)
     val metadataRefreshErrorMessage = stringResource(R.string.metadata_refresh_error)
+    val metadataLinkSuccessMessage = stringResource(R.string.metadata_link_success)
+    val metadataLinkErrorMessage = stringResource(R.string.metadata_link_error)
     val navigateBackFromDetail = {
         when (val returnTarget = detailReturnTarget) {
             DetailReturnTarget.Home -> {
@@ -226,14 +255,155 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             }
         }
     }
+    val importImdbCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val readResult = runCatching {
+                    withContext(Dispatchers.IO) {
+                        checkNotNull(context.contentResolver.openInputStream(uri)) {
+                            "Could not open IMDb CSV source"
+                        }.use { inputStream ->
+                            inputStream.readBytes().toString(Charsets.UTF_8)
+                        }
+                    }
+                }
+                val csv = readResult.getOrNull()
+                if (csv == null) {
+                    snackbarHostState.showSnackbar(imdbImportReadErrorMessage)
+                    return@launch
+                }
+
+                val previewResult = runCatching {
+                    PendingImdbCsvImport(
+                        csv = csv,
+                        preview = viewModel.previewImdbCsv(csv),
+                    )
+                }
+                val pendingCsv = previewResult.getOrNull()
+                if (pendingCsv == null) {
+                    snackbarHostState.showSnackbar(imdbImportInvalidMessage)
+                } else if (pendingCsv.preview.importableRows == 0) {
+                    snackbarHostState.showSnackbar(imdbImportEmptyMessage)
+                } else {
+                    pendingImdbCsvImport = pendingCsv
+                }
+            }
+        }
+    }
+    val importStoryGraphCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val readResult = runCatching {
+                    withContext(Dispatchers.IO) {
+                        checkNotNull(context.contentResolver.openInputStream(uri)) {
+                            "Could not open StoryGraph CSV source"
+                        }.use { inputStream ->
+                            inputStream.readBytes().toString(Charsets.UTF_8)
+                        }
+                    }
+                }
+                val csv = readResult.getOrNull()
+                if (csv == null) {
+                    snackbarHostState.showSnackbar(storyGraphImportReadErrorMessage)
+                    return@launch
+                }
+
+                val previewResult = runCatching {
+                    PendingStoryGraphCsvImport(
+                        csv = csv,
+                        preview = viewModel.previewStoryGraphCsv(csv),
+                    )
+                }
+                val pendingCsv = previewResult.getOrNull()
+                if (pendingCsv == null) {
+                    snackbarHostState.showSnackbar(storyGraphImportInvalidMessage)
+                } else if (pendingCsv.preview.importableRows == 0) {
+                    snackbarHostState.showSnackbar(storyGraphImportEmptyMessage)
+                } else {
+                    pendingStoryGraphCsvImport = pendingCsv
+                }
+            }
+        }
+    }
+    val importMyAnimeListXmlLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val readResult = runCatching {
+                    withContext(Dispatchers.IO) {
+                        checkNotNull(context.contentResolver.openInputStream(uri)) {
+                            "Could not open MyAnimeList XML source"
+                        }.use { inputStream ->
+                            inputStream.readBytes().toString(Charsets.UTF_8)
+                        }
+                    }
+                }
+                val xml = readResult.getOrNull()
+                if (xml == null) {
+                    snackbarHostState.showSnackbar(myAnimeListImportReadErrorMessage)
+                    return@launch
+                }
+
+                val previewResult = runCatching {
+                    PendingMyAnimeListXmlImport(
+                        xml = xml,
+                        preview = viewModel.previewMyAnimeListXml(xml),
+                    )
+                }
+                val pendingXml = previewResult.getOrNull()
+                if (pendingXml == null) {
+                    snackbarHostState.showSnackbar(myAnimeListImportInvalidMessage)
+                } else if (pendingXml.preview.importableRows == 0) {
+                    snackbarHostState.showSnackbar(myAnimeListImportEmptyMessage)
+                } else {
+                    pendingMyAnimeListXmlImport = pendingXml
+                }
+            }
+        }
+    }
     backupActions.onExportBackupRequested = {
         exportBackupLauncher.launch("omnilog-backup-${LocalDate.now()}.json")
     }
     backupActions.onImportBackupRequested = {
         importBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
     }
+    backupActions.onImportImdbCsvRequested = {
+        importImdbCsvLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "text/*", "*/*"))
+    }
+    backupActions.onImportStoryGraphCsvRequested = {
+        importStoryGraphCsvLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "text/*", "*/*"))
+    }
+    backupActions.onImportMyAnimeListXmlRequested = {
+        importMyAnimeListXmlLauncher.launch(arrayOf("text/xml", "application/xml", "text/*", "*/*"))
+    }
     backupActions.onRestoreBackupRequested = {
         showRestoreList = true
+    }
+    val searchMetadataLink: (TrackedMedia, String) -> Unit = { trackedMedia, query ->
+        metadataLinkSuggestions = emptyList()
+        isMetadataLinkLoading = true
+        hasMetadataLinkError = false
+        coroutineScope.launch {
+            val result = runCatching {
+                viewModel.searchMetadataLinkSuggestions(
+                    title = query.trim().ifBlank { trackedMedia.item.title },
+                    type = trackedMedia.item.type,
+                )
+            }
+            metadataLinkSuggestions = result.getOrDefault(emptyList())
+            isMetadataLinkLoading = false
+            hasMetadataLinkError = result.isFailure
+        }
+    }
+    val startMetadataLink: (TrackedMedia) -> Unit = { trackedMedia ->
+        metadataLinkTarget = trackedMedia
+        metadataLinkQuery = trackedMedia.item.title
+        searchMetadataLink(trackedMedia, trackedMedia.item.title)
     }
 
     LaunchedEffect(viewModel) {
@@ -283,6 +453,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
 
     BackHandler(
         enabled = pendingPossibleDuplicate != null ||
+            metadataLinkTarget != null ||
+            pendingMyAnimeListXmlImport != null ||
+            pendingStoryGraphCsvImport != null ||
+            pendingImdbCsvImport != null ||
             pendingImportConfirmation != null ||
             pendingImport != null ||
             showRestoreList ||
@@ -293,6 +467,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     ) {
         when {
             pendingPossibleDuplicate != null -> pendingPossibleDuplicate = null
+            metadataLinkTarget != null -> metadataLinkTarget = null
+            pendingMyAnimeListXmlImport != null -> pendingMyAnimeListXmlImport = null
+            pendingStoryGraphCsvImport != null -> pendingStoryGraphCsvImport = null
+            pendingImdbCsvImport != null -> pendingImdbCsvImport = null
             pendingImportConfirmation != null -> pendingImportConfirmation = null
             pendingImport != null -> pendingImport = null
             showRestoreList -> showRestoreList = false
@@ -327,6 +505,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     },
                     showDetailActions = selectedMedia != null && !isAdding,
                     showBackupActions = selectedMedia == null && !isAdding,
+                    showMyAnimeListImport = selectedDestination == AppDestination.Section &&
+                        uiState.selectedSection == MediaSection.Anime,
+                    showImdbImport = selectedDestination == AppDestination.Section &&
+                        uiState.selectedSection == MediaSection.Movies,
+                    showStoryGraphImport = selectedDestination == AppDestination.Section &&
+                        uiState.selectedSection == MediaSection.Books,
                     detailActions = detailActions,
                     backupActions = backupActions,
                     onBack = navigateBackFromDetail,
@@ -558,6 +742,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
                 onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
                 onRefreshMediaItemMetadata = viewModel::refreshMediaItemMetadata,
+                onLinkMediaMetadata = { startMetadataLink(selectedMedia) },
                 onDeleteMediaItem = { mediaItemId ->
                     viewModel.deleteMediaItem(mediaItemId)
                     selectedMediaId = null
@@ -752,6 +937,269 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         )
     }
 
+    pendingImdbCsvImport?.let { imdbImport ->
+        OmnilogAlertDialog(
+            onDismissRequest = { pendingImdbCsvImport = null },
+            title = stringResource(R.string.imdb_import_title),
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.imdb_import_message_with_summary,
+                        imdbImport.preview.importableRows,
+                        imdbImport.preview.totalRows,
+                        imdbImport.preview.skippedDuplicateRows,
+                        imdbImport.preview.unsupportedRows,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            val result = runCatching {
+                                viewModel.importImdbCsv(imdbImport.csv)
+                            }
+                            pendingImdbCsvImport = null
+                            result.fold(
+                                onSuccess = { importResult ->
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(
+                                            R.string.imdb_import_success_with_summary,
+                                            importResult.importedRows,
+                                            importResult.skippedDuplicateRows,
+                                            importResult.unsupportedRows,
+                                        ),
+                                    )
+                                },
+                                onFailure = {
+                                    snackbarHostState.showSnackbar(imdbImportInvalidMessage)
+                                },
+                            )
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.imdb_import_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImdbCsvImport = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    pendingStoryGraphCsvImport?.let { storyGraphImport ->
+        OmnilogAlertDialog(
+            onDismissRequest = { pendingStoryGraphCsvImport = null },
+            title = stringResource(R.string.storygraph_import_title),
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.storygraph_import_message_with_summary,
+                        storyGraphImport.preview.importableRows,
+                        storyGraphImport.preview.totalRows,
+                        storyGraphImport.preview.skippedDuplicateRows,
+                        storyGraphImport.preview.unsupportedRows,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            val result = runCatching {
+                                viewModel.importStoryGraphCsv(storyGraphImport.csv)
+                            }
+                            pendingStoryGraphCsvImport = null
+                            result.fold(
+                                onSuccess = { importResult ->
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(
+                                            R.string.storygraph_import_success_with_summary,
+                                            importResult.importedRows,
+                                            importResult.skippedDuplicateRows,
+                                            importResult.unsupportedRows,
+                                        ),
+                                    )
+                                },
+                                onFailure = {
+                                    snackbarHostState.showSnackbar(storyGraphImportInvalidMessage)
+                                },
+                            )
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.storygraph_import_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingStoryGraphCsvImport = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    pendingMyAnimeListXmlImport?.let { malImport ->
+        OmnilogAlertDialog(
+            onDismissRequest = { pendingMyAnimeListXmlImport = null },
+            title = stringResource(R.string.mal_import_title),
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.mal_import_message_with_summary,
+                        malImport.preview.importableRows,
+                        malImport.preview.totalRows,
+                        malImport.preview.skippedDuplicateRows,
+                        malImport.preview.unsupportedRows,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            val result = runCatching {
+                                viewModel.importMyAnimeListXml(malImport.xml)
+                            }
+                            pendingMyAnimeListXmlImport = null
+                            result.fold(
+                                onSuccess = { importResult ->
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(
+                                            R.string.mal_import_success_with_summary,
+                                            importResult.importedRows,
+                                            importResult.skippedDuplicateRows,
+                                            importResult.unsupportedRows,
+                                        ),
+                                    )
+                                },
+                                onFailure = {
+                                    snackbarHostState.showSnackbar(myAnimeListImportInvalidMessage)
+                                },
+                            )
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.mal_import_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMyAnimeListXmlImport = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    metadataLinkTarget?.let { target ->
+        val providerName = target.item.type.metadataLinkProviderName()
+        Dialog(
+            onDismissRequest = { metadataLinkTarget = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = OmnilogColors.AppBackground,
+                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.metadata_link_title, providerName),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = HeaderInk,
+                    )
+                    Text(
+                        text = stringResource(R.string.metadata_link_message, displayMediaTitle(target.item.title)),
+                        color = HeaderMuted,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = metadataLinkQuery,
+                            onValueChange = { metadataLinkQuery = it },
+                            label = {
+                                Text(text = stringResource(R.string.metadata_link_search_label, providerName))
+                            },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            enabled = !isMetadataLinkLoading,
+                            onClick = { searchMetadataLink(target, metadataLinkQuery) },
+                        ) {
+                            Text(text = stringResource(R.string.metadata_link_search))
+                        }
+                    }
+
+                    when {
+                        isMetadataLinkLoading -> Text(
+                            text = stringResource(R.string.metadata_link_loading),
+                            color = HeaderMuted,
+                        )
+                        hasMetadataLinkError -> Text(
+                            text = stringResource(R.string.metadata_link_search_error),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        metadataLinkSuggestions.isEmpty() -> Text(
+                            text = stringResource(R.string.metadata_link_empty),
+                            color = HeaderMuted,
+                        )
+                        else -> LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            items(metadataLinkSuggestions) { suggestion ->
+                                MetadataSuggestionRow(
+                                    suggestion = suggestion,
+                                    accent = target.item.type.homeSection().accent,
+                                    duplicateState = MetadataDuplicateState.None,
+                                    showSourceChip = false,
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            val result = runCatching {
+                                                viewModel.linkMediaItemMetadata(target.item.id, suggestion)
+                                            }
+                                            metadataLinkTarget = null
+                                            snackbarHostState.showSnackbar(
+                                                if (result.getOrDefault(false)) {
+                                                    metadataLinkSuccessMessage
+                                                } else {
+                                                    metadataLinkErrorMessage
+                                                },
+                                            )
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = { metadataLinkTarget = null }) {
+                            Text(text = stringResource(R.string.cancel))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     pendingPossibleDuplicate?.let { duplicate ->
         OmnilogAlertDialog(
             onDismissRequest = { pendingPossibleDuplicate = null },
@@ -800,6 +1248,21 @@ private data class PendingBackupImport(
     val preview: BackupPreview,
 )
 
+private data class PendingImdbCsvImport(
+    val csv: String,
+    val preview: ImdbCsvPreview,
+)
+
+private data class PendingStoryGraphCsvImport(
+    val csv: String,
+    val preview: StoryGraphCsvPreview,
+)
+
+private data class PendingMyAnimeListXmlImport(
+    val xml: String,
+    val preview: MyAnimeListXmlPreview,
+)
+
 private data class PendingPossibleDuplicate(
     val suggestion: MetadataSuggestion,
     val trackedMedia: TrackedMedia,
@@ -810,15 +1273,21 @@ class DetailHeaderActions {
     var isEditingItemDetails by mutableStateOf(false)
     var isMenuExpanded by mutableStateOf(false)
     var isRefreshingMetadata by mutableStateOf(false)
+    var showLinkMetadata by mutableStateOf(false)
+    var linkMetadataLabelResId by mutableStateOf(R.string.link_metadata_movie)
     var onDeleteRequested: () -> Unit = {}
     var onManageExternalTrackingRequested: () -> Unit = {}
     var onRefreshMetadataRequested: () -> Unit = {}
+    var onLinkMetadataRequested: () -> Unit = {}
 }
 
 class BackupHeaderActions {
     var isMenuExpanded by mutableStateOf(false)
     var onExportBackupRequested: () -> Unit = {}
     var onImportBackupRequested: () -> Unit = {}
+    var onImportMyAnimeListXmlRequested: () -> Unit = {}
+    var onImportImdbCsvRequested: () -> Unit = {}
+    var onImportStoryGraphCsvRequested: () -> Unit = {}
     var onRestoreBackupRequested: () -> Unit = {}
 }
 
@@ -898,6 +1367,17 @@ private fun com.nilpo.contenttracker.core.model.MediaType.homeSection(): MediaSe
         com.nilpo.contenttracker.core.model.MediaType.TvShow,
             -> MediaSection.Movies
         com.nilpo.contenttracker.core.model.MediaType.Game -> MediaSection.Games
+    }
+
+private fun com.nilpo.contenttracker.core.model.MediaType.metadataLinkProviderName(): String =
+    when (this) {
+        com.nilpo.contenttracker.core.model.MediaType.Anime -> "AniList / MyAnimeList"
+        com.nilpo.contenttracker.core.model.MediaType.Book -> "OpenLibrary / Google Books"
+        com.nilpo.contenttracker.core.model.MediaType.Movie,
+        com.nilpo.contenttracker.core.model.MediaType.TvShow,
+            -> "TMDB"
+        com.nilpo.contenttracker.core.model.MediaType.Game,
+            -> ""
     }
 
 @Composable
@@ -1004,6 +1484,9 @@ private fun OmnilogTopBar(
     accent: Color,
     showDetailActions: Boolean,
     showBackupActions: Boolean,
+    showMyAnimeListImport: Boolean,
+    showImdbImport: Boolean,
+    showStoryGraphImport: Boolean,
     detailActions: DetailHeaderActions,
     backupActions: BackupHeaderActions,
     onBack: () -> Unit,
@@ -1103,6 +1586,16 @@ private fun OmnilogTopBar(
                                 detailActions.onRefreshMetadataRequested()
                             },
                         )
+                        if (detailActions.showLinkMetadata) {
+                            HeaderMenuItem(
+                                text = stringResource(detailActions.linkMetadataLabelResId),
+                                enabled = !detailActions.isRefreshingMetadata,
+                                onClick = {
+                                    detailActions.isMenuExpanded = false
+                                    detailActions.onLinkMetadataRequested()
+                                },
+                            )
+                        }
                         HeaderMenuItem(
                             text = stringResource(R.string.delete),
                             destructive = true,
@@ -1144,6 +1637,33 @@ private fun OmnilogTopBar(
                                 backupActions.onImportBackupRequested()
                             },
                         )
+                        if (showMyAnimeListImport) {
+                            HeaderMenuItem(
+                                text = stringResource(R.string.import_mal_xml),
+                                onClick = {
+                                    backupActions.isMenuExpanded = false
+                                    backupActions.onImportMyAnimeListXmlRequested()
+                                },
+                            )
+                        }
+                        if (showImdbImport) {
+                            HeaderMenuItem(
+                                text = stringResource(R.string.import_imdb_csv),
+                                onClick = {
+                                    backupActions.isMenuExpanded = false
+                                    backupActions.onImportImdbCsvRequested()
+                                },
+                            )
+                        }
+                        if (showStoryGraphImport) {
+                            HeaderMenuItem(
+                                text = stringResource(R.string.import_storygraph_csv),
+                                onClick = {
+                                    backupActions.isMenuExpanded = false
+                                    backupActions.onImportStoryGraphCsvRequested()
+                                },
+                            )
+                        }
                         HeaderMenuItem(
                             text = stringResource(R.string.restore_previous_backup),
                             onClick = {

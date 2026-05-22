@@ -38,6 +38,7 @@ class CompositeMetadataRepository(
         return when (suggestion.source) {
             MetadataSource.Tmdb -> tmdb.getSuggestionDetails(suggestion)
             MetadataSource.AniList -> aniList.getSuggestionDetails(suggestion)
+            MetadataSource.Jikan -> aniList.getSuggestionDetails(suggestion)
             MetadataSource.OpenLibrary -> openLibrary.getSuggestionDetails(suggestion)
             MetadataSource.GoogleBooks -> googleBooks.getSuggestionDetails(suggestion)
             MetadataSource.Rawg -> rawg.getSuggestionDetails(suggestion)

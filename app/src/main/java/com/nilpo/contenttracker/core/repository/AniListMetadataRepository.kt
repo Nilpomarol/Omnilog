@@ -38,6 +38,9 @@ class AniListMetadataRepository : MetadataRepository {
     }
 
     override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
+        if (suggestion.source == MetadataSource.Jikan) {
+            return getJikanSuggestionDetails(suggestion)
+        }
         if (suggestion.source != MetadataSource.AniList) return suggestion
         val malId = runCatching {
             JSONObject(suggestion.popularityJson ?: "{}").optInt("malId", 0).takeIf { it > 0 }
@@ -86,6 +89,18 @@ class AniListMetadataRepository : MetadataRepository {
                     } ?: detailed.externalRating ?: suggestion.externalRating,
                     externalRatings = externalRatings,
                 )
+            }.getOrElse { suggestion }
+        }
+    }
+
+    private suspend fun getJikanSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val malId = suggestion.externalId.toIntOrNull() ?: return@runCatching suggestion
+                getJson("https://api.jikan.moe/v4/anime/$malId")
+                    .optJSONObject("data")
+                    ?.toJikanMetadataSuggestion(suggestion)
+                    ?: suggestion
             }.getOrElse { suggestion }
         }
     }
@@ -250,6 +265,78 @@ class AniListMetadataRepository : MetadataRepository {
             }
         """.trimIndent()
     }
+}
+
+private fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): MetadataSuggestion {
+    val malId = optInt("mal_id", 0).takeIf { it > 0 }?.toString() ?: base.externalId
+    val score = optDouble("score", 0.0)
+    val scoredBy = optInt("scored_by", 0)
+    val rating = if (score > 0.0) {
+        MetadataRatingSuggestion(
+            score = score,
+            maxScore = 10.0,
+            voteCount = scoredBy.takeIf { it > 0 },
+        )
+    } else {
+        base.externalRating
+    }
+    val externalRatings = (
+        listOfNotNull(
+            rating?.let {
+                MetadataExternalRatingSuggestion(
+                    source = ExternalRatingSource.Mal,
+                    score = it.score,
+                    maxScore = it.maxScore,
+                    voteCount = it.voteCount,
+                )
+            },
+        ) + base.externalRatings
+        ).distinctBy { it.source }
+    val studios = optJSONArray("studios").toNamedList()
+
+    return base.copy(
+        source = MetadataSource.Jikan,
+        externalId = malId,
+        title = optString("title_english").takeIf { it.isNotBlank() }
+            ?: optString("title").takeIf { it.isNotBlank() }
+            ?: base.title,
+        originalTitle = optString("title").takeIf { it.isNotBlank() && it != base.title },
+        releaseYear = optJSONObject("aired")
+            ?.optJSONObject("prop")
+            ?.optJSONObject("from")
+            ?.optInt("year", 0)
+            ?.takeIf { it > 0 }
+            ?: base.releaseYear,
+        coverUrl = optJSONObject("images")
+            ?.optJSONObject("jpg")
+            ?.optString("large_image_url")
+            ?.takeIf { it.isNotBlank() }
+            ?: base.coverUrl,
+        synopsis = optString("synopsis").takeIf { it.isNotBlank() } ?: base.synopsis,
+        progressTotal = optInt("episodes", 0).takeIf { it > 0 } ?: base.progressTotal,
+        genres = optJSONArray("genres").toNamedList().ifEmpty { base.genres },
+        creators = studios.ifEmpty { base.creators },
+        credits = studios.mapIndexed { index, studio ->
+            MediaCredit(
+                personName = studio,
+                roleType = MediaCreditRole.Studio,
+                sortOrder = index,
+                metadataSource = MetadataSource.Jikan,
+            )
+        }.ifEmpty { base.credits },
+        sourceUrl = optString("url").takeIf { it.isNotBlank() } ?: base.sourceUrl,
+        externalRating = rating,
+        externalRatings = externalRatings,
+        popularityScore = optInt("members", 0).takeIf { it > 0 }?.toDouble() ?: base.popularityScore,
+        rankingPosition = optInt("rank", 0).takeIf { it > 0 } ?: base.rankingPosition,
+        rankingLabel = base.rankingLabel ?: "MAL rank",
+    )
+}
+
+private fun org.json.JSONArray?.toNamedList(): List<String> {
+    if (this == null) return emptyList()
+    return List(length()) { index -> getJSONObject(index).optString("name") }
+        .filter { it.isNotBlank() }
 }
 
 private fun getJson(url: String): JSONObject {

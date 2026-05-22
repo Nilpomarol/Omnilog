@@ -129,6 +129,168 @@ class OfflineMediaRepository(
         )
     }
 
+    override suspend fun previewImdbCsv(csv: String): ImdbCsvPreview {
+        val rows = parseImdbCsv(csv)
+        val existingKeys = mediaDao.getMediaItems().map { it.importDuplicateKey() }.toMutableSet()
+        var importableRows = 0
+        var skippedDuplicateRows = 0
+        var unsupportedRows = 0
+
+        rows.forEach { item ->
+            val duplicateKey = item.importDuplicateKey()
+            when {
+                item.type == null -> unsupportedRows++
+                duplicateKey in existingKeys -> skippedDuplicateRows++
+                else -> {
+                    existingKeys += duplicateKey
+                    importableRows++
+                }
+            }
+        }
+
+        return ImdbCsvPreview(
+            totalRows = rows.size,
+            importableRows = importableRows,
+            skippedDuplicateRows = skippedDuplicateRows,
+            unsupportedRows = unsupportedRows,
+        )
+    }
+
+    override suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
+        val rows = parseImdbCsv(csv)
+        val existingKeys = mediaDao.getMediaItems().map { it.importDuplicateKey() }.toMutableSet()
+        var importedRows = 0
+        var skippedDuplicateRows = 0
+        var unsupportedRows = 0
+
+        rows.forEach { item ->
+            val duplicateKey = item.importDuplicateKey()
+            when {
+                item.type == null -> unsupportedRows++
+                duplicateKey in existingKeys -> skippedDuplicateRows++
+                else -> {
+                    addTrackedMedia(item.toAddTrackedMediaRequest())
+                    existingKeys += duplicateKey
+                    importedRows++
+                }
+            }
+        }
+
+        return ImdbCsvImportResult(
+            importedRows = importedRows,
+            skippedDuplicateRows = skippedDuplicateRows,
+            unsupportedRows = unsupportedRows,
+        )
+    }
+
+    override suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview {
+        val rows = parseStoryGraphCsv(csv)
+        val existingKeys = mediaDao.getMediaItems().map { it.storyGraphDuplicateKey() }.toMutableSet()
+        var importableRows = 0
+        var skippedDuplicateRows = 0
+        var unsupportedRows = 0
+
+        rows.forEach { item ->
+            val duplicateKey = item.storyGraphDuplicateKey()
+            when {
+                item.title.isBlank() -> unsupportedRows++
+                duplicateKey in existingKeys -> skippedDuplicateRows++
+                else -> {
+                    existingKeys += duplicateKey
+                    importableRows++
+                }
+            }
+        }
+
+        return StoryGraphCsvPreview(
+            totalRows = rows.size,
+            importableRows = importableRows,
+            skippedDuplicateRows = skippedDuplicateRows,
+            unsupportedRows = unsupportedRows,
+        )
+    }
+
+    override suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
+        val rows = parseStoryGraphCsv(csv)
+        val existingKeys = mediaDao.getMediaItems().map { it.storyGraphDuplicateKey() }.toMutableSet()
+        var importedRows = 0
+        var skippedDuplicateRows = 0
+        var unsupportedRows = 0
+
+        rows.forEach { item ->
+            val duplicateKey = item.storyGraphDuplicateKey()
+            when {
+                item.title.isBlank() -> unsupportedRows++
+                duplicateKey in existingKeys -> skippedDuplicateRows++
+                else -> {
+                    addTrackedMedia(item.toAddTrackedMediaRequest())
+                    existingKeys += duplicateKey
+                    importedRows++
+                }
+            }
+        }
+
+        return StoryGraphCsvImportResult(
+            importedRows = importedRows,
+            skippedDuplicateRows = skippedDuplicateRows,
+            unsupportedRows = unsupportedRows,
+        )
+    }
+
+    override suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview {
+        val rows = parseMyAnimeListXml(xml)
+        val existingKeys = mediaDao.getMediaItems().map { it.myAnimeListDuplicateKey() }.toMutableSet()
+        var importableRows = 0
+        var skippedDuplicateRows = 0
+        var unsupportedRows = 0
+
+        rows.forEach { item ->
+            val duplicateKey = item.myAnimeListDuplicateKey()
+            when {
+                item.title.isBlank() -> unsupportedRows++
+                duplicateKey in existingKeys -> skippedDuplicateRows++
+                else -> {
+                    existingKeys += duplicateKey
+                    importableRows++
+                }
+            }
+        }
+
+        return MyAnimeListXmlPreview(
+            totalRows = rows.size,
+            importableRows = importableRows,
+            skippedDuplicateRows = skippedDuplicateRows,
+            unsupportedRows = unsupportedRows,
+        )
+    }
+
+    override suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
+        val rows = parseMyAnimeListXml(xml)
+        val existingKeys = mediaDao.getMediaItems().map { it.myAnimeListDuplicateKey() }.toMutableSet()
+        var importedRows = 0
+        var skippedDuplicateRows = 0
+        var unsupportedRows = 0
+
+        rows.forEach { item ->
+            val duplicateKey = item.myAnimeListDuplicateKey()
+            when {
+                item.title.isBlank() -> unsupportedRows++
+                duplicateKey in existingKeys -> skippedDuplicateRows++
+                else -> {
+                    addTrackedMedia(item.toAddTrackedMediaRequest())
+                    existingKeys += duplicateKey
+                    importedRows++
+                }
+            }
+        }
+
+        return MyAnimeListXmlImportResult(
+            importedRows = importedRows,
+            skippedDuplicateRows = skippedDuplicateRows,
+            unsupportedRows = unsupportedRows,
+        )
+    }
+
     override suspend fun startNewSession(request: AddTrackingSessionRequest) {
         val sessions = mediaDao.getTrackingSessions(request.mediaItemId)
         val latestSession = sessions.maxByOrNull { it.sessionNumber }
@@ -615,6 +777,8 @@ class OfflineMediaRepository(
             ratingDistributionJson = refreshed.ratingDistributionJson,
             popularityJson = refreshed.popularityJson,
             rankingJson = refreshed.rankingJson,
+            metadataSource = metadataSource.name,
+            metadataExternalId = metadataExternalId,
             metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
         )
 
@@ -660,6 +824,119 @@ class OfflineMediaRepository(
         return true
     }
 
+    override suspend fun linkMediaItemMetadata(
+        mediaItemId: Long,
+        suggestion: MetadataSuggestion,
+        metadataRepository: MetadataRepository,
+    ): Boolean {
+        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return false
+        val currentMediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
+        if (currentMediaType != suggestion.mediaType) {
+            return false
+        }
+
+        val existingRatings = mediaDao.getExternalRatingsForItem(mediaItemId)
+            .map { it.toDomain() }
+            .map { rating ->
+                MetadataExternalRatingSuggestion(
+                    source = rating.source,
+                    score = rating.score,
+                    maxScore = rating.maxScore,
+                    voteCount = rating.voteCount,
+                )
+            }
+        val existingPrimaryRating = currentItem.externalRatingScore?.let { score ->
+            val maxScore = currentItem.externalRatingMax ?: return@let null
+            if (score > 0.0 && maxScore > 0.0) {
+                MetadataRatingSuggestion(
+                    score = score,
+                    maxScore = maxScore,
+                    voteCount = currentItem.externalRatingVoteCount,
+                )
+            } else {
+                null
+            }
+        }
+        val linked = metadataRepository.getSuggestionDetails(suggestion)
+        val linkedTotal = linked.progressTotal
+            ?.takeUnless { currentMediaType == MediaType.Game }
+            ?.coerceAtLeast(0)
+        val linkedRatings = (linked.externalRatings + existingRatings)
+            .distinctBy { it.source }
+
+        mediaDao.refreshMediaItemMetadata(
+            mediaItemId = mediaItemId,
+            title = linked.title.trim().takeIf { it.isNotBlank() } ?: currentItem.title,
+            originalTitle = linked.originalTitle?.trim()?.takeIf { it.isNotBlank() },
+            releaseYear = linked.releaseYear,
+            progressTotal = linkedTotal,
+            genresJson = linked.genres.cleanMetadataList().toJsonArrayString(),
+            creatorsJson = linked.creators.cleanMetadataList().toJsonArrayString(),
+            coverUrl = linked.coverUrl?.trim()?.takeIf { it.isNotBlank() },
+            synopsis = linked.synopsis?.trim()?.takeIf { it.isNotBlank() },
+            sourceUrl = linked.sourceUrl?.trim()?.takeIf { it.isNotBlank() },
+            externalRatingScore = linked.externalRating?.score ?: existingPrimaryRating?.score,
+            externalRatingMax = linked.externalRating?.maxScore ?: existingPrimaryRating?.maxScore,
+            externalRatingVoteCount = linked.externalRating?.voteCount ?: existingPrimaryRating?.voteCount,
+            popularityScore = linked.popularityScore,
+            rankingPosition = linked.rankingPosition,
+            rankingLabel = linked.rankingLabel,
+            providerCollectionTitle = linked.collectionTitle,
+            ratingDistributionJson = linked.ratingDistributionJson,
+            popularityJson = linked.popularityJson,
+            rankingJson = linked.rankingJson,
+            metadataSource = linked.source.name,
+            metadataExternalId = linked.externalId,
+            metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
+        )
+
+        mediaDao.deleteMediaCreditsForItem(mediaItemId)
+        linked.credits
+            .filter { it.personName.isNotBlank() }
+            .mapIndexed { index, credit ->
+                credit.copy(
+                    id = 0,
+                    mediaItemId = mediaItemId,
+                    personName = credit.personName.trim(),
+                    characterName = credit.characterName?.trim()?.takeIf { it.isNotBlank() },
+                    sortOrder = credit.sortOrder.takeIf { it > 0 } ?: index,
+                    metadataSource = credit.metadataSource ?: linked.source,
+                ).toEntity()
+            }
+            .takeIf { it.isNotEmpty() }
+            ?.let { credits -> mediaDao.insertMediaCredits(credits) }
+
+        mediaDao.deleteExternalRatingsForItem(mediaItemId)
+        linkedRatings
+            .filter { it.score > 0.0 && it.maxScore > 0.0 }
+            .forEach { rating ->
+                mediaDao.insertExternalRating(
+                    ExternalRatingEntity(
+                        mediaItemId = mediaItemId,
+                        source = rating.source.name,
+                        score = rating.score,
+                        maxScore = rating.maxScore,
+                        voteCount = rating.voteCount,
+                    ),
+                )
+            }
+
+        linkedTotal?.let { total ->
+            mediaDao.clampSessionsToMediaTotal(
+                mediaItemId = mediaItemId,
+                progressTotal = total,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+            mediaDao.fillCompletedSessionsToMediaTotal(
+                mediaItemId = mediaItemId,
+                progressTotal = total,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+        }
+
+        return true
+    }
+
 }
 
 private suspend fun MediaDao.insertProgressUpdateIfNeeded(
@@ -680,6 +957,59 @@ private suspend fun MediaDao.insertProgressUpdateIfNeeded(
         ),
     )
 }
+
+private fun MediaItemEntity.importDuplicateKey(): String {
+    return if (metadataSource == MetadataSource.Imdb.name && !metadataExternalId.isNullOrBlank()) {
+        "imdb:${metadataExternalId.trim().lowercase()}"
+    } else {
+        "${type.lowercase()}:${title.normalizedImportTitle()}:${releaseYear ?: ""}"
+    }
+}
+
+private fun ImdbCsvItem.importDuplicateKey(): String {
+    return if (!imdbId.isNullOrBlank()) {
+        "imdb:${imdbId.trim().lowercase()}"
+    } else {
+        "${type?.name?.lowercase().orEmpty()}:${title.normalizedImportTitle()}:${releaseYear ?: ""}"
+    }
+}
+
+private fun MediaItemEntity.storyGraphDuplicateKey(): String {
+    return if (metadataSource == MetadataSource.StoryGraph.name && !metadataExternalId.isNullOrBlank()) {
+        "storygraph:${metadataExternalId.trim().lowercase()}"
+    } else {
+        "book:${title.normalizedImportTitle()}:${creatorsJson.toStringList().firstOrNull()?.normalizedImportTitle().orEmpty()}"
+    }
+}
+
+private fun StoryGraphCsvItem.storyGraphDuplicateKey(): String {
+    return if (!isbnOrUid.isNullOrBlank()) {
+        "storygraph:${isbnOrUid.trim().lowercase()}"
+    } else {
+        "book:${title.normalizedImportTitle()}:${authors.firstOrNull()?.normalizedImportTitle().orEmpty()}"
+    }
+}
+
+private fun MediaItemEntity.myAnimeListDuplicateKey(): String {
+    return if (metadataSource == MetadataSource.Jikan.name && !metadataExternalId.isNullOrBlank()) {
+        "mal:${metadataExternalId.trim().lowercase()}"
+    } else {
+        "anime:${title.normalizedImportTitle()}:${progressTotal ?: ""}"
+    }
+}
+
+private fun MyAnimeListXmlItem.myAnimeListDuplicateKey(): String {
+    return if (!malId.isNullOrBlank()) {
+        "mal:${malId.trim().lowercase()}"
+    } else {
+        "anime:${title.normalizedImportTitle()}:${episodeTotal ?: ""}"
+    }
+}
+
+private fun String.normalizedImportTitle(): String =
+    lowercase()
+        .replace(Regex("[^a-z0-9]+"), " ")
+        .trim()
 
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)

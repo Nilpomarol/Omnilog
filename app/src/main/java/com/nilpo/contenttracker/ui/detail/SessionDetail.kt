@@ -93,12 +93,14 @@ fun SessionDetail(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ProgressHistoryAction(
-                        updates = session.progressUpdates,
-                        mediaType = mediaType,
-                        accent = visualState.color,
-                        onDeleteProgressUpdate = onDeleteProgressUpdate,
-                    )
+                    if (mediaType == MediaType.Book) {
+                        ProgressHistoryAction(
+                            updates = session.progressUpdates,
+                            mediaType = mediaType,
+                            accent = visualState.color,
+                            onDeleteProgressUpdate = onDeleteProgressUpdate,
+                        )
+                    }
                     trailingContent?.invoke()
                     if (onDelete != null) {
                         TextButton(onClick = { showDeleteConfirmation = true }) {

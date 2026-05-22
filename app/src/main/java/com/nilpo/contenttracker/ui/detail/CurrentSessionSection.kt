@@ -161,12 +161,14 @@ private fun SessionCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ProgressHistoryAction(
-                        updates = session.progressUpdates,
-                        mediaType = mediaType,
-                        accent = visualState.color,
-                        onDeleteProgressUpdate = onDeleteProgressUpdate,
-                    )
+                    if (mediaType == MediaType.Book) {
+                        ProgressHistoryAction(
+                            updates = session.progressUpdates,
+                            mediaType = mediaType,
+                            accent = visualState.color,
+                            onDeleteProgressUpdate = onDeleteProgressUpdate,
+                        )
+                    }
                     FilledTonalIconButton(
                         onClick = onEditClick,
                         modifier = Modifier.size(32.dp),

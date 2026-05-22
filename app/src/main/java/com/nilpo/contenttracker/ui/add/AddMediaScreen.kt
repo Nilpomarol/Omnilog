@@ -1353,6 +1353,7 @@ internal fun MetadataSuggestionRow(
     suggestion: MetadataSuggestion,
     accent: Color,
     duplicateState: MetadataDuplicateState,
+    showSourceChip: Boolean = true,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1392,7 +1393,19 @@ internal fun MetadataSuggestionRow(
                     ) {
                         ResultChip(text = suggestion.mediaType.label(), accent = accent)
                         suggestion.releaseYear?.let { ResultChip(text = it.toString(), accent = accent) }
-                        ResultChip(text = suggestion.source.name)
+                        if (showSourceChip) {
+                            ResultChip(text = suggestion.source.name)
+                        }
+                    }
+                    suggestion.creators.firstOrNull()?.let { creator ->
+                        Text(
+                            text = creator,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogColors.AppMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     suggestion.externalRating?.let { rating ->
                         Text(

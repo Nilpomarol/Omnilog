@@ -66,6 +66,7 @@ fun DetailScreen(
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
     onUpdateMediaItemMetadata: (Long, String, String?, Int?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
+    onLinkMediaMetadata: () -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
     onCollectionClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -95,6 +96,18 @@ fun DetailScreen(
     }
     headerActions.onRefreshMetadataRequested = {
         onRefreshMediaItemMetadata(trackedMedia.item.id)
+    }
+    headerActions.onLinkMetadataRequested = onLinkMediaMetadata
+    headerActions.showLinkMetadata = trackedMedia.item.type in setOf(
+        MediaType.Anime,
+        MediaType.Book,
+        MediaType.Movie,
+        MediaType.TvShow,
+    )
+    headerActions.linkMetadataLabelResId = when (trackedMedia.item.type) {
+        MediaType.Anime -> R.string.link_metadata_anime
+        MediaType.Book -> R.string.link_metadata_book
+        else -> R.string.link_metadata_movie
     }
 
     Surface(

@@ -50,4 +50,6 @@ enum class MetadataSource {
     GoogleBooks,
     Tmdb,
     Rawg,
+    Imdb,
+    StoryGraph,
 }

@@ -4,6 +4,7 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -41,6 +42,18 @@ interface MediaRepository {
     suspend fun previewBackupJson(json: String): BackupPreview
 
     suspend fun importBackupJson(json: String)
+
+    suspend fun previewImdbCsv(csv: String): ImdbCsvPreview
+
+    suspend fun importImdbCsv(csv: String): ImdbCsvImportResult
+
+    suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview
+
+    suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult
+
+    suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview
+
+    suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult
 
     suspend fun startNewSession(request: AddTrackingSessionRequest)
 
@@ -110,4 +123,10 @@ interface MediaRepository {
     )
 
     suspend fun refreshMediaItemMetadata(mediaItemId: Long, metadataRepository: MetadataRepository): Boolean
+
+    suspend fun linkMediaItemMetadata(
+        mediaItemId: Long,
+        suggestion: MetadataSuggestion,
+        metadataRepository: MetadataRepository,
+    ): Boolean
 }

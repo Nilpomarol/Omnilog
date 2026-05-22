@@ -236,6 +236,8 @@ interface MediaDao {
             ratingDistributionJson = :ratingDistributionJson,
             popularityJson = :popularityJson,
             rankingJson = :rankingJson,
+            metadataSource = :metadataSource,
+            metadataExternalId = :metadataExternalId,
             metadataLastFetchedAtEpochMillis = :metadataLastFetchedAtEpochMillis
         WHERE id = :mediaItemId
         """,
@@ -261,6 +263,8 @@ interface MediaDao {
         ratingDistributionJson: String?,
         popularityJson: String?,
         rankingJson: String?,
+        metadataSource: String?,
+        metadataExternalId: String?,
         metadataLastFetchedAtEpochMillis: Long,
     )
 
@@ -311,6 +315,20 @@ interface MediaDao {
         """,
     )
     suspend fun clampSessionsToMediaTotal(
+        mediaItemId: Long,
+        progressTotal: Int,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET progressCurrent = :progressTotal,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE mediaItemId = :mediaItemId AND status = 'Completed' AND progressCurrent = 0
+        """,
+    )
+    suspend fun fillCompletedSessionsToMediaTotal(
         mediaItemId: Long,
         progressTotal: Int,
         updatedAtEpochMillis: Long,

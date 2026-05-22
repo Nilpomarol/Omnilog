@@ -14,8 +14,14 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.core.repository.BackupPreview
+import com.nilpo.contenttracker.core.repository.ImdbCsvImportResult
+import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import com.nilpo.contenttracker.core.repository.MetadataRepository
+import com.nilpo.contenttracker.core.repository.MyAnimeListXmlImportResult
+import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
+import com.nilpo.contenttracker.core.repository.StoryGraphCsvImportResult
+import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
@@ -106,6 +112,30 @@ class HomeViewModel(
 
     suspend fun importBackupJson(json: String) {
         mediaRepository.importBackupJson(json)
+    }
+
+    suspend fun previewImdbCsv(csv: String): ImdbCsvPreview {
+        return mediaRepository.previewImdbCsv(csv)
+    }
+
+    suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
+        return mediaRepository.importImdbCsv(csv)
+    }
+
+    suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview {
+        return mediaRepository.previewStoryGraphCsv(csv)
+    }
+
+    suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
+        return mediaRepository.importStoryGraphCsv(csv)
+    }
+
+    suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview {
+        return mediaRepository.previewMyAnimeListXml(xml)
+    }
+
+    suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
+        return mediaRepository.importMyAnimeListXml(xml)
     }
 
     fun selectSection(section: MediaSection) {
@@ -409,6 +439,29 @@ class HomeViewModel(
                 },
             )
         }
+    }
+
+    suspend fun searchMetadataLinkSuggestions(
+        title: String,
+        type: MediaType,
+    ): List<MetadataSuggestion> {
+        val suggestions = metadataRepository.searchSuggestions(
+            MetadataSearchRequest(
+                query = title,
+                mediaTypes = setOf(type),
+            ),
+        )
+        return suggestions.take(8).map { suggestion ->
+            runCatching { metadataRepository.getSuggestionDetails(suggestion) }
+                .getOrDefault(suggestion)
+        }
+    }
+
+    suspend fun linkMediaItemMetadata(
+        mediaItemId: Long,
+        suggestion: MetadataSuggestion,
+    ): Boolean {
+        return mediaRepository.linkMediaItemMetadata(mediaItemId, suggestion, metadataRepository)
     }
 
     class Factory(
