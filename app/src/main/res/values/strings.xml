@@ -10,6 +10,7 @@
     <string name="home_title">La teva biblioteca</string>
     <string name="home_empty_state">Encara no hi ha activitat per resumir.</string>
     <string name="home_active_title">Ara mateix</string>
+    <string name="home_active_hide_games">Amaga jocs</string>
     <string name="home_top_rated_title">Millors notes</string>
     <string name="home_recent_title">Activitat recent</string>
     <string name="home_stat_total_titles">Títols totals</string>

@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +75,7 @@ fun HomeLandingScreen(
     val items = uiState.allTrackedItems
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearchOverlay by rememberSaveable { mutableStateOf(false) }
+    var hideGamesFromActive by rememberSaveable { mutableStateOf(false) }
     val dashboardListState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val normalizedSearchQuery = searchQuery.trim()
@@ -83,7 +85,10 @@ fun HomeLandingScreen(
     val activeItems = items
         .filter { it.currentSession?.status == TrackingStatus.InProgress }
         .sortedByDescending { it.latestActivityMillis() }
+    val activeItemsVisible = activeItems
+        .filter { trackedMedia -> !hideGamesFromActive || trackedMedia.item.type != MediaType.Game }
         .take(8)
+    val activeItemsHasGames = activeItems.any { trackedMedia -> trackedMedia.item.type == MediaType.Game }
     val topRatedItems = items
         .filter { it.bestRating() != null }
         .sortedWith(
@@ -146,8 +151,19 @@ fun HomeLandingScreen(
                         item {
                             HomeCarousel(
                                 title = stringResource(R.string.home_active_title),
-                                items = activeItems,
+                                items = activeItemsVisible,
                                 onMediaClick = onMediaClick,
+                                trailingContent = if (activeItemsHasGames) {
+                                    {
+                                        DashboardToggle(
+                                            label = stringResource(R.string.home_active_hide_games),
+                                            checked = hideGamesFromActive,
+                                            onCheckedChange = { hideGamesFromActive = it },
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                             )
                         }
                     }
@@ -558,9 +574,13 @@ private fun HomeCarousel(
     title: String,
     items: List<TrackedMedia>,
     onMediaClick: (TrackedMedia) -> Unit,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        DashboardSectionTitle(title = title)
+        DashboardSectionTitle(
+            title = title,
+            trailingContent = trailingContent,
+        )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(items) { trackedMedia ->
                 HomeMediaTile(
@@ -574,7 +594,10 @@ private fun HomeCarousel(
 }
 
 @Composable
-private fun DashboardSectionTitle(title: String) {
+private fun DashboardSectionTitle(
+    title: String,
+    trailingContent: (@Composable () -> Unit)? = null,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -591,6 +614,32 @@ private fun DashboardSectionTitle(title: String) {
                 .weight(1f)
                 .height(1.dp)
                 .background(OmnilogColors.AppLine),
+        )
+        trailingContent?.invoke()
+    }
+}
+
+@Composable
+private fun DashboardToggle(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = OmnilogColors.AppMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
         )
     }
 }
