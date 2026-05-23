@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
@@ -31,6 +32,35 @@ data class CollectionItemOrder(
     val mediaItemId: Long,
     val sortOrder: Double,
 )
+
+data class MetadataRefreshPreview(
+    val mediaItemId: Long,
+    val refreshed: MetadataSuggestion,
+    val changes: List<MetadataRefreshChange>,
+)
+
+data class MetadataRefreshChange(
+    val field: MetadataRefreshField,
+    val currentValue: String,
+    val newValue: String,
+    val overwritesExistingValue: Boolean,
+)
+
+enum class MetadataRefreshField {
+    Title,
+    OriginalTitle,
+    ReleaseYear,
+    ProgressTotal,
+    Genres,
+    Creators,
+    Credits,
+    Cover,
+    Synopsis,
+    SourceUrl,
+    ExternalRating,
+    ExternalRatings,
+    ProviderStats,
+}
 
 interface MediaRepository {
     fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>>
@@ -74,6 +104,28 @@ interface MediaRepository {
     suspend fun deleteProgressUpdate(progressUpdateId: Long)
 
     suspend fun deleteMediaItem(mediaItemId: Long)
+
+    suspend fun addExternalRating(
+        mediaItemId: Long,
+        source: ExternalRatingSource,
+        score: Double,
+        maxScore: Double,
+        voteCount: Int?,
+        makePrimary: Boolean,
+    )
+
+    suspend fun updateExternalRating(
+        externalRatingId: Long,
+        source: ExternalRatingSource,
+        score: Double,
+        maxScore: Double,
+        voteCount: Int?,
+        makePrimary: Boolean,
+    )
+
+    suspend fun setPrimaryExternalRating(externalRatingId: Long)
+
+    suspend fun deleteExternalRating(externalRatingId: Long)
 
     suspend fun addExternalTracking(
         mediaItemId: Long,
@@ -121,6 +173,16 @@ interface MediaRepository {
         synopsis: String?,
         sourceUrl: String?,
     )
+
+    suspend fun previewMediaItemMetadataRefresh(
+        mediaItemId: Long,
+        metadataRepository: MetadataRepository,
+    ): MetadataRefreshPreview?
+
+    suspend fun applyMediaItemMetadataRefresh(
+        preview: MetadataRefreshPreview,
+        selectedFields: Set<MetadataRefreshField>,
+    ): Boolean
 
     suspend fun refreshMediaItemMetadata(mediaItemId: Long, metadataRepository: MetadataRepository): Boolean
 

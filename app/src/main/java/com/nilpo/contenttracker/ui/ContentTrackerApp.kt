@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +70,8 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
+import com.nilpo.contenttracker.core.repository.MetadataRefreshField
+import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
@@ -119,6 +122,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var metadataLinkSuggestions by remember { mutableStateOf<List<MetadataSuggestion>>(emptyList()) }
     var isMetadataLinkLoading by remember { mutableStateOf(false) }
     var hasMetadataLinkError by remember { mutableStateOf(false) }
+    var pendingMetadataRefreshPreview by remember { mutableStateOf<MetadataRefreshPreview?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
     var addTargetCollection by remember { mutableStateOf<MediaCollection?>(null) }
@@ -405,6 +409,30 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         metadataLinkQuery = trackedMedia.item.title
         searchMetadataLink(trackedMedia, trackedMedia.item.title)
     }
+    val startMetadataRefresh: (TrackedMedia) -> Unit = { trackedMedia ->
+        coroutineScope.launch {
+            val result = viewModel.previewMediaItemMetadataRefresh(trackedMedia.item.id)
+            val preview = result.getOrNull()
+            when {
+                result.isFailure -> snackbarHostState.showSnackbar(metadataRefreshErrorMessage)
+                preview == null -> snackbarHostState.showSnackbar(metadataRefreshUnavailableMessage)
+                preview.changes.any { it.overwritesExistingValue } -> pendingMetadataRefreshPreview = preview
+                else -> {
+                    val applyResult = viewModel.applyMediaItemMetadataRefresh(
+                        preview = preview,
+                        selectedFields = preview.changes.map { it.field }.toSet(),
+                    )
+                    snackbarHostState.showSnackbar(
+                        if (applyResult.getOrDefault(false)) {
+                            metadataRefreshSuccessMessage
+                        } else {
+                            metadataRefreshErrorMessage
+                        },
+                    )
+                }
+            }
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -454,6 +482,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     BackHandler(
         enabled = pendingPossibleDuplicate != null ||
             metadataLinkTarget != null ||
+            pendingMetadataRefreshPreview != null ||
             pendingMyAnimeListXmlImport != null ||
             pendingStoryGraphCsvImport != null ||
             pendingImdbCsvImport != null ||
@@ -468,6 +497,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         when {
             pendingPossibleDuplicate != null -> pendingPossibleDuplicate = null
             metadataLinkTarget != null -> metadataLinkTarget = null
+            pendingMetadataRefreshPreview != null -> pendingMetadataRefreshPreview = null
             pendingMyAnimeListXmlImport != null -> pendingMyAnimeListXmlImport = null
             pendingStoryGraphCsvImport != null -> pendingStoryGraphCsvImport = null
             pendingImdbCsvImport != null -> pendingImdbCsvImport = null
@@ -735,13 +765,17 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateSessionDetails = viewModel::updateSessionDetails,
                 onDeletePastSession = viewModel::deletePastSession,
                 onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
+                onAddExternalRating = viewModel::addExternalRating,
+                onUpdateExternalRating = viewModel::updateExternalRating,
+                onSetPrimaryExternalRating = viewModel::setPrimaryExternalRating,
+                onDeleteExternalRating = viewModel::deleteExternalRating,
                 onAddExternalTracking = viewModel::addExternalTracking,
                 onUpdateExternalTracking = viewModel::updateExternalTracking,
                 onUpdateExternalTrackingSynced = viewModel::updateExternalTrackingSynced,
                 onDeleteExternalTracking = viewModel::deleteExternalTracking,
                 onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
                 onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
-                onRefreshMediaItemMetadata = viewModel::refreshMediaItemMetadata,
+                onRefreshMediaItemMetadata = { startMetadataRefresh(selectedMedia) },
                 onLinkMediaMetadata = { startMetadataLink(selectedMedia) },
                 onDeleteMediaItem = { mediaItemId ->
                     viewModel.deleteMediaItem(mediaItemId)
@@ -1093,6 +1127,26 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         )
     }
 
+    pendingMetadataRefreshPreview?.let { preview ->
+        MetadataRefreshConfirmationDialog(
+            preview = preview,
+            onDismiss = { pendingMetadataRefreshPreview = null },
+            onConfirm = { selectedFields ->
+                coroutineScope.launch {
+                    val result = viewModel.applyMediaItemMetadataRefresh(preview, selectedFields)
+                    pendingMetadataRefreshPreview = null
+                    snackbarHostState.showSnackbar(
+                        if (result.getOrDefault(false)) {
+                            metadataRefreshSuccessMessage
+                        } else {
+                            metadataRefreshErrorMessage
+                        },
+                    )
+                }
+            },
+        )
+    }
+
     metadataLinkTarget?.let { target ->
         val providerName = target.item.type.metadataLinkProviderName()
         Dialog(
@@ -1263,6 +1317,152 @@ private data class PendingMyAnimeListXmlImport(
     val preview: MyAnimeListXmlPreview,
 )
 
+@Composable
+private fun MetadataRefreshConfirmationDialog(
+    preview: MetadataRefreshPreview,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<MetadataRefreshField>) -> Unit,
+) {
+    var selectedFields by remember(preview) {
+        mutableStateOf(preview.changes.map { it.field }.toSet())
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            shape = RoundedCornerShape(14.dp),
+            color = OmnilogColors.AppBackground,
+            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.metadata_refresh_confirm_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = HeaderInk,
+                )
+                Text(
+                    text = stringResource(R.string.metadata_refresh_confirm_message),
+                    color = HeaderMuted,
+                )
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(preview.changes) { change ->
+                        val isSelected = change.field in selectedFields
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = OmnilogColors.AppPanel,
+                            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedFields = if (isSelected) {
+                                            selectedFields - change.field
+                                        } else {
+                                            selectedFields + change.field
+                                        }
+                                    }
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        selectedFields = if (checked) {
+                                            selectedFields + change.field
+                                        } else {
+                                            selectedFields - change.field
+                                        }
+                                    },
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = stringResource(change.field.labelResId()),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = HeaderInk,
+                                    )
+                                    MetadataChangeValue(
+                                        label = stringResource(R.string.metadata_refresh_current_value),
+                                        value = change.currentValue,
+                                    )
+                                    MetadataChangeValue(
+                                        label = stringResource(R.string.metadata_refresh_new_value),
+                                        value = change.newValue,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = stringResource(R.string.cancel))
+                    }
+                    TextButton(
+                        enabled = selectedFields.isNotEmpty(),
+                        onClick = { onConfirm(selectedFields) },
+                    ) {
+                        Text(text = stringResource(R.string.metadata_refresh_apply_selected))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetadataChangeValue(label: String, value: String) {
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) {
+                append(label)
+                append(": ")
+            }
+            append(value)
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = HeaderMuted,
+    )
+}
+
+@StringRes
+private fun MetadataRefreshField.labelResId(): Int {
+    return when (this) {
+        MetadataRefreshField.Title -> R.string.metadata_refresh_field_title
+        MetadataRefreshField.OriginalTitle -> R.string.metadata_refresh_field_original_title
+        MetadataRefreshField.ReleaseYear -> R.string.metadata_refresh_field_release_year
+        MetadataRefreshField.ProgressTotal -> R.string.metadata_refresh_field_progress_total
+        MetadataRefreshField.Genres -> R.string.metadata_refresh_field_genres
+        MetadataRefreshField.Creators -> R.string.metadata_refresh_field_creators
+        MetadataRefreshField.Credits -> R.string.metadata_refresh_field_credits
+        MetadataRefreshField.Cover -> R.string.metadata_refresh_field_cover
+        MetadataRefreshField.Synopsis -> R.string.metadata_refresh_field_synopsis
+        MetadataRefreshField.SourceUrl -> R.string.metadata_refresh_field_source_url
+        MetadataRefreshField.ExternalRating -> R.string.metadata_refresh_field_external_rating
+        MetadataRefreshField.ExternalRatings -> R.string.metadata_refresh_field_external_ratings
+        MetadataRefreshField.ProviderStats -> R.string.metadata_refresh_field_provider_stats
+    }
+}
+
 private data class PendingPossibleDuplicate(
     val suggestion: MetadataSuggestion,
     val trackedMedia: TrackedMedia,
@@ -1277,6 +1477,7 @@ class DetailHeaderActions {
     var linkMetadataLabelResId by mutableStateOf(R.string.link_metadata_movie)
     var onDeleteRequested: () -> Unit = {}
     var onManageExternalTrackingRequested: () -> Unit = {}
+    var onManageExternalRatingsRequested: () -> Unit = {}
     var onRefreshMetadataRequested: () -> Unit = {}
     var onLinkMetadataRequested: () -> Unit = {}
 }
@@ -1570,6 +1771,13 @@ private fun OmnilogTopBar(
                             onClick = {
                                 detailActions.isMenuExpanded = false
                                 detailActions.onManageExternalTrackingRequested()
+                            },
+                        )
+                        HeaderMenuItem(
+                            text = stringResource(R.string.detail_external_scores),
+                            onClick = {
+                                detailActions.isMenuExpanded = false
+                                detailActions.onManageExternalRatingsRequested()
                             },
                         )
                         HeaderMenuItem(

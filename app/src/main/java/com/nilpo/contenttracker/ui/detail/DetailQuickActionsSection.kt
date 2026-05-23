@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +36,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
+import com.nilpo.contenttracker.core.model.ExternalRating
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTracking
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaCollection
@@ -47,6 +50,7 @@ import com.nilpo.contenttracker.ui.common.OptionSelector
 import com.nilpo.contenttracker.ui.common.OmnilogModal
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
+import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 
@@ -410,6 +414,259 @@ private fun String.toCollectionOrderOrNull(): Double? {
     return replace(',', '.')
         .toDoubleOrNull()
         ?.takeIf { it >= 0.0 }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+fun ExternalRatingsDialog(
+    ratings: List<ExternalRating>,
+    primaryScore: Double?,
+    primaryMaxScore: Double?,
+    accent: Color,
+    onDismiss: () -> Unit,
+    onAddExternalRating: (ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
+    onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
+    onSetPrimary: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+) {
+    var selectedSource by rememberSaveable { mutableStateOf(ExternalRatingSource.Mal) }
+    var score by rememberSaveable { mutableStateOf("") }
+    var maxScore by rememberSaveable { mutableStateOf("10") }
+    var voteCount by rememberSaveable { mutableStateOf("") }
+    var makePrimary by rememberSaveable { mutableStateOf(ratings.isEmpty()) }
+    val parsedScore = score.toDecimalOrNull()
+    val parsedMaxScore = maxScore.toDecimalOrNull()
+
+    OmnilogModal(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.detail_external_scores),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.AppInk,
+                )
+                TextButton(onClick = onDismiss) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                color = OmnilogColors.AppPanel,
+                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OptionSelector(
+                        label = stringResource(R.string.field_external_rating_source),
+                        options = ExternalRatingSource.entries,
+                        selectedOption = selectedSource,
+                        optionLabel = { it.displayName() },
+                        onOptionSelected = { selectedSource = it },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = score,
+                            onValueChange = { score = it },
+                            label = { Text(stringResource(R.string.field_external_rating_score)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = omnilogModalTextFieldColors(accent),
+                        )
+                        OutlinedTextField(
+                            value = maxScore,
+                            onValueChange = { maxScore = it },
+                            label = { Text(stringResource(R.string.field_external_rating_max)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = omnilogModalTextFieldColors(accent),
+                        )
+                    }
+                    OutlinedTextField(
+                        value = voteCount,
+                        onValueChange = { voteCount = it },
+                        label = { Text(stringResource(R.string.field_external_rating_users)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = omnilogModalTextFieldColors(accent),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = makePrimary, onCheckedChange = { makePrimary = it })
+                        Text(text = stringResource(R.string.make_primary_external_rating), color = OmnilogColors.AppMuted)
+                    }
+                    Button(
+                        enabled = parsedScore != null && parsedMaxScore != null && parsedMaxScore > 0.0,
+                        onClick = {
+                            onAddExternalRating(
+                                selectedSource,
+                                parsedScore ?: return@Button,
+                                parsedMaxScore ?: return@Button,
+                                voteCount.toIntOrNull(),
+                                makePrimary,
+                            )
+                            score = ""
+                            maxScore = "10"
+                            voteCount = ""
+                            makePrimary = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accent,
+                            contentColor = Color.Black,
+                        ),
+                    ) {
+                        Text(text = stringResource(R.string.add_external_rating))
+                    }
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(ratings) { rating ->
+                    ExternalRatingManageRow(
+                        rating = rating,
+                        isPrimary = rating.matchesPrimary(primaryScore, primaryMaxScore),
+                        accent = accent,
+                        onUpdateExternalRating = onUpdateExternalRating,
+                        onSetPrimary = onSetPrimary,
+                        onDelete = onDelete,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ExternalRatingManageRow(
+    rating: ExternalRating,
+    isPrimary: Boolean,
+    accent: Color,
+    onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
+    onSetPrimary: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+) {
+    var selectedSource by rememberSaveable(rating.id) { mutableStateOf(rating.source) }
+    var score by rememberSaveable(rating.id) { mutableStateOf(rating.score.cleanDecimal()) }
+    var maxScore by rememberSaveable(rating.id) { mutableStateOf(rating.maxScore.cleanDecimal()) }
+    var voteCount by rememberSaveable(rating.id) { mutableStateOf(rating.voteCount?.toString().orEmpty()) }
+    val parsedScore = score.toDecimalOrNull()
+    val parsedMaxScore = maxScore.toDecimalOrNull()
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, if (isPrimary) accent else OmnilogColors.AppLine),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            OptionSelector(
+                label = stringResource(R.string.field_external_rating_source),
+                options = ExternalRatingSource.entries,
+                selectedOption = selectedSource,
+                optionLabel = { it.displayName() },
+                onOptionSelected = { selectedSource = it },
+            )
+            if (isPrimary) {
+                Text(
+                    text = stringResource(R.string.primary_external_rating),
+                    color = accent,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = score,
+                    onValueChange = { score = it },
+                    label = { Text(stringResource(R.string.field_external_rating_score)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = omnilogModalTextFieldColors(accent),
+                )
+                OutlinedTextField(
+                    value = maxScore,
+                    onValueChange = { maxScore = it },
+                    label = { Text(stringResource(R.string.field_external_rating_max)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = omnilogModalTextFieldColors(accent),
+                )
+            }
+            OutlinedTextField(
+                value = voteCount,
+                onValueChange = { voteCount = it },
+                label = { Text(stringResource(R.string.field_external_rating_users)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = omnilogModalTextFieldColors(accent),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    enabled = parsedScore != null && parsedMaxScore != null && parsedMaxScore > 0.0,
+                    onClick = {
+                        onUpdateExternalRating(
+                            rating.id,
+                            selectedSource,
+                            parsedScore ?: return@TextButton,
+                            parsedMaxScore ?: return@TextButton,
+                            voteCount.toIntOrNull(),
+                            isPrimary,
+                        )
+                    },
+                ) {
+                    Text(text = stringResource(R.string.save))
+                }
+                TextButton(onClick = { onSetPrimary(rating.id) }) {
+                    Text(text = stringResource(R.string.make_primary_external_rating))
+                }
+                TextButton(onClick = { onDelete(rating.id) }) {
+                    Text(
+                        text = stringResource(R.string.delete_external_rating),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun String.toDecimalOrNull(): Double? = replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0.0 }
+
+private fun Double.cleanDecimal(): String = if (this % 1.0 == 0.0) toInt().toString() else toString()
+
+private fun ExternalRating.matchesPrimary(primaryScore: Double?, primaryMaxScore: Double?): Boolean {
+    return primaryScore != null &&
+        primaryMaxScore != null &&
+        kotlin.math.abs(score - primaryScore) < 0.001 &&
+        kotlin.math.abs(maxScore - primaryMaxScore) < 0.001
 }
 
 @Composable

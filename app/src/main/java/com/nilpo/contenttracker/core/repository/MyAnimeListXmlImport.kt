@@ -10,6 +10,7 @@ import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
 import java.time.LocalDate
 import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.parsers.ParserConfigurationException
 
 data class MyAnimeListXmlPreview(
     val totalRows: Int,
@@ -41,9 +42,9 @@ internal data class MyAnimeListXmlItem(
 internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListXmlItem> {
     val factory = DocumentBuilderFactory.newInstance().apply {
         isExpandEntityReferences = false
-        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-        setFeature("http://xml.org/sax/features/external-general-entities", false)
-        setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+        setFeatureIfSupported("http://apache.org/xml/features/disallow-doctype-decl", true)
+        setFeatureIfSupported("http://xml.org/sax/features/external-general-entities", false)
+        setFeatureIfSupported("http://xml.org/sax/features/external-parameter-entities", false)
     }
     val document = factory.newDocumentBuilder()
         .parse(ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8)))
@@ -70,6 +71,14 @@ internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListXmlItem> {
                 tags = element.text("my_tags").splitMalList(),
             )
         }
+}
+
+private fun DocumentBuilderFactory.setFeatureIfSupported(name: String, value: Boolean) {
+    try {
+        setFeature(name, value)
+    } catch (_: ParserConfigurationException) {
+        // Android XML parser implementations do not support every hardening feature.
+    }
 }
 
 internal fun MyAnimeListXmlItem.toAddTrackedMediaRequest(): AddTrackedMediaRequest {

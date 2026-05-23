@@ -15,7 +15,9 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-class AniListMetadataRepository : MetadataRepository {
+class AniListMetadataRepository(
+    private val malClientId: String = "",
+) : MetadataRepository {
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         val query = request.query.trim()
         if (MediaType.Anime !in request.mediaTypes || query.isBlank()) return emptyList()
@@ -42,9 +44,7 @@ class AniListMetadataRepository : MetadataRepository {
             return getJikanSuggestionDetails(suggestion)
         }
         if (suggestion.source != MetadataSource.AniList) return suggestion
-        val malId = runCatching {
-            JSONObject(suggestion.popularityJson ?: "{}").optInt("malId", 0).takeIf { it > 0 }
-        }.getOrNull()
+        val suggestionMalId = suggestion.malId()
 
         return withContext(Dispatchers.IO) {
             runCatching {
@@ -57,29 +57,25 @@ class AniListMetadataRepository : MetadataRepository {
                     .getJSONObject("Media")
                     .toMetadataSuggestion()
                     ?: suggestion
+                val malId = detailed.malId() ?: suggestionMalId
 
-                val malDetails = malId?.let { id ->
+                val officialMalDetails = malId?.let { id ->
+                    getOfficialMalAnimeDetails(id)
+                }
+                val officialMalRating = officialMalDetails?.toOfficialMalRating()
+                val jikanDetails = if (officialMalRating == null) malId?.let { id ->
                     getJson("https://api.jikan.moe/v4/anime/$id")
                         .optJSONObject("data")
+                } else {
+                    null
                 }
-                val malRating = malDetails?.let { jikan ->
-                    val score = jikan.optDouble("score", 0.0)
-                    val scoredBy = jikan.optInt("scored_by", 0)
-                    if (score > 0.0) {
-                        MetadataExternalRatingSuggestion(
-                            source = ExternalRatingSource.Mal,
-                            score = score,
-                            maxScore = 10.0,
-                            voteCount = scoredBy.takeIf { it > 0 },
-                        )
-                    } else {
-                        null
-                    }
-                }
+                val malRating = officialMalRating ?: jikanDetails?.toJikanMalRating()
                 val externalRatings = (listOfNotNull(malRating) + suggestion.externalRatings + detailed.externalRatings)
                     .distinctBy { it.source }
+                val malRank = officialMalDetails?.optInt("rank", 0)?.takeIf { it > 0 }
 
                 detailed.copy(
+                    popularityJson = detailed.popularityJson.withMalId(malId),
                     externalRating = malRating?.let {
                         MetadataRatingSuggestion(
                             score = it.score,
@@ -88,6 +84,8 @@ class AniListMetadataRepository : MetadataRepository {
                         )
                     } ?: detailed.externalRating ?: suggestion.externalRating,
                     externalRatings = externalRatings,
+                    rankingPosition = malRank ?: detailed.rankingPosition,
+                    rankingLabel = malRank?.let { "MAL rank" } ?: detailed.rankingLabel,
                 )
             }.getOrElse { suggestion }
         }
@@ -95,14 +93,33 @@ class AniListMetadataRepository : MetadataRepository {
 
     private suspend fun getJikanSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
         return withContext(Dispatchers.IO) {
+            val malId = suggestion.externalId.toIntOrNull() ?: return@withContext suggestion
+            val officialMalDetails = getOfficialMalAnimeDetails(malId)
+            val baseWithOfficialMal = suggestion.withOfficialMalMetrics(officialMalDetails)
             runCatching {
-                val malId = suggestion.externalId.toIntOrNull() ?: return@runCatching suggestion
                 getJson("https://api.jikan.moe/v4/anime/$malId")
                     .optJSONObject("data")
-                    ?.toJikanMetadataSuggestion(suggestion)
-                    ?: suggestion
-            }.getOrElse { suggestion }
+                    ?.toJikanMetadataSuggestion(baseWithOfficialMal)
+                    ?: baseWithOfficialMal
+            }.getOrElse { baseWithOfficialMal }
+                .withOfficialMalMetrics(officialMalDetails)
         }
+    }
+
+    private fun getOfficialMalAnimeDetails(malId: Int): JSONObject? {
+        val clientId = malClientId.trim().takeIf { it.isNotBlank() } ?: return null
+        return runCatching {
+            val connection = URL("https://api.myanimelist.net/v2/anime/$malId?fields=$MAL_DETAIL_FIELDS")
+                .openConnection() as HttpURLConnection
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 10_000
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("X-MAL-CLIENT-ID", clientId)
+            if (connection.responseCode !in 200..299) {
+                return@runCatching null
+            }
+            JSONObject(connection.inputStream.bufferedReader().readText())
+        }.getOrNull()
     }
 
     private fun JSONObject.toMetadataSuggestion(): MetadataSuggestion? {
@@ -264,14 +281,68 @@ class AniListMetadataRepository : MetadataRepository {
               }
             }
         """.trimIndent()
+
+        private const val MAL_DETAIL_FIELDS = "mean,num_scoring_users,rank,popularity,num_list_users"
     }
+}
+
+private fun MetadataSuggestion.malId(): Int? {
+    return runCatching {
+        JSONObject(popularityJson ?: "{}").optInt("malId", 0).takeIf { it > 0 }
+    }.getOrNull()
+}
+
+private fun String?.withMalId(malId: Int?): String? {
+    if (malId == null) return this
+    return runCatching {
+        JSONObject(this ?: "{}")
+            .put("malId", malId)
+            .toString()
+    }.getOrDefault(this)
+}
+
+private fun MetadataSuggestion.withOfficialMalMetrics(malDetails: JSONObject?): MetadataSuggestion {
+    val malRating = malDetails?.toOfficialMalRating() ?: return this
+    val malRank = malDetails.optInt("rank", 0).takeIf { it > 0 }
+    return copy(
+        externalRating = MetadataRatingSuggestion(
+            score = malRating.score,
+            maxScore = malRating.maxScore,
+            voteCount = malRating.voteCount,
+        ),
+        externalRatings = (listOf(malRating) + externalRatings).distinctBy { it.source },
+        rankingPosition = malRank ?: rankingPosition,
+        rankingLabel = malRank?.let { "MAL rank" } ?: rankingLabel,
+    )
+}
+
+private fun JSONObject.toOfficialMalRating(): MetadataExternalRatingSuggestion? {
+    val score = optDouble("mean", 0.0)
+    if (score <= 0.0) return null
+    return MetadataExternalRatingSuggestion(
+        source = ExternalRatingSource.Mal,
+        score = score,
+        maxScore = 10.0,
+        voteCount = optInt("num_scoring_users", 0).takeIf { it > 0 },
+    )
+}
+
+private fun JSONObject.toJikanMalRating(): MetadataExternalRatingSuggestion? {
+    val score = optDouble("score", 0.0)
+    if (score <= 0.0) return null
+    return MetadataExternalRatingSuggestion(
+        source = ExternalRatingSource.Mal,
+        score = score,
+        maxScore = 10.0,
+        voteCount = optInt("scored_by", 0).takeIf { it > 0 },
+    )
 }
 
 private fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): MetadataSuggestion {
     val malId = optInt("mal_id", 0).takeIf { it > 0 }?.toString() ?: base.externalId
     val score = optDouble("score", 0.0)
     val scoredBy = optInt("scored_by", 0)
-    val rating = if (score > 0.0) {
+    val rating = base.externalRating ?: if (score > 0.0) {
         MetadataRatingSuggestion(
             score = score,
             maxScore = 10.0,

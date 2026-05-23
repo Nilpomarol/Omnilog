@@ -40,6 +40,9 @@ interface MediaDao {
     @Query("SELECT * FROM media_credits ORDER BY mediaItemId, sortOrder, id")
     suspend fun getMediaCredits(): List<MediaCreditEntity>
 
+    @Query("SELECT * FROM media_credits WHERE mediaItemId = :mediaItemId ORDER BY sortOrder, id")
+    suspend fun getMediaCreditsForItem(mediaItemId: Long): List<MediaCreditEntity>
+
     @Query("SELECT * FROM media_collections ORDER BY name")
     fun observeMediaCollections(): Flow<List<MediaCollectionEntity>>
 
@@ -136,6 +139,43 @@ interface MediaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExternalTracking(externalTracking: ExternalTrackingEntity): Long
+
+    @Query("SELECT * FROM external_ratings WHERE id = :externalRatingId LIMIT 1")
+    suspend fun getExternalRating(externalRatingId: Long): ExternalRatingEntity?
+
+    @Query(
+        """
+        UPDATE external_ratings
+        SET source = :source,
+            score = :score,
+            maxScore = :maxScore,
+            voteCount = :voteCount
+        WHERE id = :externalRatingId
+        """,
+    )
+    suspend fun updateExternalRating(
+        externalRatingId: Long,
+        source: String,
+        score: Double,
+        maxScore: Double,
+        voteCount: Int?,
+    )
+
+    @Query(
+        """
+        UPDATE media_items
+        SET externalRatingScore = :score,
+            externalRatingMax = :maxScore,
+            externalRatingVoteCount = :voteCount
+        WHERE id = :mediaItemId
+        """,
+    )
+    suspend fun updatePrimaryExternalRating(
+        mediaItemId: Long,
+        score: Double?,
+        maxScore: Double?,
+        voteCount: Int?,
+    )
 
     @Query("UPDATE external_tracking SET isSynced = :isSynced WHERE id = :externalTrackingId")
     suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
@@ -351,6 +391,9 @@ interface MediaDao {
 
     @Query("DELETE FROM external_ratings WHERE mediaItemId = :mediaItemId")
     suspend fun deleteExternalRatingsForItem(mediaItemId: Long)
+
+    @Query("DELETE FROM external_ratings WHERE id = :externalRatingId")
+    suspend fun deleteExternalRating(externalRatingId: Long)
 
     @Query("DELETE FROM external_tracking")
     suspend fun deleteAllExternalTracking()

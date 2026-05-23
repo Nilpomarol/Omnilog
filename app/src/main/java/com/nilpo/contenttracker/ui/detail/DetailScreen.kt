@@ -32,6 +32,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
@@ -59,6 +60,10 @@ fun DetailScreen(
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onAddExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
+    onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
+    onSetPrimaryExternalRating: (Long) -> Unit,
+    onDeleteExternalRating: (Long) -> Unit,
     onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
@@ -77,6 +82,7 @@ fun DetailScreen(
         .sortedBy { it.sessionNumber }
     var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var showExternalTrackingManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
+    var showExternalRatingsManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     val isExternalTrackingUpdated = trackedMedia.externalTracking.isNotEmpty() &&
         trackedMedia.externalTracking.all { it.isSynced }
     val metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
@@ -93,6 +99,9 @@ fun DetailScreen(
     }
     headerActions.onManageExternalTrackingRequested = {
         showExternalTrackingManager = true
+    }
+    headerActions.onManageExternalRatingsRequested = {
+        showExternalRatingsManager = true
     }
     headerActions.onRefreshMetadataRequested = {
         onRefreshMediaItemMetadata(trackedMedia.item.id)
@@ -222,6 +231,22 @@ fun DetailScreen(
                 }
             }
         }
+    }
+
+    if (showExternalRatingsManager) {
+        ExternalRatingsDialog(
+            ratings = trackedMedia.externalRatings,
+            primaryScore = trackedMedia.item.externalRatingScore,
+            primaryMaxScore = trackedMedia.item.externalRatingMax,
+            accent = accent,
+            onDismiss = { showExternalRatingsManager = false },
+            onAddExternalRating = { source, score, maxScore, voteCount, makePrimary ->
+                onAddExternalRating(trackedMedia.item.id, source, score, maxScore, voteCount, makePrimary)
+            },
+            onUpdateExternalRating = onUpdateExternalRating,
+            onSetPrimary = onSetPrimaryExternalRating,
+            onDelete = onDeleteExternalRating,
+        )
     }
 
     if (showDeleteConfirmation) {

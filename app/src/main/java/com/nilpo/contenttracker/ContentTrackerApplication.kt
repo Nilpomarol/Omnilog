@@ -37,7 +37,7 @@ class ContentTrackerApplication : Application() {
                 apiKey = BuildConfig.TMDB_API_KEY,
                 omdbApiKey = BuildConfig.OMDB_API_KEY,
             ),
-            aniList = AniListMetadataRepository(),
+            aniList = AniListMetadataRepository(malClientId = BuildConfig.MAL_CLIENT_ID),
             openLibrary = OpenLibraryMetadataRepository(),
             googleBooks = GoogleBooksMetadataRepository(BuildConfig.GOOGLE_BOOKS_API_KEY),
             rawg = RawgMetadataRepository(BuildConfig.RAWG_API_KEY),

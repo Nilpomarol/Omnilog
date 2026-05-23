@@ -15,6 +15,7 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
@@ -532,6 +533,85 @@ class OfflineMediaRepository(
         mediaDao.deleteEmptyMediaCollections()
     }
 
+    override suspend fun addExternalRating(
+        mediaItemId: Long,
+        source: ExternalRatingSource,
+        score: Double,
+        maxScore: Double,
+        voteCount: Int?,
+        makePrimary: Boolean,
+    ) {
+        val validScore = score.coerceAtLeast(0.0)
+        val validMax = maxScore.coerceAtLeast(1.0)
+        val ratingId = mediaDao.insertExternalRating(
+            ExternalRatingEntity(
+                mediaItemId = mediaItemId,
+                source = source.name,
+                score = validScore,
+                maxScore = validMax,
+                voteCount = voteCount?.takeIf { it >= 0 },
+            ),
+        )
+        if (makePrimary) {
+            setPrimaryExternalRating(ratingId)
+        }
+    }
+
+    override suspend fun updateExternalRating(
+        externalRatingId: Long,
+        source: ExternalRatingSource,
+        score: Double,
+        maxScore: Double,
+        voteCount: Int?,
+        makePrimary: Boolean,
+    ) {
+        val existing = mediaDao.getExternalRating(externalRatingId) ?: return
+        val validScore = score.coerceAtLeast(0.0)
+        val validMax = maxScore.coerceAtLeast(1.0)
+        val validVoteCount = voteCount?.takeIf { it >= 0 }
+        mediaDao.updateExternalRating(
+            externalRatingId = externalRatingId,
+            source = source.name,
+            score = validScore,
+            maxScore = validMax,
+            voteCount = validVoteCount,
+        )
+        val mediaItem = mediaDao.getMediaItem(existing.mediaItemId)
+        if (makePrimary || existing.isPrimaryExternalRating(mediaItem)) {
+            mediaDao.updatePrimaryExternalRating(
+                mediaItemId = existing.mediaItemId,
+                score = validScore,
+                maxScore = validMax,
+                voteCount = validVoteCount,
+            )
+        }
+    }
+
+    override suspend fun setPrimaryExternalRating(externalRatingId: Long) {
+        val rating = mediaDao.getExternalRating(externalRatingId) ?: return
+        mediaDao.updatePrimaryExternalRating(
+            mediaItemId = rating.mediaItemId,
+            score = rating.score,
+            maxScore = rating.maxScore,
+            voteCount = rating.voteCount,
+        )
+    }
+
+    override suspend fun deleteExternalRating(externalRatingId: Long) {
+        val rating = mediaDao.getExternalRating(externalRatingId) ?: return
+        mediaDao.deleteExternalRating(externalRatingId)
+        val mediaItem = mediaDao.getMediaItem(rating.mediaItemId)
+        if (rating.isPrimaryExternalRating(mediaItem)) {
+            val replacement = mediaDao.getExternalRatingsForItem(rating.mediaItemId).firstOrNull()
+            mediaDao.updatePrimaryExternalRating(
+                mediaItemId = rating.mediaItemId,
+                score = replacement?.score,
+                maxScore = replacement?.maxScore,
+                voteCount = replacement?.voteCount,
+            )
+        }
+    }
+
     override suspend fun addExternalTracking(
         mediaItemId: Long,
         source: ExternalTrackingSource,
@@ -694,16 +774,16 @@ class OfflineMediaRepository(
         }
     }
 
-    override suspend fun refreshMediaItemMetadata(
+    override suspend fun previewMediaItemMetadataRefresh(
         mediaItemId: Long,
         metadataRepository: MetadataRepository,
-    ): Boolean {
-        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return false
+    ): MetadataRefreshPreview? {
+        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return null
         val metadataSource = currentItem.metadataSource?.let { source ->
             runCatching { MetadataSource.valueOf(source) }.getOrNull()
-        } ?: return false
-        val metadataExternalId = currentItem.metadataExternalId?.takeIf { it.isNotBlank() } ?: return false
-        val mediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
+        } ?: return null
+        val metadataExternalId = currentItem.metadataExternalId?.takeIf { it.isNotBlank() } ?: return null
+        val mediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return null
         val existingRatings = mediaDao.getExternalRatingsForItem(mediaItemId)
             .map { it.toDomain() }
             .map { rating ->
@@ -726,6 +806,7 @@ class OfflineMediaRepository(
                 null
             }
         }
+        val existingCredits = mediaDao.getMediaCreditsForItem(mediaItemId).map { it.toDomain() }
         val refreshed = metadataRepository.getSuggestionDetails(
             MetadataSuggestion(
                 source = metadataSource,
@@ -755,73 +836,205 @@ class OfflineMediaRepository(
             ?.coerceAtLeast(0)
         val refreshedRatings = refreshed.externalRatings
             .ifEmpty { existingRatings }
-
-        mediaDao.refreshMediaItemMetadata(
-            mediaItemId = mediaItemId,
+        val normalizedRefreshed = refreshed.copy(
             title = refreshed.title.trim().takeIf { it.isNotBlank() } ?: currentItem.title,
             originalTitle = refreshed.originalTitle?.trim()?.takeIf { it.isNotBlank() },
-            releaseYear = refreshed.releaseYear,
+            genres = refreshed.genres.cleanMetadataList(),
+            creators = refreshed.creators.cleanMetadataList(),
             progressTotal = refreshedTotal,
-            genresJson = refreshed.genres.cleanMetadataList().toJsonArrayString(),
-            creatorsJson = refreshed.creators.cleanMetadataList().toJsonArrayString(),
             coverUrl = refreshed.coverUrl?.trim()?.takeIf { it.isNotBlank() },
             synopsis = refreshed.synopsis?.trim()?.takeIf { it.isNotBlank() },
             sourceUrl = refreshed.sourceUrl?.trim()?.takeIf { it.isNotBlank() },
-            externalRatingScore = refreshed.externalRating?.score,
-            externalRatingMax = refreshed.externalRating?.maxScore,
-            externalRatingVoteCount = refreshed.externalRating?.voteCount,
-            popularityScore = refreshed.popularityScore,
-            rankingPosition = refreshed.rankingPosition,
-            rankingLabel = refreshed.rankingLabel,
-            providerCollectionTitle = refreshed.collectionTitle,
-            ratingDistributionJson = refreshed.ratingDistributionJson,
-            popularityJson = refreshed.popularityJson,
-            rankingJson = refreshed.rankingJson,
-            metadataSource = metadataSource.name,
-            metadataExternalId = metadataExternalId,
+            externalRatings = refreshedRatings,
+        )
+
+        return MetadataRefreshPreview(
+            mediaItemId = mediaItemId,
+            refreshed = normalizedRefreshed,
+            changes = buildMetadataRefreshChanges(
+                currentItem = currentItem,
+                currentCredits = existingCredits,
+                currentRatings = existingRatings,
+                refreshed = normalizedRefreshed,
+            ),
+        )
+    }
+
+    override suspend fun applyMediaItemMetadataRefresh(
+        preview: MetadataRefreshPreview,
+        selectedFields: Set<MetadataRefreshField>,
+    ): Boolean {
+        val currentItem = mediaDao.getMediaItem(preview.mediaItemId) ?: return false
+        val mediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
+        val refreshed = preview.refreshed
+        val existingRatings = mediaDao.getExternalRatingsForItem(preview.mediaItemId)
+            .map { it.toDomain() }
+            .map { rating ->
+                MetadataExternalRatingSuggestion(
+                    source = rating.source,
+                    score = rating.score,
+                    maxScore = rating.maxScore,
+                    voteCount = rating.voteCount,
+                )
+            }
+        val existingPrimaryRating = currentItem.externalRatingScore?.let { score ->
+            val maxScore = currentItem.externalRatingMax ?: return@let null
+            if (score > 0.0 && maxScore > 0.0) {
+                MetadataRatingSuggestion(
+                    score = score,
+                    maxScore = maxScore,
+                    voteCount = currentItem.externalRatingVoteCount,
+                )
+            } else {
+                null
+            }
+        }
+        val refreshedTotal = refreshed.progressTotal
+            ?.takeUnless { mediaType == MediaType.Game }
+            ?.coerceAtLeast(0)
+        val selectedTotal = if (MetadataRefreshField.ProgressTotal in selectedFields) {
+            refreshedTotal
+        } else {
+            currentItem.progressTotal
+        }
+        val selectedExternalRating = if (MetadataRefreshField.ExternalRating in selectedFields) {
+            refreshed.externalRating
+        } else {
+            existingPrimaryRating
+        }
+
+        mediaDao.refreshMediaItemMetadata(
+            mediaItemId = preview.mediaItemId,
+            title = refreshed.title.takeIfSelected(MetadataRefreshField.Title, selectedFields) ?: currentItem.title,
+            originalTitle = refreshed.originalTitle.takeIfSelected(
+                MetadataRefreshField.OriginalTitle,
+                selectedFields,
+            ) ?: currentItem.originalTitle,
+            releaseYear = refreshed.releaseYear.takeIfSelected(
+                MetadataRefreshField.ReleaseYear,
+                selectedFields,
+            ) ?: currentItem.releaseYear,
+            progressTotal = selectedTotal,
+            genresJson = if (MetadataRefreshField.Genres in selectedFields) {
+                refreshed.genres.cleanMetadataList().toJsonArrayString()
+            } else {
+                currentItem.genresJson
+            },
+            creatorsJson = if (MetadataRefreshField.Creators in selectedFields) {
+                refreshed.creators.cleanMetadataList().toJsonArrayString()
+            } else {
+                currentItem.creatorsJson
+            },
+            coverUrl = refreshed.coverUrl.takeIfSelected(MetadataRefreshField.Cover, selectedFields) ?: currentItem.coverUrl,
+            synopsis = refreshed.synopsis.takeIfSelected(MetadataRefreshField.Synopsis, selectedFields) ?: currentItem.synopsis,
+            sourceUrl = refreshed.sourceUrl.takeIfSelected(MetadataRefreshField.SourceUrl, selectedFields) ?: currentItem.sourceUrl,
+            externalRatingScore = selectedExternalRating?.score,
+            externalRatingMax = selectedExternalRating?.maxScore,
+            externalRatingVoteCount = selectedExternalRating?.voteCount,
+            popularityScore = refreshed.popularityScore.takeIfSelected(
+                MetadataRefreshField.ProviderStats,
+                selectedFields,
+            ) ?: currentItem.popularityScore,
+            rankingPosition = refreshed.rankingPosition.takeIfSelected(
+                MetadataRefreshField.ProviderStats,
+                selectedFields,
+            ) ?: currentItem.rankingPosition,
+            rankingLabel = refreshed.rankingLabel.takeIfSelected(
+                MetadataRefreshField.ProviderStats,
+                selectedFields,
+            ) ?: currentItem.rankingLabel,
+            providerCollectionTitle = refreshed.collectionTitle.takeIfSelected(
+                MetadataRefreshField.ProviderStats,
+                selectedFields,
+            ) ?: currentItem.providerCollectionTitle,
+            ratingDistributionJson = refreshed.ratingDistributionJson.takeIfSelected(
+                MetadataRefreshField.ProviderStats,
+                selectedFields,
+            ) ?: currentItem.ratingDistributionJson,
+            popularityJson = refreshed.popularityJson.takeIfSelected(
+                MetadataRefreshField.ProviderStats,
+                selectedFields,
+            ) ?: currentItem.popularityJson,
+            rankingJson = refreshed.rankingJson.takeIfSelected(
+                MetadataRefreshField.ProviderStats,
+                selectedFields,
+            ) ?: currentItem.rankingJson,
+            metadataSource = refreshed.source.name,
+            metadataExternalId = refreshed.externalId,
             metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
         )
 
-        mediaDao.deleteMediaCreditsForItem(mediaItemId)
-        refreshed.credits
-            .filter { it.personName.isNotBlank() }
-            .mapIndexed { index, credit ->
-                credit.copy(
-                    id = 0,
-                    mediaItemId = mediaItemId,
-                    personName = credit.personName.trim(),
-                    characterName = credit.characterName?.trim()?.takeIf { it.isNotBlank() },
-                    sortOrder = credit.sortOrder.takeIf { it > 0 } ?: index,
-                    metadataSource = credit.metadataSource ?: metadataSource,
-                ).toEntity()
-            }
-            .takeIf { it.isNotEmpty() }
-            ?.let { credits -> mediaDao.insertMediaCredits(credits) }
+        if (MetadataRefreshField.Credits in selectedFields) {
+            mediaDao.deleteMediaCreditsForItem(preview.mediaItemId)
+            refreshed.credits
+                .filter { it.personName.isNotBlank() }
+                .mapIndexed { index, credit ->
+                    credit.copy(
+                        id = 0,
+                        mediaItemId = preview.mediaItemId,
+                        personName = credit.personName.trim(),
+                        characterName = credit.characterName?.trim()?.takeIf { it.isNotBlank() },
+                        sortOrder = credit.sortOrder.takeIf { it > 0 } ?: index,
+                        metadataSource = credit.metadataSource ?: refreshed.source,
+                    ).toEntity()
+                }
+                .takeIf { it.isNotEmpty() }
+                ?.let { credits -> mediaDao.insertMediaCredits(credits) }
+        }
 
-        mediaDao.deleteExternalRatingsForItem(mediaItemId)
-        refreshedRatings
-            .filter { it.score > 0.0 && it.maxScore > 0.0 }
-            .forEach { rating ->
-                mediaDao.insertExternalRating(
-                    ExternalRatingEntity(
-                        mediaItemId = mediaItemId,
-                        source = rating.source.name,
-                        score = rating.score,
-                        maxScore = rating.maxScore,
-                        voteCount = rating.voteCount,
-                    ),
+        if (MetadataRefreshField.ExternalRatings in selectedFields) {
+            mediaDao.deleteExternalRatingsForItem(preview.mediaItemId)
+            refreshed.externalRatings
+                .filter { it.score > 0.0 && it.maxScore > 0.0 }
+                .forEach { rating ->
+                    mediaDao.insertExternalRating(
+                        ExternalRatingEntity(
+                            mediaItemId = preview.mediaItemId,
+                            source = rating.source.name,
+                            score = rating.score,
+                            maxScore = rating.maxScore,
+                            voteCount = rating.voteCount,
+                        ),
+                    )
+                }
+        } else if (MetadataRefreshField.ExternalRating in selectedFields && existingRatings.isEmpty()) {
+            refreshed.externalRating
+                ?.takeIf { it.score > 0.0 && it.maxScore > 0.0 }
+                ?.let { rating ->
+                    mediaDao.insertExternalRating(
+                        ExternalRatingEntity(
+                            mediaItemId = preview.mediaItemId,
+                            source = refreshed.source.defaultExternalRatingSource(),
+                            score = rating.score,
+                            maxScore = rating.maxScore,
+                            voteCount = rating.voteCount,
+                        ),
+                    )
+                }
+        }
+
+        if (MetadataRefreshField.ProgressTotal in selectedFields) {
+            refreshedTotal?.let { total ->
+                mediaDao.clampSessionsToMediaTotal(
+                    mediaItemId = preview.mediaItemId,
+                    progressTotal = total,
+                    updatedAtEpochMillis = System.currentTimeMillis(),
                 )
             }
-
-        refreshedTotal?.let { total ->
-            mediaDao.clampSessionsToMediaTotal(
-                mediaItemId = mediaItemId,
-                progressTotal = total,
-                updatedAtEpochMillis = System.currentTimeMillis(),
-            )
         }
 
         return true
+    }
+
+    override suspend fun refreshMediaItemMetadata(
+        mediaItemId: Long,
+        metadataRepository: MetadataRepository,
+    ): Boolean {
+        val preview = previewMediaItemMetadataRefresh(mediaItemId, metadataRepository) ?: return false
+        return applyMediaItemMetadataRefresh(
+            preview = preview,
+            selectedFields = MetadataRefreshField.entries.toSet(),
+        )
     }
 
     override suspend fun linkMediaItemMetadata(
@@ -858,6 +1071,7 @@ class OfflineMediaRepository(
             }
         }
         val linked = metadataRepository.getSuggestionDetails(suggestion)
+            .withPreservedMyAnimeListId(currentItem)
         val linkedTotal = linked.progressTotal
             ?.takeUnless { currentMediaType == MediaType.Game }
             ?.coerceAtLeast(0)
@@ -939,6 +1153,212 @@ class OfflineMediaRepository(
 
 }
 
+private fun buildMetadataRefreshChanges(
+    currentItem: MediaItemEntity,
+    currentCredits: List<MediaCredit>,
+    currentRatings: List<MetadataExternalRatingSuggestion>,
+    refreshed: MetadataSuggestion,
+): List<MetadataRefreshChange> = buildList {
+    addChange(
+        field = MetadataRefreshField.Title,
+        currentValue = currentItem.title,
+        newValue = refreshed.title,
+    )
+    addChange(
+        field = MetadataRefreshField.OriginalTitle,
+        currentValue = currentItem.originalTitle,
+        newValue = refreshed.originalTitle,
+    )
+    addChange(
+        field = MetadataRefreshField.ReleaseYear,
+        currentValue = currentItem.releaseYear,
+        newValue = refreshed.releaseYear,
+    )
+    addChange(
+        field = MetadataRefreshField.ProgressTotal,
+        currentValue = currentItem.progressTotal,
+        newValue = refreshed.progressTotal,
+    )
+    addChange(
+        field = MetadataRefreshField.Genres,
+        currentValue = currentItem.genresJson.toStringList(),
+        newValue = refreshed.genres,
+    )
+    addChange(
+        field = MetadataRefreshField.Creators,
+        currentValue = currentItem.creatorsJson.toStringList(),
+        newValue = refreshed.creators,
+    )
+    addChange(
+        field = MetadataRefreshField.Credits,
+        currentValue = currentCredits.creditSummary(),
+        newValue = refreshed.credits.creditSummary(),
+    )
+    addChange(
+        field = MetadataRefreshField.Cover,
+        currentValue = currentItem.coverUrl,
+        newValue = refreshed.coverUrl,
+    )
+    addChange(
+        field = MetadataRefreshField.Synopsis,
+        currentValue = currentItem.synopsis,
+        newValue = refreshed.synopsis,
+    )
+    addChange(
+        field = MetadataRefreshField.SourceUrl,
+        currentValue = currentItem.sourceUrl,
+        newValue = refreshed.sourceUrl,
+    )
+    addChange(
+        field = MetadataRefreshField.ExternalRating,
+        currentValue = currentItem.externalRatingScore?.let { score ->
+            val maxScore = currentItem.externalRatingMax ?: return@let null
+            "${score.cleanNumber()}/${maxScore.cleanNumber()}"
+        },
+        newValue = refreshed.externalRating?.let { rating ->
+            "${rating.score.cleanNumber()}/${rating.maxScore.cleanNumber()}"
+        },
+    )
+    addChange(
+        field = MetadataRefreshField.ExternalRatings,
+        currentValue = currentRatings.ratingSummary(),
+        newValue = refreshed.externalRatings.ratingSummary(),
+    )
+    addChange(
+        field = MetadataRefreshField.ProviderStats,
+        currentValue = providerStatsSummary(
+            popularityScore = currentItem.popularityScore,
+            rankingPosition = currentItem.rankingPosition,
+            rankingLabel = currentItem.rankingLabel,
+            collectionTitle = currentItem.providerCollectionTitle,
+        ),
+        newValue = providerStatsSummary(
+            popularityScore = refreshed.popularityScore,
+            rankingPosition = refreshed.rankingPosition,
+            rankingLabel = refreshed.rankingLabel,
+            collectionTitle = refreshed.collectionTitle,
+        ),
+    )
+}.distinctBy { it.field }
+
+private fun MutableList<MetadataRefreshChange>.addChange(
+    field: MetadataRefreshField,
+    currentValue: Any?,
+    newValue: Any?,
+) {
+    val currentDisplay = currentValue.toMetadataDisplayValue()
+    val newDisplay = newValue.toMetadataDisplayValue()
+    if (newDisplay == "Empty" || currentDisplay == newDisplay) return
+
+    add(
+        MetadataRefreshChange(
+            field = field,
+            currentValue = currentDisplay,
+            newValue = newDisplay,
+            overwritesExistingValue = currentDisplay != "Empty",
+        ),
+    )
+}
+
+private fun Any?.toMetadataDisplayValue(): String {
+    val value = when (this) {
+        null -> ""
+        is String -> this.trim()
+        is Int -> takeIf { it > 0 }?.toString().orEmpty()
+        is Double -> takeIf { it > 0.0 }?.cleanNumber().orEmpty()
+        is List<*> -> filterIsInstance<String>().map { it.trim() }.filter { it.isNotBlank() }.joinToString(", ")
+        else -> toString().trim()
+    }
+    return value.takeIf { it.isNotBlank() }?.ellipsizeMetadataValue() ?: "Empty"
+}
+
+private fun String.ellipsizeMetadataValue(): String {
+    return if (length <= 160) this else take(157).trimEnd() + "..."
+}
+
+private fun List<MediaCredit>.creditSummary(): String {
+    return filter { it.personName.isNotBlank() }
+        .take(8)
+        .joinToString(", ") { credit ->
+            credit.characterName?.takeIf { it.isNotBlank() }
+                ?.let { "${credit.personName.trim()} as ${it.trim()}" }
+                ?: credit.personName.trim()
+        }
+}
+
+private fun List<MetadataExternalRatingSuggestion>.ratingSummary(): String {
+    return filter { it.score > 0.0 && it.maxScore > 0.0 }
+        .joinToString(", ") { rating ->
+            "${rating.source.name} ${rating.score.cleanNumber()}/${rating.maxScore.cleanNumber()}"
+        }
+}
+
+private fun providerStatsSummary(
+    popularityScore: Double?,
+    rankingPosition: Int?,
+    rankingLabel: String?,
+    collectionTitle: String?,
+): String = listOfNotNull(
+    popularityScore?.takeIf { it > 0.0 }?.let { "Popularity ${it.cleanNumber()}" },
+    rankingPosition?.takeIf { it > 0 }?.let { "${rankingLabel ?: "Rank"} #$it" },
+    collectionTitle?.takeIf { it.isNotBlank() }?.let { "Collection $it" },
+).joinToString(", ")
+
+private fun Double.cleanNumber(): String {
+    return if (this % 1.0 == 0.0) toInt().toString() else "%.1f".format(this)
+}
+
+private fun <T> T?.takeIfSelected(field: MetadataRefreshField, selectedFields: Set<MetadataRefreshField>): T? {
+    return if (field in selectedFields) this else null
+}
+
+private fun MetadataSource.defaultExternalRatingSource(): String {
+    return when (this) {
+        MetadataSource.AniList -> ExternalRatingSource.AniList
+        MetadataSource.Jikan -> ExternalRatingSource.Mal
+        MetadataSource.OpenLibrary -> ExternalRatingSource.OpenLibrary
+        MetadataSource.GoogleBooks -> ExternalRatingSource.GoogleBooks
+        MetadataSource.Tmdb -> ExternalRatingSource.Tmdb
+        MetadataSource.Rawg -> ExternalRatingSource.Rawg
+        MetadataSource.Imdb -> ExternalRatingSource.Imdb
+        MetadataSource.StoryGraph -> ExternalRatingSource.StoryGraph
+    }.name
+}
+
+private fun MetadataSuggestion.withPreservedMyAnimeListId(currentItem: MediaItemEntity): MetadataSuggestion {
+    if (mediaType != MediaType.Anime || source != MetadataSource.AniList) return this
+    val malId = popularityJson.myAnimeListIdFromJson()
+        ?: currentItem.myAnimeListId()
+        ?: return this
+    val mergedPopularityJson = runCatching {
+        JSONObject(popularityJson ?: "{}")
+            .put("malId", malId)
+            .toString()
+    }.getOrDefault(popularityJson)
+    return copy(popularityJson = mergedPopularityJson)
+}
+
+private fun ExternalRatingEntity.isPrimaryExternalRating(mediaItem: MediaItemEntity?): Boolean {
+    val primaryScore = mediaItem?.externalRatingScore ?: return false
+    val primaryMax = mediaItem.externalRatingMax ?: return false
+    return score.closeTo(primaryScore) && maxScore.closeTo(primaryMax)
+}
+
+private fun Double.closeTo(other: Double): Boolean = kotlin.math.abs(this - other) < 0.001
+
+private fun MediaItemEntity.myAnimeListId(): String? {
+    if (metadataSource == MetadataSource.Jikan.name && !metadataExternalId.isNullOrBlank()) {
+        return metadataExternalId.trim()
+    }
+    return popularityJson.myAnimeListIdFromJson()
+}
+
+private fun String?.myAnimeListIdFromJson(): String? {
+    return runCatching {
+        JSONObject(this ?: "{}").optInt("malId", 0).takeIf { it > 0 }?.toString()
+    }.getOrNull()
+}
+
 private suspend fun MediaDao.insertProgressUpdateIfNeeded(
     mediaItemId: Long,
     sessionId: Long,
@@ -991,8 +1411,9 @@ private fun StoryGraphCsvItem.storyGraphDuplicateKey(): String {
 }
 
 private fun MediaItemEntity.myAnimeListDuplicateKey(): String {
-    return if (metadataSource == MetadataSource.Jikan.name && !metadataExternalId.isNullOrBlank()) {
-        "mal:${metadataExternalId.trim().lowercase()}"
+    val malId = myAnimeListId()
+    return if (!malId.isNullOrBlank()) {
+        "mal:${malId.trim().lowercase()}"
     } else {
         "anime:${title.normalizedImportTitle()}:${progressTotal ?: ""}"
     }

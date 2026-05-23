@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
@@ -17,6 +18,8 @@ import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.ImdbCsvImportResult
 import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
+import com.nilpo.contenttracker.core.repository.MetadataRefreshField
+import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlImportResult
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
@@ -303,6 +306,44 @@ class HomeViewModel(
         }
     }
 
+    fun addExternalRating(
+        mediaItemId: Long,
+        source: ExternalRatingSource,
+        score: Double,
+        maxScore: Double,
+        voteCount: Int?,
+        makePrimary: Boolean,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.addExternalRating(mediaItemId, source, score, maxScore, voteCount, makePrimary)
+        }
+    }
+
+    fun updateExternalRating(
+        externalRatingId: Long,
+        source: ExternalRatingSource,
+        score: Double,
+        maxScore: Double,
+        voteCount: Int?,
+        makePrimary: Boolean,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.updateExternalRating(externalRatingId, source, score, maxScore, voteCount, makePrimary)
+        }
+    }
+
+    fun setPrimaryExternalRating(externalRatingId: Long) {
+        viewModelScope.launch {
+            mediaRepository.setPrimaryExternalRating(externalRatingId)
+        }
+    }
+
+    fun deleteExternalRating(externalRatingId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteExternalRating(externalRatingId)
+        }
+    }
+
     fun addExternalTracking(
         mediaItemId: Long,
         source: ExternalTrackingSource,
@@ -439,6 +480,29 @@ class HomeViewModel(
                 },
             )
         }
+    }
+
+    suspend fun previewMediaItemMetadataRefresh(mediaItemId: Long): Result<MetadataRefreshPreview?> {
+        if (refreshingMetadataItemId.value != null) return Result.success(null)
+        refreshingMetadataItemId.value = mediaItemId
+        val result = runCatching {
+            mediaRepository.previewMediaItemMetadataRefresh(mediaItemId, metadataRepository)
+        }
+        refreshingMetadataItemId.value = null
+        return result
+    }
+
+    suspend fun applyMediaItemMetadataRefresh(
+        preview: MetadataRefreshPreview,
+        selectedFields: Set<MetadataRefreshField>,
+    ): Result<Boolean> {
+        if (refreshingMetadataItemId.value != null) return Result.success(false)
+        refreshingMetadataItemId.value = preview.mediaItemId
+        val result = runCatching {
+            mediaRepository.applyMediaItemMetadataRefresh(preview, selectedFields)
+        }
+        refreshingMetadataItemId.value = null
+        return result
     }
 
     suspend fun searchMetadataLinkSuggestions(
