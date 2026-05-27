@@ -197,24 +197,12 @@ private fun CardProgressFooter(
                 overflow = TextOverflow.Ellipsis,
             )
             session?.rating?.let { rating ->
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(1.dp),
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    Text(
-                        text = rating.toString(),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = accent,
-                    )
-                    Text(
-                        text = "/10",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppMuted,
-                        modifier = Modifier.padding(bottom = 3.dp),
-                    )
-                }
+                Text(
+                    text = rating.toString(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accent,
+                )
             }
         }
         if (progressTotal != null && progressTotal > 0) {

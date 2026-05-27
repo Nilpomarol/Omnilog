@@ -439,8 +439,8 @@ fun ExternalRatingsDialog(
 
     OmnilogModal(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -460,13 +460,13 @@ fun ExternalRatingsDialog(
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(8.dp),
                 color = OmnilogColors.AppPanel,
                 border = BorderStroke(1.dp, OmnilogColors.AppLine),
             ) {
                 Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
                     OptionSelector(
                         label = stringResource(R.string.field_external_rating_source),
@@ -475,7 +475,7 @@ fun ExternalRatingsDialog(
                         optionLabel = { it.displayName() },
                         onOptionSelected = { selectedSource = it },
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedTextField(
                             value = score,
                             onValueChange = { score = it },
@@ -495,21 +495,25 @@ fun ExternalRatingsDialog(
                             colors = omnilogModalTextFieldColors(accent),
                         )
                     }
-                    OutlinedTextField(
-                        value = voteCount,
-                        onValueChange = { voteCount = it },
-                        label = { Text(stringResource(R.string.field_external_rating_users)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = omnilogModalTextFieldColors(accent),
-                    )
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
+                        OutlinedTextField(
+                            value = voteCount,
+                            onValueChange = { voteCount = it },
+                            label = { Text(stringResource(R.string.field_external_rating_users)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = omnilogModalTextFieldColors(accent),
+                        )
                         Checkbox(checked = makePrimary, onCheckedChange = { makePrimary = it })
-                        Text(text = stringResource(R.string.make_primary_external_rating), color = OmnilogColors.AppMuted)
+                        Text(
+                            text = stringResource(R.string.make_primary_external_rating),
+                            color = OmnilogColors.AppMuted,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
                     }
                     Button(
                         enabled = parsedScore != null && parsedMaxScore != null && parsedMaxScore > 0.0,
@@ -539,8 +543,8 @@ fun ExternalRatingsDialog(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 360.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .heightIn(max = 300.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(ratings) { rating ->
                     ExternalRatingManageRow(
@@ -576,13 +580,13 @@ private fun ExternalRatingManageRow(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, if (isPrimary) accent else OmnilogColors.AppLine),
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             OptionSelector(
                 label = stringResource(R.string.field_external_rating_source),
@@ -599,7 +603,7 @@ private fun ExternalRatingManageRow(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(
                     value = score,
                     onValueChange = { score = it },
@@ -619,16 +623,19 @@ private fun ExternalRatingManageRow(
                     colors = omnilogModalTextFieldColors(accent),
                 )
             }
-            OutlinedTextField(
-                value = voteCount,
-                onValueChange = { voteCount = it },
-                label = { Text(stringResource(R.string.field_external_rating_users)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                colors = omnilogModalTextFieldColors(accent),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = voteCount,
+                    onValueChange = { voteCount = it },
+                    label = { Text(stringResource(R.string.field_external_rating_users)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = omnilogModalTextFieldColors(accent),
+                )
                 TextButton(
                     enabled = parsedScore != null && parsedMaxScore != null && parsedMaxScore > 0.0,
                     onClick = {
@@ -644,6 +651,8 @@ private fun ExternalRatingManageRow(
                 ) {
                     Text(text = stringResource(R.string.save))
                 }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { onSetPrimary(rating.id) }) {
                     Text(text = stringResource(R.string.make_primary_external_rating))
                 }

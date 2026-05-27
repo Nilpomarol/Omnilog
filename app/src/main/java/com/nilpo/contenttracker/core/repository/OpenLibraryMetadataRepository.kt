@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.core.repository
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
+import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
@@ -25,7 +26,7 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         return withContext(Dispatchers.IO) {
             runCatching {
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                val fields = "key,title,author_name,first_publish_year,cover_i,subject," +
+                val fields = "key,title,author_name,first_publish_year,cover_i,subject,language," +
                     "number_of_pages_median,ratings_average,ratings_count,edition_key,isbn"
                 val response = getJson(
                     "https://openlibrary.org/search.json?q=$encodedQuery" +
@@ -46,7 +47,7 @@ class OpenLibraryMetadataRepository : MetadataRepository {
                 val work = getJson("https://openlibrary.org${suggestion.externalId}.json")
                 val editions = getJson(
                     "https://openlibrary.org${suggestion.externalId}/editions.json" +
-                        "?limit=10&fields=entries(title,number_of_pages,covers,isbn_10,isbn_13)",
+                    "?limit=10&fields=entries(title,number_of_pages,covers,isbn_10,isbn_13)",
                 )
                 suggestion.enrichWith(work, editions)
             }.getOrDefault(suggestion)
@@ -77,6 +78,7 @@ class OpenLibraryMetadataRepository : MetadataRepository {
             mediaType = MediaType.Book,
             title = title,
             releaseYear = optInt("first_publish_year", 0).takeIf { it > 0 },
+            language = ItemLanguage.normalize(optJSONArray("language").toStringList(limit = 1).firstOrNull()),
             coverUrl = coverId?.let { coverUrl(it) },
             synopsis = null,
             progressTotal = pages,

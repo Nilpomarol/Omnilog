@@ -7,6 +7,7 @@ import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
+import com.nilpo.contenttracker.core.model.MetadataSeasonSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,17 @@ class TmdbMetadataRepository(
 
         return withContext(Dispatchers.IO) {
             runCatching {
+                val seasonRef = suggestion.externalId.toTmdbSeasonRef()
+                if (suggestion.mediaType == MediaType.TvShow && seasonRef != null) {
+                    val seriesUrl = "https://api.themoviedb.org/3/tv/${seasonRef.seriesId}" +
+                        "?api_key=$apiKey&language=en-US&append_to_response=credits,external_ids"
+                    val seriesSuggestion = suggestion.copy(externalId = seasonRef.seriesId)
+                    val detailedSeries = getJson(seriesUrl).toDetailedSuggestion(seriesSuggestion)
+                    return@runCatching detailedSeries.seasonSuggestions
+                        .firstOrNull { season -> season.seasonNumber == seasonRef.seasonNumber }
+                        ?.toMetadataSuggestion(detailedSeries)
+                        ?: detailedSeries
+                }
                 val url = when (suggestion.mediaType) {
                     MediaType.Movie ->
                         "https://api.themoviedb.org/3/movie/${suggestion.externalId}" +
@@ -75,8 +87,23 @@ class TmdbMetadataRepository(
         )
         val results = response.optJSONArray("results") ?: return emptyList()
 
-        return List(results.length()) { index -> results.getJSONObject(index) }
+        val suggestions = List(results.length()) { index -> results.getJSONObject(index) }
             .mapNotNull { result -> result.toMetadataSuggestion(mediaType) }
+
+        return if (mediaType == MediaType.TvShow) {
+            suggestions.map { suggestion -> suggestion.withTvSeasonSummary() }
+        } else {
+            suggestions
+        }
+    }
+
+    private fun MetadataSuggestion.withTvSeasonSummary(): MetadataSuggestion {
+        return runCatching {
+            getJson(
+                "https://api.themoviedb.org/3/tv/$externalId" +
+                    "?api_key=$apiKey&language=en-US",
+            ).toDetailedSuggestion(this)
+        }.getOrDefault(this)
     }
 
     private fun JSONObject.toMetadataSuggestion(mediaType: MediaType): MetadataSuggestion? {
@@ -155,6 +182,8 @@ class TmdbMetadataRepository(
             else -> ""
         }
         val posterPath = optString("poster_path").takeIf { it.isNotBlank() }
+        val seriesId = optLong("id", 0L).takeIf { it > 0L }?.toString() ?: base.externalId
+        val seriesCoverUrl = posterPath?.let(::tmdbImageUrl) ?: base.coverUrl
         val collectionTitle = optJSONObject("belongs_to_collection")
             ?.optString("name")
             ?.takeIf { it.isNotBlank() }
@@ -202,11 +231,19 @@ class TmdbMetadataRepository(
             creators = creators.ifEmpty { base.creators },
             credits = (creatorCredits + castCredits).ifEmpty { base.credits },
             progressTotal = progressTotal ?: base.progressTotal,
-            coverUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: base.coverUrl,
+            coverUrl = seriesCoverUrl,
             synopsis = optString("overview").takeIf { it.isNotBlank() } ?: base.synopsis,
             popularityScore = optInt("vote_count", 0).takeIf { it > 0 }?.toDouble() ?: base.popularityScore,
             externalRating = preferredRating,
             externalRatings = (base.externalRatings + omdbRatings).distinctBy { it.source },
+            seasonSuggestions = if (base.mediaType == MediaType.TvShow) {
+                optJSONArray("seasons").toSeasonSuggestions(
+                    seriesId = seriesId,
+                    seriesCoverUrl = seriesCoverUrl,
+                )
+            } else {
+                emptyList()
+            },
         )
     }
 
@@ -282,6 +319,21 @@ class TmdbMetadataRepository(
     }
 }
 
+private data class TmdbSeasonRef(
+    val seriesId: String,
+    val seasonNumber: Int,
+)
+
+private fun String.toTmdbSeasonRef(): TmdbSeasonRef? {
+    val parts = split(":")
+    if (parts.size != 3 || parts[1] != "season") return null
+    val seriesId = parts[0].takeIf { it.isNotBlank() } ?: return null
+    val seasonNumber = parts[2].toIntOrNull() ?: return null
+    return TmdbSeasonRef(seriesId = seriesId, seasonNumber = seasonNumber)
+}
+
+private fun tmdbImageUrl(path: String): String = "https://image.tmdb.org/t/p/w500$path"
+
 private fun String.ratingVoteCount(): Int? {
     return replace(",", "")
         .trim()
@@ -306,6 +358,35 @@ private fun org.json.JSONArray?.toStringList(
         .filter { it.predicate() }
         .map { it.optString(fieldName) }
         .filter { it.isNotBlank() }
+}
+
+private fun org.json.JSONArray?.toSeasonSuggestions(
+    seriesId: String,
+    seriesCoverUrl: String?,
+): List<MetadataSeasonSuggestion> {
+    if (this == null) return emptyList()
+    return List(length()) { getJSONObject(it) }
+        .mapNotNull { season ->
+            val seasonNumber = season.optInt("season_number", Int.MIN_VALUE)
+                .takeIf { it != Int.MIN_VALUE }
+                ?: return@mapNotNull null
+            val episodeCount = season.optInt("episode_count", 0).takeIf { it > 0 }
+                ?: return@mapNotNull null
+            val name = season.optString("name").takeIf { it.isNotBlank() }
+                ?: "Season $seasonNumber"
+            val posterPath = season.optString("poster_path").takeIf { it.isNotBlank() }
+            MetadataSeasonSuggestion(
+                externalId = "$seriesId:season:$seasonNumber",
+                seasonNumber = seasonNumber,
+                title = name,
+                releaseYear = season.optString("air_date").take(4).toIntOrNull(),
+                progressTotal = episodeCount,
+                coverUrl = posterPath?.let(::tmdbImageUrl) ?: seriesCoverUrl,
+                synopsis = season.optString("overview").takeIf { it.isNotBlank() },
+                sourceUrl = "https://www.themoviedb.org/tv/$seriesId/season/$seasonNumber",
+            )
+        }
+        .sortedWith(compareBy<MetadataSeasonSuggestion> { it.seasonNumber }.thenBy { it.title })
 }
 
 private fun org.json.JSONArray?.toCredits(

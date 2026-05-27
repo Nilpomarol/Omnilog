@@ -107,6 +107,7 @@ fun CollectionDetailScreen(
     }
     val hasUnsavedReorder = isReordering && draftOrderValues != sortedItems.toDraftOrderValues()
     val nextCollectionOrder = (items.maxOfOrNull { it.item.collectionSortOrder ?: 0.0 } ?: 0.0) + 1.0
+    val averageRating = items.collectionAverageRating()
     val requestBack = {
         if (hasUnsavedReorder) {
             showDiscardReorderConfirmation = true
@@ -191,6 +192,16 @@ fun CollectionDetailScreen(
                         Text(text = stringResource(R.string.save), color = accent)
                     }
                 } else {
+                    averageRating?.let { rating ->
+                        Text(
+                            text = stringResource(R.string.collection_average_rating, rating),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accent,
+                            maxLines = 1,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    }
                     Text(
                         text = stringResource(R.string.collection_item_count, items.size),
                         style = MaterialTheme.typography.labelSmall,

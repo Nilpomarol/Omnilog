@@ -15,6 +15,7 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ExternalTrackingSource
+import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaType
@@ -370,6 +371,7 @@ class OfflineMediaRepository(
                 progressTotal = validTotal,
                 originalTitle = request.originalTitle?.trim()?.takeIf { it.isNotBlank() },
                 releaseYear = request.releaseYear,
+                language = ItemLanguage.normalize(request.language),
                 genresJson = request.genres.toJsonArrayString(),
                 creatorsJson = request.creators.toJsonArrayString(),
                 coverUrl = request.coverUrl,
@@ -739,6 +741,7 @@ class OfflineMediaRepository(
         title: String,
         originalTitle: String?,
         releaseYear: Int?,
+        language: String?,
         progressTotal: Int?,
         genres: List<String>,
         creators: List<String>,
@@ -757,6 +760,7 @@ class OfflineMediaRepository(
             title = validTitle,
             originalTitle = originalTitle?.trim()?.takeIf { it.isNotBlank() },
             releaseYear = releaseYear?.coerceAtLeast(0),
+            language = ItemLanguage.normalize(language),
             progressTotal = validTotal,
             genresJson = genres.cleanMetadataList().toJsonArrayString(),
             creatorsJson = creators.cleanMetadataList().toJsonArrayString(),
@@ -815,6 +819,7 @@ class OfflineMediaRepository(
                 title = currentItem.title,
                 originalTitle = currentItem.originalTitle,
                 releaseYear = currentItem.releaseYear,
+                language = currentItem.language,
                 genres = currentItem.genresJson.toStringList(),
                 creators = currentItem.creatorsJson.toStringList(),
                 progressTotal = currentItem.progressTotal,
@@ -839,6 +844,7 @@ class OfflineMediaRepository(
         val normalizedRefreshed = refreshed.copy(
             title = refreshed.title.trim().takeIf { it.isNotBlank() } ?: currentItem.title,
             originalTitle = refreshed.originalTitle?.trim()?.takeIf { it.isNotBlank() },
+            language = ItemLanguage.normalize(refreshed.language),
             genres = refreshed.genres.cleanMetadataList(),
             creators = refreshed.creators.cleanMetadataList(),
             progressTotal = refreshedTotal,
@@ -914,6 +920,8 @@ class OfflineMediaRepository(
                 MetadataRefreshField.ReleaseYear,
                 selectedFields,
             ) ?: currentItem.releaseYear,
+            language = ItemLanguage.normalize(refreshed.language).takeIfSelected(MetadataRefreshField.Language, selectedFields)
+                ?: currentItem.language,
             progressTotal = selectedTotal,
             genresJson = if (MetadataRefreshField.Genres in selectedFields) {
                 refreshed.genres.cleanMetadataList().toJsonArrayString()
@@ -1083,6 +1091,7 @@ class OfflineMediaRepository(
             title = linked.title.trim().takeIf { it.isNotBlank() } ?: currentItem.title,
             originalTitle = linked.originalTitle?.trim()?.takeIf { it.isNotBlank() },
             releaseYear = linked.releaseYear,
+            language = ItemLanguage.normalize(linked.language),
             progressTotal = linkedTotal,
             genresJson = linked.genres.cleanMetadataList().toJsonArrayString(),
             creatorsJson = linked.creators.cleanMetadataList().toJsonArrayString(),
@@ -1173,6 +1182,11 @@ private fun buildMetadataRefreshChanges(
         field = MetadataRefreshField.ReleaseYear,
         currentValue = currentItem.releaseYear,
         newValue = refreshed.releaseYear,
+    )
+    addChange(
+        field = MetadataRefreshField.Language,
+        currentValue = currentItem.language,
+        newValue = refreshed.language,
     )
     addChange(
         field = MetadataRefreshField.ProgressTotal,
@@ -1583,6 +1597,7 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .putNullable("progressTotal", progressTotal)
         .putNullable("originalTitle", originalTitle)
         .putNullable("releaseYear", releaseYear)
+        .putNullable("language", language)
         .put("genres", JSONArray(genresJson.toStringList()))
         .put("creators", JSONArray(creatorsJson.toStringList()))
         .putNullable("coverUrl", coverUrl)
@@ -1679,6 +1694,7 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         progressTotal = optNullableInt("progressTotal"),
         originalTitle = optNullableString("originalTitle"),
         releaseYear = optNullableInt("releaseYear"),
+        language = optNullableString("language"),
         genresJson = optStringArray("genres").toJsonArrayString(),
         creatorsJson = optStringArray("creators").toJsonArrayString(),
         coverUrl = optNullableString("coverUrl"),

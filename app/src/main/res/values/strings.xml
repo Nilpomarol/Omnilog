@@ -97,6 +97,12 @@
     <string name="metadata_details_error">No s\'han pogut carregar tots els detalls. Pots continuar amb les metadades disponibles.</string>
     <string name="metadata_search_empty">No s\'han trobat resultats.</string>
     <string name="metadata_search_error">Error en la cerca. Comprova la connexió i torna-ho a intentar.</string>
+    <string name="metadata_season_picker_title">Tria temporada</string>
+    <string name="metadata_season_picker_loading">Carregant temporades...</string>
+    <string name="metadata_season_picker_empty">No s\'han trobat temporades útils. Pots crear la sèrie completa.</string>
+    <string name="metadata_season_use_series">Sèrie completa</string>
+    <string name="metadata_season_episode_count">%1$d episodis</string>
+    <string name="metadata_multi_season_count">%1$d temp.</string>
     <string name="metadata_already_in_library">Ja a Omnilog</string>
     <string name="metadata_possible_duplicate">Possible duplicat</string>
     <string name="metadata_suggestion_source">Font: %1$s</string>
@@ -114,6 +120,8 @@
     <string name="metadata_popularity">Popularitat</string>
     <string name="metadata_users">Usuaris</string>
     <string name="metadata_ranking">Rànquing</string>
+    <string name="metadata_language">Idioma</string>
+    <string name="metadata_language_value">Idioma: %1$s</string>
     <string name="metadata_total_episodes">Episodis</string>
     <string name="metadata_total_pages">Pàgines</string>
     <string name="metadata_total_minutes">Minuts</string>
@@ -131,6 +139,12 @@
     <string name="field_title">Títol</string>
     <string name="field_original_title">Títol original</string>
     <string name="field_release_year">Any</string>
+    <string name="field_language">Idioma</string>
+    <string name="language_original">Original</string>
+    <string name="language_catalan">Català</string>
+    <string name="language_spanish">Castellà</string>
+    <string name="language_english">Anglès</string>
+    <string name="language_japanese">Japonès</string>
     <string name="field_total_progress">Total</string>
     <string name="field_creators">Autors / creadors</string>
     <string name="field_genres">Gèneres</string>
@@ -154,6 +168,8 @@
     <string name="collection_none">Sense col·lecció</string>
     <string name="clear_collection">Treu col·lecció</string>
     <string name="collection_item_count">%1$d elements</string>
+    <string name="list_item_count">%1$d/%2$d elements</string>
+    <string name="collection_average_rating">Mitjana %.1f/10</string>
     <string name="collection_rename_title">Reanomena la col·lecció</string>
     <string name="collection_empty">Aquesta col·lecció no té elements.</string>
     <string name="collection_reorder">Reordena</string>
@@ -289,6 +305,7 @@
     <string name="metadata_refresh_field_title">Titol</string>
     <string name="metadata_refresh_field_original_title">Titol original</string>
     <string name="metadata_refresh_field_release_year">Any</string>
+    <string name="metadata_refresh_field_language">Idioma</string>
     <string name="metadata_refresh_field_progress_total">Total de progres</string>
     <string name="metadata_refresh_field_genres">Generes</string>
     <string name="metadata_refresh_field_creators">Creadors</string>

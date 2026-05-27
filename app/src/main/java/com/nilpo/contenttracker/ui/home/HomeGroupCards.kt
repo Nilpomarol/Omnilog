@@ -1,4 +1,4 @@
-package com.nilpo.contenttracker.ui.home
+﻿package com.nilpo.contenttracker.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDp
@@ -146,12 +146,17 @@ private fun CollectionGroupCard(
     onCollectionClick: (MediaCollection) -> Unit,
 ) {
     val summary = group.items.collectionProgressSummary()
+    val averageRating = group.items.collectionAverageRating()
     val mediaType = group.items.firstOrNull()?.item?.type
     val lastUpdatedMillis = group.items.collectionLastUpdatedMillis()
     val unitLabel = mediaType.collectionItemUnitLabel()
     val completedStr = stringResource(R.string.group_completed_count, summary.completedCount)
     val inProgressStr = stringResource(R.string.group_in_progress_count, summary.inProgressCount)
-    val metaLine = "${group.items.size} $unitLabel · $completedStr · $inProgressStr"
+    val metaLine = listOfNotNull(
+        "${group.items.size} $unitLabel",
+        completedStr,
+        inProgressStr,
+    ).joinToString(" · ")
     val transition = updateTransition(
         targetState = isCollapsed,
         label = "collection_card_transition",
@@ -292,14 +297,27 @@ private fun CollectionGroupCard(
                         modifier = Modifier.padding(top = 6.dp),
                         verticalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
-                        Text(
-                            text = stringResource(R.string.group_progress_prefix, summary.label),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmnilogColors.AppMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.group_progress_prefix, summary.label),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = OmnilogColors.AppMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            averageRating?.let { rating ->
+                                CollectionAverageRatingSlot(
+                                    rating = rating,
+                                    accent = accent,
+                                )
+                            }
+                        }
                         GroupProgressBar(
                             fraction = summary.progressFraction,
                             color = accent,
@@ -346,7 +364,20 @@ internal fun GroupProgressBar(
     }
 }
 
-// ── Composable helpers ──────────────────────────────────────────────────────
+@Composable
+private fun CollectionAverageRatingSlot(
+    rating: Double,
+    accent: Color,
+) {
+    Text(
+        text = "%.1f".format(rating),
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.ExtraBold,
+        color = accent,
+    )
+}
+
+// â”€â”€ Composable helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 internal fun HomeDisplayGroup.resolvedTitle(): String {
@@ -385,6 +416,12 @@ internal fun List<TrackedMedia>.collectionProgressSummary(): CollectionProgressS
     )
 }
 
+internal fun List<TrackedMedia>.collectionAverageRating(): Double? {
+    val ratings = mapNotNull { it.currentSession?.rating }
+    if (ratings.isEmpty()) return null
+    return ratings.average()
+}
+
 @Composable
 private fun MediaType?.itemUnitLabel(): String = when (this) {
     MediaType.Book -> stringResource(R.string.group_unit_books)
@@ -404,7 +441,7 @@ private fun MediaType?.collectionItemUnitLabel(): String = when (this) {
     null -> stringResource(R.string.group_unit_items)
 }
 
-// ── TrackingStatus extensions (private to this file) ────────────────────────
+// â”€â”€ TrackingStatus extensions (private to this file) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 private val TrackingStatus.stateColor: Color
     get() = when (this) {
@@ -432,3 +469,4 @@ private fun TrackingStatus.label(): String = when (this) {
     TrackingStatus.Paused -> stringResource(R.string.status_paused)
     TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
 }
+

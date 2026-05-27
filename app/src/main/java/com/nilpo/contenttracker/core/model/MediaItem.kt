@@ -9,6 +9,7 @@ data class MediaItem(
     val progressTotal: Int? = null,
     val originalTitle: String? = null,
     val releaseYear: Int? = null,
+    val language: String? = null,
     val genres: List<String> = emptyList(),
     val creators: List<String> = emptyList(),
     val coverUrl: String? = null,

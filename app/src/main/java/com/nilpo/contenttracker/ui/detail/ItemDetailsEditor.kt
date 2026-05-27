@@ -33,8 +33,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.ui.common.LanguageDropdown
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,6 +48,7 @@ fun ItemDetailsEditor(
         title: String,
         originalTitle: String?,
         releaseYear: Int?,
+        language: String?,
         progressTotal: Int?,
         genres: List<String>,
         creators: List<String>,
@@ -57,6 +60,9 @@ fun ItemDetailsEditor(
     var title by rememberSaveable(item.id) { mutableStateOf(item.title) }
     var originalTitle by rememberSaveable(item.id) { mutableStateOf(item.originalTitle.orEmpty()) }
     var releaseYearText by rememberSaveable(item.id) { mutableStateOf(item.releaseYear?.toString().orEmpty()) }
+    var language by rememberSaveable(item.id) {
+        mutableStateOf(ItemLanguage.normalize(item.language) ?: ItemLanguage.Original)
+    }
     var totalText by rememberSaveable(item.id) { mutableStateOf(item.progressTotal?.toString().orEmpty()) }
     var genresText by rememberSaveable(item.id) { mutableStateOf(item.genres.joinToString(", ")) }
     var creatorsText by rememberSaveable(item.id) { mutableStateOf(item.creators.joinToString(", ")) }
@@ -85,6 +91,7 @@ fun ItemDetailsEditor(
                                 title,
                                 originalTitle.trim().takeIf { it.isNotBlank() },
                                 releaseYearText.toIntOrNull(),
+                                ItemLanguage.normalize(language),
                                 totalText.toIntOrNull().takeUnless { item.type == MediaType.Game },
                                 genresText.toMetadataList(),
                                 creatorsText.toMetadataList(),
@@ -132,6 +139,12 @@ fun ItemDetailsEditor(
                 accent = accent,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+            LanguageDropdown(
+                value = language,
+                onValueChange = { language = ItemLanguage.normalize(it) ?: ItemLanguage.Original },
+                label = stringResource(R.string.field_language),
+                accent = accent,
             )
             if (item.type != MediaType.Game) {
                 MetadataEditorField(

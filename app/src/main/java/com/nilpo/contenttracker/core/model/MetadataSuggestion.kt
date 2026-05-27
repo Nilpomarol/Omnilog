@@ -8,6 +8,7 @@ data class MetadataSuggestion(
     val originalTitle: String? = null,
     val collectionTitle: String? = null,
     val releaseYear: Int? = null,
+    val language: String? = null,
     val genres: List<String> = emptyList(),
     val creators: List<String> = emptyList(),
     val credits: List<MediaCredit> = emptyList(),
@@ -23,7 +24,35 @@ data class MetadataSuggestion(
     val rankingJson: String? = null,
     val externalRating: MetadataRatingSuggestion? = null,
     val externalRatings: List<MetadataExternalRatingSuggestion> = emptyList(),
+    val seasonSuggestions: List<MetadataSeasonSuggestion> = emptyList(),
 )
+
+data class MetadataSeasonSuggestion(
+    val externalId: String,
+    val seasonNumber: Int,
+    val title: String,
+    val releaseYear: Int? = null,
+    val progressTotal: Int? = null,
+    val coverUrl: String? = null,
+    val synopsis: String? = null,
+    val sourceUrl: String? = null,
+) {
+    fun toMetadataSuggestion(series: MetadataSuggestion): MetadataSuggestion {
+        return series.copy(
+            externalId = externalId,
+            title = "${series.title} - $title",
+            originalTitle = null,
+            collectionTitle = series.title,
+            releaseYear = releaseYear ?: series.releaseYear,
+            language = series.language,
+            progressTotal = progressTotal,
+            coverUrl = coverUrl ?: series.coverUrl,
+            synopsis = synopsis ?: series.synopsis,
+            sourceUrl = sourceUrl ?: series.sourceUrl,
+            seasonSuggestions = emptyList(),
+        )
+    }
+}
 
 data class MetadataRatingSuggestion(
     val score: Double,

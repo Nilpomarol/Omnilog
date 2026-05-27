@@ -93,6 +93,9 @@ fun HomeScreen(
         duplicateStateForSuggestion(suggestion) != MetadataDuplicateState.Exact
     }
     val showApiSection = metadataUiState.isLoading || metadataUiState.hasSearched
+    val sectionItemCount = uiState.allTrackedItems.count { trackedMedia ->
+        trackedMedia.item.type in section.types
+    }
 
     LaunchedEffect(uiState.searchQuery) {
         if (uiState.searchQuery.trim().length >= 2) {
@@ -145,6 +148,10 @@ fun HomeScreen(
                         onGroupModeChange = onGroupModeChange,
                         onSortModeChange = onSortModeChange,
                         onSortDirectionChange = onSortDirectionChange,
+                    )
+                    ListItemCounter(
+                        visibleCount = uiState.trackedItems.size,
+                        totalCount = sectionItemCount,
                     )
                 }
             }
@@ -250,6 +257,25 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ListItemCounter(
+    visibleCount: Int,
+    totalCount: Int,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.list_item_count, visibleCount, totalCount),
+            style = MaterialTheme.typography.labelMedium,
+            color = OmnilogColors.AppMuted,
+            maxLines = 1,
+        )
     }
 }
 

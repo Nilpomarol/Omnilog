@@ -56,11 +56,15 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
+import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSeasonSuggestion
+import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.LanguageDropdown
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
@@ -104,6 +108,7 @@ fun AddMediaScreen(
     }
     var title by remember { mutableStateOf("") }
     var totalProgress by remember { mutableStateOf("") }
+    var language by remember { mutableStateOf(ItemLanguage.Original) }
     var platform by remember { mutableStateOf("") }
     var selectedMediaType by remember { mutableStateOf(initialMediaType) }
     var selectedStatus by remember { mutableStateOf(TrackingStatus.Planned) }
@@ -116,7 +121,12 @@ fun AddMediaScreen(
     var initialFinishedAt by remember { mutableStateOf("") }
     var collectionName by remember { mutableStateOf(initialCollection?.name ?: initialCollectionName.orEmpty()) }
     var collectionOrder by remember { mutableStateOf(initialCollectionOrder.orEmpty()) }
+    var selectedSeason by remember { mutableStateOf<MetadataSeasonSuggestion?>(null) }
+    var useWholeSeries by remember { mutableStateOf(false) }
     val selectedMetadataSuggestion = metadataUiState.selectedSuggestion
+    val selectedMetadataForForm = selectedMetadataSuggestion?.let { suggestion ->
+        selectedSeason?.toMetadataSuggestion(suggestion) ?: suggestion
+    }
     val availableCollectionsForType = availableCollections
         .filter { option -> selectedMediaType in option.mediaTypes }
         .map { option -> option.collection }
@@ -125,14 +135,42 @@ fun AddMediaScreen(
             collection.name.equals(collectionName.trim(), ignoreCase = true)
         }
 
-    LaunchedEffect(selectedMetadataSuggestion) {
+    fun applyMetadataSuggestion(suggestion: MetadataSuggestion, season: MetadataSeasonSuggestion? = null) {
+        title = suggestion.title
+        language = ItemLanguage.normalize(suggestion.language) ?: ItemLanguage.Original
+        totalProgress = suggestion.progressTotal
+            ?.takeUnless { suggestion.mediaType == MediaType.Game }
+            ?.toString()
+            .orEmpty()
+        selectedMediaType = suggestion.mediaType
+        if (season != null) {
+            collectionName = suggestion.collectionTitle.orEmpty()
+            collectionOrder = season.seasonNumber.toString()
+        }
+    }
+
+    LaunchedEffect(selectedMetadataSuggestion?.source, selectedMetadataSuggestion?.externalId) {
+        selectedSeason = null
+        useWholeSeries = false
+    }
+
+    LaunchedEffect(selectedMetadataForForm, metadataUiState.isLoadingDetails) {
         selectedMetadataSuggestion?.let { suggestion ->
-            title = suggestion.title
-            totalProgress = suggestion.progressTotal
-                ?.takeUnless { suggestion.mediaType == MediaType.Game }
-                ?.toString()
-                .orEmpty()
-            selectedMediaType = suggestion.mediaType
+            if (
+                !useWholeSeries &&
+                suggestion.shouldUseTvSeasonPicker(metadataUiState.isLoadingDetails) &&
+                selectedSeason == null
+            ) {
+                selectedMediaType = suggestion.mediaType
+                if (step != AddMediaStep.Manual) {
+                    step = AddMediaStep.Season
+                }
+                return@LaunchedEffect
+            }
+        }
+
+        selectedMetadataForForm?.let { suggestion ->
+            applyMetadataSuggestion(suggestion, selectedSeason)
             if (step != AddMediaStep.Manual) {
                 step = AddMediaStep.Review
             }
@@ -181,8 +219,32 @@ fun AddMediaScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     when (step) {
+                        AddMediaStep.Season -> MetadataSeasonSelectionStep(
+                            suggestion = selectedMetadataSuggestion,
+                            isLoadingDetails = metadataUiState.isLoadingDetails,
+                            hasDetailsError = metadataUiState.hasDetailsError,
+                            accent = selectedMediaType.sectionAccent(),
+                            onSeasonSelected = { season ->
+                                useWholeSeries = false
+                                selectedSeason = season
+                                selectedMetadataSuggestion?.let { seriesSuggestion ->
+                                    applyMetadataSuggestion(season.toMetadataSuggestion(seriesSuggestion), season)
+                                    step = AddMediaStep.Review
+                                }
+                            },
+                            onUseSeries = {
+                                selectedSeason = null
+                                useWholeSeries = true
+                                selectedMetadataSuggestion?.let { suggestion ->
+                                    applyMetadataSuggestion(suggestion)
+                                    step = AddMediaStep.Review
+                                }
+                            },
+                            onBackToSearch = { step = AddMediaStep.Search },
+                            onCancel = onCancel,
+                        )
                         AddMediaStep.Review -> MetadataReviewStep(
-                    suggestion = selectedMetadataSuggestion,
+                    suggestion = selectedMetadataForForm,
                     isLoadingDetails = metadataUiState.isLoadingDetails,
                     hasDetailsError = metadataUiState.hasDetailsError,
                     selectedMediaType = selectedMediaType,
@@ -208,7 +270,7 @@ fun AddMediaScreen(
                     onInitialNotesChange = { initialNotes = it },
                     availableCollections = availableCollectionsForType,
                     itemTitle = title,
-                    providerCollectionTitle = selectedMetadataSuggestion?.collectionTitle,
+                    providerCollectionTitle = selectedMetadataForForm?.collectionTitle,
                     collectionName = collectionName,
                     onCollectionNameChange = { collectionName = it },
                     collectionOrder = collectionOrder,
@@ -237,25 +299,26 @@ fun AddMediaScreen(
                                     null
                                 },
                                 collectionSortOrder = collectionOrder.toCollectionOrderOrNull(),
-                                originalTitle = selectedMetadataSuggestion?.originalTitle,
-                                releaseYear = selectedMetadataSuggestion?.releaseYear,
-                                genres = selectedMetadataSuggestion?.genres.orEmpty(),
-                                creators = selectedMetadataSuggestion?.creators.orEmpty(),
-                                credits = selectedMetadataSuggestion?.credits.orEmpty(),
-                                sourceUrl = selectedMetadataSuggestion?.sourceUrl,
-                                externalRating = selectedMetadataSuggestion?.externalRating,
-                                externalRatings = selectedMetadataSuggestion?.externalRatings.orEmpty(),
-                                popularityScore = selectedMetadataSuggestion?.popularityScore,
-                                rankingPosition = selectedMetadataSuggestion?.rankingPosition,
-                                rankingLabel = selectedMetadataSuggestion?.rankingLabel,
-                                providerCollectionTitle = selectedMetadataSuggestion?.collectionTitle,
-                                ratingDistributionJson = selectedMetadataSuggestion?.ratingDistributionJson,
-                                popularityJson = selectedMetadataSuggestion?.popularityJson,
-                                rankingJson = selectedMetadataSuggestion?.rankingJson,
-                                metadataSource = selectedMetadataSuggestion?.source,
-                                metadataExternalId = selectedMetadataSuggestion?.externalId,
-                                coverUrl = selectedMetadataSuggestion?.coverUrl,
-                                synopsis = selectedMetadataSuggestion?.synopsis,
+                                originalTitle = selectedMetadataForForm?.originalTitle,
+                                releaseYear = selectedMetadataForForm?.releaseYear,
+                                language = ItemLanguage.normalize(selectedMetadataForForm?.language),
+                                genres = selectedMetadataForForm?.genres.orEmpty(),
+                                creators = selectedMetadataForForm?.creators.orEmpty(),
+                                credits = selectedMetadataForForm?.credits.orEmpty(),
+                                sourceUrl = selectedMetadataForForm?.sourceUrl,
+                                externalRating = selectedMetadataForForm?.externalRating,
+                                externalRatings = selectedMetadataForForm?.externalRatings.orEmpty(),
+                                popularityScore = selectedMetadataForForm?.popularityScore,
+                                rankingPosition = selectedMetadataForForm?.rankingPosition,
+                                rankingLabel = selectedMetadataForForm?.rankingLabel,
+                                providerCollectionTitle = selectedMetadataForForm?.collectionTitle,
+                                ratingDistributionJson = selectedMetadataForForm?.ratingDistributionJson,
+                                popularityJson = selectedMetadataForForm?.popularityJson,
+                                rankingJson = selectedMetadataForForm?.rankingJson,
+                                metadataSource = selectedMetadataForForm?.source,
+                                metadataExternalId = selectedMetadataForForm?.externalId,
+                                coverUrl = selectedMetadataForForm?.coverUrl,
+                                synopsis = selectedMetadataForForm?.synopsis,
                             ),
                         )
                     },
@@ -280,6 +343,8 @@ fun AddMediaScreen(
                             initialProgress = digits
                         }
                     },
+                    language = language,
+                    onLanguageChange = { language = ItemLanguage.normalize(it) ?: ItemLanguage.Original },
                     platform = platform,
                     onPlatformChange = { platform = it },
                     selectedStatus = selectedStatus,
@@ -318,6 +383,7 @@ fun AddMediaScreen(
                                 type = selectedMediaType,
                                 title = title,
                                 progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
+                                language = ItemLanguage.normalize(language),
                                 initialStatus = selectedStatus,
                                 initialProgress = initialProgress.toIntOrNull() ?: 0,
                                 initialRating = initialRating,
@@ -435,6 +501,132 @@ private fun MetadataSearchResults(
                 accent = suggestion.mediaType.sectionAccent(),
                 duplicateState = duplicateStateForSuggestion(suggestion),
                 onClick = { onSuggestionSelected(suggestion) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetadataSeasonSelectionStep(
+    suggestion: MetadataSuggestion?,
+    isLoadingDetails: Boolean,
+    hasDetailsError: Boolean,
+    accent: Color,
+    onSeasonSelected: (MetadataSeasonSuggestion) -> Unit,
+    onUseSeries: () -> Unit,
+    onBackToSearch: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AddScreenHeader(
+        title = stringResource(R.string.metadata_season_picker_title),
+        subtitle = suggestion?.title,
+    )
+
+    when {
+        isLoadingDetails -> SearchStatePanel(text = stringResource(R.string.metadata_season_picker_loading))
+        hasDetailsError -> SearchStatePanel(
+            text = stringResource(R.string.metadata_details_error),
+            color = MaterialTheme.colorScheme.error,
+        )
+        suggestion?.seasonSuggestions.isNullOrEmpty() -> SearchStatePanel(
+            text = stringResource(R.string.metadata_season_picker_empty),
+        )
+        else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            suggestion?.seasonSuggestions.orEmpty().forEach { season ->
+                SeasonSuggestionRow(
+                    season = season,
+                    accent = accent,
+                    onClick = { onSeasonSelected(season) },
+                )
+            }
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onBackToSearch) {
+            Text(text = stringResource(R.string.back))
+        }
+        TextButton(onClick = onCancel) {
+            Text(text = stringResource(R.string.cancel))
+        }
+        TextButton(
+            enabled = !isLoadingDetails,
+            colors = ButtonDefaults.textButtonColors(contentColor = accent),
+            onClick = onUseSeries,
+        ) {
+            Text(text = stringResource(R.string.metadata_season_use_series))
+        }
+    }
+}
+
+@Composable
+private fun SeasonSuggestionRow(
+    season: MetadataSeasonSuggestion,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    val detailParts = buildList {
+        season.releaseYear?.let { add(it.toString()) }
+        season.progressTotal?.let { add(stringResource(R.string.metadata_season_episode_count, it)) }
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MetadataCoverImage(
+                coverUrl = season.coverUrl,
+                modifier = Modifier.size(width = 48.dp, height = 72.dp),
+                shape = RoundedCornerShape(6.dp),
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = season.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.AppInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (detailParts.isNotEmpty()) {
+                    Text(
+                        text = detailParts.joinToString(" | "),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                season.synopsis?.takeIf { it.isNotBlank() }?.let { synopsis ->
+                    Text(
+                        text = synopsis,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            ResultChip(
+                text = season.seasonNumber.toString(),
+                accent = accent,
             )
         }
     }
@@ -924,6 +1116,8 @@ private fun ManualAddStep(
     onTitleChange: (String) -> Unit,
     totalProgress: String,
     onTotalProgressChange: (String) -> Unit,
+    language: String,
+    onLanguageChange: (String) -> Unit,
     platform: String,
     onPlatformChange: (String) -> Unit,
     selectedStatus: TrackingStatus,
@@ -970,6 +1164,8 @@ private fun ManualAddStep(
         onTitleChange = onTitleChange,
         totalProgress = totalProgress,
         onTotalProgressChange = onTotalProgressChange,
+        language = language,
+        onLanguageChange = onLanguageChange,
         platform = platform,
         onPlatformChange = onPlatformChange,
         selectedOwnershipType = selectedOwnershipType,
@@ -1026,6 +1222,8 @@ private fun TrackingSetupForm(
     onTitleChange: (String) -> Unit,
     totalProgress: String,
     onTotalProgressChange: (String) -> Unit,
+    language: String,
+    onLanguageChange: (String) -> Unit,
     platform: String,
     onPlatformChange: (String) -> Unit,
     selectedOwnershipType: OwnershipType,
@@ -1075,6 +1273,13 @@ private fun TrackingSetupForm(
         singleLine = true,
         colors = reviewTextFieldColors(accent),
         shape = RoundedCornerShape(12.dp),
+    )
+
+    LanguageDropdown(
+        value = language,
+        onValueChange = onLanguageChange,
+        label = stringResource(R.string.field_language),
+        accent = accent,
     )
 
     OptionSelector(
@@ -1392,6 +1597,12 @@ internal fun MetadataSuggestionRow(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         ResultChip(text = suggestion.mediaType.label(), accent = accent)
+                        suggestion.multiSeasonCount()?.let { seasonCount ->
+                            ResultChip(
+                                text = stringResource(R.string.metadata_multi_season_count, seasonCount),
+                                accent = accent,
+                            )
+                        }
                         suggestion.releaseYear?.let { ResultChip(text = it.toString(), accent = accent) }
                         if (showSourceChip) {
                             ResultChip(text = suggestion.source.name)
@@ -1460,6 +1671,19 @@ enum class MetadataDuplicateState {
     Possible,
 }
 
+private fun MetadataSuggestion.shouldUseTvSeasonPicker(isLoadingDetails: Boolean): Boolean {
+    return source == MetadataSource.Tmdb &&
+        mediaType == MediaType.TvShow &&
+        !externalId.contains(":season:") &&
+        (isLoadingDetails || seasonSuggestions.isNotEmpty())
+}
+
+private fun MetadataSuggestion.multiSeasonCount(): Int? {
+    if (source != MetadataSource.Tmdb || mediaType != MediaType.TvShow) return null
+    val count = seasonSuggestions.count { it.seasonNumber > 0 }
+    return count.takeIf { it > 1 }
+}
+
 @Composable
 internal fun ResultChip(
     text: String,
@@ -1500,6 +1724,7 @@ private fun MediaType.sectionAccent(): Color {
 
 private enum class AddMediaStep {
     Search,
+    Season,
     Review,
     Manual,
 }

@@ -45,8 +45,6 @@ import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
-import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
-import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +56,7 @@ data class MediaMetadataUi(
     val title: String,
     val originalTitle: String? = null,
     val releaseYear: Int? = null,
+    val language: String? = null,
     val progressTotal: Int? = null,
     val coverUrl: String? = null,
     val synopsis: String? = null,
@@ -166,12 +165,21 @@ fun MediaMetadataHero(
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                metadata.originalTitle?.let { originalTitle ->
-                    Text(
-                        text = originalTitle,
+        metadata.originalTitle?.let { originalTitle ->
+            Text(
+                text = originalTitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = OmnilogColors.AppMuted,
                         maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                )
+            }
+                metadata.language?.let { language ->
+                    Text(
+                        text = stringResource(R.string.metadata_language_value, languageLabel(language)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -244,6 +252,13 @@ fun MediaMetadataSecondary(
             MetadataSection(
                 title = stringResource(R.string.metadata_provider_collection),
                 body = collectionTitle,
+            )
+        }
+
+        metadata.language?.let { language ->
+            MetadataSection(
+                title = stringResource(R.string.metadata_language),
+                body = languageLabel(language),
             )
         }
 
@@ -420,6 +435,7 @@ fun MetadataSuggestion.toMediaMetadataUi(): MediaMetadataUi {
         title = title,
         originalTitle = originalTitle,
         releaseYear = releaseYear,
+        language = language,
         progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,
@@ -467,6 +483,7 @@ fun MediaItem.toMediaMetadataUi(credits: List<MediaCredit>): MediaMetadataUi {
         title = title,
         originalTitle = originalTitle,
         releaseYear = releaseYear,
+        language = language,
         progressTotal = progressTotal,
         coverUrl = coverUrl,
         synopsis = synopsis,

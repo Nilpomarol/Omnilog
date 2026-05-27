@@ -69,7 +69,7 @@ fun DetailScreen(
     onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
     onDeleteExternalTracking: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
-    onUpdateMediaItemMetadata: (Long, String, String?, Int?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
+    onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
     onLinkMediaMetadata: () -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
@@ -304,12 +304,13 @@ fun DetailScreen(
                 item = trackedMedia.item,
                 accent = accent,
                 onDismiss = { headerActions.isEditingItemDetails = false },
-                onSaveMetadata = { title, originalTitle, releaseYear, progressTotal, genres, creators, coverUrl, synopsis, sourceUrl ->
+                onSaveMetadata = { title, originalTitle, releaseYear, language, progressTotal, genres, creators, coverUrl, synopsis, sourceUrl ->
                     onUpdateMediaItemMetadata(
                         trackedMedia.item.id,
                         title,
                         originalTitle,
                         releaseYear,
+                        language,
                         progressTotal,
                         genres,
                         creators,

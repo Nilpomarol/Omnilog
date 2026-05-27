@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
+import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
@@ -26,7 +27,7 @@ class GoogleBooksMetadataRepository(
         return withContext(Dispatchers.IO) {
             val encodedQuery = URLEncoder.encode(query.toGoogleBooksQuery(), "UTF-8")
             val fields = "items(id,volumeInfo(title,authors,description,pageCount," +
-                "averageRating,ratingsCount,publishedDate,categories,imageLinks/thumbnail,infoLink))"
+                "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink))"
             val response = getJson(
                 "https://www.googleapis.com/books/v1/volumes" +
                     "?q=$encodedQuery&maxResults=20&printType=books&orderBy=relevance" +
@@ -44,7 +45,7 @@ class GoogleBooksMetadataRepository(
         return withContext(Dispatchers.IO) {
             runCatching {
                 val fields = "id,volumeInfo(title,authors,description,pageCount," +
-                    "averageRating,ratingsCount,publishedDate,categories,imageLinks/thumbnail,infoLink)"
+                    "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink)"
                 val detailed = getJson(
                     "https://www.googleapis.com/books/v1/volumes/${suggestion.externalId}" +
                         "?fields=$fields&key=$apiKey",
@@ -100,6 +101,7 @@ class GoogleBooksMetadataRepository(
             mediaType = MediaType.Book,
             title = title,
             releaseYear = releaseYear,
+            language = ItemLanguage.normalize(info.optString("language")),
             coverUrl = coverUrl,
             synopsis = info.optString("description").takeIf { it.isNotBlank() },
             progressTotal = info.optInt("pageCount", 0).takeIf { it > 0 },

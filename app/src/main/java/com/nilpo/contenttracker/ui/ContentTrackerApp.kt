@@ -1450,6 +1450,7 @@ private fun MetadataRefreshField.labelResId(): Int {
         MetadataRefreshField.Title -> R.string.metadata_refresh_field_title
         MetadataRefreshField.OriginalTitle -> R.string.metadata_refresh_field_original_title
         MetadataRefreshField.ReleaseYear -> R.string.metadata_refresh_field_release_year
+        MetadataRefreshField.Language -> R.string.metadata_refresh_field_language
         MetadataRefreshField.ProgressTotal -> R.string.metadata_refresh_field_progress_total
         MetadataRefreshField.Genres -> R.string.metadata_refresh_field_genres
         MetadataRefreshField.Creators -> R.string.metadata_refresh_field_creators

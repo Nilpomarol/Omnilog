@@ -27,6 +27,7 @@ data class MediaItemEntity(
     val progressTotal: Int? = null,
     val originalTitle: String? = null,
     val releaseYear: Int? = null,
+    val language: String? = null,
     val genresJson: String? = null,
     val creatorsJson: String? = null,
     val coverUrl: String? = null,
