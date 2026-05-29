@@ -91,6 +91,7 @@ import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -122,6 +123,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var metadataLinkSuggestions by remember { mutableStateOf<List<MetadataSuggestion>>(emptyList()) }
     var isMetadataLinkLoading by remember { mutableStateOf(false) }
     var hasMetadataLinkError by remember { mutableStateOf(false) }
+    var metadataLinkSearchRequestId by remember { mutableStateOf(0) }
     var pendingMetadataRefreshPreview by remember { mutableStateOf<MetadataRefreshPreview?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
@@ -389,25 +391,39 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         showRestoreList = true
     }
     val searchMetadataLink: (TrackedMedia, String) -> Unit = { trackedMedia, query ->
-        metadataLinkSuggestions = emptyList()
-        isMetadataLinkLoading = true
-        hasMetadataLinkError = false
-        coroutineScope.launch {
-            val result = runCatching {
-                viewModel.searchMetadataLinkSuggestions(
-                    title = query.trim().ifBlank { trackedMedia.item.title },
-                    type = trackedMedia.item.type,
-                )
-            }
-            metadataLinkSuggestions = result.getOrDefault(emptyList())
+        val trimmedQuery = query.trim()
+        metadataLinkSearchRequestId += 1
+        val requestId = metadataLinkSearchRequestId
+        if (trimmedQuery.isBlank()) {
+            metadataLinkSuggestions = emptyList()
             isMetadataLinkLoading = false
-            hasMetadataLinkError = result.isFailure
+            hasMetadataLinkError = false
+        } else {
+            metadataLinkSuggestions = emptyList()
+            isMetadataLinkLoading = true
+            hasMetadataLinkError = false
+            coroutineScope.launch {
+                val result = runCatching {
+                    viewModel.searchMetadataLinkSuggestions(
+                        title = trimmedQuery,
+                        type = trackedMedia.item.type,
+                    )
+                }
+                if (requestId == metadataLinkSearchRequestId && metadataLinkTarget?.item?.id == trackedMedia.item.id) {
+                    metadataLinkSuggestions = result.getOrDefault(emptyList())
+                    isMetadataLinkLoading = false
+                    hasMetadataLinkError = result.isFailure
+                }
+            }
         }
     }
     val startMetadataLink: (TrackedMedia) -> Unit = { trackedMedia ->
+        metadataLinkSearchRequestId += 1
         metadataLinkTarget = trackedMedia
         metadataLinkQuery = trackedMedia.item.title
-        searchMetadataLink(trackedMedia, trackedMedia.item.title)
+        metadataLinkSuggestions = emptyList()
+        isMetadataLinkLoading = false
+        hasMetadataLinkError = false
     }
     val startMetadataRefresh: (TrackedMedia) -> Unit = { trackedMedia ->
         coroutineScope.launch {
@@ -1149,6 +1165,18 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
 
     metadataLinkTarget?.let { target ->
         val providerName = target.item.type.metadataLinkProviderName()
+        LaunchedEffect(target.item.id, metadataLinkQuery) {
+            val query = metadataLinkQuery.trim()
+            if (query.length < 2) {
+                metadataLinkSearchRequestId += 1
+                metadataLinkSuggestions = emptyList()
+                isMetadataLinkLoading = false
+                hasMetadataLinkError = false
+            } else {
+                delay(250)
+                searchMetadataLink(target, query)
+            }
+        }
         Dialog(
             onDismissRequest = { metadataLinkTarget = null },
             properties = DialogProperties(usePlatformDefaultWidth = false),

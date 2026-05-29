@@ -119,3 +119,11 @@ internal fun List<TrackedMedia>.collectionCoverUrl(): String? =
 
 internal fun List<TrackedMedia>.collectionLastUpdatedMillis(): Long? =
     mapNotNull { it.currentSession?.updatedAtEpochMillis?.takeIf { ms -> ms > 0 } }.maxOrNull()
+
+internal fun List<TrackedMedia>.authorTopRatedItem(): TrackedMedia? =
+    filter { it.item.coverUrl != null }
+        .maxWithOrNull(
+            compareBy<TrackedMedia> { it.currentSession?.rating ?: 0 }
+                .thenBy { it.item.externalRatingScore ?: 0.0 }
+                .thenBy { it.currentSession?.updatedAtEpochMillis ?: 0L },
+        )

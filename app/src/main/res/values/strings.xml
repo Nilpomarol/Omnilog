@@ -81,6 +81,7 @@
     <string name="session_started_label">Data d\'inici</string>
     <string name="session_finished_label">Data de final</string>
     <string name="pick_date">Tria</string>
+    <string name="clear_date">Buida la data</string>
     <string name="detail_item_details">Dades de l\'element</string>
     <string name="detail_history">Historial</string>
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
@@ -203,6 +204,7 @@
     <string name="group_progress_items">%1$d/%2$d elements</string>
     <string name="group_progress_units">%1$d/%2$d %3$s</string>
     <string name="group_progress_prefix">Progrés: %1$s</string>
+    <string name="group_top_rated">Millor: %1$s</string>
     <string name="group_unit_anime">animes</string>
     <string name="group_unit_seasons">temporades</string>
     <string name="group_unit_movies">pel·lícules</string>

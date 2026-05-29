@@ -362,6 +362,10 @@ class OfflineMediaRepository(
             request.collectionSortOrder?.coerceAtLeast(0.0)
                 ?: (mediaDao.getMaxCollectionSortOrder(collectionId) + 1.0)
         }
+        val primaryExternalRating = request.type.preferredPrimaryExternalRating(
+            ratings = request.externalRatings,
+            fallback = request.externalRating,
+        )
         val mediaItemId = mediaDao.insertMediaItem(
             MediaItemEntity(
                 type = request.type.name,
@@ -377,9 +381,9 @@ class OfflineMediaRepository(
                 coverUrl = request.coverUrl,
                 synopsis = request.synopsis,
                 sourceUrl = request.sourceUrl,
-                externalRatingScore = request.externalRating?.score,
-                externalRatingMax = request.externalRating?.maxScore,
-                externalRatingVoteCount = request.externalRating?.voteCount,
+                externalRatingScore = primaryExternalRating?.score,
+                externalRatingMax = primaryExternalRating?.maxScore,
+                externalRatingVoteCount = primaryExternalRating?.voteCount,
                 popularityScore = request.popularityScore,
                 rankingPosition = request.rankingPosition,
                 rankingLabel = request.rankingLabel,
@@ -604,7 +608,8 @@ class OfflineMediaRepository(
         mediaDao.deleteExternalRating(externalRatingId)
         val mediaItem = mediaDao.getMediaItem(rating.mediaItemId)
         if (rating.isPrimaryExternalRating(mediaItem)) {
-            val replacement = mediaDao.getExternalRatingsForItem(rating.mediaItemId).firstOrNull()
+            val replacement = mediaDao.getExternalRatingsForItem(rating.mediaItemId)
+                .preferredPrimaryReplacement(mediaItem)
             mediaDao.updatePrimaryExternalRating(
                 mediaItemId = rating.mediaItemId,
                 score = replacement?.score,
@@ -903,8 +908,23 @@ class OfflineMediaRepository(
         } else {
             currentItem.progressTotal
         }
-        val selectedExternalRating = if (MetadataRefreshField.ExternalRating in selectedFields) {
-            refreshed.externalRating
+        val selectedRatings = if (MetadataRefreshField.ExternalRatings in selectedFields) {
+            refreshed.externalRatings
+        } else {
+            existingRatings
+        }
+        val selectedExternalRating = if (
+            MetadataRefreshField.ExternalRating in selectedFields ||
+            MetadataRefreshField.ExternalRatings in selectedFields
+        ) {
+            mediaType.preferredPrimaryExternalRating(
+                ratings = selectedRatings,
+                fallback = if (MetadataRefreshField.ExternalRating in selectedFields) {
+                    refreshed.externalRating
+                } else {
+                    existingPrimaryRating
+                },
+            )
         } else {
             existingPrimaryRating
         }
@@ -1085,6 +1105,10 @@ class OfflineMediaRepository(
             ?.coerceAtLeast(0)
         val linkedRatings = (linked.externalRatings + existingRatings)
             .distinctBy { it.source }
+        val linkedPrimaryRating = currentMediaType.preferredPrimaryExternalRating(
+            ratings = linkedRatings,
+            fallback = linked.externalRating ?: existingPrimaryRating,
+        )
 
         mediaDao.refreshMediaItemMetadata(
             mediaItemId = mediaItemId,
@@ -1098,9 +1122,9 @@ class OfflineMediaRepository(
             coverUrl = linked.coverUrl?.trim()?.takeIf { it.isNotBlank() },
             synopsis = linked.synopsis?.trim()?.takeIf { it.isNotBlank() },
             sourceUrl = linked.sourceUrl?.trim()?.takeIf { it.isNotBlank() },
-            externalRatingScore = linked.externalRating?.score ?: existingPrimaryRating?.score,
-            externalRatingMax = linked.externalRating?.maxScore ?: existingPrimaryRating?.maxScore,
-            externalRatingVoteCount = linked.externalRating?.voteCount ?: existingPrimaryRating?.voteCount,
+            externalRatingScore = linkedPrimaryRating?.score,
+            externalRatingMax = linkedPrimaryRating?.maxScore,
+            externalRatingVoteCount = linkedPrimaryRating?.voteCount,
             popularityScore = linked.popularityScore,
             rankingPosition = linked.rankingPosition,
             rankingLabel = linked.rankingLabel,
@@ -1339,6 +1363,27 @@ private fun MetadataSource.defaultExternalRatingSource(): String {
     }.name
 }
 
+private fun MediaType.preferredPrimaryExternalRating(
+    ratings: List<MetadataExternalRatingSuggestion>,
+    fallback: MetadataRatingSuggestion?,
+): MetadataRatingSuggestion? {
+    val preferredRating = when (this) {
+        MediaType.Book -> ratings.firstOrNull {
+            it.source == ExternalRatingSource.Goodreads && it.score > 0.0 && it.maxScore > 0.0
+        }
+        else -> null
+    }
+    return preferredRating?.toPrimaryRating() ?: fallback
+}
+
+private fun MetadataExternalRatingSuggestion.toPrimaryRating(): MetadataRatingSuggestion {
+    return MetadataRatingSuggestion(
+        score = score,
+        maxScore = maxScore,
+        voteCount = voteCount,
+    )
+}
+
 private fun MetadataSuggestion.withPreservedMyAnimeListId(currentItem: MediaItemEntity): MetadataSuggestion {
     if (mediaType != MediaType.Anime || source != MetadataSource.AniList) return this
     val malId = popularityJson.myAnimeListIdFromJson()
@@ -1356,6 +1401,18 @@ private fun ExternalRatingEntity.isPrimaryExternalRating(mediaItem: MediaItemEnt
     val primaryScore = mediaItem?.externalRatingScore ?: return false
     val primaryMax = mediaItem.externalRatingMax ?: return false
     return score.closeTo(primaryScore) && maxScore.closeTo(primaryMax)
+}
+
+private fun List<ExternalRatingEntity>.preferredPrimaryReplacement(mediaItem: MediaItemEntity?): ExternalRatingEntity? {
+    val mediaType = mediaItem?.type?.let { type ->
+        runCatching { MediaType.valueOf(type) }.getOrNull()
+    }
+    return when (mediaType) {
+        MediaType.Book -> firstOrNull {
+            it.source == ExternalRatingSource.Goodreads.name && it.score > 0.0 && it.maxScore > 0.0
+        } ?: firstOrNull()
+        else -> firstOrNull()
+    }
 }
 
 private fun Double.closeTo(other: Double): Boolean = kotlin.math.abs(this - other) < 0.001

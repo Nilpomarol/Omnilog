@@ -70,6 +70,12 @@ internal fun HomeGroupHeader(
             onClick = onClick,
             onCollectionClick = onCollectionClick,
         )
+        group.type == HomeGroupType.Author -> AuthorGroupCard(
+            group = group,
+            accent = accent,
+            isCollapsed = isCollapsed,
+            onClick = onClick,
+        )
         else -> SimpleGroupHeader(
             group = group,
             accent = accent,
@@ -133,6 +139,213 @@ internal fun SimpleGroupHeader(
                 modifier = Modifier.size(18.dp),
                 tint = accent,
             )
+        }
+    }
+}
+
+@Composable
+private fun AuthorGroupCard(
+    group: HomeDisplayGroup,
+    accent: Color,
+    isCollapsed: Boolean,
+    onClick: () -> Unit,
+) {
+    val summary = group.items.collectionProgressSummary()
+    val averageRating = group.items.collectionAverageRating()
+    val topItem = group.items.authorTopRatedItem()
+    val lastUpdatedMillis = group.items.collectionLastUpdatedMillis()
+    val mediaType = group.items.firstOrNull()?.item?.type
+    val unitLabel = mediaType.collectionItemUnitLabel()
+    val metaLine = listOfNotNull(
+        "${group.items.size} $unitLabel",
+        stringResource(R.string.group_completed_count, summary.completedCount),
+        stringResource(R.string.group_in_progress_count, summary.inProgressCount),
+    ).joinToString(" · ")
+    val transition = updateTransition(
+        targetState = isCollapsed,
+        label = "author_card_transition",
+    )
+    val coverWidth = transition.animateDp(
+        transitionSpec = { tween(220) },
+        label = "author_cover_width",
+    ) { collapsed -> if (collapsed) 72.dp else 0.dp }
+    val coverHeight = transition.animateDp(
+        transitionSpec = { tween(220) },
+        label = "author_cover_height",
+    ) { collapsed -> if (collapsed) 108.dp else 0.dp }
+    val coverGap = transition.animateDp(
+        transitionSpec = { tween(220) },
+        label = "author_cover_gap",
+    ) { collapsed -> if (collapsed) 8.dp else 0.dp }
+    val contentHeight = transition.animateDp(
+        transitionSpec = { tween(220) },
+        label = "author_content_height",
+    ) { collapsed -> if (collapsed) 108.dp else 28.dp }
+    val coverAlpha = transition.animateFloat(
+        transitionSpec = { tween(140) },
+        label = "author_cover_alpha",
+    ) { collapsed -> if (collapsed) 1f else 0f }
+    val arrowRotation = transition.animateFloat(
+        transitionSpec = { tween(180) },
+        label = "author_arrow_rotation",
+    ) { collapsed -> if (collapsed) 0f else 180f }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        contentColor = OmnilogColors.AppInk,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(coverWidth.value)
+                    .height(coverHeight.value)
+                    .alpha(coverAlpha.value)
+                    .clipToBounds(),
+            ) {
+                MetadataCoverImage(
+                    coverUrl = topItem?.item?.coverUrl ?: group.items.collectionCoverUrl(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(6.dp)),
+                    shape = RoundedCornerShape(6.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(coverGap.value))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(contentHeight.value)
+                    .clipToBounds(),
+                verticalArrangement = if (isCollapsed) Arrangement.SpaceBetween else Arrangement.Center,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clipToBounds(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = if (isCollapsed) Alignment.Top else Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = group.resolvedTitle(),
+                            style = if (isCollapsed) {
+                                MaterialTheme.typography.titleMedium
+                            } else {
+                                MaterialTheme.typography.titleSmall
+                            },
+                            fontWeight = FontWeight.Bold,
+                            color = if (isCollapsed) OmnilogColors.AppInk else accent,
+                            maxLines = if (isCollapsed) 2 else 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        AnimatedVisibility(
+                            visible = isCollapsed,
+                            enter = fadeIn(tween(150, delayMillis = 50)),
+                            exit = fadeOut(tween(70)) + shrinkVertically(tween(110), shrinkTowards = Alignment.Top),
+                        ) {
+                            Text(
+                                text = metaLine,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = OmnilogColors.AppMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = !isCollapsed,
+                        enter = fadeIn(tween(120, delayMillis = 60)),
+                        exit = fadeOut(tween(60)),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.collection_item_count, group.items.size),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OmnilogColors.AppMuted,
+                            maxLines = 1,
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(if (isCollapsed) 20.dp else 18.dp)
+                            .graphicsLayer { rotationZ = arrowRotation.value },
+                        tint = accent,
+                    )
+                }
+                AnimatedVisibility(
+                    visible = isCollapsed,
+                    enter = fadeIn(tween(150, delayMillis = 60)),
+                    exit = fadeOut(tween(70)) + shrinkVertically(tween(110), shrinkTowards = Alignment.Top),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(top = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.group_progress_prefix, summary.label),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = OmnilogColors.AppMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                topItem?.item?.title?.let { title ->
+                                    Text(
+                                        text = stringResource(R.string.group_top_rated, title),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = OmnilogColors.AppMuted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            averageRating?.let { rating ->
+                                CollectionAverageRatingSlot(
+                                    rating = rating,
+                                    accent = accent,
+                                )
+                            }
+                        }
+                        GroupProgressBar(
+                            fraction = summary.progressFraction,
+                            color = accent,
+                        )
+                        if (lastUpdatedMillis != null) {
+                            val date = Instant.ofEpochMilli(lastUpdatedMillis)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                                .format(DateTimeFormatter.ofPattern("dd/MM/yy"))
+                            Text(
+                                text = stringResource(R.string.session_updated_at, date),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = OmnilogColors.AppMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

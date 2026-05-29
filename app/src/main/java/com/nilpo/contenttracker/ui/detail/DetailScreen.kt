@@ -235,6 +235,7 @@ fun DetailScreen(
 
     if (showExternalRatingsManager) {
         ExternalRatingsDialog(
+            mediaType = trackedMedia.item.type,
             ratings = trackedMedia.externalRatings,
             primaryScore = trackedMedia.item.externalRatingScore,
             primaryMaxScore = trackedMedia.item.externalRatingMax,

@@ -316,6 +316,9 @@ fun SessionEditorScreen(
                 accent = accent,
                 onStatusSelected = { status ->
                     draftStatus = status
+                    if (status == TrackingStatus.InProgress && draftStartedAtText.isBlank()) {
+                        draftStartedAtText = LocalDate.now().toString()
+                    }
                     if (status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
                         draftProgress = progressTotal
                     }
@@ -629,8 +632,19 @@ private fun DateField(
         placeholder = { Text(text = "YYYY-MM-DD") },
         singleLine = true,
         trailingIcon = {
-            TextButton(onClick = { showPicker = true }) {
-                Text(text = stringResource(R.string.pick_date))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (value.isNotBlank()) {
+                    IconButton(onClick = { onValueChange("") }) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.clear_date),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.72f),
+                        )
+                    }
+                }
+                TextButton(onClick = { showPicker = true }) {
+                    Text(text = stringResource(R.string.pick_date))
+                }
             }
         },
         colors = OutlinedTextFieldDefaults.colors(

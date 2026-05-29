@@ -81,7 +81,7 @@ fun HomeScreen(
     }
     val collapsedGroupKeysState = remember(section, uiState.groupMode, groupedItems.map { it.key }) {
         mutableStateOf(
-            if (uiState.groupMode == HomeGroupMode.Collection) {
+            if (uiState.groupMode == HomeGroupMode.Collection || uiState.groupMode == HomeGroupMode.Author) {
                 groupedItems.map { it.key }
             } else {
                 emptyList()

@@ -48,6 +48,8 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OptionSelector
 import com.nilpo.contenttracker.ui.common.OmnilogModal
+import com.nilpo.contenttracker.ui.common.bestCollectionMatch
+import com.nilpo.contenttracker.ui.common.buildCollectionQuickSuggestions
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.common.displayName
@@ -136,6 +138,8 @@ fun DetailQuickActionsSection(
 
     if (showCollectionDialog) {
         CollectionDialog(
+            itemTitle = item.title,
+            providerCollectionTitle = item.providerCollectionTitle,
             collection = collection,
             availableCollections = availableCollections,
             currentSortOrder = item.collectionSortOrder,
@@ -230,6 +234,8 @@ private fun QuickActionButton(
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun CollectionDialog(
+    itemTitle: String,
+    providerCollectionTitle: String?,
     collection: MediaCollection?,
     availableCollections: List<MediaCollection>,
     currentSortOrder: Double?,
@@ -244,13 +250,24 @@ private fun CollectionDialog(
     }
     val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
     val trimmedQuery = searchQuery.trim()
-    val visibleCollections = availableCollections.filter { availableCollection ->
-        availableCollection.name.contains(trimmedQuery, ignoreCase = true)
+    val quickSuggestions = if (trimmedQuery.isBlank()) {
+        buildCollectionQuickSuggestions(
+            availableCollections = availableCollections,
+            providerCollectionTitle = providerCollectionTitle,
+            itemTitle = itemTitle,
+        )
+    } else {
+        emptyList()
     }
-    val exactCollectionNameMatch = availableCollections.firstOrNull { availableCollection ->
-        availableCollection.name.equals(trimmedQuery, ignoreCase = true)
+    val visibleCollections = if (quickSuggestions.isEmpty()) {
+        availableCollections.filter { availableCollection ->
+            trimmedQuery.isBlank() || availableCollection.name.contains(trimmedQuery, ignoreCase = true)
+        }
+    } else {
+        emptyList()
     }
-    val canCreateCollection = trimmedQuery.isNotBlank() && exactCollectionNameMatch == null
+    val matchedCollection = availableCollections.bestCollectionMatch(trimmedQuery)
+    val canCreateCollection = trimmedQuery.isNotBlank() && matchedCollection == null
 
     OmnilogModal(onDismissRequest = onDismiss) {
         Column(
@@ -274,7 +291,7 @@ private fun CollectionDialog(
                     }
                     Button(
                         onClick = {
-                            val collectionIdToSave = selectedCollectionId ?: exactCollectionNameMatch?.id
+                            val collectionIdToSave = selectedCollectionId ?: matchedCollection?.id
                             val newCollectionName = if (collectionIdToSave == null) {
                                 trimmedQuery.takeIf { it.isNotBlank() }
                             } else {
@@ -327,6 +344,7 @@ private fun CollectionDialog(
                 item {
                     CollectionOptionRow(
                         text = stringResource(R.string.collection_none),
+                        subtitle = null,
                         selected = selectedCollection == null && trimmedQuery.isBlank(),
                         accent = accent,
                         onClick = {
@@ -335,9 +353,22 @@ private fun CollectionDialog(
                         },
                     )
                 }
+                items(quickSuggestions) { suggestion ->
+                    CollectionOptionRow(
+                        text = suggestion.name,
+                        subtitle = stringResource(suggestion.labelResId),
+                        selected = false,
+                        accent = accent,
+                        onClick = {
+                            selectedCollectionId = null
+                            searchQuery = suggestion.name
+                        },
+                    )
+                }
                 items(visibleCollections) { availableCollection ->
                     CollectionOptionRow(
                         text = availableCollection.name,
+                        subtitle = stringResource(R.string.collection_suggestion_existing),
                         selected = availableCollection.id == selectedCollectionId,
                         accent = accent,
                         onClick = {
@@ -350,6 +381,7 @@ private fun CollectionDialog(
                     item {
                         CollectionOptionRow(
                             text = stringResource(R.string.collection_create_from_search, trimmedQuery),
+                            subtitle = null,
                             selected = selectedCollection == null,
                             accent = accent,
                             onClick = {
@@ -366,6 +398,7 @@ private fun CollectionDialog(
 @Composable
 private fun CollectionOptionRow(
     text: String,
+    subtitle: String?,
     selected: Boolean,
     accent: Color,
     onClick: () -> Unit,
@@ -381,14 +414,28 @@ private fun CollectionOptionRow(
         ),
         contentColor = if (selected) accent else MaterialTheme.colorScheme.onSurface,
     ) {
-        Text(
-            text = text,
+        Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            subtitle?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmnilogColors.AppMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
@@ -419,6 +466,7 @@ private fun String.toCollectionOrderOrNull(): Double? {
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun ExternalRatingsDialog(
+    mediaType: MediaType,
     ratings: List<ExternalRating>,
     primaryScore: Double?,
     primaryMaxScore: Double?,
@@ -429,11 +477,14 @@ fun ExternalRatingsDialog(
     onSetPrimary: (Long) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
-    var selectedSource by rememberSaveable { mutableStateOf(ExternalRatingSource.Mal) }
+    val defaultSource = mediaType.defaultExternalRatingSource()
+    var selectedSource by rememberSaveable(mediaType) { mutableStateOf(defaultSource) }
     var score by rememberSaveable { mutableStateOf("") }
-    var maxScore by rememberSaveable { mutableStateOf("10") }
+    var maxScore by rememberSaveable(mediaType) { mutableStateOf(defaultSource.defaultMaxScore().cleanDecimal()) }
     var voteCount by rememberSaveable { mutableStateOf("") }
-    var makePrimary by rememberSaveable { mutableStateOf(ratings.isEmpty()) }
+    var makePrimary by rememberSaveable(mediaType) {
+        mutableStateOf(ratings.isEmpty() || mediaType.prefersPrimarySource(defaultSource))
+    }
     val parsedScore = score.toDecimalOrNull()
     val parsedMaxScore = maxScore.toDecimalOrNull()
 
@@ -473,7 +524,14 @@ fun ExternalRatingsDialog(
                         options = ExternalRatingSource.entries,
                         selectedOption = selectedSource,
                         optionLabel = { it.displayName() },
-                        onOptionSelected = { selectedSource = it },
+                        onOptionSelected = { source ->
+                            val previousDefaultMax = selectedSource.defaultMaxScore().cleanDecimal()
+                            selectedSource = source
+                            if (maxScore.isBlank() || maxScore == previousDefaultMax) {
+                                maxScore = source.defaultMaxScore().cleanDecimal()
+                            }
+                            makePrimary = ratings.isEmpty() || mediaType.prefersPrimarySource(source)
+                        },
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlinedTextField(
@@ -526,9 +584,9 @@ fun ExternalRatingsDialog(
                                 makePrimary,
                             )
                             score = ""
-                            maxScore = "10"
+                            maxScore = selectedSource.defaultMaxScore().cleanDecimal()
                             voteCount = ""
-                            makePrimary = false
+                            makePrimary = mediaType.prefersPrimarySource(selectedSource)
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = accent,
@@ -593,7 +651,13 @@ private fun ExternalRatingManageRow(
                 options = ExternalRatingSource.entries,
                 selectedOption = selectedSource,
                 optionLabel = { it.displayName() },
-                onOptionSelected = { selectedSource = it },
+                onOptionSelected = { source ->
+                    val previousDefaultMax = selectedSource.defaultMaxScore().cleanDecimal()
+                    selectedSource = source
+                    if (maxScore.isBlank() || maxScore == previousDefaultMax) {
+                        maxScore = source.defaultMaxScore().cleanDecimal()
+                    }
+                },
             )
             if (isPrimary) {
                 Text(
@@ -670,6 +734,32 @@ private fun ExternalRatingManageRow(
 private fun String.toDecimalOrNull(): Double? = replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0.0 }
 
 private fun Double.cleanDecimal(): String = if (this % 1.0 == 0.0) toInt().toString() else toString()
+
+private fun MediaType.defaultExternalRatingSource(): ExternalRatingSource {
+    return when (this) {
+        MediaType.Book -> ExternalRatingSource.Goodreads
+        MediaType.Anime -> ExternalRatingSource.Mal
+        MediaType.Movie,
+        MediaType.TvShow,
+            -> ExternalRatingSource.Imdb
+        MediaType.Game -> ExternalRatingSource.Rawg
+    }
+}
+
+private fun ExternalRatingSource.defaultMaxScore(): Double {
+    return when (this) {
+        ExternalRatingSource.Goodreads,
+        ExternalRatingSource.StoryGraph,
+            -> 5.0
+        ExternalRatingSource.RottenTomatoes,
+            -> 100.0
+        else -> 10.0
+    }
+}
+
+private fun MediaType.prefersPrimarySource(source: ExternalRatingSource): Boolean {
+    return this == MediaType.Book && source == ExternalRatingSource.Goodreads
+}
 
 private fun ExternalRating.matchesPrimary(primaryScore: Double?, primaryMaxScore: Double?): Boolean {
     return primaryScore != null &&

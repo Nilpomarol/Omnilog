@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,6 +32,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -69,6 +71,8 @@ import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
+import com.nilpo.contenttracker.ui.common.bestCollectionMatch
+import com.nilpo.contenttracker.ui.common.buildCollectionQuickSuggestions
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
@@ -117,7 +121,7 @@ fun AddMediaScreen(
     var initialProgress by remember { mutableStateOf("0") }
     var initialRating by remember { mutableStateOf<Int?>(null) }
     var initialNotes by remember { mutableStateOf("") }
-    var initialStartedAt by remember { mutableStateOf(LocalDate.now().toString()) }
+    var initialStartedAt by remember { mutableStateOf("") }
     var initialFinishedAt by remember { mutableStateOf("") }
     var collectionName by remember { mutableStateOf(initialCollection?.name ?: initialCollectionName.orEmpty()) }
     var collectionOrder by remember { mutableStateOf(initialCollectionOrder.orEmpty()) }
@@ -178,6 +182,9 @@ fun AddMediaScreen(
     }
     val applyStatus: (TrackingStatus) -> Unit = { status ->
         selectedStatus = status
+        if (status == TrackingStatus.InProgress && initialStartedAt.isBlank()) {
+            initialStartedAt = LocalDate.now().toString()
+        }
         if (status == TrackingStatus.Completed) {
             selectedMediaType.effectiveProgressTotal(totalProgress)?.let { maxProgress ->
                 initialProgress = maxProgress.toString()
@@ -1033,11 +1040,22 @@ private fun ReviewDateField(
         label = { Text(label) },
         placeholder = { Text("YYYY-MM-DD") },
         trailingIcon = {
-            TextButton(
-                onClick = { showPicker = true },
-                colors = ButtonDefaults.textButtonColors(contentColor = accent),
-            ) {
-                Text(text = stringResource(R.string.pick_date))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (value.isNotBlank()) {
+                    IconButton(onClick = { onValueChange("") }) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.clear_date),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.72f),
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { showPicker = true },
+                    colors = ButtonDefaults.textButtonColors(contentColor = accent),
+                ) {
+                    Text(text = stringResource(R.string.pick_date))
+                }
             }
         },
         modifier = Modifier.fillMaxWidth(),
@@ -1341,7 +1359,7 @@ private fun CollectionAssignmentForm(
                 quickSuggestions.forEach { suggestion ->
                     CollectionSuggestionRow(
                         title = suggestion.name,
-                        subtitle = suggestion.label,
+                        subtitle = stringResource(suggestion.labelResId),
                         selected = false,
                         accent = accent,
                         onClick = { onCollectionNameChange(suggestion.name) },
@@ -1414,44 +1432,6 @@ private fun CollectionSuggestionRow(
             )
         }
     }
-}
-
-private data class CollectionQuickSuggestion(
-    val name: String,
-    val label: String,
-)
-
-@Composable
-private fun buildCollectionQuickSuggestions(
-    availableCollections: List<MediaCollection>,
-    providerCollectionTitle: String?,
-    itemTitle: String,
-): List<CollectionQuickSuggestion> {
-    val candidates = listOfNotNull(
-        providerCollectionTitle?.trim()?.takeIf { it.isNotBlank() }
-            ?.let { it to stringResource(R.string.collection_suggestion_provider) },
-        itemTitle.trim().takeIf { it.isNotBlank() }
-            ?.let { it to stringResource(R.string.collection_suggestion_title) },
-    )
-
-    return candidates
-        .distinctBy { (name, _) -> name.normalizedCollectionName() }
-        .map { (name, sourceLabel) ->
-            val existing = availableCollections.bestCollectionMatch(name)
-            if (existing != null) {
-                CollectionQuickSuggestion(
-                    name = existing.name,
-                    label = stringResource(R.string.collection_suggestion_existing),
-                )
-            } else {
-                CollectionQuickSuggestion(
-                    name = name,
-                    label = sourceLabel,
-                )
-            }
-        }
-        .distinctBy { suggestion -> suggestion.name.normalizedCollectionName() }
-        .take(3)
 }
 
 @Composable
@@ -1873,7 +1853,7 @@ private fun String.substringBeforeCollectionSeparator(): String {
         ?: this
 }
 
-private fun List<MediaCollection>.bestCollectionMatch(candidateName: String): MediaCollection? {
+private fun List<MediaCollection>.legacyBestCollectionMatch(candidateName: String): MediaCollection? {
     val normalizedCandidate = candidateName.normalizedCollectionName()
     if (normalizedCandidate.isBlank()) return null
 

@@ -4,6 +4,8 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 class CompositeMetadataRepository(
     private val tmdb: TmdbMetadataRepository,
@@ -46,11 +48,15 @@ class CompositeMetadataRepository(
         }
     }
 
-    private suspend fun bookSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
-        val openLibrarySuggestions = runCatching { openLibrary.searchSuggestions(request) }.getOrDefault(emptyList())
-        val googleBooksSuggestions = runCatching { googleBooks.searchSuggestions(request) }.getOrDefault(emptyList())
+    private suspend fun bookSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> = coroutineScope {
+        val openLibrarySuggestions = async {
+            runCatching { openLibrary.searchSuggestions(request) }.getOrDefault(emptyList())
+        }
+        val googleBooksSuggestions = async {
+            runCatching { googleBooks.searchSuggestions(request) }.getOrDefault(emptyList())
+        }
 
-        return (openLibrarySuggestions + googleBooksSuggestions)
+        (openLibrarySuggestions.await() + googleBooksSuggestions.await())
             .groupBy { it.bookMatchKey() }
             .values
             .map { it.mergeBookSuggestions() }

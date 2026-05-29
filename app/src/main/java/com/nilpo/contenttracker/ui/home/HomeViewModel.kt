@@ -511,16 +511,12 @@ class HomeViewModel(
         title: String,
         type: MediaType,
     ): List<MetadataSuggestion> {
-        val suggestions = metadataRepository.searchSuggestions(
+        return metadataRepository.searchSuggestions(
             MetadataSearchRequest(
                 query = title,
                 mediaTypes = setOf(type),
             ),
-        )
-        return suggestions.take(8).map { suggestion ->
-            runCatching { metadataRepository.getSuggestionDetails(suggestion) }
-                .getOrDefault(suggestion)
-        }
+        ).take(8)
     }
 
     suspend fun linkMediaItemMetadata(
