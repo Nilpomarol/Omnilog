@@ -25,11 +25,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -947,6 +950,7 @@ private fun MetadataReviewStep(
     OwnershipSelector(
         selectedOwnershipType = selectedOwnershipType,
         onOwnershipTypeSelected = onOwnershipTypeSelected,
+        accent = accent,
     )
 
     OptionalAddDetails(
@@ -1118,17 +1122,17 @@ private fun FirstSessionForm(
                     accent = accent,
                     onValueChange = onInitialProgressChange,
                 )
+                RatingSection(
+                    initialRating = initialRating,
+                    accent = accent,
+                    onInitialRatingSelected = onInitialRatingSelected,
+                )
                 DateFieldsSection(
                     startedAt = initialStartedAt,
                     onStartedAtChange = onInitialStartedAtChange,
                     finishedAt = initialFinishedAt,
                     onFinishedAtChange = onInitialFinishedAtChange,
                     accent = accent,
-                )
-                RatingSection(
-                    initialRating = initialRating,
-                    accent = accent,
-                    onInitialRatingSelected = onInitialRatingSelected,
                 )
             }
             TrackingStatus.Paused,
@@ -1141,17 +1145,17 @@ private fun FirstSessionForm(
                     accent = accent,
                     onValueChange = onInitialProgressChange,
                 )
+                RatingSection(
+                    initialRating = initialRating,
+                    accent = accent,
+                    onInitialRatingSelected = onInitialRatingSelected,
+                )
                 DateFieldsSection(
                     startedAt = initialStartedAt,
                     onStartedAtChange = onInitialStartedAtChange,
                     finishedAt = initialFinishedAt,
                     onFinishedAtChange = onInitialFinishedAtChange,
                     accent = accent,
-                )
-                RatingSection(
-                    initialRating = initialRating,
-                    accent = accent,
-                    onInitialRatingSelected = onInitialRatingSelected,
                 )
             }
         }
@@ -1602,6 +1606,7 @@ private fun ManualAddStep(
     OwnershipSelector(
         selectedOwnershipType = selectedOwnershipType,
         onOwnershipTypeSelected = onOwnershipTypeSelected,
+        accent = accent,
     )
 
     OptionalAddDetails(
@@ -1677,14 +1682,47 @@ private fun TrackingSetupForm(
 private fun OwnershipSelector(
     selectedOwnershipType: OwnershipType,
     onOwnershipTypeSelected: (OwnershipType) -> Unit,
+    accent: Color,
 ) {
-    OptionSelector(
-        label = stringResource(R.string.field_ownership_type),
-        options = OwnershipType.entries,
-        selectedOption = selectedOwnershipType,
-        optionLabel = { it.label() },
-        onOptionSelected = onOwnershipTypeSelected,
-    )
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = selectedOwnershipType.label(),
+            onValueChange = {},
+            label = { Text(stringResource(R.string.field_ownership_type)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true },
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = {
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowDropDown,
+                        contentDescription = null,
+                    )
+                }
+            },
+            colors = reviewTextFieldColors(accent),
+            shape = RoundedCornerShape(12.dp),
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            OwnershipType.entries.forEach { ownershipType ->
+                DropdownMenuItem(
+                    text = { Text(ownershipType.label()) },
+                    onClick = {
+                        onOwnershipTypeSelected(ownershipType)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
 }
 
 @Composable
