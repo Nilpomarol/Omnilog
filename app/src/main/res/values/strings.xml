@@ -357,6 +357,7 @@
     <string name="metadata_refresh_confirm_message">La font externa canviara aquests camps. Desmarca qualsevol camp que vulguis conservar.</string>
     <string name="metadata_refresh_current_value">Ara</string>
     <string name="metadata_refresh_new_value">Nou</string>
+    <string name="metadata_refresh_locally_edited">Editat manualment — protegit</string>
     <string name="metadata_refresh_apply_selected">Actualitza seleccionats</string>
     <string name="metadata_refresh_field_title">Titol</string>
     <string name="metadata_refresh_field_original_title">Titol original</string>

@@ -46,6 +46,7 @@ data class MediaItemEntity(
     val metadataLastFetchedAtEpochMillis: Long? = null,
     val metadataExternalId: String? = null,
     val metadataSource: String? = null,
+    val metadataOverrideFieldsCsv: String? = null,
     val isOwned: Boolean = false,
     val ownershipType: String = "None",
 )

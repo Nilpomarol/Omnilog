@@ -44,6 +44,7 @@ data class MetadataRefreshChange(
     val currentValue: String,
     val newValue: String,
     val overwritesExistingValue: Boolean,
+    val isLocallyOverridden: Boolean = false,
 )
 
 enum class MetadataRefreshField {

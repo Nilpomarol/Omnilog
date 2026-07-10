@@ -759,19 +759,43 @@ class OfflineMediaRepository(
         val validTotal = progressTotal
             ?.takeUnless { currentItem.type == MediaType.Game.name }
             ?.coerceAtLeast(0)
+        val validOriginalTitle = originalTitle?.trim()?.takeIf { it.isNotBlank() }
+        val validReleaseYear = releaseYear?.coerceAtLeast(0)
+        val validLanguage = ItemLanguage.normalize(language)
+        val validGenres = genres.cleanMetadataList()
+        val validCreators = creators.cleanMetadataList()
+        val validCoverUrl = coverUrl?.trim()?.takeIf { it.isNotBlank() }
+        val validSynopsis = synopsis?.trim()?.takeIf { it.isNotBlank() }
+        val validSourceUrl = sourceUrl?.trim()?.takeIf { it.isNotBlank() }
+        val updatedOverrideFields = currentItem.metadataOverrideFields() + buildSet {
+            if (currentItem.title != validTitle) add(MetadataRefreshField.Title)
+            if (currentItem.originalTitle != validOriginalTitle) add(MetadataRefreshField.OriginalTitle)
+            if (currentItem.releaseYear != validReleaseYear) add(MetadataRefreshField.ReleaseYear)
+            if (currentItem.language != validLanguage) add(MetadataRefreshField.Language)
+            if (currentItem.progressTotal != validTotal) add(MetadataRefreshField.ProgressTotal)
+            if (currentItem.genresJson.toStringList() != validGenres) add(MetadataRefreshField.Genres)
+            if (currentItem.creatorsJson.toStringList() != validCreators) add(MetadataRefreshField.Creators)
+            if (currentItem.coverUrl != validCoverUrl) add(MetadataRefreshField.Cover)
+            if (currentItem.synopsis != validSynopsis) add(MetadataRefreshField.Synopsis)
+            if (currentItem.sourceUrl != validSourceUrl) add(MetadataRefreshField.SourceUrl)
+        }
 
         mediaDao.updateMediaItemMetadata(
             mediaItemId = mediaItemId,
             title = validTitle,
-            originalTitle = originalTitle?.trim()?.takeIf { it.isNotBlank() },
-            releaseYear = releaseYear?.coerceAtLeast(0),
-            language = ItemLanguage.normalize(language),
+            originalTitle = validOriginalTitle,
+            releaseYear = validReleaseYear,
+            language = validLanguage,
             progressTotal = validTotal,
-            genresJson = genres.cleanMetadataList().toJsonArrayString(),
-            creatorsJson = creators.cleanMetadataList().toJsonArrayString(),
-            coverUrl = coverUrl?.trim()?.takeIf { it.isNotBlank() },
-            synopsis = synopsis?.trim()?.takeIf { it.isNotBlank() },
-            sourceUrl = sourceUrl?.trim()?.takeIf { it.isNotBlank() },
+            genresJson = validGenres.toJsonArrayString(),
+            creatorsJson = validCreators.toJsonArrayString(),
+            coverUrl = validCoverUrl,
+            synopsis = validSynopsis,
+            sourceUrl = validSourceUrl,
+        )
+        mediaDao.updateMetadataOverrideFields(
+            mediaItemId = mediaItemId,
+            metadataOverrideFieldsCsv = updatedOverrideFields.toMetadataOverrideFieldsCsv(),
         )
 
         validTotal?.let { total ->
@@ -816,6 +840,7 @@ class OfflineMediaRepository(
             }
         }
         val existingCredits = mediaDao.getMediaCreditsForItem(mediaItemId).map { it.toDomain() }
+        val localOverrides = currentItem.metadataOverrideFields()
         val refreshed = metadataRepository.getSuggestionDetails(
             MetadataSuggestion(
                 source = metadataSource,
@@ -867,6 +892,7 @@ class OfflineMediaRepository(
                 currentCredits = existingCredits,
                 currentRatings = existingRatings,
                 refreshed = normalizedRefreshed,
+                localOverrides = localOverrides,
             ),
         )
     }
@@ -876,6 +902,7 @@ class OfflineMediaRepository(
         selectedFields: Set<MetadataRefreshField>,
     ): Boolean {
         val currentItem = mediaDao.getMediaItem(preview.mediaItemId) ?: return false
+        val localOverrides = currentItem.metadataOverrideFields()
         val mediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
         val refreshed = preview.refreshed
         val existingRatings = mediaDao.getExternalRatingsForItem(preview.mediaItemId)
@@ -1051,6 +1078,14 @@ class OfflineMediaRepository(
             }
         }
 
+        val remainingOverrides = localOverrides - selectedFields
+        if (remainingOverrides != localOverrides) {
+            mediaDao.updateMetadataOverrideFields(
+                mediaItemId = preview.mediaItemId,
+                metadataOverrideFieldsCsv = remainingOverrides.toMetadataOverrideFieldsCsv(),
+            )
+        }
+
         return true
     }
 
@@ -1061,7 +1096,10 @@ class OfflineMediaRepository(
         val preview = previewMediaItemMetadataRefresh(mediaItemId, metadataRepository) ?: return false
         return applyMediaItemMetadataRefresh(
             preview = preview,
-            selectedFields = MetadataRefreshField.entries.toSet(),
+            selectedFields = preview.changes
+                .filterNot { change -> change.isLocallyOverridden }
+                .map { change -> change.field }
+                .toSet(),
         )
     }
 
@@ -1191,6 +1229,7 @@ private fun buildMetadataRefreshChanges(
     currentCredits: List<MediaCredit>,
     currentRatings: List<MetadataExternalRatingSuggestion>,
     refreshed: MetadataSuggestion,
+    localOverrides: Set<MetadataRefreshField>,
 ): List<MetadataRefreshChange> = buildList {
     addChange(
         field = MetadataRefreshField.Title,
@@ -1277,7 +1316,9 @@ private fun buildMetadataRefreshChanges(
             collectionTitle = refreshed.collectionTitle,
         ),
     )
-}.distinctBy { it.field }
+}.distinctBy { it.field }.map { change ->
+    change.copy(isLocallyOverridden = change.field in localOverrides)
+}
 
 private fun MutableList<MetadataRefreshChange>.addChange(
     field: MetadataRefreshField,
@@ -1348,6 +1389,22 @@ private fun Double.cleanNumber(): String {
 
 private fun <T> T?.takeIfSelected(field: MetadataRefreshField, selectedFields: Set<MetadataRefreshField>): T? {
     return if (field in selectedFields) this else null
+}
+
+private fun MediaItemEntity.metadataOverrideFields(): Set<MetadataRefreshField> {
+    return metadataOverrideFieldsCsv
+        ?.split(',')
+        ?.mapNotNull { fieldName ->
+            runCatching { MetadataRefreshField.valueOf(fieldName) }.getOrNull()
+        }
+        ?.toSet()
+        .orEmpty()
+}
+
+private fun Set<MetadataRefreshField>.toMetadataOverrideFieldsCsv(): String? {
+    return takeIf { it.isNotEmpty() }
+        ?.sortedBy { field -> field.name }
+        ?.joinToString(",") { field -> field.name }
 }
 
 private fun MetadataSource.defaultExternalRatingSource(): String {
@@ -1673,6 +1730,7 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .putNullable("metadataLastFetchedAtEpochMillis", metadataLastFetchedAtEpochMillis)
         .putNullable("metadataExternalId", metadataExternalId)
         .putNullable("metadataSource", metadataSource)
+        .putNullable("metadataOverrideFieldsCsv", metadataOverrideFieldsCsv)
         .put("isOwned", isOwned)
         .put("ownershipType", ownershipType)
 }
@@ -1770,6 +1828,7 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         metadataLastFetchedAtEpochMillis = optNullableLong("metadataLastFetchedAtEpochMillis"),
         metadataExternalId = optNullableString("metadataExternalId") ?: optNullableString("externalId"),
         metadataSource = optNullableString("metadataSource") ?: optNullableString("sourceApi"),
+        metadataOverrideFieldsCsv = optNullableString("metadataOverrideFieldsCsv"),
         isOwned = optBoolean("isOwned", false),
         ownershipType = optString("ownershipType", "None"),
     )

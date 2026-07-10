@@ -45,7 +45,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             "content-tracker.db",
         )
             .fallbackToDestructiveMigration(false)
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
             .build()
     }
 
@@ -206,5 +206,11 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
 private val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE media_items ADD COLUMN language TEXT")
+    }
+}
+
+private val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE media_items ADD COLUMN metadataOverrideFieldsCsv TEXT")
     }
 }

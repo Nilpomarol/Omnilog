@@ -463,7 +463,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             when {
                 result.isFailure -> snackbarHostState.showSnackbar(metadataRefreshErrorMessage)
                 preview == null -> snackbarHostState.showSnackbar(metadataRefreshUnavailableMessage)
-                preview.changes.any { it.overwritesExistingValue } -> pendingMetadataRefreshPreview = preview
+                preview.changes.any { it.overwritesExistingValue || it.isLocallyOverridden } -> {
+                    pendingMetadataRefreshPreview = preview
+                }
                 else -> {
                     val applyResult = viewModel.applyMediaItemMetadataRefresh(
                         preview = preview,
@@ -1450,7 +1452,12 @@ private fun MetadataRefreshConfirmationDialog(
     onConfirm: (Set<MetadataRefreshField>) -> Unit,
 ) {
     var selectedFields by remember(preview) {
-        mutableStateOf(preview.changes.map { it.field }.toSet())
+        mutableStateOf(
+            preview.changes
+                .filterNot { change -> change.isLocallyOverridden }
+                .map { change -> change.field }
+                .toSet(),
+        )
     }
 
     Dialog(
@@ -1523,6 +1530,14 @@ private fun MetadataRefreshConfirmationDialog(
                                         fontWeight = FontWeight.ExtraBold,
                                         color = HeaderInk,
                                     )
+                                    if (change.isLocallyOverridden) {
+                                        Text(
+                                            text = stringResource(R.string.metadata_refresh_locally_edited),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.tertiary,
+                                        )
+                                    }
                                     MetadataChangeValue(
                                         label = stringResource(R.string.metadata_refresh_current_value),
                                         value = change.currentValue,

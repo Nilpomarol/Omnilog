@@ -259,6 +259,18 @@ interface MediaDao {
     @Query(
         """
         UPDATE media_items
+        SET metadataOverrideFieldsCsv = :metadataOverrideFieldsCsv
+        WHERE id = :mediaItemId
+        """,
+    )
+    suspend fun updateMetadataOverrideFields(
+        mediaItemId: Long,
+        metadataOverrideFieldsCsv: String?,
+    )
+
+    @Query(
+        """
+        UPDATE media_items
         SET title = :title,
             originalTitle = :originalTitle,
             releaseYear = :releaseYear,
