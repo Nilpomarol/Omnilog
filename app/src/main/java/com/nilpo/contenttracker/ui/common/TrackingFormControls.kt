@@ -340,27 +340,6 @@ fun TrackingProgressField(
 @Composable
 fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected: (Int?) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = currentRating?.let { "$it / 10" } ?: "—",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (currentRating == null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f) else accent,
-            )
-            if (currentRating != null) {
-                Text(
-                    text = stringResource(R.string.rating_clear),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
-                    modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
-                )
-            }
-        }
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val starSize = minOf(30.dp, maxWidth / 10)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -388,6 +367,27 @@ fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected:
                         }
                     }
                 }
+            }
+        }
+        if (currentRating != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "$currentRating / 10",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent,
+                )
+                Text(
+                    text = stringResource(R.string.rating_clear),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
+                    modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
+                )
             }
         }
     }
