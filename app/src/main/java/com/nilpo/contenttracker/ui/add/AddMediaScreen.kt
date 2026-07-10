@@ -31,9 +31,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -56,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.BookEditionMetadata
@@ -69,6 +72,7 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.LanguageDropdown
+import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
@@ -702,6 +706,19 @@ private fun BookEditionSelectionStep(
     onBackToSearch: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val editions = suggestion?.bookEditionSuggestions.orEmpty()
+    val availableLanguages = remember(editions) {
+        editions.mapNotNull { edition -> ItemLanguage.normalize(edition.language) }
+            .distinct()
+            .sorted()
+    }
+    var selectedLanguage by remember(suggestion?.externalId, availableLanguages) {
+        mutableStateOf(suggestion?.language?.let(ItemLanguage::normalize)?.takeIf { it in availableLanguages })
+    }
+    val visibleEditions = editions.filter { edition ->
+        selectedLanguage == null || ItemLanguage.normalize(edition.language) == selectedLanguage
+    }
+
     AddScreenHeader(
         title = stringResource(R.string.book_edition_picker_title),
         subtitle = suggestion?.title,
@@ -713,11 +730,34 @@ private fun BookEditionSelectionStep(
             text = stringResource(R.string.metadata_details_error),
             color = MaterialTheme.colorScheme.error,
         )
-        suggestion?.bookEditionSuggestions.isNullOrEmpty() -> SearchStatePanel(
+        editions.isEmpty() -> SearchStatePanel(
             text = stringResource(R.string.book_edition_picker_empty),
         )
         else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            suggestion?.bookEditionSuggestions.orEmpty().forEach { edition ->
+            if (availableLanguages.size > 1) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
+                ) {
+                    item {
+                        EditionLanguageFilterChip(
+                            label = stringResource(R.string.book_edition_all_languages),
+                            selected = selectedLanguage == null,
+                            accent = accent,
+                            onClick = { selectedLanguage = null },
+                        )
+                    }
+                    items(availableLanguages) { language ->
+                        EditionLanguageFilterChip(
+                            label = languageLabel(language),
+                            selected = selectedLanguage == language,
+                            accent = accent,
+                            onClick = { selectedLanguage = language },
+                        )
+                    }
+                }
+            }
+            visibleEditions.forEach { edition ->
                 BookEditionSuggestionRow(
                     edition = edition,
                     accent = accent,
@@ -738,6 +778,32 @@ private fun BookEditionSelectionStep(
         TextButton(onClick = onCancel) {
             Text(text = stringResource(R.string.cancel))
         }
+    }
+}
+
+@Composable
+private fun EditionLanguageFilterChip(
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) accent.copy(alpha = 0.18f) else OmnilogColors.AppPanel,
+        border = BorderStroke(
+            1.dp,
+            if (selected) accent.copy(alpha = 0.70f) else OmnilogColors.AppLine,
+        ),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+            color = if (selected) accent else OmnilogColors.AppMuted,
+        )
     }
 }
 
@@ -1217,21 +1283,78 @@ private fun ReviewProgressField(
     accent: Color,
     onValueChange: (String) -> Unit,
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(stringResource(labelResId)) },
-        supportingText = progressTotal?.takeIf { it > 0 }?.let { total ->
-            {
-                Text(text = "de $total ${progressUnitLabel(mediaType, total)}")
-            }
-        },
+    val current = value.toIntOrNull() ?: 0
+    val maximum = progressTotal ?: Int.MAX_VALUE
+
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        singleLine = true,
-        colors = reviewTextFieldColors(accent),
         shape = RoundedCornerShape(12.dp),
-    )
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FilledTonalIconButton(
+                onClick = { onValueChange((current - 1).coerceAtLeast(0).toString()) },
+                modifier = Modifier.size(40.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = accent.copy(alpha = 0.14f),
+                    contentColor = accent,
+                ),
+            ) {
+                Text(text = "−", fontSize = 20.sp, fontWeight = FontWeight.Light)
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(labelResId),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                )
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { input ->
+                        val digits = input.filter { it.isDigit() }
+                        val next = digits.toIntOrNull()?.coerceIn(0, maximum)?.toString() ?: digits
+                        onValueChange(next)
+                    },
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        color = accent,
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    colors = reviewTextFieldColors(accent),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                progressTotal?.takeIf { it > 0 }?.let { total ->
+                    Text(
+                        text = "de $total ${progressUnitLabel(mediaType, total)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.40f),
+                    )
+                }
+            }
+            FilledTonalIconButton(
+                onClick = { onValueChange((current + 1).coerceAtMost(maximum).toString()) },
+                modifier = Modifier.size(40.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = accent.copy(alpha = 0.14f),
+                    contentColor = accent,
+                ),
+            ) {
+                Text(text = "+", fontSize = 20.sp, fontWeight = FontWeight.Light)
+            }
+        }
+    }
 }
 
 @Composable

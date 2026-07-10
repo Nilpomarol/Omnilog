@@ -150,6 +150,7 @@
     <string name="book_edition_picker_loading">Carregant edicions...</string>
     <string name="book_edition_picker_empty">No s\'han trobat edicions útils.</string>
     <string name="book_edition_select">Tria</string>
+    <string name="book_edition_all_languages">Tots els idiomes</string>
     <string name="book_edition_pages">%1$d pàgines</string>
     <string name="book_edition_isbn">ISBN %1$s</string>
     <string name="metadata_season_episode_count">%1$d episodis</string>
