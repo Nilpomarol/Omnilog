@@ -80,6 +80,11 @@ import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
+import com.nilpo.contenttracker.ui.common.TrackingDateField
+import com.nilpo.contenttracker.ui.common.TrackingNotesField
+import com.nilpo.contenttracker.ui.common.TrackingProgressField
+import com.nilpo.contenttracker.ui.common.TrackingRatingSelector
+import com.nilpo.contenttracker.ui.common.TrackingStatusSelector
 import com.nilpo.contenttracker.ui.common.bestCollectionMatch
 import com.nilpo.contenttracker.ui.common.buildCollectionQuickSuggestions
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
@@ -1091,7 +1096,7 @@ private fun FirstSessionForm(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         FormSectionHeader(title = stringResource(R.string.field_status))
-        ReviewStatusSelector(
+        TrackingStatusSelector(
             selectedStatus = selectedStatus,
             accent = accent,
             onStatusSelected = onStatusSelected,
@@ -1171,7 +1176,7 @@ private fun RatingSection(
 ) {
     FormDivider()
     FormSectionHeader(title = stringResource(R.string.field_rating))
-    ReviewRatingSelector(
+    TrackingRatingSelector(
         currentRating = initialRating,
         accent = accent,
         onRatingSelected = onInitialRatingSelected,
@@ -1189,11 +1194,11 @@ private fun ProgressFieldSection(
 ) {
     FormDivider()
     FormSectionHeader(title = stringResource(labelResId))
-    ReviewProgressField(
+    TrackingProgressField(
         value = value,
         progressTotal = progressTotal,
         mediaType = mediaType,
-        labelResId = labelResId,
+        label = stringResource(labelResId),
         accent = accent,
         onValueChange = onValueChange,
     )
@@ -1209,14 +1214,14 @@ private fun DateFieldsSection(
 ) {
     FormDivider()
     FormSectionHeader(title = stringResource(R.string.session_dates))
-    ReviewDateField(
+    TrackingDateField(
         label = stringResource(R.string.session_started_label),
         value = startedAt,
         accent = accent,
         onValueChange = onStartedAtChange,
     )
     if (finishedAt != null && onFinishedAtChange != null) {
-        ReviewDateField(
+        TrackingDateField(
             label = stringResource(R.string.session_finished_label),
             value = finishedAt,
             accent = accent,
@@ -1242,40 +1247,6 @@ private fun FormDivider() {
         modifier = Modifier.padding(vertical = 8.dp),
         color = OmnilogColors.AppLine.copy(alpha = 0.70f),
     )
-}
-
-@Composable
-private fun ReviewStatusSelector(
-    selectedStatus: TrackingStatus,
-    accent: Color,
-    onStatusSelected: (TrackingStatus) -> Unit,
-) {
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 4.dp),
-    ) {
-        items(TrackingStatus.entries) { status ->
-            val isSelected = status == selectedStatus
-            val statusColor = status.stateColor
-            Surface(
-                onClick = { onStatusSelected(status) },
-                shape = RoundedCornerShape(8.dp),
-                color = if (isSelected) statusColor.copy(alpha = 0.18f) else OmnilogColors.AppPanel,
-                border = BorderStroke(
-                    width = if (isSelected) 1.5.dp else 1.dp,
-                    color = if (isSelected) statusColor.copy(alpha = 0.78f) else OmnilogColors.AppLine,
-                ),
-            ) {
-                Text(
-                    text = status.label(),
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                    color = if (isSelected) statusColor else OmnilogColors.AppMuted,
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -1775,7 +1746,7 @@ private fun OptionalAddDetails(
             )
         }
         FormSectionHeader(title = stringResource(R.string.field_notes))
-        ReviewNotesField(
+        TrackingNotesField(
             value = initialNotes,
             accent = accent,
             onValueChange = onInitialNotesChange,

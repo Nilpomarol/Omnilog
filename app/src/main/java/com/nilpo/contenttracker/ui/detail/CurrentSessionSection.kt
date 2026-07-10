@@ -73,6 +73,11 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.TrackingDateField
+import com.nilpo.contenttracker.ui.common.TrackingNotesField
+import com.nilpo.contenttracker.ui.common.TrackingProgressField
+import com.nilpo.contenttracker.ui.common.TrackingRatingSelector
+import com.nilpo.contenttracker.ui.common.TrackingStatusSelector
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -311,7 +316,7 @@ fun SessionEditorScreen(
         ) {
             // ── Status ───────────────────────────────────────────
             EditSectionHeader(title = stringResource(R.string.field_status))
-            StatusSelectorRow(
+            TrackingStatusSelector(
                 selectedStatus = draftStatus,
                 accent = accent,
                 onStatusSelected = { status ->
@@ -329,19 +334,20 @@ fun SessionEditorScreen(
 
             // ── Progress ─────────────────────────────────────────
             EditSectionHeader(title = stringResource(R.string.field_progress))
-            ProgressEditorRow(
-                progressCurrent = draftProgress,
+            TrackingProgressField(
+                value = draftProgress.toString(),
                 progressTotal = progressTotal,
                 mediaType = mediaType,
+                label = stringResource(R.string.field_progress),
                 accent = accent,
-                onProgressChange = { draftProgress = it },
+                onValueChange = { value -> value.toIntOrNull()?.let { draftProgress = it } },
             )
 
             EditSectionDivider()
 
             // ── Rating ───────────────────────────────────────────
             EditSectionHeader(title = stringResource(R.string.field_rating))
-            RatingEditorRow(
+            TrackingRatingSelector(
                 currentRating = draftRating,
                 accent = accent,
                 onRatingSelected = { draftRating = it },
@@ -350,13 +356,13 @@ fun SessionEditorScreen(
             EditSectionDivider()
 
             EditSectionHeader(title = stringResource(R.string.session_dates))
-            DateField(
+            TrackingDateField(
                 label = stringResource(R.string.session_started_label),
                 value = draftStartedAtText,
                 accent = accent,
                 onValueChange = { draftStartedAtText = it },
             )
-            DateField(
+            TrackingDateField(
                 label = stringResource(R.string.session_finished_label),
                 value = draftFinishedAtText,
                 accent = accent,
@@ -367,8 +373,8 @@ fun SessionEditorScreen(
 
             // ── Notes ────────────────────────────────────────────
             EditSectionHeader(title = stringResource(R.string.field_notes))
-            NotesEditorField(
-                currentNotes = draftNotes,
+            TrackingNotesField(
+                value = draftNotes,
                 accent = accent,
                 onValueChange = { draftNotes = it },
             )
