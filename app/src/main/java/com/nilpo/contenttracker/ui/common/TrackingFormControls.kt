@@ -4,13 +4,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -42,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
@@ -59,16 +58,18 @@ fun TrackingStatusSelector(
     onStatusSelected: (TrackingStatus) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 4.dp),
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        items(TrackingStatus.entries) { status ->
+        TrackingStatus.entries.forEach { status ->
             val isSelected = status == selectedStatus
             val statusColor = statusColor(status)
             Surface(
                 onClick = { onStatusSelected(status) },
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 52.dp),
                 shape = RoundedCornerShape(8.dp),
                 color = if (isSelected) statusColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
                 border = BorderStroke(
@@ -78,10 +79,13 @@ fun TrackingStatusSelector(
             ) {
                 Text(
                     text = stringResource(status.labelResId()),
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
                     color = if (isSelected) statusColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
