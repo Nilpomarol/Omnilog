@@ -61,6 +61,7 @@ internal fun HomeGroupHeader(
     isCollapsed: Boolean,
     onClick: () -> Unit,
     onCollectionClick: (MediaCollection) -> Unit,
+    onAuthorClick: (String) -> Unit,
 ) {
     when {
         group.type == HomeGroupType.Collection && group.collection != null -> CollectionGroupCard(
@@ -75,6 +76,7 @@ internal fun HomeGroupHeader(
             accent = accent,
             isCollapsed = isCollapsed,
             onClick = onClick,
+            onAuthorClick = onAuthorClick,
         )
         else -> SimpleGroupHeader(
             group = group,
@@ -149,6 +151,7 @@ private fun AuthorGroupCard(
     accent: Color,
     isCollapsed: Boolean,
     onClick: () -> Unit,
+    onAuthorClick: (String) -> Unit,
 ) {
     val summary = group.items.collectionProgressSummary()
     val averageRating = group.items.collectionAverageRating()
@@ -272,6 +275,15 @@ private fun AuthorGroupCard(
                             style = MaterialTheme.typography.labelSmall,
                             color = OmnilogColors.AppMuted,
                             maxLines = 1,
+                        )
+                    }
+                    if (group.title.isNotBlank()) {
+                        Text(
+                            text = stringResource(R.string.author_open),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accent,
+                            modifier = Modifier.clickable { onAuthorClick(group.title) },
                         )
                     }
                     Icon(
@@ -485,7 +497,7 @@ private fun CollectionGroupCard(
                     }
                     if (group.collection != null) {
                         Text(
-                            text = stringResource(R.string.edit),
+                            text = stringResource(R.string.author_open),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = accent,

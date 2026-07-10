@@ -83,6 +83,7 @@ import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
+import com.nilpo.contenttracker.ui.home.AuthorDetailScreen
 import com.nilpo.contenttracker.ui.home.HomeScreen
 import com.nilpo.contenttracker.ui.home.HomeLandingScreen
 import com.nilpo.contenttracker.ui.home.HomeUiEvent
@@ -113,6 +114,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
+    var selectedAuthor by remember { mutableStateOf<String?>(null) }
     var showRestoreList by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
@@ -134,6 +136,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
     var detailReturnTarget by remember { mutableStateOf<DetailReturnTarget>(DetailReturnTarget.Section) }
     var collectionReturnTarget by remember { mutableStateOf<CollectionReturnTarget>(CollectionReturnTarget.Section) }
+    var authorReturnTarget by remember { mutableStateOf<AuthorReturnTarget>(AuthorReturnTarget.Section) }
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val backupActions = remember { BackupHeaderActions() }
     val selectedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == selectedMediaId }
@@ -143,6 +146,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val selectedCollectionItems = uiState.trackedItems
         .filter { it.collection?.id == selectedCollectionId }
         .sortedWith(collectionItemComparator())
+    val selectedAuthorItems = selectedAuthor?.let { author ->
+        uiState.trackedItems.filter { trackedMedia ->
+            trackedMedia.item.creators.any { it.trim().equals(author.trim(), ignoreCase = true) }
+        }
+    }.orEmpty()
     val exportSuccessMessage = stringResource(R.string.backup_export_success)
     val exportErrorMessage = stringResource(R.string.backup_export_error)
     val importReadErrorMessage = stringResource(R.string.backup_import_read_error)
@@ -175,6 +183,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 selectedMediaId = null
                 selectedCollectionId = returnTarget.collectionId
             }
+            is DetailReturnTarget.Author -> {
+                selectedMediaId = null
+                selectedAuthor = returnTarget.author
+            }
             DetailReturnTarget.Section -> {
                 selectedMediaId = null
             }
@@ -192,6 +204,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             }
         }
         collectionReturnTarget = CollectionReturnTarget.Section
+    }
+    val navigateBackFromAuthor = {
+        when (val returnTarget = authorReturnTarget) {
+            is AuthorReturnTarget.Detail -> {
+                selectedAuthor = null
+                selectedMediaId = returnTarget.mediaItemId
+            }
+            AuthorReturnTarget.Section -> selectedAuthor = null
+        }
+        authorReturnTarget = AuthorReturnTarget.Section
     }
     val navigateBackFromStats = {
         selectedDestination = AppDestination.Home
@@ -517,6 +539,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             selectedMediaId != null ||
             isAdding ||
             selectedCollectionId != null ||
+            selectedAuthor != null ||
             selectedDestination != AppDestination.Home,
     ) {
         when {
@@ -539,6 +562,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 collectionReturnTarget = CollectionReturnTarget.Section
             }
             selectedCollectionId != null -> navigateBackFromCollection()
+            selectedAuthor != null -> navigateBackFromAuthor()
             selectedDestination != AppDestination.Home -> {
                 selectedDestination = AppDestination.Home
                 selectedCollectionId = null
@@ -710,6 +734,21 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     .fillMaxSize()
                     .padding(innerPadding),
             )
+        } else if (selectedAuthor != null && selectedMedia == null) {
+            AuthorDetailScreen(
+                author = selectedAuthor.orEmpty(),
+                items = selectedAuthorItems,
+                accent = uiState.selectedSection.accent,
+                onBack = navigateBackFromAuthor,
+                onMediaClick = { trackedMedia ->
+                    detailReturnTarget = DetailReturnTarget.Author(selectedAuthor.orEmpty())
+                    selectedAuthor = null
+                    selectedMediaId = trackedMedia.item.id
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
         } else if (selectedCollection != null && selectedMedia == null) {
             CollectionDetailScreen(
                 collection = selectedCollection,
@@ -760,7 +799,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 },
                 onCollectionClick = {
                     selectedCollectionId = it.id
+                    selectedAuthor = null
                     collectionReturnTarget = CollectionReturnTarget.Section
+                    isAdding = false
+                },
+                onAuthorClick = { author ->
+                    selectedAuthor = author
+                    selectedCollectionId = null
+                    authorReturnTarget = AuthorReturnTarget.Section
                     isAdding = false
                 },
                 onManualAddClick = {
@@ -846,6 +892,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     selectedMediaId = null
                     selectedCollectionId = collectionId
                     collectionReturnTarget = CollectionReturnTarget.Detail(selectedMedia.item.id)
+                },
+                onAuthorClick = { author ->
+                    selectedDestination = AppDestination.Section
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                    selectedAuthor = author
+                    authorReturnTarget = AuthorReturnTarget.Detail(selectedMedia.item.id)
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -1574,11 +1627,17 @@ private sealed interface DetailReturnTarget {
     data object Home : DetailReturnTarget
     data object Section : DetailReturnTarget
     data class Collection(val collectionId: Long) : DetailReturnTarget
+    data class Author(val author: String) : DetailReturnTarget
 }
 
 private sealed interface CollectionReturnTarget {
     data object Section : CollectionReturnTarget
     data class Detail(val mediaItemId: Long) : CollectionReturnTarget
+}
+
+private sealed interface AuthorReturnTarget {
+    data object Section : AuthorReturnTarget
+    data class Detail(val mediaItemId: Long) : AuthorReturnTarget
 }
 
 private sealed interface DuplicateMatch {

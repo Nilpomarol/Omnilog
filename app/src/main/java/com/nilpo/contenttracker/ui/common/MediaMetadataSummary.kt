@@ -94,6 +94,7 @@ fun MediaMetadataHero(
     modifier: Modifier = Modifier,
     isLoadingDetails: Boolean = false,
     onCollectionClick: (() -> Unit)? = null,
+    onCreatorClick: ((String) -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -177,13 +178,20 @@ fun MediaMetadataHero(
                     )
                 }
                 if (metadata.creators.isNotEmpty()) {
-                    Text(
-                        text = metadata.creators.joinToString(", "),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = OmnilogColors.AppInk.copy(alpha = 0.84f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Column {
+                        metadata.creators.forEach { creator ->
+                            Text(
+                                text = creator,
+                                modifier = if (onCreatorClick != null) {
+                                    Modifier.clickable { onCreatorClick(creator) }
+                                } else Modifier,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
                 if (isLoadingDetails) {
                     Text(

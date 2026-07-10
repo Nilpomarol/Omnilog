@@ -59,7 +59,15 @@ internal fun buildHomeGroups(
                 }
         }
         HomeGroupMode.Author -> items
-            .groupBy { it.item.creators.firstOrNull()?.trim().orEmpty() }
+            .flatMap { trackedMedia ->
+                trackedMedia.item.creators
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinctBy { it.lowercase() }
+                    .map { author -> author to trackedMedia }
+                    .ifEmpty { listOf("" to trackedMedia) }
+            }
+            .groupBy({ it.first }, { it.second })
             .toList()
             .sortedBy { it.first.lowercase() }
             .map { (author, groupItems) ->

@@ -74,6 +74,7 @@ fun DetailScreen(
     onLinkMediaMetadata: () -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
     onCollectionClick: () -> Unit,
+    onAuthorClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -133,6 +134,7 @@ fun DetailScreen(
                 MediaMetadataHero(
                     metadata = metadata,
                     onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
+                    onCreatorClick = onAuthorClick,
                 )
             }
 

@@ -63,6 +63,7 @@ fun HomeScreen(
     metadataUiState: MetadataSearchUiState,
     onMediaClick: (TrackedMedia) -> Unit,
     onCollectionClick: (MediaCollection) -> Unit,
+    onAuthorClick: (String) -> Unit,
     onManualAddClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onMetadataQueryChange: (String) -> Unit,
@@ -189,6 +190,7 @@ fun HomeScreen(
                                     }
                                 },
                                 onCollectionClick = onCollectionClick,
+                                onAuthorClick = onAuthorClick,
                             )
                             AnimatedVisibility(
                                 visible = !isCollapsed,

@@ -13,15 +13,15 @@ import com.nilpo.contenttracker.R
 object OmnilogColors {
     val Dashboard = Color(0xFFC0693A)
     val Anime = Color(0xFFD88CA8)
-    val Books = Color(0xFFC9A86A)
-    val Tv = Color(0xFF7FA6C9)
-    val Games = Color(0xFF8DB7A2)
+    val Books = Color(0xFF9C82D9)
+    val Tv = Color(0xFF4FA8A8)
+    val Games = Color(0xFFD4B96A)
 
     val Planned = Color(0xFF9DA7B2)
-    val InProgress = Color(0xFF7FA6C9)
-    val Completed = Color(0xFF8DB7A2)
-    val Paused = Color(0xFFC9A86A)
-    val Dropped = Color(0xFFC47F7D)
+    val InProgress = Color(0xFF5E8FC4)
+    val Completed = Color(0xFF62A87C)
+    val Paused = Color(0xFFD9A05B)
+    val Dropped = Color(0xFFCF6679)
 
     val AppBackground = Color(0xFF141312)
     val AppPanel = Color(0xFF23201D)
@@ -39,8 +39,8 @@ private val DarkColors = darkColorScheme(
     surface = OmnilogColors.AppPanel,
     surfaceVariant = Color(0xFF302B25),
     primaryContainer = Color(0xFF25313A),
-    secondaryContainer = Color(0xFF372F21),
-    tertiaryContainer = Color(0xFF24342E),
+    secondaryContainer = Color(0xFF2B213A),
+    tertiaryContainer = Color(0xFF352F1E),
     onPrimary = Color(0xFF101417),
     onSecondary = Color(0xFF17130B),
     onTertiary = Color(0xFF101714),

@@ -240,6 +240,8 @@
     <string name="group_collection">Col·lecció</string>
     <string name="group_author">Autor</string>
     <string name="group_author_unknown">Sense autor</string>
+    <string name="author_open">Veure</string>
+    <string name="author_page_subtitle">Autor/a</string>
     <string name="group_completed_count">%1$d completats</string>
     <string name="group_in_progress_count">%1$d en curs</string>
     <string name="group_count_units">%1$d %2$s</string>
