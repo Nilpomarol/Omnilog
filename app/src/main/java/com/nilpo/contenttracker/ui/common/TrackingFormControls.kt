@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
@@ -26,6 +28,7 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -42,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -160,7 +164,7 @@ fun TrackingStatusSelector(
 }
 
 @Composable
-fun TrackingProgressField(
+private fun LegacyTrackingProgressField(
     value: String,
     progressTotal: Int?,
     mediaType: MediaType,
@@ -215,6 +219,95 @@ fun TrackingProgressField(
                 modifier = Modifier.size(40.dp),
                 colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = accent.copy(alpha = 0.14f), contentColor = accent),
             ) { Text(text = "+", fontSize = 20.sp, fontWeight = FontWeight.Light) }
+        }
+    }
+}
+
+@Composable
+fun TrackingProgressField(
+    value: String,
+    progressTotal: Int?,
+    mediaType: MediaType,
+    label: String,
+    accent: Color,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val current = value.toIntOrNull() ?: 0
+    val maximum = progressTotal ?: Int.MAX_VALUE
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = label,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = accent.copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.40f)),
+                ) {
+                    BasicTextField(
+                        value = value,
+                        onValueChange = { input ->
+                            val digits = input.filter { it.isDigit() }
+                            onValueChange(digits.toIntOrNull()?.coerceIn(0, maximum)?.toString() ?: digits)
+                        },
+                        modifier = Modifier
+                            .widthIn(min = 42.dp)
+                            .padding(horizontal = 9.dp, vertical = 6.dp),
+                        textStyle = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            color = accent,
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        cursorBrush = SolidColor(accent),
+                    )
+                }
+                progressTotal?.takeIf { it > 0 }?.let { total ->
+                    Text(
+                        text = "/ $total ${progressUnitLabel(mediaType, total)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f),
+                    )
+                }
+            }
+            progressTotal?.takeIf { it > 0 }?.let { total ->
+                val fraction = (current.toFloat() / total).coerceIn(0f, 1f)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    LinearProgressIndicator(
+                        progress = { fraction },
+                        modifier = Modifier.weight(1f),
+                        color = accent,
+                        trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                    )
+                    Text(
+                        text = "${(fraction * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = accent,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
         }
     }
 }
