@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -47,6 +49,8 @@ class HomeViewModel(
     private val sortMode = MutableStateFlow(HomeSortMode.Recent)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Descending)
     private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
+    private var metadataSearchJob: Job? = null
+    private val metadataSearchCache = LinkedHashMap<MetadataSearchCacheKey, CachedMetadataSearch>()
     private val refreshingMetadataItemId = MutableStateFlow<Long?>(null)
     private val mutableEvents = MutableSharedFlow<HomeUiEvent>()
 
@@ -142,15 +146,18 @@ class HomeViewModel(
     }
 
     fun selectSection(section: MediaSection) {
+        cancelMetadataSearch()
         selectedSection.value = section
         searchQuery.value = ""
         statusFilter.value = null
         groupMode.value = HomeGroupMode.None
         sortMode.value = HomeSortMode.Recent
         sortDirection.value = HomeSortDirection.Descending
+        metadataSearchState.value = MetadataSearchUiState()
     }
 
     fun selectSectionWithSearch(section: MediaSection, query: String) {
+        cancelMetadataSearch()
         selectedSection.value = section
         searchQuery.value = query
         statusFilter.value = null
@@ -165,44 +172,67 @@ class HomeViewModel(
     }
 
     fun updateMetadataSearchQuery(query: String) {
-        metadataSearchState.value = metadataSearchState.value.copy(query = query)
+        cancelMetadataSearch()
+        metadataSearchState.value = MetadataSearchUiState(query = query)
     }
 
-    fun searchMetadataSuggestions() {
+    fun searchMetadataSuggestions(forceShortQuery: Boolean = false) {
         val query = metadataSearchState.value.query.trim()
-        if (query.isBlank()) {
+        if (query.isBlank() || (!forceShortQuery && query.length < MINIMUM_AUTOMATIC_SEARCH_LENGTH)) {
             metadataSearchState.value = metadataSearchState.value.copy(
                 suggestions = emptyList(),
                 isLoading = false,
                 hasSearched = false,
+                hasError = false,
             )
             return
         }
 
-        viewModelScope.launch {
+        cancelMetadataSearch()
+        val section = selectedSection.value
+        val request = MetadataSearchRequest(query = query, mediaTypes = section.types)
+        val cacheKey = MetadataSearchCacheKey(request)
+        cachedMetadataSearch(cacheKey)?.let { cached ->
             metadataSearchState.value = metadataSearchState.value.copy(
-                isLoading = true,
+                suggestions = cached.suggestions,
+                isLoading = false,
                 hasSearched = true,
                 hasError = false,
+                hasPartialError = false,
             )
-            val result = runCatching {
-                metadataRepository.searchSuggestions(
-                    MetadataSearchRequest(
-                        query = query,
-                        mediaTypes = selectedSection.value.types,
-                    ),
-                )
+            return
+        }
+
+        val queryAtRequestStart = metadataSearchState.value.query
+        metadataSearchState.value = metadataSearchState.value.copy(
+            suggestions = emptyList(),
+            isLoading = true,
+            hasSearched = true,
+            hasError = false,
+        )
+        metadataSearchJob = viewModelScope.launch {
+            val result = runCatching { metadataRepository.searchSuggestionsWithDiagnostics(request) }
+            if (!isActive || selectedSection.value != section || metadataSearchState.value.query != queryAtRequestStart) {
+                return@launch
             }
+            val searchResult = result.getOrNull()
+            val hasProviderFailure = searchResult?.failedSources?.isNotEmpty() == true
+            val hasResults = searchResult?.suggestions?.isNotEmpty() == true
             metadataSearchState.value = metadataSearchState.value.copy(
-                suggestions = result.getOrElse { emptyList() },
+                suggestions = searchResult?.suggestions.orEmpty(),
                 selectedSuggestion = null,
                 isLoading = false,
-                hasError = result.isFailure,
+                hasError = result.isFailure || (hasProviderFailure && !hasResults),
+                hasPartialError = hasProviderFailure && hasResults,
             )
+            searchResult?.takeIf { it.failedSources.isEmpty() }?.let { successfulSearch ->
+                cacheMetadataSearch(cacheKey, successfulSearch.suggestions)
+            }
         }
     }
 
     fun clearMetadataSearch() {
+        cancelMetadataSearch()
         metadataSearchState.value = MetadataSearchUiState()
     }
 
@@ -526,6 +556,35 @@ class HomeViewModel(
         return mediaRepository.linkMediaItemMetadata(mediaItemId, suggestion, metadataRepository)
     }
 
+    private fun cancelMetadataSearch() {
+        metadataSearchJob?.cancel()
+        metadataSearchJob = null
+    }
+
+    private fun cachedMetadataSearch(key: MetadataSearchCacheKey): CachedMetadataSearch? {
+        val cached = metadataSearchCache[key] ?: return null
+        return if (System.currentTimeMillis() - cached.cachedAtEpochMillis <= METADATA_SEARCH_CACHE_TTL_MILLIS) {
+            cached
+        } else {
+            metadataSearchCache.remove(key)
+            null
+        }
+    }
+
+    private fun cacheMetadataSearch(
+        key: MetadataSearchCacheKey,
+        suggestions: List<MetadataSuggestion>,
+    ) {
+        metadataSearchCache.remove(key)
+        metadataSearchCache[key] = CachedMetadataSearch(
+            suggestions = suggestions,
+            cachedAtEpochMillis = System.currentTimeMillis(),
+        )
+        while (metadataSearchCache.size > MAX_METADATA_SEARCH_CACHE_ENTRIES) {
+            metadataSearchCache.entries.iterator().next().let { metadataSearchCache.remove(it.key) }
+        }
+    }
+
     class Factory(
         private val mediaRepository: MediaRepository,
         private val metadataRepository: MetadataRepository,
@@ -539,6 +598,25 @@ class HomeViewModel(
         }
     }
 }
+
+private data class MetadataSearchCacheKey(
+    val query: String,
+    val mediaTypes: Set<MediaType>,
+) {
+    constructor(request: MetadataSearchRequest) : this(
+        query = request.query.trim().lowercase(),
+        mediaTypes = request.mediaTypes,
+    )
+}
+
+private data class CachedMetadataSearch(
+    val suggestions: List<MetadataSuggestion>,
+    val cachedAtEpochMillis: Long,
+)
+
+private const val MINIMUM_AUTOMATIC_SEARCH_LENGTH = 3
+private const val METADATA_SEARCH_CACHE_TTL_MILLIS = 5 * 60 * 1_000L
+private const val MAX_METADATA_SEARCH_CACHE_ENTRIES = 20
 
 sealed interface HomeUiEvent {
     data class MediaItemCreated(val mediaItemId: Long) : HomeUiEvent

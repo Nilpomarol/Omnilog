@@ -5,6 +5,8 @@ import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 
 class CompositeMetadataRepository(
@@ -15,25 +17,42 @@ class CompositeMetadataRepository(
     private val rawg: RawgMetadataRepository,
 ) : MetadataRepository {
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
-        return buildList {
+        return searchSuggestionsWithDiagnostics(request).suggestions
+    }
+
+    override suspend fun searchSuggestionsWithDiagnostics(request: MetadataSearchRequest): MetadataSearchResult = coroutineScope {
+        val searches = buildList {
             val tmdbTypes = request.mediaTypes.intersect(setOf(MediaType.Movie, MediaType.TvShow))
             if (tmdbTypes.isNotEmpty()) {
-                addAll(tmdb.searchSuggestions(request.copy(mediaTypes = tmdbTypes)))
+                add(async {
+                    searchProvider(MetadataSource.Tmdb) {
+                        tmdb.searchSuggestions(request.copy(mediaTypes = tmdbTypes))
+                    }
+                })
             }
             if (MediaType.Anime in request.mediaTypes) {
-                addAll(aniList.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Anime))))
+                add(async {
+                    searchProvider(MetadataSource.AniList) {
+                        aniList.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Anime)))
+                    }
+                })
             }
             if (MediaType.Book in request.mediaTypes) {
-                addAll(
-                    bookSuggestions(
-                        request = request.copy(mediaTypes = setOf(MediaType.Book)),
-                    ),
-                )
+                add(async { bookSuggestions(request.copy(mediaTypes = setOf(MediaType.Book))) })
             }
             if (MediaType.Game in request.mediaTypes) {
-                addAll(rawg.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Game))))
+                add(async {
+                    searchProvider(MetadataSource.Rawg) {
+                        rawg.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Game)))
+                    }
+                })
             }
         }
+        val results = searches.awaitAll()
+        MetadataSearchResult(
+            suggestions = results.flatMap { it.suggestions },
+            failedSources = results.flatMapTo(mutableSetOf()) { it.failedSources },
+        )
     }
 
     override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
@@ -48,22 +67,44 @@ class CompositeMetadataRepository(
         }
     }
 
-    private suspend fun bookSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> = coroutineScope {
-        val openLibrarySuggestions = async {
-            runCatching { openLibrary.searchSuggestions(request) }.getOrDefault(emptyList())
+    private suspend fun bookSuggestions(request: MetadataSearchRequest): ProviderSearchResult = coroutineScope {
+        val openLibrarySearch = async {
+            searchProvider(MetadataSource.OpenLibrary) { openLibrary.searchSuggestions(request) }
         }
-        val googleBooksSuggestions = async {
-            runCatching { googleBooks.searchSuggestions(request) }.getOrDefault(emptyList())
+        val googleBooksSearch = async {
+            searchProvider(MetadataSource.GoogleBooks) { googleBooks.searchSuggestions(request) }
         }
+        val results = awaitAll(openLibrarySearch, googleBooksSearch)
 
-        (openLibrarySuggestions.await() + googleBooksSuggestions.await())
+        ProviderSearchResult(
+            suggestions = results.flatMap { it.suggestions }
             .groupBy { it.bookMatchKey() }
             .values
             .map { it.mergeBookSuggestions() }
             .sortedByDescending { it.bookQualityScore(request.query) }
-            .take(20)
+            .take(20),
+            failedSources = results.flatMapTo(mutableSetOf()) { it.failedSources },
+        )
+    }
+
+    private suspend fun searchProvider(
+        source: MetadataSource,
+        search: suspend () -> List<MetadataSuggestion>,
+    ): ProviderSearchResult {
+        return try {
+            ProviderSearchResult(suggestions = search())
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Throwable) {
+            ProviderSearchResult(failedSources = setOf(source))
+        }
     }
 }
+
+private data class ProviderSearchResult(
+    val suggestions: List<MetadataSuggestion> = emptyList(),
+    val failedSources: Set<MetadataSource> = emptySet(),
+)
 
 private fun List<MetadataSuggestion>.mergeBookSuggestions(): MetadataSuggestion {
     val preferred = maxBy { suggestion ->

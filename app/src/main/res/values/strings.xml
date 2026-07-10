@@ -140,6 +140,7 @@
     <string name="metadata_details_error">No s\'han pogut carregar tots els detalls. Pots continuar amb les metadades disponibles.</string>
     <string name="metadata_search_empty">No s\'han trobat resultats.</string>
     <string name="metadata_search_error">Error en la cerca. Comprova la connexió i torna-ho a intentar.</string>
+    <string name="metadata_search_partial_error">Alguns proveïdors no han respost. Els resultats mostrats poden ser incomplets.</string>
     <string name="metadata_season_picker_title">Tria temporada</string>
     <string name="metadata_season_picker_loading">Carregant temporades...</string>
     <string name="metadata_season_picker_empty">No s\'han trobat temporades útils. Pots crear la sèrie completa.</string>

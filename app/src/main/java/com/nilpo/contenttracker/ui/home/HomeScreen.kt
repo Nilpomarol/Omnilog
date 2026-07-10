@@ -68,6 +68,7 @@ fun HomeScreen(
     onSearchQueryChange: (String) -> Unit,
     onMetadataQueryChange: (String) -> Unit,
     onMetadataSearch: () -> Unit,
+    onMetadataSearchSubmitted: () -> Unit,
     onApiSuggestionSelected: (MetadataSuggestion) -> Unit,
     duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
@@ -99,8 +100,8 @@ fun HomeScreen(
     }
 
     LaunchedEffect(uiState.searchQuery) {
-        if (uiState.searchQuery.trim().length >= 2) {
-            delay(450)
+        if (uiState.searchQuery.trim().length >= 3) {
+            delay(300)
             onMetadataSearch()
         } else if (uiState.searchQuery.isBlank()) {
             onMetadataSearch()
@@ -125,6 +126,7 @@ fun HomeScreen(
                             onSearchQueryChange(query)
                             onMetadataQueryChange(query)
                         },
+                        onSearchSubmitted = onMetadataSearchSubmitted,
                         isLoading = metadataUiState.isLoading,
                         accent = section.accent,
                     ) {
@@ -254,6 +256,15 @@ fun HomeScreen(
                             accent = suggestion.mediaType.sectionAccent(),
                             duplicateState = duplicateStateForSuggestion(suggestion),
                             onClick = { onApiSuggestionSelected(suggestion) },
+                        )
+                    }
+                }
+
+                if (metadataUiState.hasPartialError) {
+                    item {
+                        SearchStatePanel(
+                            text = stringResource(R.string.metadata_search_partial_error),
+                            color = OmnilogColors.AppMuted,
                         )
                     }
                 }

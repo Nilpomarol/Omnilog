@@ -90,20 +90,7 @@ class TmdbMetadataRepository(
         val suggestions = List(results.length()) { index -> results.getJSONObject(index) }
             .mapNotNull { result -> result.toMetadataSuggestion(mediaType) }
 
-        return if (mediaType == MediaType.TvShow) {
-            suggestions.map { suggestion -> suggestion.withTvSeasonSummary() }
-        } else {
-            suggestions
-        }
-    }
-
-    private fun MetadataSuggestion.withTvSeasonSummary(): MetadataSuggestion {
-        return runCatching {
-            getJson(
-                "https://api.themoviedb.org/3/tv/$externalId" +
-                    "?api_key=$apiKey&language=en-US",
-            ).toDetailedSuggestion(this)
-        }.getOrDefault(this)
+        return suggestions
     }
 
     private fun JSONObject.toMetadataSuggestion(mediaType: MediaType): MetadataSuggestion? {

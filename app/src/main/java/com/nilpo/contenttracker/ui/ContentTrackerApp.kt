@@ -654,7 +654,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 },
                 metadataUiState = metadataUiState,
                 onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
-                onMetadataSearch = viewModel::searchMetadataSuggestions,
+                onMetadataSearch = { viewModel.searchMetadataSuggestions() },
+                onMetadataSearchSubmitted = { viewModel.searchMetadataSuggestions(forceShortQuery = true) },
                 onMetadataSuggestionSelected = { suggestion ->
                     when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
                         is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
@@ -819,7 +820,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 },
                 onSearchQueryChange = viewModel::updateSearchQuery,
                 onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
-                onMetadataSearch = viewModel::searchMetadataSuggestions,
+                onMetadataSearch = { viewModel.searchMetadataSuggestions() },
+                onMetadataSearchSubmitted = { viewModel.searchMetadataSuggestions(forceShortQuery = true) },
                 onApiSuggestionSelected = { suggestion ->
                     when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
                         is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)

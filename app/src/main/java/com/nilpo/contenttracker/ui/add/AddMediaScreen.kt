@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,6 +101,7 @@ fun AddMediaScreen(
     metadataUiState: MetadataSearchUiState,
     onMetadataQueryChange: (String) -> Unit,
     onMetadataSearch: () -> Unit,
+    onMetadataSearchSubmitted: () -> Unit,
     onMetadataSuggestionSelected: (MetadataSuggestion) -> Unit,
     duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onCancel: () -> Unit,
@@ -206,6 +208,7 @@ fun AddMediaScreen(
                     uiState = metadataUiState,
                     onQueryChange = onMetadataQueryChange,
                     onSearch = onMetadataSearch,
+                    onSearchSubmitted = onMetadataSearchSubmitted,
                     onSuggestionSelected = onMetadataSuggestionSelected,
                     duplicateStateForSuggestion = duplicateStateForSuggestion,
                     onManualAdd = {
@@ -427,14 +430,17 @@ private fun MetadataSearchStep(
     uiState: MetadataSearchUiState,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
+    onSearchSubmitted: () -> Unit,
     onSuggestionSelected: (MetadataSuggestion) -> Unit,
     duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onManualAdd: () -> Unit,
     onCancel: () -> Unit,
 ) {
     LaunchedEffect(uiState.query) {
-        if (uiState.query.trim().length >= 2) {
-            delay(450)
+        if (uiState.query.trim().length >= 3) {
+            delay(300)
+            onSearch()
+        } else if (uiState.query.isBlank()) {
             onSearch()
         }
     }
@@ -449,6 +455,7 @@ private fun MetadataSearchStep(
         DashboardStyleSearchBar(
             query = uiState.query,
             onQueryChange = onQueryChange,
+            onSearchSubmitted = onSearchSubmitted,
             isLoading = uiState.isLoading,
             accent = accent,
         )
@@ -502,13 +509,21 @@ private fun MetadataSearchResults(
         !uiState.hasSearched -> SearchStatePanel(
             text = stringResource(R.string.metadata_search_prompt),
         )
-        else -> uiState.suggestions.forEach { suggestion ->
-            MetadataSuggestionRow(
-                suggestion = suggestion,
-                accent = suggestion.mediaType.sectionAccent(),
-                duplicateState = duplicateStateForSuggestion(suggestion),
-                onClick = { onSuggestionSelected(suggestion) },
-            )
+        else -> {
+            if (uiState.hasPartialError) {
+                SearchStatePanel(
+                    text = stringResource(R.string.metadata_search_partial_error),
+                    color = OmnilogColors.AppMuted,
+                )
+            }
+            uiState.suggestions.forEach { suggestion ->
+                MetadataSuggestionRow(
+                    suggestion = suggestion,
+                    accent = suggestion.mediaType.sectionAccent(),
+                    duplicateState = duplicateStateForSuggestion(suggestion),
+                    onClick = { onSuggestionSelected(suggestion) },
+                )
+            }
         }
     }
 }
@@ -1463,6 +1478,7 @@ private fun AddScreenHeader(
 internal fun DashboardStyleSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    onSearchSubmitted: () -> Unit = {},
     isLoading: Boolean,
     accent: Color,
     content: @Composable () -> Unit = {},
@@ -1488,6 +1504,8 @@ internal fun DashboardStyleSearchBar(
                 onValueChange = onQueryChange,
                 modifier = Modifier.weight(1f),
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearchSubmitted() }),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     color = OmnilogColors.AppInk,
                     fontWeight = FontWeight.SemiBold,
