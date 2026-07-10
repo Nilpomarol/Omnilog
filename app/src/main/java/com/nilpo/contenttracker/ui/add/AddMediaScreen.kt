@@ -278,6 +278,12 @@ fun AddMediaScreen(
                     onInitialFinishedAtChange = { initialFinishedAt = it },
                     initialNotes = initialNotes,
                     onInitialNotesChange = { initialNotes = it },
+                    platform = platform,
+                    onPlatformChange = { platform = it },
+                    selectedPlatformType = selectedPlatformType,
+                    onPlatformTypeSelected = { selectedPlatformType = it },
+                    selectedOwnershipType = selectedOwnershipType,
+                    onOwnershipTypeSelected = { selectedOwnershipType = it },
                     availableCollections = availableCollectionsForType,
                     itemTitle = title,
                     providerCollectionTitle = selectedMetadataForForm?.collectionTitle,
@@ -674,6 +680,12 @@ private fun MetadataReviewStep(
     onInitialFinishedAtChange: (String) -> Unit,
     initialNotes: String,
     onInitialNotesChange: (String) -> Unit,
+    platform: String,
+    onPlatformChange: (String) -> Unit,
+    selectedPlatformType: ConsumptionPlatformType,
+    onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
+    selectedOwnershipType: OwnershipType,
+    onOwnershipTypeSelected: (OwnershipType) -> Unit,
     availableCollections: List<MediaCollection>,
     itemTitle: String,
     providerCollectionTitle: String?,
@@ -695,26 +707,6 @@ private fun MetadataReviewStep(
         )
     }
 
-    ReviewActionRow(
-        title = title,
-        accent = accent,
-        isLoadingDetails = isLoadingDetails,
-        onBackToSearch = onBackToSearch,
-        onCancel = onCancel,
-        onSave = onSave,
-    )
-
-    CollectionAssignmentForm(
-        availableCollections = availableCollections,
-        itemTitle = itemTitle,
-        providerCollectionTitle = providerCollectionTitle,
-        collectionName = collectionName,
-        onCollectionNameChange = onCollectionNameChange,
-        collectionOrder = collectionOrder,
-        onCollectionOrderChange = onCollectionOrderChange,
-        accent = accent,
-    )
-
     FirstSessionForm(
         mediaType = selectedMediaType,
         progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
@@ -728,9 +720,43 @@ private fun MetadataReviewStep(
         onInitialStartedAtChange = onInitialStartedAtChange,
         initialFinishedAt = initialFinishedAt,
         onInitialFinishedAtChange = onInitialFinishedAtChange,
+        accent = accent,
+    )
+
+    CollectionAssignmentForm(
+        availableCollections = availableCollections,
+        itemTitle = itemTitle,
+        providerCollectionTitle = providerCollectionTitle,
+        collectionName = collectionName,
+        onCollectionNameChange = onCollectionNameChange,
+        collectionOrder = collectionOrder,
+        onCollectionOrderChange = onCollectionOrderChange,
+        accent = accent,
+    )
+
+    OwnershipSelector(
+        selectedOwnershipType = selectedOwnershipType,
+        onOwnershipTypeSelected = onOwnershipTypeSelected,
+    )
+
+    OptionalAddDetails(
+        platform = platform,
+        onPlatformChange = onPlatformChange,
+        selectedPlatformType = selectedPlatformType,
+        onPlatformTypeSelected = onPlatformTypeSelected,
         initialNotes = initialNotes,
         onInitialNotesChange = onInitialNotesChange,
         accent = accent,
+    )
+
+    ReviewActionRow(
+        title = title,
+        selectedStatus = selectedStatus,
+        accent = accent,
+        isLoadingDetails = isLoadingDetails,
+        onBackToSearch = onBackToSearch,
+        onCancel = onCancel,
+        onSave = onSave,
     )
 }
 
@@ -802,6 +828,7 @@ private fun ReviewMetadataSection(
 @Composable
 private fun ReviewActionRow(
     title: String,
+    selectedStatus: TrackingStatus,
     accent: Color,
     isLoadingDetails: Boolean,
     onBackToSearch: () -> Unit,
@@ -827,7 +854,7 @@ private fun ReviewActionRow(
                 contentColor = Color.White,
             ),
         ) {
-            Text(text = stringResource(R.string.create_session))
+            Text(text = stringResource(R.string.add_with_status, selectedStatus.label()))
         }
     }
 }
@@ -846,8 +873,6 @@ private fun FirstSessionForm(
     onInitialStartedAtChange: (String) -> Unit,
     initialFinishedAt: String,
     onInitialFinishedAtChange: (String) -> Unit,
-    initialNotes: String,
-    onInitialNotesChange: (String) -> Unit,
     accent: Color,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -858,51 +883,131 @@ private fun FirstSessionForm(
             onStatusSelected = onStatusSelected,
         )
 
-        FormDivider()
+        when (selectedStatus) {
+            TrackingStatus.Planned -> Unit
+            TrackingStatus.InProgress -> {
+                ProgressFieldSection(
+                    value = initialProgress,
+                    progressTotal = progressTotal,
+                    mediaType = mediaType,
+                    accent = accent,
+                    onValueChange = onInitialProgressChange,
+                )
+                DateFieldsSection(
+                    startedAt = initialStartedAt,
+                    onStartedAtChange = onInitialStartedAtChange,
+                    accent = accent,
+                )
+            }
+            TrackingStatus.Completed -> {
+                ProgressFieldSection(
+                    value = initialProgress,
+                    progressTotal = progressTotal,
+                    mediaType = mediaType,
+                    labelResId = R.string.field_final_progress,
+                    accent = accent,
+                    onValueChange = onInitialProgressChange,
+                )
+                DateFieldsSection(
+                    startedAt = initialStartedAt,
+                    onStartedAtChange = onInitialStartedAtChange,
+                    finishedAt = initialFinishedAt,
+                    onFinishedAtChange = onInitialFinishedAtChange,
+                    accent = accent,
+                )
+                RatingSection(
+                    initialRating = initialRating,
+                    accent = accent,
+                    onInitialRatingSelected = onInitialRatingSelected,
+                )
+            }
+            TrackingStatus.Paused,
+            TrackingStatus.Dropped,
+                -> {
+                ProgressFieldSection(
+                    value = initialProgress,
+                    progressTotal = progressTotal,
+                    mediaType = mediaType,
+                    accent = accent,
+                    onValueChange = onInitialProgressChange,
+                )
+                DateFieldsSection(
+                    startedAt = initialStartedAt,
+                    onStartedAtChange = onInitialStartedAtChange,
+                    finishedAt = initialFinishedAt,
+                    onFinishedAtChange = onInitialFinishedAtChange,
+                    accent = accent,
+                )
+                RatingSection(
+                    initialRating = initialRating,
+                    accent = accent,
+                    onInitialRatingSelected = onInitialRatingSelected,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
 
-        FormSectionHeader(title = stringResource(R.string.field_progress))
-        ReviewProgressField(
-            value = initialProgress,
-            progressTotal = progressTotal,
-            mediaType = mediaType,
-            accent = accent,
-            onValueChange = onInitialProgressChange,
-        )
+@Composable
+private fun RatingSection(
+    initialRating: Int?,
+    accent: Color,
+    onInitialRatingSelected: (Int?) -> Unit,
+) {
+    FormDivider()
+    FormSectionHeader(title = stringResource(R.string.field_rating))
+    ReviewRatingSelector(
+        currentRating = initialRating,
+        accent = accent,
+        onRatingSelected = onInitialRatingSelected,
+    )
+}
 
-        FormDivider()
+@Composable
+private fun ProgressFieldSection(
+    value: String,
+    progressTotal: Int?,
+    mediaType: MediaType,
+    labelResId: Int = R.string.field_progress,
+    accent: Color,
+    onValueChange: (String) -> Unit,
+) {
+    FormDivider()
+    FormSectionHeader(title = stringResource(labelResId))
+    ReviewProgressField(
+        value = value,
+        progressTotal = progressTotal,
+        mediaType = mediaType,
+        labelResId = labelResId,
+        accent = accent,
+        onValueChange = onValueChange,
+    )
+}
 
-        FormSectionHeader(title = stringResource(R.string.field_rating))
-        ReviewRatingSelector(
-            currentRating = initialRating,
-            accent = accent,
-            onRatingSelected = onInitialRatingSelected,
-        )
-
-        FormDivider()
-
-        FormSectionHeader(title = stringResource(R.string.session_dates))
-        ReviewDateField(
-            label = stringResource(R.string.session_started_label),
-            value = initialStartedAt,
-            accent = accent,
-            onValueChange = onInitialStartedAtChange,
-        )
+@Composable
+private fun DateFieldsSection(
+    startedAt: String,
+    onStartedAtChange: (String) -> Unit,
+    accent: Color,
+    finishedAt: String? = null,
+    onFinishedAtChange: ((String) -> Unit)? = null,
+) {
+    FormDivider()
+    FormSectionHeader(title = stringResource(R.string.session_dates))
+    ReviewDateField(
+        label = stringResource(R.string.session_started_label),
+        value = startedAt,
+        accent = accent,
+        onValueChange = onStartedAtChange,
+    )
+    if (finishedAt != null && onFinishedAtChange != null) {
         ReviewDateField(
             label = stringResource(R.string.session_finished_label),
-            value = initialFinishedAt,
+            value = finishedAt,
             accent = accent,
-            onValueChange = onInitialFinishedAtChange,
+            onValueChange = onFinishedAtChange,
         )
-
-        FormDivider()
-
-        FormSectionHeader(title = stringResource(R.string.field_notes))
-        ReviewNotesField(
-            value = initialNotes,
-            accent = accent,
-            onValueChange = onInitialNotesChange,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -964,13 +1069,14 @@ private fun ReviewProgressField(
     value: String,
     progressTotal: Int?,
     mediaType: MediaType,
+    labelResId: Int = R.string.field_progress,
     accent: Color,
     onValueChange: (String) -> Unit,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(stringResource(R.string.field_progress)) },
+        label = { Text(stringResource(labelResId)) },
         supportingText = progressTotal?.takeIf { it > 0 }?.let { total ->
             {
                 Text(text = "de $total ${progressUnitLabel(mediaType, total)}")
@@ -1197,34 +1303,6 @@ private fun ManualAddStep(
         onTitleChange = onTitleChange,
         totalProgress = totalProgress,
         onTotalProgressChange = onTotalProgressChange,
-        language = language,
-        onLanguageChange = onLanguageChange,
-        platform = platform,
-        onPlatformChange = onPlatformChange,
-        selectedOwnershipType = selectedOwnershipType,
-        onOwnershipTypeSelected = onOwnershipTypeSelected,
-        selectedPlatformType = selectedPlatformType,
-        onPlatformTypeSelected = onPlatformTypeSelected,
-    )
-
-    CollectionAssignmentForm(
-        availableCollections = availableCollections,
-        itemTitle = itemTitle,
-        providerCollectionTitle = providerCollectionTitle,
-        collectionName = collectionName,
-        onCollectionNameChange = onCollectionNameChange,
-        collectionOrder = collectionOrder,
-        onCollectionOrderChange = onCollectionOrderChange,
-        accent = accent,
-    )
-
-    ReviewActionRow(
-        title = title,
-        accent = accent,
-        isLoadingDetails = false,
-        onBackToSearch = onBackToSearch,
-        onCancel = onCancel,
-        onSave = onSave,
     )
 
     FirstSessionForm(
@@ -1240,9 +1318,45 @@ private fun ManualAddStep(
         onInitialStartedAtChange = onInitialStartedAtChange,
         initialFinishedAt = initialFinishedAt,
         onInitialFinishedAtChange = onInitialFinishedAtChange,
+        accent = accent,
+    )
+
+    CollectionAssignmentForm(
+        availableCollections = availableCollections,
+        itemTitle = itemTitle,
+        providerCollectionTitle = providerCollectionTitle,
+        collectionName = collectionName,
+        onCollectionNameChange = onCollectionNameChange,
+        collectionOrder = collectionOrder,
+        onCollectionOrderChange = onCollectionOrderChange,
+        accent = accent,
+    )
+
+    OwnershipSelector(
+        selectedOwnershipType = selectedOwnershipType,
+        onOwnershipTypeSelected = onOwnershipTypeSelected,
+    )
+
+    OptionalAddDetails(
+        platform = platform,
+        onPlatformChange = onPlatformChange,
+        selectedPlatformType = selectedPlatformType,
+        onPlatformTypeSelected = onPlatformTypeSelected,
         initialNotes = initialNotes,
         onInitialNotesChange = onInitialNotesChange,
+        language = language,
+        onLanguageChange = onLanguageChange,
         accent = accent,
+    )
+
+    ReviewActionRow(
+        title = title,
+        selectedStatus = selectedStatus,
+        accent = accent,
+        isLoadingDetails = false,
+        onBackToSearch = onBackToSearch,
+        onCancel = onCancel,
+        onSave = onSave,
     )
 }
 
@@ -1255,14 +1369,6 @@ private fun TrackingSetupForm(
     onTitleChange: (String) -> Unit,
     totalProgress: String,
     onTotalProgressChange: (String) -> Unit,
-    language: String,
-    onLanguageChange: (String) -> Unit,
-    platform: String,
-    onPlatformChange: (String) -> Unit,
-    selectedOwnershipType: OwnershipType,
-    onOwnershipTypeSelected: (OwnershipType) -> Unit,
-    selectedPlatformType: ConsumptionPlatformType,
-    onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
 ) {
     val accent = selectedMediaType.sectionAccent()
     if (availableMediaTypes.size > 1) {
@@ -1298,23 +1404,13 @@ private fun TrackingSetupForm(
         )
     }
 
-    OutlinedTextField(
-        value = platform,
-        onValueChange = onPlatformChange,
-        label = { Text(stringResource(R.string.field_platform)) },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        colors = reviewTextFieldColors(accent),
-        shape = RoundedCornerShape(12.dp),
-    )
+}
 
-    LanguageDropdown(
-        value = language,
-        onValueChange = onLanguageChange,
-        label = stringResource(R.string.field_language),
-        accent = accent,
-    )
-
+@Composable
+private fun OwnershipSelector(
+    selectedOwnershipType: OwnershipType,
+    onOwnershipTypeSelected: (OwnershipType) -> Unit,
+) {
     OptionSelector(
         label = stringResource(R.string.field_ownership_type),
         options = OwnershipType.entries,
@@ -1322,14 +1418,64 @@ private fun TrackingSetupForm(
         optionLabel = { it.label() },
         onOptionSelected = onOwnershipTypeSelected,
     )
+}
 
-    OptionSelector(
-        label = stringResource(R.string.field_platform_type),
-        options = ConsumptionPlatformType.entries,
-        selectedOption = selectedPlatformType,
-        optionLabel = { it.label() },
-        onOptionSelected = onPlatformTypeSelected,
-    )
+@Composable
+private fun OptionalAddDetails(
+    platform: String,
+    onPlatformChange: (String) -> Unit,
+    selectedPlatformType: ConsumptionPlatformType,
+    onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
+    initialNotes: String,
+    onInitialNotesChange: (String) -> Unit,
+    accent: Color,
+    language: String? = null,
+    onLanguageChange: ((String) -> Unit)? = null,
+) {
+    var showDetails by remember { mutableStateOf(false) }
+
+    TextButton(
+        onClick = { showDetails = !showDetails },
+        colors = ButtonDefaults.textButtonColors(contentColor = accent),
+    ) {
+        Text(text = stringResource(if (showDetails) R.string.show_less else R.string.add_more_details))
+    }
+
+    if (!showDetails) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        FormDivider()
+        OutlinedTextField(
+            value = platform,
+            onValueChange = onPlatformChange,
+            label = { Text(stringResource(R.string.field_platform)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = reviewTextFieldColors(accent),
+            shape = RoundedCornerShape(12.dp),
+        )
+        OptionSelector(
+            label = stringResource(R.string.field_platform_type),
+            options = ConsumptionPlatformType.entries,
+            selectedOption = selectedPlatformType,
+            optionLabel = { it.label() },
+            onOptionSelected = onPlatformTypeSelected,
+        )
+        if (language != null && onLanguageChange != null) {
+            LanguageDropdown(
+                value = language,
+                onValueChange = onLanguageChange,
+                label = stringResource(R.string.field_language),
+                accent = accent,
+            )
+        }
+        FormSectionHeader(title = stringResource(R.string.field_notes))
+        ReviewNotesField(
+            value = initialNotes,
+            accent = accent,
+            onValueChange = onInitialNotesChange,
+        )
+    }
 }
 
 @Composable

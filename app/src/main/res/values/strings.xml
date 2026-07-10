@@ -131,6 +131,7 @@
     <string name="detail_external_tracking">Seguiment extern</string>
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
+    <string name="add_with_status">Afegeix com a %1$s</string>
     <string name="add_media_title">Afegeix contingut</string>
     <string name="metadata_search_title">Buscar %1$s</string>
     <string name="metadata_search_label">Títol a cercar</string>
@@ -179,6 +180,7 @@
     <string name="metadata_credits_voice_actors">Veus</string>
     <string name="add_item">Afegeix</string>
     <string name="add_manual">Afegeix manualment</string>
+    <string name="add_more_details">Més detalls</string>
     <string name="search_action">Cerca</string>
     <string name="field_title">Títol</string>
     <string name="field_original_title">Títol original</string>
@@ -197,6 +199,7 @@
     <string name="field_synopsis">Resum</string>
     <string name="edit_metadata_title">Edita metadades</string>
     <string name="field_progress">Progres</string>
+    <string name="field_final_progress">Progrés final</string>
     <string name="field_rating">Nota</string>
     <string name="field_notes">Notes</string>
     <string name="notes_placeholder">Afegeix una nota...</string>
