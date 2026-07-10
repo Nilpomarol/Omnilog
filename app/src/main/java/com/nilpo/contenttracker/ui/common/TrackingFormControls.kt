@@ -11,14 +11,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -237,29 +243,51 @@ fun TrackingProgressField(
     val maximum = progressTotal ?: Int.MAX_VALUE
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    text = label,
+                Column(
                     modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                )
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                    )
+                    if (progressTotal != null && progressTotal > 0) {
+                        val percentage = ((current.toFloat() / progressTotal).coerceIn(0f, 1f) * 100).toInt()
+                        Text(
+                            text = "$current / $progressTotal ${progressUnitLabel(mediaType, progressTotal)} • $percentage%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.50f),
+                        )
+                    } else {
+                        Text(
+                            text = "$current ${progressUnitLabel(mediaType, current)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.50f),
+                        )
+                    }
+                }
+
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = accent.copy(alpha = 0.14f),
-                    border = BorderStroke(1.dp, accent.copy(alpha = 0.40f)),
+                    color = accent.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
                 ) {
                     BasicTextField(
                         value = value,
@@ -268,8 +296,8 @@ fun TrackingProgressField(
                             onValueChange(digits.toIntOrNull()?.coerceIn(0, maximum)?.toString() ?: digits)
                         },
                         modifier = Modifier
-                            .widthIn(min = 42.dp)
-                            .padding(horizontal = 9.dp, vertical = 6.dp),
+                            .widthIn(min = 48.dp)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         textStyle = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
@@ -280,33 +308,29 @@ fun TrackingProgressField(
                         cursorBrush = SolidColor(accent),
                     )
                 }
-                progressTotal?.takeIf { it > 0 }?.let { total ->
-                    Text(
-                        text = "/ $total ${progressUnitLabel(mediaType, total)}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f),
-                    )
-                }
             }
-            progressTotal?.takeIf { it > 0 }?.let { total ->
-                val fraction = (current.toFloat() / total).coerceIn(0f, 1f)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    LinearProgressIndicator(
-                        progress = { fraction },
-                        modifier = Modifier.weight(1f),
-                        color = accent,
-                        trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                    )
-                    Text(
-                        text = "${(fraction * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = accent,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
+            if (progressTotal != null && progressTotal > 0) {
+                val fraction = (current.toFloat() / progressTotal).coerceIn(0f, 1f)
+                val animatedFraction by animateFloatAsState(
+                    targetValue = fraction,
+                    animationSpec = spring(
+                        dampingRatio = 0.8f,
+                        stiffness = 150f
+                    ),
+                    label = "progressAnimation"
+                )
+                LinearProgressIndicator(
+                    progress = { animatedFraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = accent,
+                    trackColor = accent.copy(alpha = 0.12f),
+                    strokeCap = StrokeCap.Round,
+                    drawStopIndicator = {},
+                    gapSize = 0.dp,
+                )
             }
         }
     }
@@ -314,8 +338,8 @@ fun TrackingProgressField(
 
 @Composable
 fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected: (Int?) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             (1..10).forEach { rating ->
                 val isSelected = rating == currentRating
                 val isActive = currentRating != null && rating <= currentRating
@@ -323,15 +347,44 @@ fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected:
                     onClick = { onRatingSelected(if (isSelected) null else rating) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isActive) accent.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
-                    border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isActive) accent.copy(alpha = 0.74f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
+                    color = if (isSelected) accent.copy(alpha = 0.20f) else Color.Transparent,
                 ) {
-                    Text(text = rating.toString(), modifier = Modifier.padding(vertical = 10.dp).fillMaxWidth(), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge, fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold, color = if (isActive) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Star,
+                            contentDescription = "$rating / 10",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (isActive) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f),
+                        )
+                    }
                 }
             }
         }
         if (currentRating != null) {
-            Text(text = stringResource(R.string.rating_clear), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f), modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "$currentRating / 10",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent,
+                )
+                Text(
+                    text = stringResource(R.string.rating_clear),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
+                    modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
+                )
+            }
         }
     }
 }
