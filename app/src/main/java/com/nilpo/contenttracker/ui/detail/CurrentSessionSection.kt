@@ -73,7 +73,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import com.nilpo.contenttracker.ui.common.TrackingDateField
+import com.nilpo.contenttracker.ui.common.TrackingDateRange
 import com.nilpo.contenttracker.ui.common.TrackingNotesField
 import com.nilpo.contenttracker.ui.common.TrackingProgressField
 import com.nilpo.contenttracker.ui.common.TrackingRatingSelector
@@ -306,6 +306,7 @@ fun SessionEditorScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
+        val stateColor = statusVisualState(status = draftStatus, accent = accent).color
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -356,17 +357,14 @@ fun SessionEditorScreen(
             EditSectionDivider()
 
             EditSectionHeader(title = stringResource(R.string.session_dates))
-            TrackingDateField(
-                label = stringResource(R.string.session_started_label),
-                value = draftStartedAtText,
-                accent = accent,
-                onValueChange = { draftStartedAtText = it },
-            )
-            TrackingDateField(
-                label = stringResource(R.string.session_finished_label),
-                value = draftFinishedAtText,
-                accent = accent,
-                onValueChange = { draftFinishedAtText = it },
+            TrackingDateRange(
+                startedLabel = stringResource(R.string.session_started_label),
+                startedValue = draftStartedAtText,
+                accent = stateColor,
+                onStartedValueChange = { draftStartedAtText = it },
+                finishedLabel = stringResource(R.string.session_finished_label),
+                finishedValue = draftFinishedAtText,
+                onFinishedValueChange = { draftFinishedAtText = it },
             )
 
             EditSectionDivider()

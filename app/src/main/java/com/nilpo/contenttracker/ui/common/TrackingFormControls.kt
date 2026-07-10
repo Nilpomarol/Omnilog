@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
@@ -67,6 +69,8 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun TrackingStatusSelector(
@@ -395,6 +399,110 @@ fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected:
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun TrackingDateRange(
+    startedLabel: String,
+    startedValue: String,
+    accent: Color,
+    onStartedValueChange: (String) -> Unit,
+    finishedLabel: String? = null,
+    finishedValue: String? = null,
+    onFinishedValueChange: ((String) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TrackingDateRangeItem(
+                label = startedLabel,
+                value = startedValue,
+                accent = accent,
+                onValueChange = onStartedValueChange,
+                modifier = Modifier.weight(1f),
+            )
+            if (finishedLabel != null && finishedValue != null && onFinishedValueChange != null) {
+                VerticalDivider(
+                    modifier = Modifier.size(width = 1.dp, height = 44.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                )
+                TrackingDateRangeItem(
+                    label = finishedLabel,
+                    value = finishedValue,
+                    accent = accent,
+                    onValueChange = onFinishedValueChange,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TrackingDateRangeItem(
+    label: String,
+    value: String,
+    accent: Color,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier,
+) {
+    var showPicker by remember(label) { mutableStateOf(false) }
+    val selectedMillis = value.toLocalDateOrNull()?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+    Surface(
+        onClick = { showPicker = true },
+        modifier = modifier,
+        color = Color.Transparent,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.52f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = value.toTrackingDateLabel(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (value.isBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f) else accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (value.isNotBlank()) {
+                IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.clear_date),
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.72f),
+                    )
+                }
+            }
+        }
+    }
+    if (showPicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
+        DatePickerDialog(onDismissRequest = { showPicker = false }, confirmButton = {
+            TextButton(onClick = {
+                datePickerState.selectedDateMillis?.let { onValueChange(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().toString()) }
+                showPicker = false
+            }, colors = ButtonDefaults.textButtonColors(contentColor = accent)) { Text(stringResource(R.string.save)) }
+        }, dismissButton = { TextButton(onClick = { showPicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = datePickerState) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun TrackingDateField(label: String, value: String, accent: Color, onValueChange: (String) -> Unit) {
     var showPicker by remember(label) { mutableStateOf(false) }
     val selectedMillis = value.toLocalDateOrNull()?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
@@ -448,3 +556,7 @@ private fun progressUnitLabel(mediaType: MediaType, value: Int): String = when (
     MediaType.Game -> if (value == 1) "hora" else "hores"
 }
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching { LocalDate.parse(this) }.getOrNull()
+@Composable
+private fun String.toTrackingDateLabel(): String = toLocalDateOrNull()
+    ?.format(DateTimeFormatter.ofPattern("d MMM ''yy", Locale.getDefault()))
+    ?: stringResource(R.string.pick_date)

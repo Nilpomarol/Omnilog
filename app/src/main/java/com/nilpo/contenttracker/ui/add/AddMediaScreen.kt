@@ -80,7 +80,7 @@ import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
-import com.nilpo.contenttracker.ui.common.TrackingDateField
+import com.nilpo.contenttracker.ui.common.TrackingDateRange
 import com.nilpo.contenttracker.ui.common.TrackingNotesField
 import com.nilpo.contenttracker.ui.common.TrackingProgressField
 import com.nilpo.contenttracker.ui.common.TrackingRatingSelector
@@ -1193,7 +1193,6 @@ private fun ProgressFieldSection(
     onValueChange: (String) -> Unit,
 ) {
     FormDivider()
-    FormSectionHeader(title = stringResource(labelResId))
     TrackingProgressField(
         value = value,
         progressTotal = progressTotal,
