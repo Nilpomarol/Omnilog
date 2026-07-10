@@ -3,18 +3,23 @@ package com.nilpo.contenttracker.ui.common
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -39,7 +44,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
@@ -57,32 +61,69 @@ fun TrackingStatusSelector(
     onStatusSelected: (TrackingStatus) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    var isExpanded by remember { mutableStateOf(false) }
+    val selectedColor = statusColor(selectedStatus)
+    Box(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        TrackingStatus.entries.forEach { status ->
-            val isSelected = status == selectedStatus
-            val statusColor = statusColor(status)
-            Surface(
-                onClick = { onStatusSelected(status) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(8.dp),
-                color = if (isSelected) statusColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
-                border = BorderStroke(
-                    width = if (isSelected) 1.5.dp else 1.dp,
-                    color = if (isSelected) statusColor.copy(alpha = 0.78f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
-                ),
+        Surface(
+            onClick = { isExpanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = selectedColor.copy(alpha = 0.14f),
+            border = BorderStroke(1.dp, selectedColor.copy(alpha = 0.60f)),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                Surface(
+                    modifier = Modifier.size(10.dp),
+                    shape = CircleShape,
+                    color = selectedColor,
+                ) {}
                 Text(
-                    text = stringResource(status.labelResId()),
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                    color = if (isSelected) statusColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    text = stringResource(selectedStatus.labelResId()),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = selectedColor,
+                )
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    tint = selectedColor,
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false },
+            modifier = Modifier.fillMaxWidth(),
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            TrackingStatus.entries.forEach { status ->
+                val statusColor = statusColor(status)
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = stringResource(status.labelResId()),
+                            fontWeight = if (status == selectedStatus) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (status == selectedStatus) statusColor else MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    leadingIcon = {
+                        Surface(
+                            modifier = Modifier.size(10.dp),
+                            shape = CircleShape,
+                            color = statusColor,
+                        ) {}
+                    },
+                    onClick = {
+                        onStatusSelected(status)
+                        isExpanded = false
+                    },
                 )
             }
         }
