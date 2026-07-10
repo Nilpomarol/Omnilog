@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -339,32 +340,6 @@ fun TrackingProgressField(
 @Composable
 fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected: (Int?) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            (1..10).forEach { rating ->
-                val isSelected = rating == currentRating
-                val isActive = currentRating != null && rating <= currentRating
-                Surface(
-                    onClick = { onRatingSelected(if (isSelected) null else rating) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Transparent,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 7.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Star,
-                            contentDescription = "$rating / 10",
-                            modifier = Modifier.size(26.dp),
-                            tint = if (isActive) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f),
-                        )
-                    }
-                }
-            }
-        }
         if (currentRating != null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -384,6 +359,35 @@ fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected:
                     color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
                     modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
                 )
+            }
+        }
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val starSize = minOf(30.dp, maxWidth / 10)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                (1..10).forEach { rating ->
+                    val isSelected = rating == currentRating
+                    val isActive = currentRating != null && rating <= currentRating
+                    Surface(
+                        onClick = { onRatingSelected(if (isSelected) null else rating) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Transparent,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = "$rating / 10",
+                                modifier = Modifier.size(starSize),
+                                tint = if (isActive) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
