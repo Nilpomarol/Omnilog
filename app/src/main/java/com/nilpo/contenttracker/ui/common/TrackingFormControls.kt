@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -65,7 +66,7 @@ fun TrackingStatusSelector(
     ) {
         items(TrackingStatus.entries) { status ->
             val isSelected = status == selectedStatus
-            val statusColor = statusColor(status, accent)
+            val statusColor = statusColor(status)
             Surface(
                 onClick = { onStatusSelected(status) },
                 shape = RoundedCornerShape(8.dp),
@@ -210,12 +211,12 @@ private fun TrackingStatus.labelResId(): Int = when (this) {
     TrackingStatus.Paused -> R.string.status_paused
     TrackingStatus.Dropped -> R.string.status_dropped
 }
-private fun statusColor(status: TrackingStatus, accent: Color): Color = when (status) {
-    TrackingStatus.Planned -> accent
-    TrackingStatus.InProgress -> Color(0xFF2E7D32)
-    TrackingStatus.Completed -> Color(0xFF1976D2)
-    TrackingStatus.Paused -> Color(0xFFF57C00)
-    TrackingStatus.Dropped -> Color(0xFFC62828)
+private fun statusColor(status: TrackingStatus): Color = when (status) {
+    TrackingStatus.Planned -> OmnilogColors.Planned
+    TrackingStatus.InProgress -> OmnilogColors.InProgress
+    TrackingStatus.Completed -> OmnilogColors.Completed
+    TrackingStatus.Paused -> OmnilogColors.Paused
+    TrackingStatus.Dropped -> OmnilogColors.Dropped
 }
 @Composable
 private fun progressUnitLabel(mediaType: MediaType, value: Int): String = when (mediaType) {
