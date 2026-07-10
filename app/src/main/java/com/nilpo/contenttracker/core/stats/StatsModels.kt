@@ -1,0 +1,104 @@
+package com.nilpo.contenttracker.core.stats
+
+import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.core.model.TrackingStatus
+
+sealed interface StatsPeriod {
+    data object AllTime : StatsPeriod
+    data object ThisYear : StatsPeriod
+    data object Last12Months : StatsPeriod
+    data class Year(val year: Int) : StatsPeriod
+}
+
+data class StatsFilters(
+    val period: StatsPeriod = StatsPeriod.ThisYear,
+    val mediaTypes: Set<MediaType> = MediaType.entries.toSet(),
+)
+
+data class StatsSnapshot(
+    val filters: StatsFilters,
+    val totalTitles: Int,
+    val completedInPeriod: Int,
+    val activeNow: Int,
+    val plannedNow: Int,
+    val averageRating: Double?,
+    val revisitCount: Int,
+    val completedByMonth: List<StatsBucket>,
+    val mediumStats: List<MediumStats>,
+    val ratingTrend: List<RatingTrendPoint>,
+    val ratingDistribution: List<StatsBucket>,
+    val statusBreakdown: List<StatusStatsBucket>,
+    val progressTotals: List<ProgressTotalStats>,
+    val revisitBreakdown: List<RevisitStats>,
+    val topGenres: List<RankedStat>,
+    val topCreators: List<RankedStat>,
+    val languageBreakdown: List<StatsBucket>,
+    val bestRatedItems: List<TrackedMedia>,
+    val mostRevisitedItems: List<RevisitedMediaStat>,
+    val deltas: PeriodDelta = PeriodDelta(),
+)
+
+data class StatsBucket(
+    val key: String,
+    val label: String,
+    val value: Int,
+    val segments: List<StatsSegment> = emptyList(),
+)
+
+data class StatsSegment(
+    val mediaType: MediaType,
+    val value: Int,
+)
+
+data class MediumStats(
+    val mediaType: MediaType,
+    val completedCount: Int,
+    val averageRating: Double?,
+    val averageLength: Double?,
+    val totalLength: Int,
+)
+
+data class RatingTrendPoint(
+    val key: String,
+    val label: String,
+    val averageRating: Double?,
+    val ratingCount: Int,
+)
+
+data class StatusStatsBucket(
+    val status: TrackingStatus,
+    val value: Int,
+)
+
+data class ProgressTotalStats(
+    val mediaType: MediaType,
+    val value: Int,
+)
+
+data class RevisitStats(
+    val mediaType: MediaType,
+    val value: Int,
+)
+
+data class RevisitedMediaStat(
+    val trackedMedia: TrackedMedia,
+    val value: Int,
+)
+
+data class RankedStat(
+    val label: String,
+    val value: Int,
+)
+
+/**
+ * Change vs the previous comparison window for the period-bound KPIs.
+ * Each field is null when there is no previous window (AllTime) or no prior
+ * data for that field, so the UI can omit the chip instead of showing a
+ * misleading zero delta.
+ */
+data class PeriodDelta(
+    val completed: Int? = null,
+    val averageRating: Double? = null,
+    val revisits: Int? = null,
+)

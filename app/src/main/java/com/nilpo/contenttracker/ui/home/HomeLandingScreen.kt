@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -45,7 +46,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +57,10 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.stats.StatsCalculator
+import com.nilpo.contenttracker.core.stats.StatsBucket
+import com.nilpo.contenttracker.core.stats.StatsFilters
+import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
@@ -70,6 +74,7 @@ fun HomeLandingScreen(
     uiState: HomeUiState,
     onMediaClick: (TrackedMedia) -> Unit,
     onSectionSearch: (MediaSection, String) -> Unit,
+    onStatsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
@@ -144,10 +149,6 @@ fun HomeLandingScreen(
                     )
                 }
 
-                item {
-                    HomeStats(items = items)
-                }
-
                 if (items.isEmpty()) {
                     item {
                         EmptyHomeState()
@@ -155,7 +156,7 @@ fun HomeLandingScreen(
                 } else {
                     if (activeItems.isNotEmpty()) {
                         item {
-                            HomeCarousel(
+                            HomeActiveCarousel(
                                 title = stringResource(R.string.home_active_title),
                                 items = activeItemsVisible,
                                 onMediaClick = onMediaClick,
@@ -178,6 +179,13 @@ fun HomeLandingScreen(
                                 },
                             )
                         }
+                    }
+
+                    item {
+                        DashboardAnalyticsPreview(
+                            items = items,
+                            onClick = onStatsClick,
+                        )
                     }
 
                     if (topRatedItems.isNotEmpty()) {
@@ -229,6 +237,154 @@ fun HomeLandingScreen(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(start = 16.dp, top = 76.dp, end = 16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardAnalyticsPreview(
+    items: List<TrackedMedia>,
+    onClick: () -> Unit,
+) {
+    val snapshot = remember(items) {
+        StatsCalculator().calculate(items, StatsFilters(period = StatsPeriod.ThisYear))
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.home_analytics_preview_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.AppInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = stringResource(R.string.home_analytics_preview_open),
+                    modifier = Modifier.size(18.dp),
+                    tint = OmnilogColors.Dashboard,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(
+                    text = snapshot.completedInPeriod.toString(),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.Completed,
+                )
+                Column(
+                    modifier = Modifier.padding(bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.home_analytics_preview_completed),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogColors.AppInk,
+                    )
+                    Text(
+                        text = stringResource(R.string.home_analytics_preview_description),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            MonthlyActivityPreview(buckets = snapshot.completedByMonth)
+        }
+    }
+}
+
+@Composable
+private fun MonthlyActivityPreview(
+    buckets: List<StatsBucket>,
+    modifier: Modifier = Modifier,
+) {
+    val visibleBuckets = buckets.takeLast(7)
+    val maxValue = visibleBuckets.maxOfOrNull { bucket -> bucket.value }?.coerceAtLeast(1) ?: 1
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(86.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        visibleBuckets.forEach { bucket ->
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(62.dp),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    val barHeight = if (bucket.value == 0) 2 else {
+                        (62 * bucket.value / maxValue).coerceAtLeast(4)
+                    }
+                    if (bucket.segments.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(barHeight.dp)
+                                .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp)),
+                            verticalArrangement = Arrangement.Bottom,
+                        ) {
+                            bucket.segments.asReversed().forEach { segment ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(segment.value.toFloat())
+                                        .background(segment.mediaType.sectionAccent()),
+                                )
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(barHeight.dp)
+                                .background(
+                                    if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogColors.AppLine.copy(alpha = 0.58f),
+                                    RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp),
+                                ),
+                        )
+                    }
+                }
+                Text(
+                    text = bucket.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OmnilogColors.AppMuted,
+                    maxLines = 1,
                 )
             }
         }
@@ -471,115 +627,35 @@ private fun DashboardSectionSearchRow(
 }
 
 @Composable
-private fun HomeStats(items: List<TrackedMedia>) {
-    val currentYear = LocalDate.now().year
-    val ratedSessions = items.flatMap { trackedMedia ->
-        trackedMedia.sessions.mapNotNull { it.rating }
-    }
-    val averageRating = ratedSessions
-        .takeIf { it.isNotEmpty() }
-        ?.average()
-        ?.let { "%.1f".format(it) }
-        ?: "-"
-    val activeCount = items.count { trackedMedia ->
-        trackedMedia.currentSession?.status == TrackingStatus.InProgress
-    }
-    val titlesThisYear = items.count { trackedMedia ->
-        trackedMedia.sessions.any { session ->
-            session.status == TrackingStatus.Completed &&
-                session.finishedAt?.year == currentYear
-        }
-    }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            StatTile(
-                label = stringResource(R.string.home_stat_total_titles),
-                value = items.size.toString(),
-                icon = painterResource(R.drawable.ic_kpi_titles),
-                accent = OmnilogColors.Dashboard,
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                label = stringResource(R.string.home_stat_in_progress),
-                value = activeCount.toString(),
-                icon = painterResource(R.drawable.ic_kpi_in_progress),
-                accent = OmnilogColors.Tv,
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                label = stringResource(R.string.home_stat_average_rating),
-                value = averageRating,
-                icon = painterResource(R.drawable.ic_kpi_rating),
-                accent = OmnilogColors.Books,
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                label = stringResource(R.string.home_stat_titles_this_year),
-                value = titlesThisYear.toString(),
-                icon = painterResource(R.drawable.ic_kpi_completed),
-                accent = OmnilogColors.Games,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatTile(
-    label: String,
-    value: String,
-    icon: Painter,
-    accent: Color,
-    modifier: Modifier = Modifier,
+private fun HomeCarousel(
+    title: String,
+    items: List<TrackedMedia>,
+    onMediaClick: (TrackedMedia) -> Unit,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
-    Surface(
-        modifier = modifier.height(62.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Icon(
-                painter = icon,
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .height(22.dp)
-                    .padding(top = 7.dp, end = 8.dp),
-                tint = accent.copy(alpha = 0.68f),
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = accent,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DashboardSectionTitle(
+            title = title,
+            trailingContent = trailingContent,
+        )
+        if (items.isEmpty()) {
+            EmptyCarouselState()
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(items) { trackedMedia ->
+                    HomeMediaTile(
+                        trackedMedia = trackedMedia,
+                        accent = trackedMedia.item.type.sectionAccent(),
+                        onClick = { onMediaClick(trackedMedia) },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HomeCarousel(
+private fun HomeActiveCarousel(
     title: String,
     items: List<TrackedMedia>,
     onMediaClick: (TrackedMedia) -> Unit,
@@ -917,6 +993,16 @@ private fun MediaType.dashboardSection(): MediaSection =
             -> MediaSection.Movies
         MediaType.Game -> MediaSection.Games
     }
+
+private fun TrackingSession.statsDate(): LocalDate? {
+    return finishedAt
+        ?: startedAt
+        ?: updatedAtEpochMillis.takeIf { millis -> millis > 0L }?.let { millis ->
+            Instant.ofEpochMilli(millis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+        }
+}
 
 private val MediaSection.iconResId: Int
     get() = when (this) {

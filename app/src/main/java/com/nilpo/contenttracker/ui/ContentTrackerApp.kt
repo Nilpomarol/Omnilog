@@ -89,6 +89,7 @@ import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
+import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -191,6 +192,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             }
         }
         collectionReturnTarget = CollectionReturnTarget.Section
+    }
+    val navigateBackFromStats = {
+        selectedDestination = AppDestination.Home
+        selectedMediaId = null
+        selectedCollectionId = null
+        collectionReturnTarget = CollectionReturnTarget.Section
+        detailReturnTarget = DetailReturnTarget.Section
+        isAdding = false
     }
     val openTrackedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
@@ -546,11 +555,17 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             topBar = {
                 OmnilogTopBar(
                     accent = when (selectedDestination) {
-                        AppDestination.Home -> OmnilogColors.Dashboard
+                        AppDestination.Home,
+                        AppDestination.Stats,
+                            -> OmnilogColors.Dashboard
                         AppDestination.Section -> uiState.selectedSection.accent
                     },
+                    showBackNavigation = selectedMedia != null && !isAdding ||
+                        selectedDestination == AppDestination.Stats,
                     showDetailActions = selectedMedia != null && !isAdding,
-                    showBackupActions = selectedMedia == null && !isAdding,
+                    showBackupActions = selectedMedia == null &&
+                        !isAdding &&
+                        selectedDestination != AppDestination.Stats,
                     showMyAnimeListImport = selectedDestination == AppDestination.Section &&
                         uiState.selectedSection == MediaSection.Anime,
                     showImdbImport = selectedDestination == AppDestination.Section &&
@@ -559,7 +574,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         uiState.selectedSection == MediaSection.Books,
                     detailActions = detailActions,
                     backupActions = backupActions,
-                    onBack = navigateBackFromDetail,
+                    onBack = if (selectedDestination == AppDestination.Stats) {
+                        navigateBackFromStats
+                    } else {
+                        navigateBackFromDetail
+                    },
                 )
             },
             snackbarHost = {},
@@ -662,6 +681,30 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     selectedCollectionId = null
                     collectionReturnTarget = CollectionReturnTarget.Section
                     isAdding = false
+                },
+                onStatsClick = {
+                    selectedDestination = AppDestination.Stats
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                    collectionReturnTarget = CollectionReturnTarget.Section
+                    detailReturnTarget = DetailReturnTarget.Home
+                    isAdding = false
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        } else if (selectedDestination == AppDestination.Stats) {
+            StatsScreen(
+                items = uiState.allTrackedItems,
+                onMediaClick = { trackedMedia ->
+                    val section = trackedMedia.item.type.homeSection()
+                    viewModel.selectSection(section)
+                    selectedDestination = AppDestination.Section
+                    selectedCollectionId = null
+                    collectionReturnTarget = CollectionReturnTarget.Section
+                    detailReturnTarget = DetailReturnTarget.Home
+                    selectedMediaId = trackedMedia.item.id
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -1523,6 +1566,7 @@ class BackupHeaderActions {
 
 private enum class AppDestination {
     Home,
+    Stats,
     Section,
 }
 
@@ -1635,7 +1679,8 @@ private fun OmnilogBottomBar(
                     labelResId = R.string.nav_home,
                     iconResId = R.drawable.ic_nav_home,
                     accent = OmnilogColors.Dashboard,
-                    selected = selectedDestination == AppDestination.Home,
+                    selected = selectedDestination == AppDestination.Home ||
+                        selectedDestination == AppDestination.Stats,
                     onClick = onHomeClick,
                     modifier = Modifier.weight(1f),
                 )
@@ -1712,6 +1757,7 @@ private fun MediaSection.navIconResId(): Int {
 @Composable
 private fun OmnilogTopBar(
     accent: Color,
+    showBackNavigation: Boolean,
     showDetailActions: Boolean,
     showBackupActions: Boolean,
     showMyAnimeListImport: Boolean,
@@ -1729,7 +1775,7 @@ private fun OmnilogTopBar(
             actionIconContentColor = HeaderInk,
         ),
         navigationIcon = {
-            if (showDetailActions) {
+            if (showBackNavigation) {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,

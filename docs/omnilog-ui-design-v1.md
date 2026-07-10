@@ -168,18 +168,29 @@ Actions:
 
 ### Stats Page
 
-Stats can be introduced after core browsing/detail UI is stable. StoryGraph is a good reference for stats direction and visualizations.
+Stats can be introduced after core browsing/detail UI is stable. StoryGraph is a good reference for stats direction and visualizations, but the implementation should stay Omnilog-native and local-first.
+
+Detailed planning lives in `docs/omnilog-stats-system-plan.md`.
 
 Direction:
 
-- accessible from Home, exact nav placement later
+- accessible from Home as a drill-in page for the first version
+- do not add a sixth bottom navigation item until real use proves stats should be a primary destination
 - general stats at top
-- per-media sections
+- period filter: all time, this year, last 12 months
+- media filter: all, anime, books, TV/movies, games
+- per-media summaries
+- completion/activity by month
+- rating distribution based on personal ratings
+- status breakdown
+- progress totals by media type
 - top genres
 - top authors/directors/studios/developers
-- visualizations/charts once the data model and UX need are clearer
+- language breakdown
+- best-rated and most-revisited items
+- simple Compose-built charts before any new chart dependency
 
-Do not build charts before the dashboard/list/detail redesign unless needed.
+Stats should use existing local data first: `TrackedMedia`, `MediaItem`, `TrackingSession`, and `ProgressUpdate`. The first implementation should calculate stats in pure Kotlin from the observed domain models, without a Room schema change and without a new chart library.
 
 ### Config Page
 
@@ -238,7 +249,11 @@ Work in small, reversible slices:
 3. Redesign media list rows.
 4. Add Home as the landing dashboard.
 5. Move edit/create flows toward modal patterns.
-6. Add stats page after the core UI language is stable.
+6. Add stats page after the core UI language is stable:
+   - create pure Kotlin stats models/calculator
+   - add focused calculator tests
+   - add a Home stats CTA
+   - add a full stats screen as a Home drill-in
 7. Add settings/config later if needed.
 
 The first implementation pass should prioritize design foundations and the shared preview/detail page, because those choices will carry through the rest of the app.
