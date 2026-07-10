@@ -347,7 +347,7 @@ fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected:
                     onClick = { onRatingSelected(if (isSelected) null else rating) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isSelected) accent.copy(alpha = 0.20f) else Color.Transparent,
+                    color = Color.Transparent,
                 ) {
                     Box(
                         modifier = Modifier
@@ -358,7 +358,7 @@ fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected:
                         Icon(
                             imageVector = Icons.Filled.Star,
                             contentDescription = "$rating / 10",
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(26.dp),
                             tint = if (isActive) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f),
                         )
                     }
