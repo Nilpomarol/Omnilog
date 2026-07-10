@@ -1,9 +1,15 @@
 package com.nilpo.contenttracker
 
 import android.app.Application
+import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
+import okio.Path.Companion.toOkioPath
 import com.nilpo.contenttracker.BuildConfig
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
@@ -15,7 +21,23 @@ import com.nilpo.contenttracker.core.repository.OpenLibraryMetadataRepository
 import com.nilpo.contenttracker.core.repository.RawgMetadataRepository
 import com.nilpo.contenttracker.core.repository.TmdbMetadataRepository
 
-class ContentTrackerApplication : Application() {
+class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
+    override fun newImageLoader(context: Context): ImageLoader {
+        return ImageLoader.Builder(context)
+            .memoryCache {
+                MemoryCache.Builder()
+                    .maxSizePercent(context, 0.25)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(context.cacheDir.toOkioPath().resolve("cover_cache"))
+                    .maxSizeBytes(COVER_DISK_CACHE_SIZE_BYTES)
+                    .build()
+            }
+            .build()
+    }
+
     val database: ContentTrackerDatabase by lazy {
         Room.databaseBuilder(
             applicationContext,
@@ -44,6 +66,8 @@ class ContentTrackerApplication : Application() {
         )
     }
 }
+
+private const val COVER_DISK_CACHE_SIZE_BYTES = 200L * 1024L * 1024L
 
 private val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {

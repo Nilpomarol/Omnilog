@@ -1,9 +1,7 @@
 package com.nilpo.contenttracker.ui.common
 
-import android.graphics.BitmapFactory
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -23,16 +21,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -47,9 +42,7 @@ import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.net.URL
+import coil3.compose.AsyncImage
 
 data class MediaMetadataUi(
     val mediaType: MediaType,
@@ -398,29 +391,15 @@ fun MetadataCoverImage(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(10.dp),
 ) {
-    var image by remember(coverUrl) { mutableStateOf<ImageBitmap?>(null) }
-
-    LaunchedEffect(coverUrl) {
-        image = coverUrl?.let { url ->
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    URL(url).openStream().use { inputStream ->
-                        BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
-                    }
-                }.getOrNull()
-            }
-        }
-    }
-
     Surface(
         modifier = modifier,
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
-        image?.let { loadedImage ->
-            Image(
-                bitmap = loadedImage,
+        coverUrl?.let { url ->
+            AsyncImage(
+                model = url,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
