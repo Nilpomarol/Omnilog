@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
+import com.nilpo.contenttracker.core.model.BookEditionMetadata
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaType
@@ -30,7 +31,7 @@ class OpenLibraryMetadataRepository : MetadataRepository {
                     "number_of_pages_median,ratings_average,ratings_count,edition_key,isbn"
                 val response = getJson(
                     "https://openlibrary.org/search.json?q=$encodedQuery" +
-                        "&limit=20&lang=es&fields=$fields",
+                        "&limit=20&fields=$fields",
                 )
                 val docs = response.optJSONArray("docs") ?: return@withContext emptyList()
                 List(docs.length()) { docs.getJSONObject(it) }
@@ -44,10 +45,16 @@ class OpenLibraryMetadataRepository : MetadataRepository {
 
         return withContext(Dispatchers.IO) {
             runCatching {
+                if (suggestion.externalId.startsWith("/books/")) {
+                    return@runCatching getJson("https://openlibrary.org${suggestion.externalId}.json")
+                        .toEditionMetadata()
+                        ?.toMetadataSuggestion(suggestion)
+                        ?: suggestion
+                }
                 val work = getJson("https://openlibrary.org${suggestion.externalId}.json")
                 val editions = getJson(
                     "https://openlibrary.org${suggestion.externalId}/editions.json" +
-                    "?limit=10&fields=entries(title,number_of_pages,covers,isbn_10,isbn_13)",
+                    "?limit=20&fields=entries(key,title,number_of_pages,covers,isbn_10,isbn_13,languages,publish_date,publishers,physical_format)",
                 )
                 suggestion.enrichWith(work, editions)
             }.getOrDefault(suggestion)
@@ -108,22 +115,19 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         val description = work.descriptionText()
         val remoteTitle = work.optString("title").takeIf { it.isNotBlank() }
         val subjects = work.optJSONArray("subjects").toStringList().standardBookGenres()
-        val entries = editions.optJSONArray("entries")
-        val editionWithPages = entries.firstObjectWithPositiveInt("number_of_pages")
-        val editionWithCover = entries.firstObjectWithArray("covers")
-        val pageCount = editionWithPages?.optInt("number_of_pages", 0)?.takeIf { it > 0 }
-        val editionCoverId = editionWithCover
-            ?.optJSONArray("covers")
-            ?.firstLong()
-            ?.takeIf { it > 0L }
+        val editionSuggestions = editions.optJSONArray("entries").toBookEditionMetadata()
 
         return copy(
             title = remoteTitle ?: title,
             synopsis = description ?: synopsis,
             genres = subjects.ifEmpty { genres },
-            progressTotal = progressTotal ?: pageCount,
-            coverUrl = coverUrl ?: editionCoverId?.let { coverUrl(it) },
+            bookEditionSuggestions = editionSuggestions,
         )
+    }
+
+    private fun JSONObject.toEditionMetadata(): BookEditionMetadata? {
+        val externalId = optString("key").takeIf { it.startsWith("/books/") } ?: return null
+        return toBookEditionMetadata(externalId)
     }
 
     private fun getJson(url: String): JSONObject {
@@ -163,21 +167,63 @@ private fun JSONObject.descriptionText(): String? {
     }?.takeIf { it.isNotBlank() }
 }
 
-private fun JSONArray?.firstObjectWithPositiveInt(fieldName: String): JSONObject? {
-    if (this == null) return null
+private fun JSONArray?.toBookEditionMetadata(): List<BookEditionMetadata> {
+    if (this == null) return emptyList()
     return List(length()) { index -> optJSONObject(index) }
-        .firstOrNull { it?.optInt(fieldName, 0)?.let { value -> value > 0 } == true }
+        .mapNotNull { edition ->
+            val editionObject = edition ?: return@mapNotNull null
+            val externalId = editionObject.optString("key").takeIf { it.startsWith("/books/") }
+                ?: return@mapNotNull null
+            editionObject.toBookEditionMetadata(externalId)
+        }
+        .distinctBy { it.externalId }
 }
 
-private fun JSONArray?.firstObjectWithArray(fieldName: String): JSONObject? {
-    if (this == null) return null
-    return List(length()) { index -> optJSONObject(index) }
-        .firstOrNull { it?.optJSONArray(fieldName)?.length()?.let { length -> length > 0 } == true }
+private fun JSONObject.toBookEditionMetadata(externalId: String): BookEditionMetadata {
+    val coverId = optJSONArray("covers")?.firstLong()?.takeIf { it > 0L }
+    val isbn = optJSONArray("isbn_13")?.firstString() ?: optJSONArray("isbn_10")?.firstString()
+    val language = optJSONArray("languages").toEditionLanguage()
+    val publisher = optJSONArray("publishers")?.firstString()
+    return BookEditionMetadata(
+        externalId = externalId,
+        title = optString("title").takeIf { it.isNotBlank() },
+        releaseYear = optString("publish_date").extractYear(),
+        language = language,
+        pageCount = optInt("number_of_pages", 0).takeIf { it > 0 },
+        coverUrl = coverId?.let(::coverUrl),
+        isbn = isbn,
+        format = optString("physical_format").takeIf { it.isNotBlank() },
+        publisher = publisher,
+        sourceUrl = "https://openlibrary.org$externalId",
+    )
+}
+
+private fun JSONArray?.toEditionLanguage(): String? {
+    if (this == null || length() == 0) return null
+    val first = opt(0)
+    val languageCode = when (first) {
+        is String -> first
+        is JSONObject -> first.optString("key").substringAfterLast('/')
+        else -> null
+    }
+    return ItemLanguage.normalize(languageCode)
 }
 
 private fun JSONArray.firstLong(): Long? {
     if (length() == 0) return null
     return optLong(0, 0L)
+}
+
+private fun JSONArray.firstString(): String? {
+    return optString(0).takeIf { it.isNotBlank() }
+}
+
+private fun String.extractYear(): Int? {
+    return Regex("""\b(\d{4})\b""")
+        .find(this)
+        ?.value
+        ?.toIntOrNull()
+        ?.takeIf { it > 0 }
 }
 
 private fun coverUrl(coverId: Long): String {

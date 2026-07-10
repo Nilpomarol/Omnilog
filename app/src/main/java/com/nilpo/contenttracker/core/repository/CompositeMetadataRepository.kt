@@ -78,9 +78,6 @@ class CompositeMetadataRepository(
 
         ProviderSearchResult(
             suggestions = results.flatMap { it.suggestions }
-            .groupBy { it.bookMatchKey() }
-            .values
-            .map { it.mergeBookSuggestions() }
             .sortedByDescending { it.bookQualityScore(request.query) }
             .take(20),
             failedSources = results.flatMapTo(mutableSetOf()) { it.failedSources },
@@ -105,37 +102,6 @@ private data class ProviderSearchResult(
     val suggestions: List<MetadataSuggestion> = emptyList(),
     val failedSources: Set<MetadataSource> = emptySet(),
 )
-
-private fun List<MetadataSuggestion>.mergeBookSuggestions(): MetadataSuggestion {
-    val preferred = maxBy { suggestion ->
-        when (suggestion.source) {
-            MetadataSource.OpenLibrary -> 2
-            MetadataSource.GoogleBooks -> 1
-            else -> 0
-        }
-    }
-    val fallback = firstOrNull { it != preferred }
-
-    return preferred.copy(
-        coverUrl = preferred.coverUrl ?: fallback?.coverUrl,
-        synopsis = preferred.synopsis ?: fallback?.synopsis,
-        progressTotal = preferred.progressTotal ?: fallback?.progressTotal,
-        genres = preferred.genres.ifEmpty { fallback?.genres.orEmpty() },
-        creators = preferred.creators.ifEmpty { fallback?.creators.orEmpty() },
-        credits = preferred.credits.ifEmpty { fallback?.credits.orEmpty() },
-        externalRating = preferred.externalRating ?: fallback?.externalRating,
-        externalRatings = (preferred.externalRatings + fallback?.externalRatings.orEmpty()).distinctBy { it.source },
-        popularityScore = preferred.popularityScore ?: fallback?.popularityScore,
-    )
-}
-
-private fun MetadataSuggestion.bookMatchKey(): String {
-    return listOfNotNull(
-        title.normalizedBookKey(),
-        creators.firstOrNull()?.normalizedBookKey(),
-        releaseYear?.toString(),
-    ).joinToString("|")
-}
 
 private fun MetadataSuggestion.bookQualityScore(query: String): Int {
     val normalizedQuery = query.normalizedBookKey()

@@ -146,6 +146,12 @@
     <string name="metadata_season_picker_loading">Carregant temporades...</string>
     <string name="metadata_season_picker_empty">No s\'han trobat temporades útils. Pots crear la sèrie completa.</string>
     <string name="metadata_season_use_series">Sèrie completa</string>
+    <string name="book_edition_picker_title">Tria edició</string>
+    <string name="book_edition_picker_loading">Carregant edicions...</string>
+    <string name="book_edition_picker_empty">No s\'han trobat edicions útils.</string>
+    <string name="book_edition_select">Tria</string>
+    <string name="book_edition_pages">%1$d pàgines</string>
+    <string name="book_edition_isbn">ISBN %1$s</string>
     <string name="metadata_season_episode_count">%1$d episodis</string>
     <string name="metadata_multi_season_count">%1$d temp.</string>
     <string name="metadata_already_in_library">Ja a Omnilog</string>

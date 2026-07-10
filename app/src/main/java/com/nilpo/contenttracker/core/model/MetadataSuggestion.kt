@@ -25,7 +25,36 @@ data class MetadataSuggestion(
     val externalRating: MetadataRatingSuggestion? = null,
     val externalRatings: List<MetadataExternalRatingSuggestion> = emptyList(),
     val seasonSuggestions: List<MetadataSeasonSuggestion> = emptyList(),
+    val bookEdition: BookEditionMetadata? = null,
+    val bookEditionSuggestions: List<BookEditionMetadata> = emptyList(),
 )
+
+data class BookEditionMetadata(
+    val externalId: String,
+    val title: String? = null,
+    val releaseYear: Int? = null,
+    val language: String? = null,
+    val pageCount: Int? = null,
+    val coverUrl: String? = null,
+    val isbn: String? = null,
+    val format: String? = null,
+    val publisher: String? = null,
+    val sourceUrl: String? = null,
+) {
+    fun toMetadataSuggestion(work: MetadataSuggestion): MetadataSuggestion {
+        return work.copy(
+            externalId = externalId,
+            title = title ?: work.title,
+            releaseYear = releaseYear ?: work.releaseYear,
+            language = language ?: work.language,
+            progressTotal = pageCount ?: work.progressTotal,
+            coverUrl = coverUrl ?: work.coverUrl,
+            sourceUrl = sourceUrl ?: work.sourceUrl,
+            bookEdition = this,
+            bookEditionSuggestions = emptyList(),
+        )
+    }
+}
 
 data class MetadataSeasonSuggestion(
     val externalId: String,

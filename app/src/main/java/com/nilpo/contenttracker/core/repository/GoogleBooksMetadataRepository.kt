@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.BookEditionMetadata
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCredit
@@ -27,7 +28,8 @@ class GoogleBooksMetadataRepository(
         return withContext(Dispatchers.IO) {
             val encodedQuery = URLEncoder.encode(query.toGoogleBooksQuery(), "UTF-8")
             val fields = "items(id,volumeInfo(title,authors,description,pageCount," +
-                "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink))"
+                "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink," +
+                "industryIdentifiers,publisher,printType))"
             val response = getJson(
                 "https://www.googleapis.com/books/v1/volumes" +
                     "?q=$encodedQuery&maxResults=20&printType=books&orderBy=relevance" +
@@ -45,7 +47,8 @@ class GoogleBooksMetadataRepository(
         return withContext(Dispatchers.IO) {
             runCatching {
                 val fields = "id,volumeInfo(title,authors,description,pageCount," +
-                    "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink)"
+                    "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink," +
+                    "industryIdentifiers,publisher,printType)"
                 val detailed = getJson(
                     "https://www.googleapis.com/books/v1/volumes/${suggestion.externalId}" +
                         "?fields=$fields&key=$apiKey",
@@ -94,6 +97,29 @@ class GoogleBooksMetadataRepository(
         } else {
             null
         }
+        val isbn = info.optJSONArray("industryIdentifiers")
+            ?.let { identifiers ->
+                List(identifiers.length()) { identifiers.getJSONObject(it) }
+                    .firstOrNull { identifier -> identifier.optString("type") == "ISBN_13" }
+                    ?.optString("identifier")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: List(identifiers.length()) { identifiers.getJSONObject(it) }
+                        .firstOrNull { identifier -> identifier.optString("type") == "ISBN_10" }
+                        ?.optString("identifier")
+                        ?.takeIf { it.isNotBlank() }
+            }
+        val edition = BookEditionMetadata(
+            externalId = id,
+            title = title,
+            releaseYear = releaseYear,
+            language = ItemLanguage.normalize(info.optString("language")),
+            pageCount = info.optInt("pageCount", 0).takeIf { it > 0 },
+            coverUrl = coverUrl,
+            isbn = isbn,
+            format = info.optString("printType").takeIf { it.isNotBlank() },
+            publisher = info.optString("publisher").takeIf { it.isNotBlank() },
+            sourceUrl = info.optString("infoLink").takeIf { it.isNotBlank() },
+        )
 
         return MetadataSuggestion(
             source = MetadataSource.GoogleBooks,
@@ -127,6 +153,7 @@ class GoogleBooksMetadataRepository(
                     ),
                 )
             }.orEmpty(),
+            bookEdition = edition,
         )
     }
 

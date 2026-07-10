@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
+import com.nilpo.contenttracker.core.model.BookEditionMetadata
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCollection
@@ -128,10 +129,13 @@ fun AddMediaScreen(
     var collectionName by remember { mutableStateOf(initialCollection?.name ?: initialCollectionName.orEmpty()) }
     var collectionOrder by remember { mutableStateOf(initialCollectionOrder.orEmpty()) }
     var selectedSeason by remember { mutableStateOf<MetadataSeasonSuggestion?>(null) }
+    var selectedBookEdition by remember { mutableStateOf<BookEditionMetadata?>(null) }
     var useWholeSeries by remember { mutableStateOf(false) }
     val selectedMetadataSuggestion = metadataUiState.selectedSuggestion
     val selectedMetadataForForm = selectedMetadataSuggestion?.let { suggestion ->
-        selectedSeason?.toMetadataSuggestion(suggestion) ?: suggestion
+        selectedBookEdition?.toMetadataSuggestion(suggestion)
+            ?: selectedSeason?.toMetadataSuggestion(suggestion)
+            ?: suggestion
     }
     val availableCollectionsForType = availableCollections
         .filter { option -> selectedMediaType in option.mediaTypes }
@@ -157,11 +161,24 @@ fun AddMediaScreen(
 
     LaunchedEffect(selectedMetadataSuggestion?.source, selectedMetadataSuggestion?.externalId) {
         selectedSeason = null
+        selectedBookEdition = null
         useWholeSeries = false
     }
 
     LaunchedEffect(selectedMetadataForForm, metadataUiState.isLoadingDetails) {
         selectedMetadataSuggestion?.let { suggestion ->
+            if (
+                suggestion.source == MetadataSource.OpenLibrary &&
+                suggestion.mediaType == MediaType.Book &&
+                selectedBookEdition == null &&
+                (metadataUiState.isLoadingDetails || suggestion.bookEditionSuggestions.isNotEmpty())
+            ) {
+                selectedMediaType = suggestion.mediaType
+                if (step != AddMediaStep.Manual) {
+                    step = AddMediaStep.BookEdition
+                }
+                return@LaunchedEffect
+            }
             if (
                 !useWholeSeries &&
                 suggestion.shouldUseTvSeasonPicker(metadataUiState.isLoadingDetails) &&
@@ -247,6 +264,21 @@ fun AddMediaScreen(
                                 useWholeSeries = true
                                 selectedMetadataSuggestion?.let { suggestion ->
                                     applyMetadataSuggestion(suggestion)
+                                    step = AddMediaStep.Review
+                                }
+                            },
+                            onBackToSearch = { step = AddMediaStep.Search },
+                            onCancel = onCancel,
+                        )
+                        AddMediaStep.BookEdition -> BookEditionSelectionStep(
+                            suggestion = selectedMetadataSuggestion,
+                            isLoadingDetails = metadataUiState.isLoadingDetails,
+                            hasDetailsError = metadataUiState.hasDetailsError,
+                            accent = selectedMediaType.sectionAccent(),
+                            onEditionSelected = { edition ->
+                                selectedBookEdition = edition
+                                selectedMetadataSuggestion?.let { work ->
+                                    applyMetadataSuggestion(edition.toMetadataSuggestion(work))
                                     step = AddMediaStep.Review
                                 }
                             },
@@ -656,6 +688,118 @@ private fun SeasonSuggestionRow(
                 text = season.seasonNumber.toString(),
                 accent = accent,
             )
+        }
+    }
+}
+
+@Composable
+private fun BookEditionSelectionStep(
+    suggestion: MetadataSuggestion?,
+    isLoadingDetails: Boolean,
+    hasDetailsError: Boolean,
+    accent: Color,
+    onEditionSelected: (BookEditionMetadata) -> Unit,
+    onBackToSearch: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AddScreenHeader(
+        title = stringResource(R.string.book_edition_picker_title),
+        subtitle = suggestion?.title,
+    )
+
+    when {
+        isLoadingDetails -> SearchStatePanel(text = stringResource(R.string.book_edition_picker_loading))
+        hasDetailsError -> SearchStatePanel(
+            text = stringResource(R.string.metadata_details_error),
+            color = MaterialTheme.colorScheme.error,
+        )
+        suggestion?.bookEditionSuggestions.isNullOrEmpty() -> SearchStatePanel(
+            text = stringResource(R.string.book_edition_picker_empty),
+        )
+        else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            suggestion?.bookEditionSuggestions.orEmpty().forEach { edition ->
+                BookEditionSuggestionRow(
+                    edition = edition,
+                    accent = accent,
+                    onClick = { onEditionSelected(edition) },
+                )
+            }
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onBackToSearch) {
+            Text(text = stringResource(R.string.back))
+        }
+        TextButton(onClick = onCancel) {
+            Text(text = stringResource(R.string.cancel))
+        }
+    }
+}
+
+@Composable
+private fun BookEditionSuggestionRow(
+    edition: BookEditionMetadata,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    val details = buildList {
+        edition.language?.let(::add)
+        edition.releaseYear?.let { add(it.toString()) }
+        edition.pageCount?.let { add(stringResource(R.string.book_edition_pages, it)) }
+        edition.isbn?.let { add(stringResource(R.string.book_edition_isbn, it)) }
+        edition.format?.let(::add)
+        edition.publisher?.let(::add)
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MetadataCoverImage(
+                coverUrl = edition.coverUrl,
+                modifier = Modifier.size(width = 58.dp, height = 86.dp),
+                shape = RoundedCornerShape(6.dp),
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                edition.title?.let { title ->
+                    Text(
+                        text = displayMediaTitle(title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogColors.AppInk,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (details.isNotEmpty()) {
+                    Text(
+                        text = details.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogColors.AppMuted,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            ResultChip(text = stringResource(R.string.book_edition_select), accent = accent)
         }
     }
 }
@@ -1869,6 +2013,7 @@ private fun MediaType.sectionAccent(): Color {
 private enum class AddMediaStep {
     Search,
     Season,
+    BookEdition,
     Review,
     Manual,
 }
