@@ -340,18 +340,18 @@ fun TrackingProgressField(
 @Composable
 fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected: (Int?) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (currentRating != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "$currentRating / 10",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = accent,
-                )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = currentRating?.let { "$it / 10" } ?: "—",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (currentRating == null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f) else accent,
+            )
+            if (currentRating != null) {
                 Text(
                     text = stringResource(R.string.rating_clear),
                     style = MaterialTheme.typography.labelMedium,
