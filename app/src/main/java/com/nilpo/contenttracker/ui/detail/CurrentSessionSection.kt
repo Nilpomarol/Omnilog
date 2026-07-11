@@ -236,12 +236,12 @@ fun SessionEditorScreen(
     onSaveSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
 ) {
     var draftStatus by rememberSaveable(session.id) { mutableStateOf(session.status) }
-    var draftProgress by rememberSaveable(session.id) {
+    var draftProgressText by rememberSaveable(session.id) {
         mutableStateOf(
             if (session.status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
-                progressTotal
+                progressTotal.toString()
             } else {
-                session.progressCurrent
+                session.progressCurrent.toString()
             },
         )
     }
@@ -283,7 +283,7 @@ fun SessionEditorScreen(
                             onSaveSessionDetails(
                                 session.id,
                                 draftStatus,
-                                draftProgress.coerceIn(0, maxProgress),
+                                draftProgressText.toIntOrNull()?.coerceIn(0, maxProgress) ?: 0,
                                 draftRating,
                                 draftNotes.takeIf { it.isNotBlank() },
                                 draftStartedAtText.toLocalDateOrNull(),
@@ -326,7 +326,7 @@ fun SessionEditorScreen(
                         draftStartedAtText = LocalDate.now().toString()
                     }
                     if (status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
-                        draftProgress = progressTotal
+                        draftProgressText = progressTotal.toString()
                     }
                 },
             )
@@ -335,12 +335,12 @@ fun SessionEditorScreen(
 
             // ── Progress ─────────────────────────────────────────
             TrackingProgressField(
-                value = draftProgress.toString(),
+                value = draftProgressText,
                 progressTotal = progressTotal,
                 mediaType = mediaType,
                 label = stringResource(R.string.field_progress),
                 accent = stateColor,
-                onValueChange = { value -> value.toIntOrNull()?.let { draftProgress = it } },
+                onValueChange = { value -> draftProgressText = value },
             )
 
             EditSectionDivider()
