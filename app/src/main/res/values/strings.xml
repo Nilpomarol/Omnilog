@@ -130,6 +130,12 @@
     <string name="detail_history">Historial</string>
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
     <string name="detail_external_scores">Puntuacions</string>
+    <string name="detail_related_collection_title">Més de %1$s</string>
+    <string name="detail_related_collection_fallback">Més de la col·lecció</string>
+    <string name="detail_related_title">També et pot interessar</string>
+    <string name="detail_related_same_collection">Mateixa col·lecció</string>
+    <string name="detail_related_same_creator">Mateix autor o creador</string>
+    <string name="detail_related_shared_genres">Gèneres en comú</string>
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
     <string name="add_with_status">Afegeix com a %1$s</string>

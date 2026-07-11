@@ -55,6 +55,7 @@ import java.time.LocalDate
 @Composable
 fun DetailScreen(
     trackedMedia: TrackedMedia,
+    allTrackedMedia: List<TrackedMedia>,
     accent: Color,
     headerActions: DetailHeaderActions,
     onBack: () -> Unit,
@@ -73,6 +74,7 @@ fun DetailScreen(
     onDeleteMediaItem: (Long) -> Unit,
     onCollectionClick: () -> Unit,
     onAuthorClick: (String) -> Unit,
+    onRelatedMediaClick: (TrackedMedia) -> Unit,
     askForGoodreadsRating: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -99,6 +101,15 @@ fun DetailScreen(
         isOwned = trackedMedia.item.ownership.isOwned,
         externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
     )
+    val relatedMedia = remember(trackedMedia, allTrackedMedia) {
+        findRelatedMedia(
+            current = trackedMedia,
+            library = allTrackedMedia,
+        )
+    }
+    val collectionSectionTitle = trackedMedia.collection?.name?.let { collectionName ->
+        stringResource(R.string.detail_related_collection_title, collectionName)
+    } ?: stringResource(R.string.detail_related_collection_fallback)
 
     headerActions.onDeleteRequested = {
         showDeleteConfirmation = true
@@ -241,6 +252,28 @@ fun DetailScreen(
                     ExternalScoreTiles(
                         ratings = trackedMedia.externalRatings,
                         accent = accent,
+                    )
+                }
+            }
+
+            if (relatedMedia.collection.isNotEmpty()) {
+                item {
+                    RelatedMediaSection(
+                        title = collectionSectionTitle,
+                        relatedMedia = relatedMedia.collection,
+                        accent = accent,
+                        onMediaClick = onRelatedMediaClick,
+                    )
+                }
+            }
+
+            if (relatedMedia.generic.isNotEmpty()) {
+                item {
+                    RelatedMediaSection(
+                        title = stringResource(R.string.detail_related_title),
+                        relatedMedia = relatedMedia.generic,
+                        accent = accent,
+                        onMediaClick = onRelatedMediaClick,
                     )
                 }
             }

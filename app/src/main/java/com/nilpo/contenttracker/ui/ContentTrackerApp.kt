@@ -242,6 +242,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         selectedMediaId = trackedMedia.item.id
         isAdding = false
     }
+    val openRelatedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
+        viewModel.clearMetadataSearch()
+        viewModel.selectSection(trackedMedia.item.type.homeSection())
+        selectedDestination = AppDestination.Section
+        selectedCollectionId = null
+        selectedMediaId = trackedMedia.item.id
+        isAdding = false
+    }
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri: Uri? ->
@@ -883,6 +891,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             detailActions = actions
             DetailScreen(
                 trackedMedia = selectedMedia,
+                allTrackedMedia = uiState.allTrackedItems,
                 accent = uiState.selectedSection.accent,
                 headerActions = actions,
                 onBack = navigateBackFromDetail,
@@ -916,6 +925,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     selectedAuthor = author
                     authorReturnTarget = AuthorReturnTarget.Detail(selectedMedia.item.id)
                 },
+                onRelatedMediaClick = openRelatedMedia,
                 askForGoodreadsRating = askForGoodreadsRating,
                 modifier = Modifier
                     .fillMaxSize()
