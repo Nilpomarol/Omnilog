@@ -115,15 +115,10 @@ fun StatsScreen(
                 )
             }
             item {
-                StatsKpiGrid(snapshot = snapshot)
+                StatsActivityHero(snapshot = snapshot)
             }
             item {
                 StatsGroupHeader(title = stringResource(R.string.stats_group_overview))
-            }
-            item {
-                StatsSection(title = stringResource(R.string.stats_monthly_activity)) {
-                    MonthlyBarChart(buckets = snapshot.completedByMonth.takeLast(12))
-                }
             }
             item {
                 StatsSection(title = stringResource(R.string.stats_status_breakdown)) {
@@ -361,69 +356,159 @@ private fun DropdownChip(
 }
 
 @Composable
-private fun StatsKpiGrid(snapshot: StatsSnapshot) {
+private fun StatsActivityHero(snapshot: StatsSnapshot) {
+    val buckets = snapshot.completedByMonth.takeLast(12)
+    val maxValue = buckets.maxOfOrNull { bucket -> bucket.value } ?: 0
+    val busiestMonth = buckets.maxByOrNull { bucket -> bucket.value }
+        ?.takeIf { bucket -> bucket.value > 0 }
+    val legendMediaTypes = buckets
+        .flatMap { bucket -> bucket.segments.map { segment -> segment.mediaType } }
+        .distinct()
+        .sortedBy { mediaType -> mediaType.ordinal }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp),
         color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        border = BorderStroke(1.dp, OmnilogColors.Dashboard.copy(alpha = 0.42f)),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                text = stringResource(
-                    R.string.stats_period_summary,
-                    snapshot.completedInPeriod,
-                    snapshot.averageRating?.let { "%.1f".format(it) } ?: "-",
-                    snapshot.revisitCount,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatsSummaryMetric(
-                    label = stringResource(R.string.stats_completed),
-                    value = snapshot.completedInPeriod.toString(),
-                    accent = OmnilogColors.Completed,
-                    chipText = snapshot.deltas.completed?.let(::intDeltaText),
-                    chipColor = snapshot.deltas.completed?.let { deltaChipColor(it) },
-                    modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.stats_activity_hero_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.AppInk,
                 )
-                StatsSummaryMetric(
-                    label = stringResource(R.string.stats_average_rating),
-                    value = snapshot.averageRating?.let { "%.1f".format(it) } ?: "-",
-                    accent = OmnilogColors.Books,
-                    chipText = snapshot.deltas.averageRating?.let(::ratingDeltaText),
-                    chipColor = snapshot.deltas.averageRating?.let { deltaChipColor(it) },
-                    modifier = Modifier.weight(1f),
-                )
-                StatsSummaryMetric(
-                    label = stringResource(R.string.stats_revisits),
-                    value = snapshot.revisitCount.toString(),
-                    accent = OmnilogColors.Games,
-                    chipText = snapshot.deltas.revisits?.let(::intDeltaText),
-                    chipColor = snapshot.deltas.revisits?.let { deltaChipColor(it) },
-                    modifier = Modifier.weight(1f),
+                Text(
+                    text = snapshot.filters.period.label(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.Dashboard,
+                    maxLines = 1,
                 )
             }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(
+                    text = snapshot.completedInPeriod.toString(),
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.Completed,
+                )
+                Column(
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.stats_completed_short),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogColors.AppInk,
+                    )
+                    snapshot.deltas.completed?.let { delta ->
+                        DeltaChip(
+                            text = intDeltaText(delta),
+                            color = deltaChipColor(delta),
+                        )
+                    }
+                }
+            }
             Text(
-                text = stringResource(
-                    R.string.stats_library_summary,
-                    snapshot.totalTitles,
-                    snapshot.activeNow,
-                    snapshot.plannedNow,
-                ),
-                style = MaterialTheme.typography.labelMedium,
+                text = busiestMonth?.let { bucket ->
+                    stringResource(R.string.stats_activity_hero_busiest_month, bucket.label, bucket.value)
+                } ?: stringResource(R.string.stats_activity_hero_empty),
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
                 color = OmnilogColors.AppMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            ActivityHeroBars(
+                buckets = buckets,
+                maxValue = maxValue,
+            )
+            if (legendMediaTypes.isNotEmpty()) {
+                MonthlyLegend(mediaTypes = legendMediaTypes)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityHeroBars(
+    buckets: List<StatsBucket>,
+    maxValue: Int,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(142.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        buckets.forEach { bucket ->
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(116.dp),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    val barHeight = if (maxValue == 0 || bucket.value == 0) {
+                        2
+                    } else {
+                        (116 * bucket.value / maxValue).coerceAtLeast(3)
+                    }
+                    if (bucket.value > 0 && bucket.segments.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(barHeight.dp)
+                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)),
+                            verticalArrangement = Arrangement.Bottom,
+                        ) {
+                            bucket.segments.asReversed().forEach { segment ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(segment.value.toFloat())
+                                        .background(segment.mediaType.statsColor()),
+                                )
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(barHeight.dp)
+                                .background(
+                                    color = if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogColors.AppLine.copy(alpha = 0.58f),
+                                    shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp),
+                                ),
+                        )
+                    }
+                }
+                Text(
+                    text = bucket.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OmnilogColors.AppMuted,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }

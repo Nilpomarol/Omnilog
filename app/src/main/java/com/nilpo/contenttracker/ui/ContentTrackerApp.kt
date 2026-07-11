@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Checkbox
@@ -38,6 +40,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -112,6 +115,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val preferences = remember(context) {
+        context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
+    }
+    var askForGoodreadsRating by remember {
+        mutableStateOf(preferences.getBoolean("ask_for_goodreads_rating", true))
+    }
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var selectedAuthor by remember { mutableStateOf<String?>(null) }
@@ -588,7 +597,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     },
                     showBackNavigation = selectedMedia != null && !isAdding ||
                         selectedDestination == AppDestination.Stats,
-                    showDetailActions = selectedMedia != null && !isAdding,
+                    showDetailActions = selectedMedia != null && !isAdding && !detailActions.isManagingExternalRatings,
                     showBackupActions = selectedMedia == null &&
                         !isAdding &&
                         selectedDestination != AppDestination.Stats,
@@ -600,7 +609,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         uiState.selectedSection == MediaSection.Books,
                     detailActions = detailActions,
                     backupActions = backupActions,
-                    onBack = if (selectedDestination == AppDestination.Stats) {
+                    askForGoodreadsRating = askForGoodreadsRating,
+                    onAskForGoodreadsRatingChange = { enabled ->
+                        askForGoodreadsRating = enabled
+                        preferences.edit().putBoolean("ask_for_goodreads_rating", enabled).apply()
+                    },
+                    onBack = if (detailActions.isManagingExternalRatings) {
+                        detailActions.onCloseExternalRatings
+                    } else if (selectedDestination == AppDestination.Stats) {
                         navigateBackFromStats
                     } else {
                         navigateBackFromDetail
@@ -878,10 +894,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateExternalRating = viewModel::updateExternalRating,
                 onSetPrimaryExternalRating = viewModel::setPrimaryExternalRating,
                 onDeleteExternalRating = viewModel::deleteExternalRating,
-                onAddExternalTracking = viewModel::addExternalTracking,
-                onUpdateExternalTracking = viewModel::updateExternalTracking,
-                onUpdateExternalTrackingSynced = viewModel::updateExternalTrackingSynced,
-                onDeleteExternalTracking = viewModel::deleteExternalTracking,
                 onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
                 onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
                 onRefreshMediaItemMetadata = { startMetadataRefresh(selectedMedia) },
@@ -904,6 +916,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     selectedAuthor = author
                     authorReturnTarget = AuthorReturnTarget.Detail(selectedMedia.item.id)
                 },
+                askForGoodreadsRating = askForGoodreadsRating,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -1014,7 +1027,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         backupImport.preview.trackingSessionCount,
                         backupImport.preview.progressUpdateCount,
                         backupImport.preview.externalRatingCount,
-                        backupImport.preview.externalTrackingCount,
                     ),
                 )
             },
@@ -1615,10 +1627,11 @@ class DetailHeaderActions {
     var isEditingItemDetails by mutableStateOf(false)
     var isMenuExpanded by mutableStateOf(false)
     var isRefreshingMetadata by mutableStateOf(false)
+    var isManagingExternalRatings by mutableStateOf(false)
+    var onCloseExternalRatings: () -> Unit = {}
     var showLinkMetadata by mutableStateOf(false)
     var linkMetadataLabelResId by mutableStateOf(R.string.link_metadata_movie)
     var onDeleteRequested: () -> Unit = {}
-    var onManageExternalTrackingRequested: () -> Unit = {}
     var onManageExternalRatingsRequested: () -> Unit = {}
     var onRefreshMetadataRequested: () -> Unit = {}
     var onLinkMetadataRequested: () -> Unit = {}
@@ -1841,6 +1854,8 @@ private fun OmnilogTopBar(
     showStoryGraphImport: Boolean,
     detailActions: DetailHeaderActions,
     backupActions: BackupHeaderActions,
+    askForGoodreadsRating: Boolean,
+    onAskForGoodreadsRatingChange: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     TopAppBar(
@@ -1915,13 +1930,6 @@ private fun OmnilogTopBar(
                             onClick = {
                                 detailActions.isEditingItemDetails = !detailActions.isEditingItemDetails
                                 detailActions.isMenuExpanded = false
-                            },
-                        )
-                        HeaderMenuItem(
-                            text = stringResource(R.string.detail_external_tracking),
-                            onClick = {
-                                detailActions.isMenuExpanded = false
-                                detailActions.onManageExternalTrackingRequested()
                             },
                         )
                         HeaderMenuItem(
@@ -2028,6 +2036,16 @@ private fun OmnilogTopBar(
                             onClick = {
                                 backupActions.isMenuExpanded = false
                                 backupActions.onRestoreBackupRequested()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(text = "Ask for Goodreads rating") },
+                            onClick = { onAskForGoodreadsRatingChange(!askForGoodreadsRating) },
+                            trailingIcon = {
+                                Switch(
+                                    checked = askForGoodreadsRating,
+                                    onCheckedChange = onAskForGoodreadsRatingChange,
+                                )
                             },
                         )
                     }

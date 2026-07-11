@@ -41,16 +41,6 @@ object SampleTrackedMedia {
                     maxScore = 10.0,
                 ),
             ),
-            externalTracking = listOf(
-                ExternalTracking(
-                    id = 1,
-                    mediaItemId = 1,
-                    source = ExternalTrackingSource.Mal,
-                    externalItemId = "5114",
-                    url = "https://myanimelist.net/anime/5114",
-                    isSynced = true,
-                ),
-            ),
         ),
         TrackedMedia(
             item = MediaItem(
@@ -91,20 +81,6 @@ object SampleTrackedMedia {
                     maxScore = 5.0,
                 ),
             ),
-            externalTracking = listOf(
-                ExternalTracking(
-                    id = 2,
-                    mediaItemId = 3,
-                    source = ExternalTrackingSource.StoryGraph,
-                    isSynced = false,
-                ),
-                ExternalTracking(
-                    id = 3,
-                    mediaItemId = 3,
-                    source = ExternalTrackingSource.Goodreads,
-                    isSynced = true,
-                ),
-            ),
         ),
         TrackedMedia(
             item = MediaItem(
@@ -142,16 +118,6 @@ object SampleTrackedMedia {
                     maxScore = 10.0,
                 ),
             ),
-            externalTracking = listOf(
-                ExternalTracking(
-                    id = 4,
-                    mediaItemId = 5,
-                    source = ExternalTrackingSource.Imdb,
-                    externalItemId = "tt0133093",
-                    url = "https://www.imdb.com/title/tt0133093/",
-                    isSynced = true,
-                ),
-            ),
         ),
         TrackedMedia(
             item = MediaItem(
@@ -185,15 +151,6 @@ object SampleTrackedMedia {
                     source = ExternalRatingSource.Tmdb,
                     score = 8.4,
                     maxScore = 10.0,
-                ),
-            ),
-            externalTracking = listOf(
-                ExternalTracking(
-                    id = 5,
-                    mediaItemId = 7,
-                    source = ExternalTrackingSource.Imdb,
-                    externalItemId = "tt11280740",
-                    isSynced = false,
                 ),
             ),
         ),
@@ -241,14 +198,6 @@ object SampleTrackedMedia {
                     source = ExternalRatingSource.Rawg,
                     score = 4.6,
                     maxScore = 5.0,
-                ),
-            ),
-            externalTracking = listOf(
-                ExternalTracking(
-                    id = 6,
-                    mediaItemId = 8,
-                    source = ExternalTrackingSource.Backloggd,
-                    isSynced = false,
                 ),
             ),
         ),

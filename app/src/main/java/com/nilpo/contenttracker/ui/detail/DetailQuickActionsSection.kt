@@ -6,15 +6,26 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,15 +49,12 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
-import com.nilpo.contenttracker.core.model.ExternalTracking
-import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
-import com.nilpo.contenttracker.ui.common.OptionSelector
 import com.nilpo.contenttracker.ui.common.OmnilogModal
 import com.nilpo.contenttracker.ui.common.bestCollectionMatch
 import com.nilpo.contenttracker.ui.common.buildCollectionQuickSuggestions
@@ -62,18 +70,12 @@ fun DetailQuickActionsSection(
     collection: MediaCollection?,
     availableCollections: List<MediaCollection>,
     currentSession: TrackingSession?,
-    externalTracking: List<ExternalTracking>,
     accent: Color,
     onSaveItemDetails: (String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
-    onAddExternalTracking: (ExternalTrackingSource, String?, String?) -> Unit,
-    onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
 ) {
     var showCollectionDialog by rememberSaveable(item.id) { mutableStateOf(false) }
     var showNewSessionDialog by rememberSaveable(item.id) { mutableStateOf(false) }
-    var showExternalTrackingDialog by rememberSaveable(item.id) { mutableStateOf(false) }
-    val hasExternalTracking = externalTracking.isNotEmpty()
-    val isExternalTrackingSynced = hasExternalTracking && externalTracking.all { it.isSynced }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -109,25 +111,6 @@ fun DetailQuickActionsSection(
                 onClick = { showCollectionDialog = true },
             )
             QuickActionButton(
-                text = when {
-                    !hasExternalTracking -> stringResource(R.string.external_tracking_not_tracked)
-                    isExternalTrackingSynced -> stringResource(R.string.external_tracking_updated)
-                    else -> stringResource(R.string.external_tracking_pending)
-                },
-                accent = accent,
-                selected = isExternalTrackingSynced,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    if (!hasExternalTracking) {
-                        showExternalTrackingDialog = true
-                    } else {
-                        externalTracking.forEach { tracking ->
-                            onUpdateExternalTrackingSynced(tracking.id, !isExternalTrackingSynced)
-                        }
-                    }
-                },
-            )
-            QuickActionButton(
                 text = stringResource(R.string.new_session_title),
                 accent = accent,
                 modifier = Modifier.weight(1f),
@@ -156,21 +139,6 @@ fun DetailQuickActionsSection(
                 )
                 showCollectionDialog = false
             },
-        )
-    }
-
-    if (showExternalTrackingDialog) {
-        ExternalTrackingDialog(
-            externalTracking = externalTracking,
-            accent = accent,
-            onDismiss = { showExternalTrackingDialog = false },
-            onAddExternalTracking = { source, externalItemId, url ->
-                onAddExternalTracking(source, externalItemId, url)
-                showExternalTrackingDialog = false
-            },
-            onUpdateExternalTracking = { _, _, _, _ -> },
-            onUpdateSynced = onUpdateExternalTrackingSynced,
-            onDelete = {},
         )
     }
 
@@ -281,7 +249,7 @@ private fun CollectionDialog(
             ) {
                 Text(
                     text = stringResource(R.string.collection_modal_title),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = OmnilogColors.AppInk,
                 )
@@ -465,71 +433,86 @@ private fun String.toCollectionOrderOrNull(): Double? {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun ExternalRatingsDialog(
+fun ExternalRatingsPage(
+    title: String,
     mediaType: MediaType,
     ratings: List<ExternalRating>,
-    primaryScore: Double?,
-    primaryMaxScore: Double?,
+    primaryRatingId: Long?,
     accent: Color,
-    onDismiss: () -> Unit,
     onAddExternalRating: (ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onSetPrimary: (Long) -> Unit,
     onDelete: (Long) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    var showAddForm by rememberSaveable { mutableStateOf(false) }
     val defaultSource = mediaType.defaultExternalRatingSource()
     var selectedSource by rememberSaveable(mediaType) { mutableStateOf(defaultSource) }
     var score by rememberSaveable { mutableStateOf("") }
-    var maxScore by rememberSaveable(mediaType) { mutableStateOf(defaultSource.defaultMaxScore().cleanDecimal()) }
+    var maxScoreText by rememberSaveable(mediaType) { mutableStateOf(defaultSource.defaultMaxScore().cleanDecimal()) }
     var voteCount by rememberSaveable { mutableStateOf("") }
     var makePrimary by rememberSaveable(mediaType) {
         mutableStateOf(ratings.isEmpty() || mediaType.prefersPrimarySource(defaultSource))
     }
     val parsedScore = score.toDecimalOrNull()
-    val parsedMaxScore = maxScore.toDecimalOrNull()
+    val parsedMaxScore = maxScoreText.toDecimalOrNull()
+    val availableSources = mediaType.externalRatingSources()
 
-    OmnilogModal(onDismissRequest = onDismiss) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.background,
+    ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                Text(
-                    text = stringResource(R.string.detail_external_scores),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
-                )
-                TextButton(onClick = onDismiss) {
-                    Text(text = stringResource(R.string.cancel))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = OmnilogColors.AppInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(R.string.detail_external_scores),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = OmnilogColors.AppMuted,
+                    )
+                }
+                IconButton(onClick = { showAddForm = !showAddForm }) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.add_external_rating),
+                        tint = accent,
+                    )
                 }
             }
+            HorizontalDivider(color = OmnilogColors.AppLine)
 
-            Surface(
+            if (showAddForm) Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 color = OmnilogColors.AppPanel,
                 border = BorderStroke(1.dp, OmnilogColors.AppLine),
             ) {
                 Column(
-                    modifier = Modifier.padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier.padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    OptionSelector(
-                        label = stringResource(R.string.field_external_rating_source),
-                        options = ExternalRatingSource.entries,
+                    ExternalRatingSourceDropdown(
+                        sources = availableSources,
                         selectedOption = selectedSource,
-                        optionLabel = { it.displayName() },
                         onOptionSelected = { source ->
-                            val previousDefaultMax = selectedSource.defaultMaxScore().cleanDecimal()
                             selectedSource = source
-                            if (maxScore.isBlank() || maxScore == previousDefaultMax) {
-                                maxScore = source.defaultMaxScore().cleanDecimal()
-                            }
+                            maxScoreText = source.defaultMaxScore().cleanDecimal()
                             makePrimary = ratings.isEmpty() || mediaType.prefersPrimarySource(source)
                         },
                     )
@@ -538,62 +521,72 @@ fun ExternalRatingsDialog(
                             value = score,
                             onValueChange = { score = it },
                             label = { Text(stringResource(R.string.field_external_rating_score)) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(.85f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = omnilogModalTextFieldColors(accent),
+                        )
+                        Text(
+                            text = "/",
+                            modifier = Modifier.padding(top = 18.dp),
+                            color = OmnilogColors.AppMuted,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                         OutlinedTextField(
-                            value = maxScore,
-                            onValueChange = { maxScore = it },
+                            value = maxScoreText,
+                            onValueChange = { maxScoreText = it },
                             label = { Text(stringResource(R.string.field_external_rating_max)) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(.7f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = omnilogModalTextFieldColors(accent),
                         )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
                         OutlinedTextField(
                             value = voteCount,
                             onValueChange = { voteCount = it },
                             label = { Text(stringResource(R.string.field_external_rating_users)) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1.2f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = omnilogModalTextFieldColors(accent),
                         )
-                        Checkbox(checked = makePrimary, onCheckedChange = { makePrimary = it })
-                        Text(
-                            text = stringResource(R.string.make_primary_external_rating),
-                            color = OmnilogColors.AppMuted,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
                     }
-                    Button(
-                        enabled = parsedScore != null && parsedMaxScore != null && parsedMaxScore > 0.0,
-                        onClick = {
-                            onAddExternalRating(
-                                selectedSource,
-                                parsedScore ?: return@Button,
-                                parsedMaxScore ?: return@Button,
-                                voteCount.toIntOrNull(),
-                                makePrimary,
-                            )
-                            score = ""
-                            maxScore = selectedSource.defaultMaxScore().cleanDecimal()
-                            voteCount = ""
-                            makePrimary = mediaType.prefersPrimarySource(selectedSource)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = accent,
-                            contentColor = Color.Black,
-                        ),
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
-                        Text(text = stringResource(R.string.add_external_rating))
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = makePrimary, onCheckedChange = { makePrimary = it })
+                            Text(
+                                text = stringResource(R.string.make_primary_external_rating),
+                                color = OmnilogColors.AppMuted,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                        Button(
+                            enabled = parsedScore != null &&
+                                parsedMaxScore != null &&
+                                parsedMaxScore > 0.0 &&
+                                parsedScore <= parsedMaxScore,
+                            onClick = {
+                                onAddExternalRating(
+                                    selectedSource,
+                                    parsedScore ?: return@Button,
+                                    parsedMaxScore ?: return@Button,
+                                    voteCount.toIntOrNull(),
+                                    makePrimary,
+                                )
+                                score = ""
+                                voteCount = ""
+                                makePrimary = mediaType.prefersPrimarySource(selectedSource)
+                                showAddForm = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = accent,
+                                contentColor = Color.Black,
+                            ),
+                        ) { Text(text = stringResource(R.string.add_external_rating)) }
                     }
                 }
             }
@@ -601,13 +594,14 @@ fun ExternalRatingsDialog(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 300.dp),
+                    .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(ratings) { rating ->
                     ExternalRatingManageRow(
                         rating = rating,
-                        isPrimary = rating.matchesPrimary(primaryScore, primaryMaxScore),
+                        mediaType = mediaType,
+                        isPrimary = rating.id == primaryRatingId,
                         accent = accent,
                         onUpdateExternalRating = onUpdateExternalRating,
                         onSetPrimary = onSetPrimary,
@@ -623,18 +617,20 @@ fun ExternalRatingsDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ExternalRatingManageRow(
     rating: ExternalRating,
+    mediaType: MediaType,
     isPrimary: Boolean,
     accent: Color,
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onSetPrimary: (Long) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
+    var isEditing by rememberSaveable(rating.id) { mutableStateOf(false) }
     var selectedSource by rememberSaveable(rating.id) { mutableStateOf(rating.source) }
     var score by rememberSaveable(rating.id) { mutableStateOf(rating.score.cleanDecimal()) }
-    var maxScore by rememberSaveable(rating.id) { mutableStateOf(rating.maxScore.cleanDecimal()) }
     var voteCount by rememberSaveable(rating.id) { mutableStateOf(rating.voteCount?.toString().orEmpty()) }
     val parsedScore = score.toDecimalOrNull()
-    val parsedMaxScore = maxScore.toDecimalOrNull()
+    val maxScore = if (selectedSource == rating.source) rating.maxScore else selectedSource.defaultMaxScore()
+    val availableSources = (mediaType.externalRatingSources() + selectedSource).distinct()
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -644,88 +640,139 @@ private fun ExternalRatingManageRow(
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            OptionSelector(
-                label = stringResource(R.string.field_external_rating_source),
-                options = ExternalRatingSource.entries,
-                selectedOption = selectedSource,
-                optionLabel = { it.displayName() },
-                onOptionSelected = { source ->
-                    val previousDefaultMax = selectedSource.defaultMaxScore().cleanDecimal()
-                    selectedSource = source
-                    if (maxScore.isBlank() || maxScore == previousDefaultMax) {
-                        maxScore = source.defaultMaxScore().cleanDecimal()
+            if (!isEditing) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = rating.source.displayName(),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogColors.AppInk,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (isPrimary) {
+                        Text(
+                            text = stringResource(R.string.primary_external_rating),
+                            color = accent,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
+                    IconButton(onClick = { isEditing = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.edit),
+                            tint = OmnilogColors.AppMuted,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${rating.score.cleanDecimal()}/${rating.maxScore.cleanDecimal()}",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = OmnilogColors.AppInk,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = rating.voteCount?.let { "${it} ${stringResource(R.string.field_external_rating_users).lowercase()}" }.orEmpty(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogColors.AppMuted,
+                    )
+                    if (!isPrimary) {
+                        IconButton(onClick = { onSetPrimary(rating.id) }) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = stringResource(R.string.make_primary_external_rating),
+                                tint = accent,
+                            )
+                        }
+                    }
+                }
+            } else {
+            ExternalRatingSourceDropdown(
+                sources = availableSources,
+                selectedOption = selectedSource,
+                onOptionSelected = { source ->
+                    selectedSource = source
                 },
             )
-            if (isPrimary) {
-                Text(
-                    text = stringResource(R.string.primary_external_rating),
-                    color = accent,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(
                     value = score,
                     onValueChange = { score = it },
                     label = { Text(stringResource(R.string.field_external_rating_score)) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(.75f),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     colors = omnilogModalTextFieldColors(accent),
                 )
-                OutlinedTextField(
-                    value = maxScore,
-                    onValueChange = { maxScore = it },
-                    label = { Text(stringResource(R.string.field_external_rating_max)) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = omnilogModalTextFieldColors(accent),
+                Text(
+                    text = "/${maxScore.cleanDecimal()}",
+                    modifier = Modifier.padding(top = 18.dp),
+                    color = OmnilogColors.AppMuted,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
                 OutlinedTextField(
                     value = voteCount,
                     onValueChange = { voteCount = it },
                     label = { Text(stringResource(R.string.field_external_rating_users)) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1.25f),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     colors = omnilogModalTextFieldColors(accent),
                 )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { isEditing = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+                if (isPrimary) {
+                    Text(
+                        text = stringResource(R.string.primary_external_rating),
+                        color = accent,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    TextButton(onClick = { onSetPrimary(rating.id) }) {
+                        Text(text = stringResource(R.string.make_primary_external_rating))
+                    }
+                }
                 TextButton(
-                    enabled = parsedScore != null && parsedMaxScore != null && parsedMaxScore > 0.0,
+                    enabled = parsedScore != null && parsedScore <= maxScore,
                     onClick = {
                         onUpdateExternalRating(
                             rating.id,
                             selectedSource,
                             parsedScore ?: return@TextButton,
-                            parsedMaxScore ?: return@TextButton,
+                            maxScore,
                             voteCount.toIntOrNull(),
                             isPrimary,
                         )
+                        isEditing = false
                     },
-                ) {
-                    Text(text = stringResource(R.string.save))
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { onSetPrimary(rating.id) }) {
-                    Text(text = stringResource(R.string.make_primary_external_rating))
-                }
+                ) { Text(text = stringResource(R.string.save)) }
                 TextButton(onClick = { onDelete(rating.id) }) {
                     Text(
                         text = stringResource(R.string.delete_external_rating),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+            }
             }
         }
     }
@@ -734,6 +781,46 @@ private fun ExternalRatingManageRow(
 private fun String.toDecimalOrNull(): Double? = replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0.0 }
 
 private fun Double.cleanDecimal(): String = if (this % 1.0 == 0.0) toInt().toString() else toString()
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ExternalRatingSourceDropdown(
+    sources: List<ExternalRatingSource>,
+    selectedOption: ExternalRatingSource,
+    onOptionSelected: (ExternalRatingSource) -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = selectedOption.displayName(),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(stringResource(R.string.field_external_rating_source)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            sources.forEach { source ->
+                DropdownMenuItem(
+                    text = { Text(source.displayName()) },
+                    onClick = {
+                        onOptionSelected(source)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
 
 private fun MediaType.defaultExternalRatingSource(): ExternalRatingSource {
     return when (this) {
@@ -752,6 +839,8 @@ private fun ExternalRatingSource.defaultMaxScore(): Double {
         ExternalRatingSource.StoryGraph,
             -> 5.0
         ExternalRatingSource.RottenTomatoes,
+        ExternalRatingSource.Metacritic,
+        ExternalRatingSource.Steam,
             -> 100.0
         else -> 10.0
     }
@@ -761,195 +850,6 @@ private fun MediaType.prefersPrimarySource(source: ExternalRatingSource): Boolea
     return this == MediaType.Book && source == ExternalRatingSource.Goodreads
 }
 
-private fun ExternalRating.matchesPrimary(primaryScore: Double?, primaryMaxScore: Double?): Boolean {
-    return primaryScore != null &&
-        primaryMaxScore != null &&
-        kotlin.math.abs(score - primaryScore) < 0.001 &&
-        kotlin.math.abs(maxScore - primaryMaxScore) < 0.001
-}
-
-@Composable
-@OptIn(ExperimentalMaterial3Api::class)
-fun ExternalTrackingDialog(
-    externalTracking: List<ExternalTracking>,
-    accent: Color,
-    onDismiss: () -> Unit,
-    onAddExternalTracking: (ExternalTrackingSource, String?, String?) -> Unit,
-    onUpdateExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
-    onUpdateSynced: (Long, Boolean) -> Unit,
-    onDelete: (Long) -> Unit,
-) {
-    var selectedSource by rememberSaveable { mutableStateOf(ExternalTrackingSource.Mal) }
-    var externalItemId by rememberSaveable { mutableStateOf("") }
-    var url by rememberSaveable { mutableStateOf("") }
-
-    OmnilogModal(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.detail_external_tracking),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = onDismiss) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    if (externalTracking.isEmpty()) {
-                        Button(
-                            onClick = {
-                                onAddExternalTracking(
-                                    selectedSource,
-                                    externalItemId,
-                                    url,
-                                )
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = accent,
-                                contentColor = Color.Black,
-                            ),
-                        ) {
-                            Text(text = stringResource(R.string.add_external_tracking))
-                        }
-                    }
-                }
-            }
-
-            if (externalTracking.isEmpty()) {
-                OptionSelector(
-                    label = stringResource(R.string.field_external_tracking_source),
-                    options = ExternalTrackingSource.entries,
-                    selectedOption = selectedSource,
-                    optionLabel = { source -> source.label() },
-                    onOptionSelected = { source -> selectedSource = source },
-                )
-                OutlinedTextField(
-                    value = externalItemId,
-                    onValueChange = { externalItemId = it },
-                    label = { Text(stringResource(R.string.field_external_tracking_id)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = omnilogModalTextFieldColors(accent),
-                )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text(stringResource(R.string.field_external_tracking_url)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = omnilogModalTextFieldColors(accent),
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 360.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(externalTracking) { tracking ->
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            color = OmnilogColors.AppPanel,
-                            border = BorderStroke(1.dp, OmnilogColors.AppLine),
-                        ) {
-                            ExternalTrackingManageRow(
-                                tracking = tracking,
-                                accent = accent,
-                                onUpdateExternalTracking = onUpdateExternalTracking,
-                                onUpdateSynced = onUpdateSynced,
-                                onDelete = onDelete,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExternalTrackingManageRow(
-    tracking: ExternalTracking,
-    accent: Color,
-    onUpdateExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
-    onUpdateSynced: (Long, Boolean) -> Unit,
-    onDelete: (Long) -> Unit,
-) {
-    var selectedSource by rememberSaveable(tracking.id) { mutableStateOf(tracking.source) }
-    var externalItemId by rememberSaveable(tracking.id) { mutableStateOf(tracking.externalItemId.orEmpty()) }
-    var url by rememberSaveable(tracking.id) { mutableStateOf(tracking.url.orEmpty()) }
-
-    Column(
-        modifier = Modifier.padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        OptionSelector(
-            label = stringResource(R.string.field_external_tracking_source),
-            options = ExternalTrackingSource.entries,
-            selectedOption = selectedSource,
-            optionLabel = { source -> source.label() },
-            onOptionSelected = { source -> selectedSource = source },
-        )
-        Text(
-            text = if (tracking.isSynced) {
-                stringResource(R.string.external_tracking_updated)
-            } else {
-                stringResource(R.string.external_tracking_pending)
-            },
-            color = if (tracking.isSynced) accent else OmnilogColors.Paused,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        OutlinedTextField(
-            value = externalItemId,
-            onValueChange = { externalItemId = it },
-            label = { Text(stringResource(R.string.field_external_tracking_id)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = omnilogModalTextFieldColors(accent),
-        )
-        OutlinedTextField(
-            value = url,
-            onValueChange = { url = it },
-            label = { Text(stringResource(R.string.field_external_tracking_url)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = omnilogModalTextFieldColors(accent),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(
-                onClick = {
-                    onUpdateExternalTracking(
-                        tracking.id,
-                        selectedSource,
-                        externalItemId,
-                        url,
-                    )
-                },
-            ) {
-                Text(text = stringResource(R.string.save))
-            }
-            TextButton(onClick = { onUpdateSynced(tracking.id, false) }) {
-                Text(text = stringResource(R.string.mark_external_tracking_pending))
-            }
-            TextButton(onClick = { onDelete(tracking.id) }) {
-                Text(
-                    text = stringResource(R.string.delete_external_tracking),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun NewSessionDialog(
@@ -999,16 +899,108 @@ private fun MediaItem.effectiveProgressTotal(): Int? {
     return progressTotal.takeUnless { type == MediaType.Game }
 }
 
-@Composable
-private fun ExternalTrackingSource.label(): String =
-    when (this) {
-        ExternalTrackingSource.Mal -> "MAL"
-        ExternalTrackingSource.Imdb -> "IMDb"
-        ExternalTrackingSource.StoryGraph -> "StoryGraph"
-        ExternalTrackingSource.Goodreads -> "Goodreads"
-        ExternalTrackingSource.Letterboxd -> "Letterboxd"
-        ExternalTrackingSource.Tmdb -> "TMDb"
-        ExternalTrackingSource.Rawg -> "RAWG"
-        ExternalTrackingSource.Backloggd -> "Backloggd"
-        ExternalTrackingSource.Other -> stringResource(R.string.external_tracking_other)
+private fun MediaType.externalRatingSources(): List<ExternalRatingSource> {
+    return when (this) {
+        MediaType.Anime -> listOf(ExternalRatingSource.AniList, ExternalRatingSource.Mal)
+        MediaType.Book -> listOf(
+            ExternalRatingSource.Goodreads,
+            ExternalRatingSource.StoryGraph,
+            ExternalRatingSource.GoogleBooks,
+            ExternalRatingSource.OpenLibrary,
+        )
+        MediaType.Movie,
+        MediaType.TvShow,
+            -> listOf(
+                ExternalRatingSource.Imdb,
+                ExternalRatingSource.Tmdb,
+                ExternalRatingSource.RottenTomatoes,
+                ExternalRatingSource.Metacritic,
+                ExternalRatingSource.FilmAffinity,
+            )
+        MediaType.Game -> listOf(
+            ExternalRatingSource.Rawg,
+            ExternalRatingSource.Metacritic,
+            ExternalRatingSource.Steam,
+        )
     }
+}
+
+@Composable
+fun GoodreadsRatingPrompt(
+    accent: Color,
+    onSave: (Double, Int?) -> Unit,
+    onSkipBook: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var score by rememberSaveable { mutableStateOf("") }
+    var voteCount by rememberSaveable { mutableStateOf("") }
+    val parsedScore = score.toDecimalOrNull()
+    val parsedVoteCount = voteCount.toIntOrNull()
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "Add Goodreads rating",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogColors.AppInk,
+            )
+            Text(
+                text = "This book has no Goodreads score yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogColors.AppMuted,
+            )
+            OutlinedTextField(
+                value = score,
+                onValueChange = { score = it },
+                label = { Text("Rating (out of 5)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = omnilogModalTextFieldColors(accent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = voteCount,
+                onValueChange = { voteCount = it },
+                label = { Text("Users who rated it") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = omnilogModalTextFieldColors(accent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                TextButton(onClick = onSkipBook) {
+                    Text(text = "Don't ask for this book")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    enabled = parsedScore != null && parsedScore in 0.0..5.0 &&
+                        (voteCount.isBlank() || parsedVoteCount != null),
+                    onClick = {
+                        onSave(parsedScore ?: return@Button, parsedVoteCount)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accent,
+                        contentColor = Color.Black,
+                    ),
+                ) {
+                    Text(text = stringResource(R.string.save))
+                }
+            }
+        }
+    }
+}

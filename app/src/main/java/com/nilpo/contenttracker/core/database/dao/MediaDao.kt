@@ -6,7 +6,6 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
-import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
@@ -66,9 +65,6 @@ interface MediaDao {
 
     @Query("SELECT * FROM external_ratings WHERE mediaItemId = :mediaItemId ORDER BY id")
     suspend fun getExternalRatingsForItem(mediaItemId: Long): List<ExternalRatingEntity>
-
-    @Query("SELECT * FROM external_tracking ORDER BY id")
-    suspend fun getExternalTracking(): List<ExternalTrackingEntity>
 
     @Query("SELECT * FROM media_collections WHERE id = :collectionId LIMIT 1")
     suspend fun getMediaCollection(collectionId: Long): MediaCollectionEntity?
@@ -137,9 +133,6 @@ interface MediaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExternalRating(externalRating: ExternalRatingEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExternalTracking(externalTracking: ExternalTrackingEntity): Long
-
     @Query("SELECT * FROM external_ratings WHERE id = :externalRatingId LIMIT 1")
     suspend fun getExternalRating(externalRatingId: Long): ExternalRatingEntity?
 
@@ -149,7 +142,8 @@ interface MediaDao {
         SET source = :source,
             score = :score,
             maxScore = :maxScore,
-            voteCount = :voteCount
+            voteCount = :voteCount,
+            origin = :origin
         WHERE id = :externalRatingId
         """,
     )
@@ -159,6 +153,7 @@ interface MediaDao {
         score: Double,
         maxScore: Double,
         voteCount: Int?,
+        origin: String,
     )
 
     @Query(
@@ -166,7 +161,8 @@ interface MediaDao {
         UPDATE media_items
         SET externalRatingScore = :score,
             externalRatingMax = :maxScore,
-            externalRatingVoteCount = :voteCount
+            externalRatingVoteCount = :voteCount,
+            primaryExternalRatingId = :primaryExternalRatingId
         WHERE id = :mediaItemId
         """,
     )
@@ -175,34 +171,8 @@ interface MediaDao {
         score: Double?,
         maxScore: Double?,
         voteCount: Int?,
+        primaryExternalRatingId: Long?,
     )
-
-    @Query("UPDATE external_tracking SET isSynced = :isSynced WHERE id = :externalTrackingId")
-    suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
-
-    @Query("UPDATE external_tracking SET isSynced = :isSynced WHERE mediaItemId = :mediaItemId")
-    suspend fun updateExternalTrackingSyncedForMedia(mediaItemId: Long, isSynced: Boolean)
-
-    @Query(
-        """
-        UPDATE external_tracking
-        SET source = :source,
-            externalItemId = :externalItemId,
-            url = :url,
-            isSynced = :isSynced
-        WHERE id = :externalTrackingId
-        """,
-    )
-    suspend fun updateExternalTracking(
-        externalTrackingId: Long,
-        source: String,
-        externalItemId: String?,
-        url: String?,
-        isSynced: Boolean,
-    )
-
-    @Query("DELETE FROM external_tracking WHERE id = :externalTrackingId")
-    suspend fun deleteExternalTracking(externalTrackingId: Long)
 
     @Query(
         """
@@ -255,6 +225,9 @@ interface MediaDao {
         synopsis: String?,
         sourceUrl: String?,
     )
+
+    @Query("UPDATE media_items SET primaryExternalRatingId = :primaryExternalRatingId WHERE id = :mediaItemId")
+    suspend fun setPrimaryRatingId(mediaItemId: Long, primaryExternalRatingId: Long?)
 
     @Query(
         """
@@ -408,11 +381,11 @@ interface MediaDao {
     @Query("DELETE FROM external_ratings WHERE mediaItemId = :mediaItemId")
     suspend fun deleteExternalRatingsForItem(mediaItemId: Long)
 
+    @Query("DELETE FROM external_ratings WHERE mediaItemId = :mediaItemId AND origin = 'Provider'")
+    suspend fun deleteProviderExternalRatingsForItem(mediaItemId: Long)
+
     @Query("DELETE FROM external_ratings WHERE id = :externalRatingId")
     suspend fun deleteExternalRating(externalRatingId: Long)
-
-    @Query("DELETE FROM external_tracking")
-    suspend fun deleteAllExternalTracking()
 
     @Query("DELETE FROM external_ratings")
     suspend fun deleteAllExternalRatings()
@@ -440,9 +413,7 @@ interface MediaDao {
         sessions: List<TrackingSessionEntity>,
         progressUpdates: List<ProgressUpdateEntity>,
         externalRatings: List<ExternalRatingEntity>,
-        externalTracking: List<ExternalTrackingEntity>,
     ) {
-        deleteAllExternalTracking()
         deleteAllExternalRatings()
         deleteAllProgressUpdates()
         deleteAllTrackingSessions()
@@ -456,7 +427,6 @@ interface MediaDao {
         sessions.forEach { insertTrackingSession(it) }
         progressUpdates.forEach { insertProgressUpdate(it) }
         externalRatings.forEach { insertExternalRating(it) }
-        externalTracking.forEach { insertExternalTracking(it) }
         deleteEmptyMediaCollections()
     }
 }

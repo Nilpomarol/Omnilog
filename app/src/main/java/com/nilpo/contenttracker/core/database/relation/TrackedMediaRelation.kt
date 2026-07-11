@@ -3,7 +3,6 @@ package com.nilpo.contenttracker.core.database.relation
 import androidx.room.Embedded
 import androidx.room.Relation
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
-import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
@@ -38,9 +37,4 @@ data class TrackedMediaRelation(
         entityColumn = "mediaItemId",
     )
     val externalRatings: List<ExternalRatingEntity>,
-    @Relation(
-        parentColumn = "id",
-        entityColumn = "mediaItemId",
-    )
-    val externalTracking: List<ExternalTrackingEntity>,
 )

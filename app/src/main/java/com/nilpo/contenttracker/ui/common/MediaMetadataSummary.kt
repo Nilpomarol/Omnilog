@@ -69,7 +69,6 @@ data class MediaMetadataUi(
     val collectionName: String? = null,
     val collectionSortOrder: Double? = null,
     val isOwned: Boolean = false,
-    val isExternalTrackingUpdated: Boolean = false,
 )
 
 @Composable
@@ -105,7 +104,7 @@ fun MediaMetadataHero(
                 coverUrl = metadata.coverUrl,
                 modifier = Modifier.size(width = 156.dp, height = 234.dp),
             )
-            if (metadata.isOwned || metadata.isExternalTrackingUpdated) {
+            if (metadata.isOwned) {
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -117,13 +116,6 @@ fun MediaMetadataHero(
                             iconResId = R.drawable.ic_owned_badge,
                             contentDescription = stringResource(R.string.owned_label),
                             tint = OmnilogColors.Dashboard,
-                        )
-                    }
-                    if (metadata.isExternalTrackingUpdated) {
-                        CoverBadge(
-                            iconResId = R.drawable.ic_external_updated_badge,
-                            contentDescription = stringResource(R.string.external_tracking_updated),
-                            tint = OmnilogColors.Completed,
                         )
                     }
                 }

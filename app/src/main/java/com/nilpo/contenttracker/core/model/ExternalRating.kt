@@ -7,7 +7,13 @@ data class ExternalRating(
     val score: Double,
     val maxScore: Double,
     val voteCount: Int? = null,
+    val origin: ExternalRatingOrigin = ExternalRatingOrigin.Provider,
 )
+
+enum class ExternalRatingOrigin {
+    Provider,
+    Manual,
+}
 
 enum class ExternalRatingSource {
     AniList,

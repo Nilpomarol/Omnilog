@@ -1109,13 +1109,13 @@ private fun FirstSessionForm(
                     value = initialProgress,
                     progressTotal = progressTotal,
                     mediaType = mediaType,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                     onValueChange = onInitialProgressChange,
                 )
                 DateFieldsSection(
                     startedAt = initialStartedAt,
                     onStartedAtChange = onInitialStartedAtChange,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                 )
             }
             TrackingStatus.Completed -> {
@@ -1124,12 +1124,12 @@ private fun FirstSessionForm(
                     progressTotal = progressTotal,
                     mediaType = mediaType,
                     labelResId = R.string.field_final_progress,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                     onValueChange = onInitialProgressChange,
                 )
                 RatingSection(
                     initialRating = initialRating,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                     onInitialRatingSelected = onInitialRatingSelected,
                 )
                 DateFieldsSection(
@@ -1137,7 +1137,7 @@ private fun FirstSessionForm(
                     onStartedAtChange = onInitialStartedAtChange,
                     finishedAt = initialFinishedAt,
                     onFinishedAtChange = onInitialFinishedAtChange,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                 )
             }
             TrackingStatus.Paused,
@@ -1147,12 +1147,12 @@ private fun FirstSessionForm(
                     value = initialProgress,
                     progressTotal = progressTotal,
                     mediaType = mediaType,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                     onValueChange = onInitialProgressChange,
                 )
                 RatingSection(
                     initialRating = initialRating,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                     onInitialRatingSelected = onInitialRatingSelected,
                 )
                 DateFieldsSection(
@@ -1160,7 +1160,7 @@ private fun FirstSessionForm(
                     onStartedAtChange = onInitialStartedAtChange,
                     finishedAt = initialFinishedAt,
                     onFinishedAtChange = onInitialFinishedAtChange,
-                    accent = accent,
+                    accent = selectedStatus.stateColor,
                 )
             }
         }
@@ -1213,20 +1213,15 @@ private fun DateFieldsSection(
 ) {
     FormDivider()
     FormSectionHeader(title = stringResource(R.string.session_dates))
-    TrackingDateField(
-        label = stringResource(R.string.session_started_label),
-        value = startedAt,
+    TrackingDateRange(
+        startedLabel = stringResource(R.string.session_started_label),
+        startedValue = startedAt,
         accent = accent,
-        onValueChange = onStartedAtChange,
+        onStartedValueChange = onStartedAtChange,
+        finishedLabel = finishedAt?.let { stringResource(R.string.session_finished_label) },
+        finishedValue = finishedAt,
+        onFinishedValueChange = onFinishedAtChange,
     )
-    if (finishedAt != null && onFinishedAtChange != null) {
-        TrackingDateField(
-            label = stringResource(R.string.session_finished_label),
-            value = finishedAt,
-            accent = accent,
-            onValueChange = onFinishedAtChange,
-        )
-    }
 }
 
 @Composable

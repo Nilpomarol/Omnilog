@@ -7,7 +7,6 @@ data class TrackedMedia(
     val sessions: List<TrackingSession>,
     val credits: List<MediaCredit> = emptyList(),
     val externalRatings: List<ExternalRating> = emptyList(),
-    val externalTracking: List<ExternalTracking> = emptyList(),
 ) {
     val currentSession: TrackingSession?
         get() = sessions.maxByOrNull { it.sessionNumber }

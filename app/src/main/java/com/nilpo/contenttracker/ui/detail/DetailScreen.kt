@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.detail
 
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,11 +19,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,7 +36,6 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
-import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -64,10 +66,6 @@ fun DetailScreen(
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onSetPrimaryExternalRating: (Long) -> Unit,
     onDeleteExternalRating: (Long) -> Unit,
-    onAddExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
-    onUpdateExternalTracking: (Long, ExternalTrackingSource, String?, String?) -> Unit,
-    onUpdateExternalTrackingSynced: (Long, Boolean) -> Unit,
-    onDeleteExternalTracking: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
     onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
@@ -75,6 +73,7 @@ fun DetailScreen(
     onDeleteMediaItem: (Long) -> Unit,
     onCollectionClick: () -> Unit,
     onAuthorClick: (String) -> Unit,
+    askForGoodreadsRating: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -82,28 +81,33 @@ fun DetailScreen(
         .filter { session -> session.id != currentSession?.id }
         .sortedBy { it.sessionNumber }
     var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
-    var showExternalTrackingManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var showExternalRatingsManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
-    val isExternalTrackingUpdated = trackedMedia.externalTracking.isNotEmpty() &&
-        trackedMedia.externalTracking.all { it.isSynced }
+    var dismissGoodreadsPrompt by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val skippedGoodreadsPromptIds = remember(context) {
+        context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
+    }.getStringSet("skipped_goodreads_rating_prompt_ids", emptySet()).orEmpty()
+    val showGoodreadsPrompt = askForGoodreadsRating &&
+        !dismissGoodreadsPrompt &&
+        trackedMedia.item.type == MediaType.Book &&
+        trackedMedia.externalRatings.none { it.source == ExternalRatingSource.Goodreads } &&
+        trackedMedia.item.id.toString() !in skippedGoodreadsPromptIds
     val metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
         collectionName = trackedMedia.collection?.name,
         collectionSortOrder = trackedMedia.item.collectionSortOrder,
         progressTotal = trackedMedia.item.effectiveProgressTotal(),
         isOwned = trackedMedia.item.ownership.isOwned,
-        isExternalTrackingUpdated = isExternalTrackingUpdated,
         externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
     )
 
     headerActions.onDeleteRequested = {
         showDeleteConfirmation = true
     }
-    headerActions.onManageExternalTrackingRequested = {
-        showExternalTrackingManager = true
-    }
     headerActions.onManageExternalRatingsRequested = {
         showExternalRatingsManager = true
     }
+    headerActions.isManagingExternalRatings = showExternalRatingsManager
+    headerActions.onCloseExternalRatings = { showExternalRatingsManager = false }
     headerActions.onRefreshMetadataRequested = {
         onRefreshMediaItemMetadata(trackedMedia.item.id)
     }
@@ -118,6 +122,24 @@ fun DetailScreen(
         MediaType.Anime -> R.string.link_metadata_anime
         MediaType.Book -> R.string.link_metadata_book
         else -> R.string.link_metadata_movie
+    }
+
+    if (showExternalRatingsManager) {
+        ExternalRatingsPage(
+            title = displayMediaTitle(trackedMedia.item.title),
+            mediaType = trackedMedia.item.type,
+            ratings = trackedMedia.externalRatings,
+            primaryRatingId = trackedMedia.item.primaryExternalRatingId,
+            accent = accent,
+            onAddExternalRating = { source, score, maxScore, voteCount, makePrimary ->
+                onAddExternalRating(trackedMedia.item.id, source, score, maxScore, voteCount, makePrimary)
+            },
+            onUpdateExternalRating = onUpdateExternalRating,
+            onSetPrimary = onSetPrimaryExternalRating,
+            onDelete = onDeleteExternalRating,
+            modifier = modifier,
+        )
+        return
     }
 
     Surface(
@@ -163,7 +185,6 @@ fun DetailScreen(
                     collection = trackedMedia.collection,
                     availableCollections = trackedMedia.availableCollections,
                     currentSession = currentSession,
-                    externalTracking = trackedMedia.externalTracking,
                     accent = accent,
                     onSaveItemDetails = { title, collectionId, newCollectionName, collectionSortOrder, progressTotal, ownershipType ->
                         onUpdateMediaItemDetails(
@@ -177,15 +198,6 @@ fun DetailScreen(
                         )
                     },
                     onStartNewSession = onStartNewSession,
-                    onAddExternalTracking = { source, externalItemId, url ->
-                        onAddExternalTracking(
-                            trackedMedia.item.id,
-                            source,
-                            externalItemId,
-                            url,
-                        )
-                    },
-                    onUpdateExternalTrackingSynced = onUpdateExternalTrackingSynced,
                 )
             }
 
@@ -235,20 +247,31 @@ fun DetailScreen(
         }
     }
 
-    if (showExternalRatingsManager) {
-        ExternalRatingsDialog(
-            mediaType = trackedMedia.item.type,
-            ratings = trackedMedia.externalRatings,
-            primaryScore = trackedMedia.item.externalRatingScore,
-            primaryMaxScore = trackedMedia.item.externalRatingMax,
+    if (showGoodreadsPrompt) {
+        GoodreadsRatingPrompt(
             accent = accent,
-            onDismiss = { showExternalRatingsManager = false },
-            onAddExternalRating = { source, score, maxScore, voteCount, makePrimary ->
-                onAddExternalRating(trackedMedia.item.id, source, score, maxScore, voteCount, makePrimary)
+            onSave = { score, voteCount ->
+                onAddExternalRating(
+                    trackedMedia.item.id,
+                    ExternalRatingSource.Goodreads,
+                    score,
+                    5.0,
+                    voteCount,
+                    true,
+                )
+                dismissGoodreadsPrompt = true
             },
-            onUpdateExternalRating = onUpdateExternalRating,
-            onSetPrimary = onSetPrimaryExternalRating,
-            onDelete = onDeleteExternalRating,
+            onDismiss = { dismissGoodreadsPrompt = true },
+            onSkipBook = {
+                val preferences = context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
+                preferences.edit()
+                    .putStringSet(
+                        "skipped_goodreads_rating_prompt_ids",
+                        skippedGoodreadsPromptIds + trackedMedia.item.id.toString(),
+                    )
+                    .apply()
+                dismissGoodreadsPrompt = true
+            },
         )
     }
 
@@ -280,21 +303,6 @@ fun DetailScreen(
                     Text(text = stringResource(R.string.cancel))
                 }
             },
-        )
-    }
-
-    if (showExternalTrackingManager) {
-        ExternalTrackingDialog(
-            externalTracking = trackedMedia.externalTracking,
-            accent = accent,
-            onDismiss = { showExternalTrackingManager = false },
-            onAddExternalTracking = { source, externalItemId, url ->
-                onAddExternalTracking(trackedMedia.item.id, source, externalItemId, url)
-                showExternalTrackingManager = false
-            },
-            onUpdateExternalTracking = onUpdateExternalTracking,
-            onUpdateSynced = onUpdateExternalTrackingSynced,
-            onDelete = onDeleteExternalTracking,
         )
     }
 
@@ -412,6 +420,10 @@ private fun formatScore(value: Double): String {
 }
 
 private fun TrackedMedia.primaryRatingSourceName(): String? {
+    item.primaryExternalRatingId?.let { primaryId ->
+        return externalRatings.firstOrNull { it.id == primaryId }?.source?.displayName()
+    }
+
     val score = item.externalRatingScore ?: return null
     val maxScore = item.externalRatingMax ?: return null
     return externalRatings.firstOrNull { rating ->

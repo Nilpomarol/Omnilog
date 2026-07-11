@@ -319,7 +319,7 @@ fun SessionEditorScreen(
             EditSectionHeader(title = stringResource(R.string.field_status))
             TrackingStatusSelector(
                 selectedStatus = draftStatus,
-                accent = accent,
+                accent = stateColor,
                 onStatusSelected = { status ->
                     draftStatus = status
                     if (status == TrackingStatus.InProgress && draftStartedAtText.isBlank()) {
@@ -334,13 +334,12 @@ fun SessionEditorScreen(
             EditSectionDivider()
 
             // ── Progress ─────────────────────────────────────────
-            EditSectionHeader(title = stringResource(R.string.field_progress))
             TrackingProgressField(
                 value = draftProgress.toString(),
                 progressTotal = progressTotal,
                 mediaType = mediaType,
                 label = stringResource(R.string.field_progress),
-                accent = accent,
+                accent = stateColor,
                 onValueChange = { value -> value.toIntOrNull()?.let { draftProgress = it } },
             )
 
@@ -350,7 +349,7 @@ fun SessionEditorScreen(
             EditSectionHeader(title = stringResource(R.string.field_rating))
             TrackingRatingSelector(
                 currentRating = draftRating,
-                accent = accent,
+                accent = stateColor,
                 onRatingSelected = { draftRating = it },
             )
 
@@ -373,7 +372,7 @@ fun SessionEditorScreen(
             EditSectionHeader(title = stringResource(R.string.field_notes))
             TrackingNotesField(
                 value = draftNotes,
-                accent = accent,
+                accent = stateColor,
                 onValueChange = { draftNotes = it },
             )
 

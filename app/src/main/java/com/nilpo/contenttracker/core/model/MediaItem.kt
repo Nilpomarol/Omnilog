@@ -18,6 +18,7 @@ data class MediaItem(
     val externalRatingScore: Double? = null,
     val externalRatingMax: Double? = null,
     val externalRatingVoteCount: Int? = null,
+    val primaryExternalRatingId: Long? = null,
     val popularityScore: Double? = null,
     val rankingPosition: Int? = null,
     val rankingLabel: String? = null,

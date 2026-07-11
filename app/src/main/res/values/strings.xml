@@ -42,6 +42,9 @@
     <string name="stats_group_content_mix">Composicio</string>
     <string name="stats_group_consumption">Consum</string>
     <string name="stats_monthly_activity">Activitat mensual</string>
+    <string name="stats_activity_hero_title">La teva activitat</string>
+    <string name="stats_activity_hero_busiest_month">El teu mes amb mes activitat: %1$s · %2$d completats</string>
+    <string name="stats_activity_hero_empty">Completa un titol per veure la teva activitat.</string>
     <string name="stats_medium_averages">Mitjanes per tipus</string>
     <string name="stats_completed_short">Completats</string>
     <string name="stats_average_rating_by_medium">Nota mitjana per tipus</string>
@@ -108,7 +111,6 @@
     <string name="progress_total_value">Total: %1$d</string>
     <string name="progress_total_unknown">Total: sense definir</string>
     <string name="external_rating">%1$s %2$.1f/%3$.0f</string>
-    <string name="external_tracking_label">També a: %1$s</string>
     <string name="back">Enrere</string>
     <string name="detail_current_session">Sessió actual</string>
     <string name="edit_current_session">Edita seguiment</string>
@@ -128,7 +130,6 @@
     <string name="detail_history">Historial</string>
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
     <string name="detail_external_scores">Puntuacions</string>
-    <string name="detail_external_tracking">Seguiment extern</string>
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
     <string name="add_with_status">Afegeix com a %1$s</string>
@@ -285,7 +286,7 @@
     <string name="account_menu">Compte</string>
     <string name="import_backup_title">Importa còpia</string>
     <string name="import_backup_message">Aixo substituira totes les dades locals actuals per les de la còpia.</string>
-    <string name="import_backup_message_with_summary">Copia v%1$d validada.\n\nAixo substituira totes les dades locals actuals per les de la còpia.\n\nLa còpia conte:\n%2$d col·leccions\n%3$d elements\n%4$d credits\n%5$d sessions\n%6$d actualitzacions de progres\n%7$d notes externes\n%8$d seguiments externs</string>
+    <string name="import_backup_message_with_summary">Copia v%1$d validada.\n\nAixo substituira totes les dades locals actuals per les de la còpia.\n\nLa còpia conte:\n%2$d col·leccions\n%3$d elements\n%4$d credits\n%5$d sessions\n%6$d actualitzacions de progres\n%7$d notes externes</string>
     <string name="import_backup_confirm">Importa</string>
     <string name="import_backup_final_title">Substitueix totes les dades?</string>
     <string name="import_backup_final_message">Omnilog guardarà automaticament una còpia de seguretat de les dades actuals a la carpeta de l\'aplicació. Després, eliminarà totes les dades locals i les substituira per la còpia importada.</string>
@@ -394,14 +395,9 @@
     <string name="delete_session_title">Elimina sessio</string>
     <string name="delete_session_message">Vols eliminar la sessio #%1$d?</string>
     <string name="delete_media_title">Elimina element</string>
-    <string name="delete_media_message">Vols eliminar %1$s? També s\'eliminaran les seves sessions i seguiments externs.</string>
+    <string name="delete_media_message">Vols eliminar %1$s? També s\'eliminaran les seves sessions.</string>
     <string name="update_item_details">Actualitza dades</string>
     <string name="update_platform">Actualitza plataforma</string>
-    <string name="synced_yes">Actualitzat</string>
-    <string name="synced_no">Pendent d\'actualitzar</string>
-    <string name="field_external_tracking_source">App externa</string>
-    <string name="field_external_tracking_id">ID extern</string>
-    <string name="field_external_tracking_url">URL</string>
     <string name="field_external_rating_source">Font</string>
     <string name="field_external_rating_score">Puntuacio</string>
     <string name="field_external_rating_max">Maxim</string>
@@ -410,14 +406,4 @@
     <string name="make_primary_external_rating">Fes-la principal</string>
     <string name="primary_external_rating">Puntuacio principal</string>
     <string name="delete_external_rating">Elimina</string>
-    <string name="add_external_tracking">Afegeix seguiment</string>
-    <string name="mark_external_tracking_synced">Marca actualitzat</string>
-    <string name="mark_external_tracking_pending">Marca pendent</string>
-    <string name="delete_external_tracking">Elimina</string>
-    <string name="external_tracking_id_value">ID: %1$s</string>
-    <string name="external_tracking_other">Altres</string>
-    <string name="external_tracking_empty">Cap seguiment extern</string>
-    <string name="external_tracking_not_tracked">No sincronitzat</string>
-    <string name="external_tracking_updated">Actualitzat</string>
-    <string name="external_tracking_pending">Pendent</string>
   </resources>

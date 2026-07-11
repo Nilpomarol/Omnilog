@@ -3,7 +3,6 @@ package com.nilpo.contenttracker.core.repository
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
-import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -25,7 +24,6 @@ data class BackupPreview(
     val trackingSessionCount: Int,
     val progressUpdateCount: Int,
     val externalRatingCount: Int,
-    val externalTrackingCount: Int,
 )
 
 data class CollectionItemOrder(
@@ -128,24 +126,6 @@ interface MediaRepository {
     suspend fun setPrimaryExternalRating(externalRatingId: Long)
 
     suspend fun deleteExternalRating(externalRatingId: Long)
-
-    suspend fun addExternalTracking(
-        mediaItemId: Long,
-        source: ExternalTrackingSource,
-        externalItemId: String?,
-        url: String?,
-    )
-
-    suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean)
-
-    suspend fun updateExternalTracking(
-        externalTrackingId: Long,
-        source: ExternalTrackingSource,
-        externalItemId: String?,
-        url: String?,
-    )
-
-    suspend fun deleteExternalTracking(externalTrackingId: Long)
 
     suspend fun updateMediaCollectionName(collectionId: Long, name: String)
 

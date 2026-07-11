@@ -2,7 +2,6 @@ package com.nilpo.contenttracker.core.repository
 
 import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
-import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
@@ -14,7 +13,6 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
-import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
@@ -60,7 +58,6 @@ class OfflineMediaRepository(
                     },
                     credits = relation.credits.map { it.toDomain() },
                     externalRatings = relation.externalRatings.map { it.toDomain() },
-                    externalTracking = relation.externalTracking.map { it.toDomain() },
                 )
             }
         }
@@ -82,9 +79,6 @@ class OfflineMediaRepository(
             trackedMedia.externalRatings.forEach { rating ->
                 mediaDao.insertExternalRating(rating.toEntity())
             }
-            trackedMedia.externalTracking.forEach { tracking ->
-                mediaDao.insertExternalTracking(tracking.toEntity())
-            }
         }
     }
 
@@ -98,7 +92,6 @@ class OfflineMediaRepository(
             .put("trackingSessions", JSONArray(mediaDao.getAllTrackingSessions().map { it.toJson() }))
             .put("progressUpdates", JSONArray(mediaDao.getProgressUpdates().map { it.toJson() }))
             .put("externalRatings", JSONArray(mediaDao.getExternalRatings().map { it.toJson() }))
-            .put("externalTracking", JSONArray(mediaDao.getExternalTracking().map { it.toJson() }))
             .toString(2)
     }
 
@@ -114,7 +107,6 @@ class OfflineMediaRepository(
             trackingSessionCount = backup.sessions.size,
             progressUpdateCount = backup.progressUpdates.size,
             externalRatingCount = backup.externalRatings.size,
-            externalTrackingCount = backup.externalTracking.size,
         )
     }
 
@@ -127,7 +119,6 @@ class OfflineMediaRepository(
             sessions = backup.sessions,
             progressUpdates = backup.progressUpdates,
             externalRatings = backup.externalRatings,
-            externalTracking = backup.externalTracking,
         )
     }
 
@@ -343,7 +334,6 @@ class OfflineMediaRepository(
             progressValue = validProgress,
             createdAtEpochMillis = updatedAtEpochMillis,
         )
-        mediaDao.updateExternalTrackingSyncedForMedia(request.mediaItemId, isSynced = false)
     }
 
     override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long {
@@ -416,21 +406,30 @@ class OfflineMediaRepository(
             )
         }
 
+        var initialPrimaryRatingId: Long? = null
         if (request.externalRatings.isNotEmpty()) {
             request.externalRatings
                 .filter { it.score > 0.0 && it.maxScore > 0.0 }
                 .forEach { rating ->
-                    mediaDao.insertExternalRating(
+                    val ratingId = mediaDao.insertExternalRating(
                         ExternalRatingEntity(
                             mediaItemId = mediaItemId,
                             source = rating.source.name,
                             score = rating.score,
                             maxScore = rating.maxScore,
                             voteCount = rating.voteCount,
+                            origin = "Provider",
                         ),
                     )
+                    if (initialPrimaryRatingId == null && primaryExternalRating != null &&
+                        rating.score.closeTo(primaryExternalRating.score) &&
+                        rating.maxScore.closeTo(primaryExternalRating.maxScore)
+                    ) {
+                        initialPrimaryRatingId = ratingId
+                    }
                 }
         }
+        initialPrimaryRatingId?.let { ratingId -> mediaDao.setPrimaryRatingId(mediaItemId, ratingId) }
 
         val initialUpdatedAtEpochMillis = System.currentTimeMillis()
         val initialProgress = validTotal?.let { total ->
@@ -496,7 +495,6 @@ class OfflineMediaRepository(
                 createdAtEpochMillis = updatedAtEpochMillis,
             )
         }
-        mediaDao.updateExternalTrackingSyncedForMedia(session.mediaItemId, isSynced = false)
     }
 
     override suspend fun deletePastSession(sessionId: Long) {
@@ -527,7 +525,6 @@ class OfflineMediaRepository(
             progressCurrent = recalculatedProgress,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
-        mediaDao.updateExternalTrackingSyncedForMedia(update.mediaItemId, isSynced = false)
     }
 
     override suspend fun deleteMediaItem(mediaItemId: Long) {
@@ -547,8 +544,14 @@ class OfflineMediaRepository(
         voteCount: Int?,
         makePrimary: Boolean,
     ) {
-        val validScore = score.coerceAtLeast(0.0)
-        val validMax = maxScore.coerceAtLeast(1.0)
+        val validScore = score.takeIf { it in 0.0..maxScore } ?: return
+        val validMax = maxScore.takeIf { it > 0.0 } ?: return
+        val existing = mediaDao.getExternalRatingsForItem(mediaItemId)
+            .firstOrNull { it.source == source.name && it.origin == "Manual" }
+        if (existing != null) {
+            updateExternalRating(existing.id, source, validScore, validMax, voteCount, makePrimary)
+            return
+        }
         val ratingId = mediaDao.insertExternalRating(
             ExternalRatingEntity(
                 mediaItemId = mediaItemId,
@@ -556,6 +559,7 @@ class OfflineMediaRepository(
                 score = validScore,
                 maxScore = validMax,
                 voteCount = voteCount?.takeIf { it >= 0 },
+                origin = "Manual",
             ),
         )
         if (makePrimary) {
@@ -572,8 +576,12 @@ class OfflineMediaRepository(
         makePrimary: Boolean,
     ) {
         val existing = mediaDao.getExternalRating(externalRatingId) ?: return
-        val validScore = score.coerceAtLeast(0.0)
-        val validMax = maxScore.coerceAtLeast(1.0)
+        if (mediaDao.getExternalRatingsForItem(existing.mediaItemId).any { rating ->
+                rating.id != externalRatingId && rating.source == source.name && rating.origin == "Manual"
+            }
+        ) return
+        val validScore = score.takeIf { it in 0.0..maxScore } ?: return
+        val validMax = maxScore.takeIf { it > 0.0 } ?: return
         val validVoteCount = voteCount?.takeIf { it >= 0 }
         mediaDao.updateExternalRating(
             externalRatingId = externalRatingId,
@@ -581,15 +589,11 @@ class OfflineMediaRepository(
             score = validScore,
             maxScore = validMax,
             voteCount = validVoteCount,
+            origin = "Manual",
         )
         val mediaItem = mediaDao.getMediaItem(existing.mediaItemId)
         if (makePrimary || existing.isPrimaryExternalRating(mediaItem)) {
-            mediaDao.updatePrimaryExternalRating(
-                mediaItemId = existing.mediaItemId,
-                score = validScore,
-                maxScore = validMax,
-                voteCount = validVoteCount,
-            )
+            setPrimaryExternalRating(externalRatingId)
         }
     }
 
@@ -600,6 +604,7 @@ class OfflineMediaRepository(
             score = rating.score,
             maxScore = rating.maxScore,
             voteCount = rating.voteCount,
+            primaryExternalRatingId = rating.id,
         )
     }
 
@@ -615,51 +620,9 @@ class OfflineMediaRepository(
                 score = replacement?.score,
                 maxScore = replacement?.maxScore,
                 voteCount = replacement?.voteCount,
+                primaryExternalRatingId = replacement?.id,
             )
         }
-    }
-
-    override suspend fun addExternalTracking(
-        mediaItemId: Long,
-        source: ExternalTrackingSource,
-        externalItemId: String?,
-        url: String?,
-    ) {
-        mediaDao.insertExternalTracking(
-            ExternalTrackingEntity(
-                mediaItemId = mediaItemId,
-                source = source.name,
-                externalItemId = externalItemId?.trim()?.takeIf { it.isNotBlank() },
-                url = url?.trim()?.takeIf { it.isNotBlank() },
-                isSynced = false,
-            ),
-        )
-    }
-
-    override suspend fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean) {
-        mediaDao.updateExternalTrackingSynced(
-            externalTrackingId = externalTrackingId,
-            isSynced = isSynced,
-        )
-    }
-
-    override suspend fun updateExternalTracking(
-        externalTrackingId: Long,
-        source: ExternalTrackingSource,
-        externalItemId: String?,
-        url: String?,
-    ) {
-        mediaDao.updateExternalTracking(
-            externalTrackingId = externalTrackingId,
-            source = source.name,
-            externalItemId = externalItemId?.trim()?.takeIf { it.isNotBlank() },
-            url = url?.trim()?.takeIf { it.isNotBlank() },
-            isSynced = false,
-        )
-    }
-
-    override suspend fun deleteExternalTracking(externalTrackingId: Long) {
-        mediaDao.deleteExternalTracking(externalTrackingId)
     }
 
     override suspend fun updateMediaCollectionName(collectionId: Long, name: String) {
@@ -905,6 +868,10 @@ class OfflineMediaRepository(
         val localOverrides = currentItem.metadataOverrideFields()
         val mediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
         val refreshed = preview.refreshed
+        val currentPrimaryManualRating = currentItem.primaryExternalRatingId
+            ?.let { primaryId -> mediaDao.getExternalRating(primaryId) }
+            ?.takeIf { it.origin == "Manual" }
+            ?.toPrimaryRating()
         val existingRatings = mediaDao.getExternalRatingsForItem(preview.mediaItemId)
             .map { it.toDomain() }
             .map { rating ->
@@ -940,7 +907,7 @@ class OfflineMediaRepository(
         } else {
             existingRatings
         }
-        val selectedExternalRating = if (
+        val selectedExternalRating = currentPrimaryManualRating ?: if (
             MetadataRefreshField.ExternalRating in selectedFields ||
             MetadataRefreshField.ExternalRatings in selectedFields
         ) {
@@ -1038,7 +1005,7 @@ class OfflineMediaRepository(
         }
 
         if (MetadataRefreshField.ExternalRatings in selectedFields) {
-            mediaDao.deleteExternalRatingsForItem(preview.mediaItemId)
+            mediaDao.deleteProviderExternalRatingsForItem(preview.mediaItemId)
             refreshed.externalRatings
                 .filter { it.score > 0.0 && it.maxScore > 0.0 }
                 .forEach { rating ->
@@ -1049,6 +1016,7 @@ class OfflineMediaRepository(
                             score = rating.score,
                             maxScore = rating.maxScore,
                             voteCount = rating.voteCount,
+                            origin = "Provider",
                         ),
                     )
                 }
@@ -1063,6 +1031,7 @@ class OfflineMediaRepository(
                             score = rating.score,
                             maxScore = rating.maxScore,
                             voteCount = rating.voteCount,
+                            origin = "Provider",
                         ),
                     )
                 }
@@ -1114,7 +1083,12 @@ class OfflineMediaRepository(
             return false
         }
 
+        val currentPrimaryManualRating = currentItem.primaryExternalRatingId
+            ?.let { primaryId -> mediaDao.getExternalRating(primaryId) }
+            ?.takeIf { it.origin == "Manual" }
+            ?.toPrimaryRating()
         val existingRatings = mediaDao.getExternalRatingsForItem(mediaItemId)
+            .filter { it.origin == "Provider" }
             .map { it.toDomain() }
             .map { rating ->
                 MetadataExternalRatingSuggestion(
@@ -1143,7 +1117,7 @@ class OfflineMediaRepository(
             ?.coerceAtLeast(0)
         val linkedRatings = (linked.externalRatings + existingRatings)
             .distinctBy { it.source }
-        val linkedPrimaryRating = currentMediaType.preferredPrimaryExternalRating(
+        val linkedPrimaryRating = currentPrimaryManualRating ?: currentMediaType.preferredPrimaryExternalRating(
             ratings = linkedRatings,
             fallback = linked.externalRating ?: existingPrimaryRating,
         )
@@ -1191,7 +1165,7 @@ class OfflineMediaRepository(
             .takeIf { it.isNotEmpty() }
             ?.let { credits -> mediaDao.insertMediaCredits(credits) }
 
-        mediaDao.deleteExternalRatingsForItem(mediaItemId)
+        mediaDao.deleteProviderExternalRatingsForItem(mediaItemId)
         linkedRatings
             .filter { it.score > 0.0 && it.maxScore > 0.0 }
             .forEach { rating ->
@@ -1202,6 +1176,7 @@ class OfflineMediaRepository(
                         score = rating.score,
                         maxScore = rating.maxScore,
                         voteCount = rating.voteCount,
+                        origin = "Provider",
                     ),
                 )
             }
@@ -1455,6 +1430,7 @@ private fun MetadataSuggestion.withPreservedMyAnimeListId(currentItem: MediaItem
 }
 
 private fun ExternalRatingEntity.isPrimaryExternalRating(mediaItem: MediaItemEntity?): Boolean {
+    mediaItem?.primaryExternalRatingId?.let { return id == it }
     val primaryScore = mediaItem?.externalRatingScore ?: return false
     val primaryMax = mediaItem.externalRatingMax ?: return false
     return score.closeTo(primaryScore) && maxScore.closeTo(primaryMax)
@@ -1579,7 +1555,6 @@ private data class ParsedBackup(
     val sessions: List<TrackingSessionEntity>,
     val progressUpdates: List<ProgressUpdateEntity>,
     val externalRatings: List<ExternalRatingEntity>,
-    val externalTracking: List<ExternalTrackingEntity>,
 )
 
 private fun parseBackupData(json: String): ParsedBackup {
@@ -1599,8 +1574,6 @@ private fun parseBackupData(json: String): ParsedBackup {
             .mapObjects { it.toProgressUpdateEntity() },
         externalRatings = root.optJSONArray("externalRatings").orEmptyArray()
             .mapObjects { it.toExternalRatingEntity() },
-        externalTracking = root.optJSONArray("externalTracking").orEmptyArray()
-            .mapObjects { it.toExternalTrackingEntity() },
     ).also { it.validate() }
 }
 
@@ -1611,7 +1584,6 @@ private fun ParsedBackup.validate() {
     sessions.requireUniquePositiveIds("tracking sessions") { it.id }
     progressUpdates.requireUniquePositiveIds("progress updates") { it.id }
     externalRatings.requireUniquePositiveIds("external ratings") { it.id }
-    externalTracking.requireUniquePositiveIds("external tracking") { it.id }
 
     val collectionIds = collections.map { it.id }.toSet()
     val mediaItemIds = mediaItems.map { it.id }.toSet()
@@ -1687,12 +1659,10 @@ private fun ParsedBackup.validate() {
         }
     }
 
-    externalTracking.forEach { tracking ->
-        require(tracking.mediaItemId in mediaItemIds) { "External tracking references a missing media item" }
-        requireEnum<ExternalTrackingSource>(tracking.source) {
-            "Unknown external tracking source: ${tracking.source}"
-        }
-    }
+}
+
+private fun ExternalRatingEntity.toPrimaryRating(): MetadataRatingSuggestion {
+    return MetadataRatingSuggestion(score = score, maxScore = maxScore, voteCount = voteCount)
 }
 
 private fun MediaCollectionEntity.toJson(): JSONObject {
@@ -1720,6 +1690,7 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .putNullable("externalRatingScore", externalRatingScore)
         .putNullable("externalRatingMax", externalRatingMax)
         .putNullable("externalRatingVoteCount", externalRatingVoteCount)
+        .putNullable("primaryExternalRatingId", primaryExternalRatingId)
         .putNullable("popularityScore", popularityScore)
         .putNullable("rankingPosition", rankingPosition)
         .putNullable("rankingLabel", rankingLabel)
@@ -1780,16 +1751,7 @@ private fun ExternalRatingEntity.toJson(): JSONObject {
         .put("score", score)
         .put("maxScore", maxScore)
         .putNullable("voteCount", voteCount)
-}
-
-private fun ExternalTrackingEntity.toJson(): JSONObject {
-    return JSONObject()
-        .put("id", id)
-        .put("mediaItemId", mediaItemId)
-        .put("source", source)
-        .putNullable("externalItemId", externalItemId)
-        .putNullable("url", url)
-        .put("isSynced", isSynced)
+        .put("origin", origin)
 }
 
 private fun JSONObject.toMediaCollectionEntity(): MediaCollectionEntity {
@@ -1818,6 +1780,7 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         externalRatingScore = optNullableDouble("externalRatingScore"),
         externalRatingMax = optNullableDouble("externalRatingMax"),
         externalRatingVoteCount = optNullableInt("externalRatingVoteCount"),
+        primaryExternalRatingId = optNullableLong("primaryExternalRatingId"),
         popularityScore = optNullableDouble("popularityScore"),
         rankingPosition = optNullableInt("rankingPosition"),
         rankingLabel = optNullableString("rankingLabel"),
@@ -1882,17 +1845,7 @@ private fun JSONObject.toExternalRatingEntity(): ExternalRatingEntity {
         score = getDouble("score"),
         maxScore = getDouble("maxScore"),
         voteCount = optNullableInt("voteCount"),
-    )
-}
-
-private fun JSONObject.toExternalTrackingEntity(): ExternalTrackingEntity {
-    return ExternalTrackingEntity(
-        id = getLong("id"),
-        mediaItemId = getLong("mediaItemId"),
-        source = getString("source"),
-        externalItemId = optNullableString("externalItemId"),
-        url = optNullableString("url"),
-        isSynced = optBoolean("isSynced", false),
+        origin = optString("origin", "Manual"),
     )
 }
 

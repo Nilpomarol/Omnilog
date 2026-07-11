@@ -37,14 +37,7 @@ fun MetadataSummary(
     val externalRating = trackedMedia.externalRatings.firstOrNull()?.let {
         "${it.source.name} ${formatExternalRatingOnTen(it.score, it.maxScore)}"
     }
-    val externalTracking = trackedMedia.externalTracking.takeIf { it.isNotEmpty() }?.let { tracking ->
-        stringResource(
-            R.string.external_tracking_label,
-            tracking.joinToString(", ") { it.source.name },
-        )
-    }
-
-    val details = listOfNotNull(platform, ownership, externalRating, externalTracking)
+    val details = listOfNotNull(platform, ownership, externalRating)
 
     if (details.isNotEmpty()) {
         Text(

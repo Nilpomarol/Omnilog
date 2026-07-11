@@ -1,7 +1,6 @@
 package com.nilpo.contenttracker.core.database.mapper
 
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
-import com.nilpo.contenttracker.core.database.entity.ExternalTrackingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
@@ -10,9 +9,8 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.ConsumptionPlatform
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalRating
+import com.nilpo.contenttracker.core.model.ExternalRatingOrigin
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
-import com.nilpo.contenttracker.core.model.ExternalTracking
-import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
@@ -46,6 +44,7 @@ fun MediaItemEntity.toDomain(): MediaItem {
         externalRatingScore = externalRatingScore,
         externalRatingMax = externalRatingMax,
         externalRatingVoteCount = externalRatingVoteCount,
+        primaryExternalRatingId = primaryExternalRatingId,
         popularityScore = popularityScore,
         rankingPosition = rankingPosition,
         rankingLabel = rankingLabel,
@@ -82,6 +81,7 @@ fun MediaItem.toEntity(): MediaItemEntity {
         externalRatingScore = externalRatingScore,
         externalRatingMax = externalRatingMax,
         externalRatingVoteCount = externalRatingVoteCount,
+        primaryExternalRatingId = primaryExternalRatingId,
         popularityScore = popularityScore,
         rankingPosition = rankingPosition,
         rankingLabel = rankingLabel,
@@ -196,6 +196,7 @@ fun ExternalRatingEntity.toDomain(): ExternalRating {
         score = score,
         maxScore = maxScore,
         voteCount = voteCount,
+        origin = enumValueOrDefault(origin, ExternalRatingOrigin.Provider),
     )
 }
 
@@ -207,28 +208,7 @@ fun ExternalRating.toEntity(): ExternalRatingEntity {
         score = score,
         maxScore = maxScore,
         voteCount = voteCount,
-    )
-}
-
-fun ExternalTrackingEntity.toDomain(): ExternalTracking {
-    return ExternalTracking(
-        id = id,
-        mediaItemId = mediaItemId,
-        source = enumValueOrDefault(source, ExternalTrackingSource.Other),
-        externalItemId = externalItemId,
-        url = url,
-        isSynced = isSynced,
-    )
-}
-
-fun ExternalTracking.toEntity(): ExternalTrackingEntity {
-    return ExternalTrackingEntity(
-        id = id,
-        mediaItemId = mediaItemId,
-        source = source.name,
-        externalItemId = externalItemId,
-        url = url,
-        isSynced = isSynced,
+        origin = origin.name,
     )
 }
 

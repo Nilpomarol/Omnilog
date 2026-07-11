@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
-import com.nilpo.contenttracker.core.model.ExternalTrackingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
@@ -371,53 +370,6 @@ class HomeViewModel(
     fun deleteExternalRating(externalRatingId: Long) {
         viewModelScope.launch {
             mediaRepository.deleteExternalRating(externalRatingId)
-        }
-    }
-
-    fun addExternalTracking(
-        mediaItemId: Long,
-        source: ExternalTrackingSource,
-        externalItemId: String?,
-        url: String?,
-    ) {
-        viewModelScope.launch {
-            mediaRepository.addExternalTracking(
-                mediaItemId = mediaItemId,
-                source = source,
-                externalItemId = externalItemId,
-                url = url,
-            )
-        }
-    }
-
-    fun updateExternalTrackingSynced(externalTrackingId: Long, isSynced: Boolean) {
-        viewModelScope.launch {
-            mediaRepository.updateExternalTrackingSynced(
-                externalTrackingId = externalTrackingId,
-                isSynced = isSynced,
-            )
-        }
-    }
-
-    fun updateExternalTracking(
-        externalTrackingId: Long,
-        source: ExternalTrackingSource,
-        externalItemId: String?,
-        url: String?,
-    ) {
-        viewModelScope.launch {
-            mediaRepository.updateExternalTracking(
-                externalTrackingId = externalTrackingId,
-                source = source,
-                externalItemId = externalItemId,
-                url = url,
-            )
-        }
-    }
-
-    fun deleteExternalTracking(externalTrackingId: Long) {
-        viewModelScope.launch {
-            mediaRepository.deleteExternalTracking(externalTrackingId)
         }
     }
 

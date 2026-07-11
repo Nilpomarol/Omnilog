@@ -45,7 +45,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             "content-tracker.db",
         )
             .fallbackToDestructiveMigration(false)
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
             .build()
     }
 
@@ -212,5 +212,32 @@ private val MIGRATION_9_10 = object : Migration(9, 10) {
 private val MIGRATION_10_11 = object : Migration(10, 11) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE media_items ADD COLUMN metadataOverrideFieldsCsv TEXT")
+    }
+}
+
+private val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS external_tracking")
+    }
+}
+
+private val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE media_items ADD COLUMN primaryExternalRatingId INTEGER")
+        db.execSQL("ALTER TABLE external_ratings ADD COLUMN origin TEXT NOT NULL DEFAULT 'Manual'")
+        db.execSQL(
+            """
+            UPDATE media_items
+            SET primaryExternalRatingId = (
+                SELECT id FROM external_ratings
+                WHERE mediaItemId = media_items.id
+                  AND ABS(score - media_items.externalRatingScore) < 0.001
+                  AND ABS(maxScore - media_items.externalRatingMax) < 0.001
+                ORDER BY id
+                LIMIT 1
+            )
+            WHERE externalRatingScore IS NOT NULL AND externalRatingMax IS NOT NULL
+            """.trimIndent(),
+        )
     }
 }
