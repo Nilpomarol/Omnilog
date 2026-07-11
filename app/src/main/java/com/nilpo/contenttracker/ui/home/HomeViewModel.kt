@@ -47,6 +47,7 @@ class HomeViewModel(
     private val groupMode = MutableStateFlow(HomeGroupMode.None)
     private val sortMode = MutableStateFlow(HomeSortMode.Recent)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Descending)
+    private val advancedFilters = MutableStateFlow(HomeAdvancedFilters())
     private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
     private var metadataSearchJob: Job? = null
     private val metadataSearchCache = LinkedHashMap<MetadataSearchCacheKey, CachedMetadataSearch>()
@@ -77,11 +78,13 @@ class HomeViewModel(
         mediaRepository.observeTrackedMedia(MediaType.entries.toSet()),
         filters,
         refreshingMetadataItemId,
-    ) { section, allTrackedItems, filters, refreshingItemId ->
+        advancedFilters,
+    ) { section, allTrackedItems, filters, refreshingItemId, advanced ->
         val visibleItems = allTrackedItems
             .filter { it.item.type in section.types }
             .filterBySearch(filters.query)
             .filterByStatus(filters.status)
+            .filterByAdvancedFilters(advanced)
             .sortByMode(filters.sort, filters.direction)
 
         HomeUiState(
@@ -93,6 +96,7 @@ class HomeViewModel(
             groupMode = filters.group,
             sortMode = filters.sort,
             sortDirection = filters.direction,
+            advancedFilters = advanced,
             refreshingMetadataItemId = refreshingItemId,
         )
         }
@@ -148,10 +152,6 @@ class HomeViewModel(
         cancelMetadataSearch()
         selectedSection.value = section
         searchQuery.value = ""
-        statusFilter.value = null
-        groupMode.value = HomeGroupMode.None
-        sortMode.value = HomeSortMode.Recent
-        sortDirection.value = HomeSortDirection.Descending
         metadataSearchState.value = MetadataSearchUiState()
     }
 
@@ -159,10 +159,6 @@ class HomeViewModel(
         cancelMetadataSearch()
         selectedSection.value = section
         searchQuery.value = query
-        statusFilter.value = null
-        groupMode.value = HomeGroupMode.None
-        sortMode.value = HomeSortMode.Recent
-        sortDirection.value = HomeSortDirection.Descending
         metadataSearchState.value = MetadataSearchUiState(query = query)
     }
 
@@ -280,6 +276,10 @@ class HomeViewModel(
 
     fun updateSortDirection(direction: HomeSortDirection) {
         sortDirection.value = direction
+    }
+
+    fun updateAdvancedFilters(filters: HomeAdvancedFilters) {
+        advancedFilters.value = filters
     }
 
     fun startNewSession(request: AddTrackingSessionRequest) {
@@ -602,6 +602,37 @@ private fun List<TrackedMedia>.filterByStatus(status: TrackingStatus?): List<Tra
     return status?.let { selectedStatus ->
         filter { trackedMedia -> trackedMedia.currentSession?.status == selectedStatus }
     } ?: this
+}
+
+private fun List<TrackedMedia>.filterByAdvancedFilters(filters: HomeAdvancedFilters): List<TrackedMedia> {
+    if (!filters.isActive) return this
+
+    val selectedAuthors = filters.authors.map { it.normalizedFilterValue() }.toSet()
+    val selectedGenres = filters.genres.map { it.normalizedFilterValue() }.toSet()
+
+    return filter { trackedMedia ->
+        val creators = trackedMedia.item.creators.map { it.normalizedFilterValue() }
+        val genres = trackedMedia.item.genres.map { it.normalizedFilterValue() }
+        val matchesAuthor = selectedAuthors.isEmpty() || creators.any { it in selectedAuthors }
+        val matchesGenre = selectedGenres.isEmpty() || genres.any { it in selectedGenres }
+        val matchesExternalRating = filters.minimumExternalRating?.let { minimum ->
+            trackedMedia.item.externalRatingOnTen()?.let { it >= minimum } == true
+        } ?: true
+        val matchesUserRating = filters.minimumUserRating?.let { minimum ->
+            (trackedMedia.currentSession?.rating ?: 0) >= minimum
+        } ?: true
+
+        matchesAuthor && matchesGenre && matchesExternalRating && matchesUserRating
+    }
+}
+
+private fun String.normalizedFilterValue(): String = trim().lowercase()
+
+private fun com.nilpo.contenttracker.core.model.MediaItem.externalRatingOnTen(): Double? {
+    val score = externalRatingScore ?: return null
+    val max = externalRatingMax ?: return null
+    if (max <= 0.0) return null
+    return score / max * 10.0
 }
 
 private fun List<TrackedMedia>.sortByMode(

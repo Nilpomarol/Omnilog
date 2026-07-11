@@ -12,8 +12,26 @@ data class HomeUiState(
     val groupMode: HomeGroupMode = HomeGroupMode.None,
     val sortMode: HomeSortMode = HomeSortMode.Recent,
     val sortDirection: HomeSortDirection = HomeSortDirection.Descending,
+    val advancedFilters: HomeAdvancedFilters = HomeAdvancedFilters(),
     val refreshingMetadataItemId: Long? = null,
 )
+
+data class HomeAdvancedFilters(
+    val authors: Set<String> = emptySet(),
+    val genres: Set<String> = emptySet(),
+    val minimumExternalRating: Int? = null,
+    val minimumUserRating: Int? = null,
+) {
+    val activeCount: Int
+        get() = authors.size.coerceAtMost(1) +
+            genres.size.coerceAtMost(1) +
+            (if (minimumExternalRating != null) 1 else 0) +
+            (if (minimumUserRating != null) 1 else 0)
+
+    val isActive: Boolean
+        get() = authors.isNotEmpty() || genres.isNotEmpty() ||
+            minimumExternalRating != null || minimumUserRating != null
+}
 
 enum class HomeGroupMode {
     None,

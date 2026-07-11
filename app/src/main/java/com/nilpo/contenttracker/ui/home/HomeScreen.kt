@@ -9,26 +9,41 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,11 +53,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
@@ -75,9 +95,11 @@ fun HomeScreen(
     onGroupModeChange: (HomeGroupMode) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
+    onAdvancedFiltersChange: (HomeAdvancedFilters) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
+    var filtersExpanded by remember { mutableStateOf(false) }
     val groupedItems = remember(uiState.trackedItems, uiState.groupMode, uiState.sortMode, uiState.sortDirection) {
         buildHomeGroups(uiState.trackedItems, uiState.groupMode, uiState.sortMode, uiState.sortDirection)
     }
@@ -146,12 +168,26 @@ fun HomeScreen(
                         groupMode = uiState.groupMode,
                         sortMode = uiState.sortMode,
                         sortDirection = uiState.sortDirection,
+                        advancedFilters = uiState.advancedFilters,
                         accent = section.accent,
                         onStatusFilterChange = onStatusFilterChange,
                         onGroupModeChange = onGroupModeChange,
                         onSortModeChange = onSortModeChange,
                         onSortDirectionChange = onSortDirectionChange,
+                        onAdvancedFiltersClick = { filtersExpanded = true },
                     )
+                    if (filtersExpanded) {
+                        AdvancedFiltersSheet(
+                            currentFilters = uiState.advancedFilters,
+                            availableItems = uiState.allTrackedItems.filter { it.item.type in section.types },
+                            accent = section.accent,
+                            onDismiss = { filtersExpanded = false },
+                            onApply = {
+                                onAdvancedFiltersChange(it)
+                                filtersExpanded = false
+                            },
+                        )
+                    }
                     ListItemCounter(
                         visibleCount = uiState.trackedItems.size,
                         totalCount = sectionItemCount,
@@ -298,143 +334,518 @@ private fun BrowseControls(
     groupMode: HomeGroupMode,
     sortMode: HomeSortMode,
     sortDirection: HomeSortDirection,
+    advancedFilters: HomeAdvancedFilters,
     accent: Color,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onGroupModeChange: (HomeGroupMode) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
+    onAdvancedFiltersClick: () -> Unit,
 ) {
     var statusExpanded by remember { mutableStateOf(false) }
     var groupExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Status
-        Box(modifier = Modifier.weight(1.3f)) {
-            DropdownChip(
-                modifier = Modifier.fillMaxWidth(),
-                label = statusFilter?.label() ?: stringResource(R.string.filter_all_statuses),
-                selected = statusFilter != null,
-                color = statusFilter?.stateColor ?: accent,
-                onClick = { statusExpanded = true },
-            )
-            DropdownMenu(
-                expanded = statusExpanded,
-                onDismissRequest = { statusExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.filter_all_statuses)) },
-                    onClick = { onStatusFilterChange(null); statusExpanded = false },
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.weight(1.2f)) {
+                DropdownChip(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = statusFilter?.label() ?: stringResource(R.string.filter_all_statuses),
+                    selected = statusFilter != null,
+                    color = statusFilter?.stateColor ?: accent,
+                    onClick = { statusExpanded = true },
                 )
-                TrackingStatus.entries.forEach { status ->
+                DropdownMenu(
+                    expanded = statusExpanded,
+                    onDismissRequest = { statusExpanded = false },
+                ) {
                     DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = status.label(),
-                                color = status.stateColor,
-                                fontWeight = if (statusFilter == status) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        },
-                        onClick = { onStatusFilterChange(status); statusExpanded = false },
+                        text = { Text(stringResource(R.string.filter_all_statuses)) },
+                        onClick = { onStatusFilterChange(null); statusExpanded = false },
                     )
+                    TrackingStatus.entries.forEach { status ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = status.label(),
+                                    color = status.stateColor,
+                                    fontWeight = if (statusFilter == status) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            },
+                            onClick = { onStatusFilterChange(status); statusExpanded = false },
+                        )
+                    }
                 }
             }
-        }
 
-        // Group
-        Box(modifier = Modifier.weight(1f)) {
-            DropdownChip(
-                modifier = Modifier.fillMaxWidth(),
-                label = groupMode.label(),
-                selected = groupMode != HomeGroupMode.None,
-                color = accent,
-                onClick = { groupExpanded = true },
-            )
-            DropdownMenu(
-                expanded = groupExpanded,
-                onDismissRequest = { groupExpanded = false },
+            Box(modifier = Modifier.weight(0.95f)) {
+                DropdownChip(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = groupMode.label(),
+                    selected = groupMode != HomeGroupMode.None,
+                    color = accent,
+                    onClick = { groupExpanded = true },
+                )
+                DropdownMenu(
+                    expanded = groupExpanded,
+                    onDismissRequest = { groupExpanded = false },
+                ) {
+                    HomeGroupMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = mode.label(),
+                                    fontWeight = if (groupMode == mode) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            },
+                            onClick = { onGroupModeChange(mode); groupExpanded = false },
+                        )
+                    }
+                }
+            }
+
+            Box(modifier = Modifier.weight(0.95f)) {
+                DropdownChip(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = sortMode.label(),
+                    selected = true,
+                    color = accent,
+                    onClick = { sortExpanded = true },
+                )
+                DropdownMenu(
+                    expanded = sortExpanded,
+                    onDismissRequest = { sortExpanded = false },
+                ) {
+                    HomeSortMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = mode.label(),
+                                    fontWeight = if (sortMode == mode) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            },
+                            onClick = { onSortModeChange(mode); sortExpanded = false },
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                onClick = {
+                    onSortDirectionChange(
+                        if (sortDirection == HomeSortDirection.Ascending) {
+                            HomeSortDirection.Descending
+                        } else {
+                            HomeSortDirection.Ascending
+                        },
+                    )
+                },
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = accent.copy(alpha = 0.16f),
+                border = BorderStroke(1.dp, accent.copy(alpha = 0.50f)),
+                contentColor = accent,
             ) {
-                HomeGroupMode.entries.forEach { mode ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = mode.label(),
-                                fontWeight = if (groupMode == mode) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        },
-                        onClick = { onGroupModeChange(mode); groupExpanded = false },
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (sortDirection == HomeSortDirection.Ascending) {
+                                R.drawable.ic_arrow_up
+                            } else {
+                                R.drawable.ic_arrow_down
+                            },
+                        ),
+                        contentDescription = stringResource(R.string.sort_direction_label),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
-        }
 
-        // Sort
-        Box(modifier = Modifier.weight(1f)) {
-            DropdownChip(
-                modifier = Modifier.fillMaxWidth(),
-                label = sortMode.label(),
-                selected = true,
+            AdvancedFiltersButton(
+                activeCount = advancedFilters.activeCount,
                 color = accent,
-                onClick = { sortExpanded = true },
+                onClick = onAdvancedFiltersClick,
             )
-            DropdownMenu(
-                expanded = sortExpanded,
-                onDismissRequest = { sortExpanded = false },
-            ) {
-                HomeSortMode.entries.forEach { mode ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = mode.label(),
-                                fontWeight = if (sortMode == mode) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        },
-                        onClick = { onSortModeChange(mode); sortExpanded = false },
-                    )
-                }
-            }
         }
+    }
+}
 
-        // Direction
+@Composable
+private fun AdvancedFiltersButton(
+    activeCount: Int,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box {
         Surface(
-            onClick = {
-                onSortDirectionChange(
-                    if (sortDirection == HomeSortDirection.Ascending) {
-                        HomeSortDirection.Descending
-                    } else {
-                        HomeSortDirection.Ascending
-                    },
-                )
-            },
+            onClick = onClick,
             modifier = Modifier.size(40.dp),
             shape = RoundedCornerShape(999.dp),
-            color = accent.copy(alpha = 0.16f),
-            border = BorderStroke(1.dp, accent.copy(alpha = 0.50f)),
-            contentColor = accent,
+            color = if (activeCount > 0) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
+            border = BorderStroke(1.dp, if (activeCount > 0) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
+            contentColor = if (activeCount > 0) color else OmnilogColors.AppMuted,
         ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
-                    painter = painterResource(
-                        if (sortDirection == HomeSortDirection.Ascending) {
-                            R.drawable.ic_arrow_up
+                    painter = painterResource(R.drawable.ic_filter),
+                    contentDescription = stringResource(R.string.filter_more),
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        }
+        if (activeCount > 0) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(16.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = color,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = activeCount.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AdvancedFiltersSheet(
+    currentFilters: HomeAdvancedFilters,
+    availableItems: List<TrackedMedia>,
+    accent: Color,
+    onDismiss: () -> Unit,
+    onApply: (HomeAdvancedFilters) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var draft by remember(currentFilters) { mutableStateOf(currentFilters) }
+    var authorQuery by remember { mutableStateOf("") }
+    var genreQuery by remember { mutableStateOf("") }
+    var authorsExpanded by remember(currentFilters) { mutableStateOf(currentFilters.authors.isNotEmpty()) }
+    var genresExpanded by remember(currentFilters) { mutableStateOf(currentFilters.genres.isNotEmpty()) }
+    val authors = remember(availableItems) {
+        availableItems.flatMap { it.item.creators }
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .sorted()
+    }
+    val genres = remember(availableItems) {
+        availableItems.flatMap { it.item.genres }
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .sorted()
+    }
+    val visibleAuthors = authors.filter { it.contains(authorQuery, ignoreCase = true) }
+    val visibleGenres = genres.filter { it.contains(genreQuery, ignoreCase = true) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = OmnilogColors.AppPanel,
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding(),
+        ) {
+            val sheetScrollIsolation = remember {
+                object : NestedScrollConnection {
+                    override fun onPostScroll(
+                        consumed: Offset,
+                        available: Offset,
+                        source: NestedScrollSource,
+                    ): Offset = Offset(x = 0f, y = available.y)
+
+                    override suspend fun onPostFling(
+                        consumed: Velocity,
+                        available: Velocity,
+                    ): Velocity = Velocity(x = 0f, y = available.y)
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = maxHeight * 0.82f)
+                    .nestedScroll(sheetScrollIsolation)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.filter_sheet_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    TextButton(
+                        onClick = { draft = HomeAdvancedFilters() },
+                        enabled = draft.isActive,
+                    ) {
+                        Text(stringResource(R.string.filter_clear_all))
+                    }
+                }
+
+                SearchableFilterDropdown(
+                    title = stringResource(R.string.filter_authors),
+                    query = authorQuery,
+                    onQueryChange = { authorQuery = it },
+                    expanded = authorsExpanded,
+                    onExpandedChange = { authorsExpanded = it },
+                    options = visibleAuthors,
+                    selectedOptions = draft.authors,
+                    accent = accent,
+                    onOptionToggle = { author ->
+                        draft = draft.copy(authors = draft.authors.toggle(author))
+                    },
+                )
+
+                SearchableFilterDropdown(
+                    title = stringResource(R.string.filter_genres),
+                    query = genreQuery,
+                    onQueryChange = { genreQuery = it },
+                    expanded = genresExpanded,
+                    onExpandedChange = { genresExpanded = it },
+                    options = visibleGenres,
+                    selectedOptions = draft.genres,
+                    accent = accent,
+                    onOptionToggle = { genre ->
+                        draft = draft.copy(genres = draft.genres.toggle(genre))
+                    },
+                )
+
+                RatingFilterSection(
+                    title = stringResource(R.string.filter_external_rating),
+                    selectedMinimum = draft.minimumExternalRating,
+                    accent = accent,
+                    onSelected = { draft = draft.copy(minimumExternalRating = it) },
+                )
+                RatingFilterSection(
+                    title = stringResource(R.string.filter_my_rating),
+                    selectedMinimum = draft.minimumUserRating,
+                    accent = accent,
+                    onSelected = { draft = draft.copy(minimumUserRating = it) },
+                )
+
+                Button(
+                    onClick = { onApply(draft) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.filter_apply))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchableFilterDropdown(
+    title: String,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    options: List<String>,
+    selectedOptions: Set<String>,
+    accent: Color,
+    onOptionToggle: (String) -> Unit,
+) {
+    val dropdownScrollIsolation = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset = Offset(x = 0f, y = available.y)
+
+            override suspend fun onPostFling(
+                consumed: Velocity,
+                available: Velocity,
+            ): Velocity = Velocity(x = 0f, y = available.y)
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = {
+                onQueryChange(it)
+                if (!expanded) onExpandedChange(true)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(title) },
+            trailingIcon = {
+                IconButton(onClick = { onExpandedChange(!expanded) }) {
+                    Icon(
+                        imageVector = if (expanded) {
+                            Icons.Filled.KeyboardArrowUp
                         } else {
-                            R.drawable.ic_arrow_down
+                            Icons.Filled.KeyboardArrowDown
                         },
+                        contentDescription = null,
+                    )
+                }
+            },
+        )
+        if (expanded) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = OmnilogColors.AppPanel.copy(alpha = 0.55f),
+                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .nestedScroll(dropdownScrollIsolation)
+                        .verticalScroll(rememberScrollState())
+                        .padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    options.forEach { option ->
+                        FilterChoiceRow(
+                            label = option,
+                            selected = option in selectedOptions,
+                            accent = accent,
+                            onClick = { onOptionToggle(option) },
+                        )
+                    }
+                    if (options.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.filter_no_matches),
+                            modifier = Modifier.padding(12.dp),
+                            color = OmnilogColors.AppMuted,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterSectionHeader(
+    title: String,
+    selectedCount: Int,
+    expanded: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = OmnilogColors.AppPanel.copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            if (selectedCount > 0) {
+                Text(
+                    text = stringResource(R.string.filter_selected_count, selectedCount),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilterChoiceRow(
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        contentColor = OmnilogColors.AppInk,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = selected, onCheckedChange = { onClick() })
+            Text(
+                text = label,
+                color = if (selected) accent else OmnilogColors.AppInk,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RatingFilterSection(
+    title: String,
+    selectedMinimum: Int?,
+    accent: Color,
+    onSelected: (Int?) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text = title, style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = selectedMinimum == null,
+                onClick = { onSelected(null) },
+                label = { Text(stringResource(R.string.filter_any_rating)) },
+            )
+            (5..9).forEach { minimum ->
+                FilterChip(
+                    selected = selectedMinimum == minimum,
+                    onClick = { onSelected(minimum) },
+                    label = { Text(stringResource(R.string.filter_rating_at_least, minimum)) },
+                    colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = accent.copy(alpha = 0.20f),
+                        selectedLabelColor = accent,
                     ),
-                    contentDescription = stringResource(R.string.sort_direction_label),
-                    modifier = Modifier.size(18.dp),
                 )
             }
         }
     }
 }
+
+private fun Set<String>.toggle(value: String): Set<String> =
+    if (value in this) this - value else this + value
 
 @Composable
 private fun DropdownChip(
