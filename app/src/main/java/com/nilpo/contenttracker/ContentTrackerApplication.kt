@@ -11,6 +11,7 @@ import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import okio.Path.Companion.toOkioPath
 import com.nilpo.contenttracker.BuildConfig
+import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
 import com.nilpo.contenttracker.core.repository.CompositeMetadataRepository
@@ -22,6 +23,11 @@ import com.nilpo.contenttracker.core.repository.RawgMetadataRepository
 import com.nilpo.contenttracker.core.repository.TmdbMetadataRepository
 
 class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
+    override fun onCreate() {
+        super.onCreate()
+        AutoBackupScheduler.ensureScheduled(this)
+    }
+
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(context)
             .memoryCache {

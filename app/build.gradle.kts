@@ -74,6 +74,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
     ksp("androidx.room:room-compiler:2.8.4")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling:1.11.2")
