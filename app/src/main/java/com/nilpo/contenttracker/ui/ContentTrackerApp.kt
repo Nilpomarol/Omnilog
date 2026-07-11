@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.ui
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,13 +23,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Checkbox
@@ -40,7 +42,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,7 +55,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -66,8 +69,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.backup.AutoBackupPreferences
+import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -93,6 +99,9 @@ import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
+import com.nilpo.contenttracker.ui.profile.ProfileScreen
+import com.nilpo.contenttracker.ui.profile.ProfilePreferences
+import com.nilpo.contenttracker.ui.settings.SettingsScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.Dispatchers
@@ -121,6 +130,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var askForGoodreadsRating by remember {
         mutableStateOf(preferences.getBoolean("ask_for_goodreads_rating", true))
     }
+    var autoBackupConfiguration by remember(context) {
+        mutableStateOf(AutoBackupPreferences.read(context))
+    }
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
     var selectedAuthor by remember { mutableStateOf<String?>(null) }
@@ -143,6 +155,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var addTargetCollectionOrder by remember { mutableStateOf<Double?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
+    val profileImagePath = remember(context, selectedDestination) {
+        ProfilePreferences.from(context)
+            .getString(ProfilePreferences.AVATAR_IMAGE_PATH_KEY, null)
+            ?.takeIf { path -> File(path).isFile }
+    }
+    var statsReturnDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
     var detailReturnTarget by remember { mutableStateOf<DetailReturnTarget>(DetailReturnTarget.Section) }
     var collectionReturnTarget by remember { mutableStateOf<CollectionReturnTarget>(CollectionReturnTarget.Section) }
     var authorReturnTarget by remember { mutableStateOf<AuthorReturnTarget>(AuthorReturnTarget.Section) }
@@ -187,6 +205,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 selectedMediaId = null
                 selectedCollectionId = null
             }
+            DetailReturnTarget.Profile -> {
+                selectedDestination = AppDestination.Profile
+                selectedMediaId = null
+                selectedCollectionId = null
+            }
             is DetailReturnTarget.Collection -> {
                 selectedDestination = AppDestination.Section
                 selectedMediaId = null
@@ -225,12 +248,40 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         authorReturnTarget = AuthorReturnTarget.Section
     }
     val navigateBackFromStats = {
-        selectedDestination = AppDestination.Home
+        selectedDestination = statsReturnDestination
         selectedMediaId = null
         selectedCollectionId = null
         collectionReturnTarget = CollectionReturnTarget.Section
         detailReturnTarget = DetailReturnTarget.Section
         isAdding = false
+    }
+    val navigateBackFromProfile = {
+        selectedDestination = AppDestination.Home
+        selectedMediaId = null
+        selectedCollectionId = null
+        isAdding = false
+    }
+    val navigateBackFromSettings = {
+        selectedDestination = AppDestination.Profile
+        selectedMediaId = null
+        selectedCollectionId = null
+        isAdding = false
+    }
+    val openProfile = {
+        selectedDestination = AppDestination.Profile
+        selectedMediaId = null
+        selectedCollectionId = null
+        selectedAuthor = null
+        isAdding = false
+        viewModel.clearMetadataSearch()
+    }
+    val openSettings = {
+        selectedDestination = AppDestination.Settings
+        selectedMediaId = null
+        selectedCollectionId = null
+        selectedAuthor = null
+        isAdding = false
+        viewModel.clearMetadataSearch()
     }
     val openTrackedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
@@ -268,6 +319,30 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 }
                 snackbarHostState.showSnackbar(
                     if (result.isSuccess) exportSuccessMessage else exportErrorMessage,
+                )
+            }
+        }
+    }
+    val autoBackupFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val result = runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+                AutoBackupPreferences.saveDirectory(context, uri)
+                autoBackupConfiguration = AutoBackupPreferences.read(context)
+                AutoBackupScheduler.activate(context, autoBackupConfiguration.frequency)
+            }
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    if (result.isSuccess) {
+                        "Còpia automàtica activada."
+                    } else {
+                        "No s'ha pogut desar la carpeta de còpies automàtiques."
+                    },
                 )
             }
         }
@@ -582,6 +657,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             }
             selectedCollectionId != null -> navigateBackFromCollection()
             selectedAuthor != null -> navigateBackFromAuthor()
+            selectedDestination == AppDestination.Settings -> navigateBackFromSettings()
+            selectedDestination == AppDestination.Profile -> navigateBackFromProfile()
             selectedDestination != AppDestination.Home -> {
                 selectedDestination = AppDestination.Home
                 selectedCollectionId = null
@@ -600,32 +677,35 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     accent = when (selectedDestination) {
                         AppDestination.Home,
                         AppDestination.Stats,
+                        AppDestination.Profile,
+                        AppDestination.Settings,
                             -> OmnilogColors.Dashboard
                         AppDestination.Section -> uiState.selectedSection.accent
                     },
                     showBackNavigation = selectedMedia != null && !isAdding ||
-                        selectedDestination == AppDestination.Stats,
+                        selectedDestination == AppDestination.Stats ||
+                        selectedDestination == AppDestination.Profile ||
+                        selectedDestination == AppDestination.Settings,
                     showDetailActions = selectedMedia != null && !isAdding && !detailActions.isManagingExternalRatings,
-                    showBackupActions = selectedMedia == null &&
+                    showProfileAction = selectedMedia == null &&
                         !isAdding &&
-                        selectedDestination != AppDestination.Stats,
-                    showMyAnimeListImport = selectedDestination == AppDestination.Section &&
-                        uiState.selectedSection == MediaSection.Anime,
-                    showImdbImport = selectedDestination == AppDestination.Section &&
-                        uiState.selectedSection == MediaSection.Movies,
-                    showStoryGraphImport = selectedDestination == AppDestination.Section &&
-                        uiState.selectedSection == MediaSection.Books,
+                        selectedDestination != AppDestination.Stats &&
+                        selectedDestination != AppDestination.Profile,
+                    showSettingsAction = selectedDestination == AppDestination.Profile &&
+                        selectedMedia == null &&
+                        !isAdding,
+                    profileImagePath = profileImagePath,
                     detailActions = detailActions,
-                    backupActions = backupActions,
-                    askForGoodreadsRating = askForGoodreadsRating,
-                    onAskForGoodreadsRatingChange = { enabled ->
-                        askForGoodreadsRating = enabled
-                        preferences.edit().putBoolean("ask_for_goodreads_rating", enabled).apply()
-                    },
+                    onProfileRequested = openProfile,
+                    onSettingsRequested = openSettings,
                     onBack = if (detailActions.isManagingExternalRatings) {
                         detailActions.onCloseExternalRatings
                     } else if (selectedDestination == AppDestination.Stats) {
                         navigateBackFromStats
+                    } else if (selectedDestination == AppDestination.Settings) {
+                        navigateBackFromSettings
+                    } else if (selectedDestination == AppDestination.Profile) {
+                        navigateBackFromProfile
                     } else {
                         navigateBackFromDetail
                     },
@@ -734,12 +814,56 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     isAdding = false
                 },
                 onStatsClick = {
+                    statsReturnDestination = AppDestination.Home
                     selectedDestination = AppDestination.Stats
                     selectedMediaId = null
                     selectedCollectionId = null
                     collectionReturnTarget = CollectionReturnTarget.Section
                     detailReturnTarget = DetailReturnTarget.Home
                     isAdding = false
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        } else if (selectedDestination == AppDestination.Profile) {
+            ProfileScreen(
+                items = uiState.allTrackedItems,
+                onOpenMedia = openTrackedMedia,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        } else if (selectedDestination == AppDestination.Settings) {
+            SettingsScreen(
+                askForGoodreadsRating = askForGoodreadsRating,
+                onAskForGoodreadsRatingChange = { enabled ->
+                    askForGoodreadsRating = enabled
+                    preferences.edit().putBoolean("ask_for_goodreads_rating", enabled).apply()
+                },
+                onExportBackup = { backupActions.onExportBackupRequested() },
+                onImportBackup = { backupActions.onImportBackupRequested() },
+                onRestoreBackup = { backupActions.onRestoreBackupRequested() },
+                onImportMyAnimeListXml = { backupActions.onImportMyAnimeListXmlRequested() },
+                onImportImdbCsv = { backupActions.onImportImdbCsvRequested() },
+                onImportStoryGraphCsv = { backupActions.onImportStoryGraphCsvRequested() },
+                isAutoBackupEnabled = autoBackupConfiguration.directoryUri != null,
+                autoBackupFrequency = autoBackupConfiguration.frequency,
+                onAutoBackupFolderRequested = { autoBackupFolderLauncher.launch(null) },
+                onAutoBackupFrequencyChange = { frequency ->
+                    AutoBackupPreferences.saveFrequency(context, frequency)
+                    autoBackupConfiguration = AutoBackupPreferences.read(context)
+                    if (autoBackupConfiguration.directoryUri != null) {
+                        AutoBackupScheduler.schedule(context, frequency)
+                    }
+                },
+                onAutoBackupDisabled = {
+                    AutoBackupScheduler.cancel(context)
+                    AutoBackupPreferences.clear(context)
+                    autoBackupConfiguration = AutoBackupPreferences.read(context)
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Còpia automàtica desactivada.")
+                    }
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -754,7 +878,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     selectedDestination = AppDestination.Section
                     selectedCollectionId = null
                     collectionReturnTarget = CollectionReturnTarget.Section
-                    detailReturnTarget = DetailReturnTarget.Home
+                    detailReturnTarget = if (statsReturnDestination == AppDestination.Profile) {
+                        DetailReturnTarget.Profile
+                    } else {
+                        DetailReturnTarget.Home
+                    }
                     selectedMediaId = trackedMedia.item.id
                 },
                 modifier = Modifier
@@ -879,6 +1007,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onGroupModeChange = viewModel::updateGroupMode,
                 onSortModeChange = viewModel::updateSortMode,
                 onSortDirectionChange = viewModel::updateSortDirection,
+                onAdvancedFiltersChange = viewModel::updateAdvancedFilters,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -1648,7 +1777,6 @@ class DetailHeaderActions {
 }
 
 class BackupHeaderActions {
-    var isMenuExpanded by mutableStateOf(false)
     var onExportBackupRequested: () -> Unit = {}
     var onImportBackupRequested: () -> Unit = {}
     var onImportMyAnimeListXmlRequested: () -> Unit = {}
@@ -1660,11 +1788,14 @@ class BackupHeaderActions {
 private enum class AppDestination {
     Home,
     Stats,
+    Profile,
+    Settings,
     Section,
 }
 
 private sealed interface DetailReturnTarget {
     data object Home : DetailReturnTarget
+    data object Profile : DetailReturnTarget
     data object Section : DetailReturnTarget
     data class Collection(val collectionId: Long) : DetailReturnTarget
     data class Author(val author: String) : DetailReturnTarget
@@ -1858,14 +1989,12 @@ private fun OmnilogTopBar(
     accent: Color,
     showBackNavigation: Boolean,
     showDetailActions: Boolean,
-    showBackupActions: Boolean,
-    showMyAnimeListImport: Boolean,
-    showImdbImport: Boolean,
-    showStoryGraphImport: Boolean,
+    showProfileAction: Boolean,
+    showSettingsAction: Boolean,
+    profileImagePath: String?,
     detailActions: DetailHeaderActions,
-    backupActions: BackupHeaderActions,
-    askForGoodreadsRating: Boolean,
-    onAskForGoodreadsRatingChange: (Boolean) -> Unit,
+    onProfileRequested: () -> Unit,
+    onSettingsRequested: () -> Unit,
     onBack: () -> Unit,
 ) {
     TopAppBar(
@@ -1983,80 +2112,30 @@ private fun OmnilogTopBar(
                         )
                     }
                 }
-            } else if (showBackupActions) {
-                Box {
-                    IconButton(onClick = { backupActions.isMenuExpanded = true }) {
+            } else if (showSettingsAction) {
+                IconButton(onClick = onSettingsRequested) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "Configuració",
+                        tint = HeaderMuted,
+                    )
+                }
+            } else if (showProfileAction) {
+                IconButton(onClick = onProfileRequested) {
+                    if (profileImagePath != null) {
+                        AsyncImage(
+                            model = File(profileImagePath),
+                            contentDescription = stringResource(R.string.account_menu),
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
                         Icon(
                             imageVector = Icons.Filled.AccountCircle,
                             contentDescription = stringResource(R.string.account_menu),
                             tint = HeaderMuted,
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = backupActions.isMenuExpanded,
-                        onDismissRequest = { backupActions.isMenuExpanded = false },
-                        shape = RoundedCornerShape(10.dp),
-                        containerColor = HeaderPanel,
-                        tonalElevation = 0.dp,
-                        shadowElevation = 8.dp,
-                    ) {
-                        HeaderMenuItem(
-                            text = stringResource(R.string.export_backup),
-                            onClick = {
-                                backupActions.isMenuExpanded = false
-                                backupActions.onExportBackupRequested()
-                            },
-                        )
-                        HeaderMenuItem(
-                            text = stringResource(R.string.import_backup),
-                            onClick = {
-                                backupActions.isMenuExpanded = false
-                                backupActions.onImportBackupRequested()
-                            },
-                        )
-                        if (showMyAnimeListImport) {
-                            HeaderMenuItem(
-                                text = stringResource(R.string.import_mal_xml),
-                                onClick = {
-                                    backupActions.isMenuExpanded = false
-                                    backupActions.onImportMyAnimeListXmlRequested()
-                                },
-                            )
-                        }
-                        if (showImdbImport) {
-                            HeaderMenuItem(
-                                text = stringResource(R.string.import_imdb_csv),
-                                onClick = {
-                                    backupActions.isMenuExpanded = false
-                                    backupActions.onImportImdbCsvRequested()
-                                },
-                            )
-                        }
-                        if (showStoryGraphImport) {
-                            HeaderMenuItem(
-                                text = stringResource(R.string.import_storygraph_csv),
-                                onClick = {
-                                    backupActions.isMenuExpanded = false
-                                    backupActions.onImportStoryGraphCsvRequested()
-                                },
-                            )
-                        }
-                        HeaderMenuItem(
-                            text = stringResource(R.string.restore_previous_backup),
-                            onClick = {
-                                backupActions.isMenuExpanded = false
-                                backupActions.onRestoreBackupRequested()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(text = "Ask for Goodreads rating") },
-                            onClick = { onAskForGoodreadsRatingChange(!askForGoodreadsRating) },
-                            trailingIcon = {
-                                Switch(
-                                    checked = askForGoodreadsRating,
-                                    onCheckedChange = onAskForGoodreadsRatingChange,
-                                )
-                            },
                         )
                     }
                 }

@@ -64,7 +64,7 @@ Do not put real provider keys in tracked files. If a key was committed or pushed
 - `core/repository/*MetadataRepository.kt`: provider integrations.
 - `ui/ContentTrackerApp.kt`: top-level navigation, dialogs, import launchers, metadata refresh confirmation.
 - `ui/home`: dashboard, section pages, list state, grouping/sorting/filtering.
-- `ui/detail`: detail page, session editing, external tracking/rating UI.
+- `ui/detail`: detail page, session editing, and external rating UI.
 - `ui/add`: metadata search and add flow.
 - `ui/common`: shared UI helpers and formatters.
 

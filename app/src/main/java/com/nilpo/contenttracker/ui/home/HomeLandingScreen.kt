@@ -62,6 +62,7 @@ import com.nilpo.contenttracker.core.stats.StatsBucket
 import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
+import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -778,12 +779,17 @@ private fun HomeMediaTile(
                 coverUrl = trackedMedia.item.coverUrl,
                 modifier = Modifier.fillMaxSize(),
             )
-            CardStatusIcon(
-                status = session?.status,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(10.dp),
-            )
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                if (trackedMedia.item.ownership.isOwned) {
+                    OwnedBadge()
+                }
+                CardStatusIcon(status = session?.status)
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()

@@ -937,14 +937,9 @@ fun GoodreadsRatingPrompt(
     val parsedScore = score.toDecimalOrNull()
     val parsedVoteCount = voteCount.toIntOrNull()
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
+    OmnilogModal(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(

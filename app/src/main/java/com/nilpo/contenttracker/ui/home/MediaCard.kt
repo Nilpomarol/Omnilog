@@ -34,6 +34,7 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
+import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -150,6 +151,9 @@ fun MediaCard(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
+                        if (item.ownership.isOwned) {
+                            OwnedBadge()
+                        }
                         if (session != null) {
                             CardStateIconBadge(status = session.status)
                         }

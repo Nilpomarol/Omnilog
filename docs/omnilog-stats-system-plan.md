@@ -15,7 +15,7 @@ Omnilog already has enough data for a useful first stats page:
 - `MediaItem` stores media type, release year, language, genres, creators, external rating, ranking/popularity metadata, ownership, and progress total.
 - `TrackingSession` stores status, progress, rating, notes, platform, start date, finish date, update time, and progress updates.
 - `ProgressUpdate` stores dated cumulative progress values.
-- `TrackedMedia` joins the item, sessions, credits, collections, external ratings, and external tracking.
+- `TrackedMedia` joins the item, sessions, credits, collections, and external ratings.
 - Home already shows a small KPI strip with total titles, in-progress titles, average rating, and completed titles this year.
 
 The current navigation model has `Home` plus selected media section pages. The bottom navigation already has five items: Home, Anime, Books, TV, and Games. Adding a sixth stats tab would crowd mobile navigation.
@@ -273,4 +273,3 @@ Later versions can add:
 - Multiple sessions per item need a deliberate rating policy.
 - Progress updates represent cumulative values, so progress-over-time requires careful delta calculation.
 - If stats later need fast large-library performance, Room aggregate queries may be useful. Start with pure calculation first.
-

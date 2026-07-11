@@ -219,29 +219,22 @@ fun DetailScreen(
                 )
             }
 
-            item {
-                DetailSectionTitle(text = stringResource(R.string.detail_history))
-            }
-
-            if (pastSessions.isEmpty()) {
+            if (pastSessions.isNotEmpty()) {
                 item {
-                    Text(
-                        text = stringResource(R.string.history_empty),
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.68f),
+                    DetailSectionTitle(text = stringResource(R.string.detail_history))
+                }
+
+                items(pastSessions) { session ->
+                    PastSessionSection(
+                        session = session,
+                        progressTotal = trackedMedia.item.effectiveProgressTotal(),
+                        mediaType = trackedMedia.item.type,
+                        accent = accent,
+                        onUpdateSessionDetails = onUpdateSessionDetails,
+                        onDeleteProgressUpdate = onDeleteProgressUpdate,
+                        onDeleteSession = { onDeletePastSession(session.id) },
                     )
                 }
-            }
-
-            items(pastSessions) { session ->
-                PastSessionSection(
-                    session = session,
-                    progressTotal = trackedMedia.item.effectiveProgressTotal(),
-                    mediaType = trackedMedia.item.type,
-                    accent = accent,
-                    onUpdateSessionDetails = onUpdateSessionDetails,
-                    onDeleteProgressUpdate = onDeleteProgressUpdate,
-                    onDeleteSession = { onDeletePastSession(session.id) },
-                )
             }
 
             if (trackedMedia.externalRatings.size > 1) {

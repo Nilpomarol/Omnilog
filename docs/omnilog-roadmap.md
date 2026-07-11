@@ -56,7 +56,7 @@ Important files:
 - `app/src/main/java/com/nilpo/contenttracker/ui/ContentTrackerApp.kt`: top-level Compose orchestration, navigation, menus, import dialogs, metadata refresh confirmation.
 - `app/src/main/java/com/nilpo/contenttracker/ui/home/HomeViewModel.kt`: UI bridge to repository operations.
 - `app/src/main/java/com/nilpo/contenttracker/ui/detail/DetailScreen.kt`: detail screen orchestration.
-- `app/src/main/java/com/nilpo/contenttracker/ui/detail/DetailQuickActionsSection.kt`: current session actions, external tracking dialog, and external ratings dialog.
+- `app/src/main/java/com/nilpo/contenttracker/ui/detail/DetailQuickActionsSection.kt`: quick actions and external ratings dialog.
 - `app/src/main/java/com/nilpo/contenttracker/core/repository/AniListMetadataRepository.kt`: AniList search/details plus MAL/Jikan enrichment and MAL id preservation support.
 - `app/src/main/java/com/nilpo/contenttracker/core/repository/MyAnimeListXmlImport.kt`: MAL XML parser.
 - `app/src/main/res/values/strings.xml`: Catalan UI strings.
@@ -70,7 +70,6 @@ Core tables/entities:
 - `tracking_sessions`
 - `progress_updates`
 - `external_ratings`
-- `external_tracking`
 - `media_collections`
 
 External metadata/data providers:
@@ -272,7 +271,7 @@ Tasks:
 ## Technical Debt
 
 - `ContentTrackerApp.kt` coordinates a lot of navigation, dialogs, imports, metadata linking, and back handling. Refactor only when a focused extraction clearly helps a feature.
-- `DetailQuickActionsSection.kt` currently carries quick actions plus external tracking/rating dialogs.
+- `DetailQuickActionsSection.kt` carries quick actions plus the external ratings dialog.
 - Primary external rating is denormalized on `media_items` instead of modeled by id/source.
 - Refresh diff display uses formatted string comparisons for many fields.
 - Import and metadata flows need automated tests.

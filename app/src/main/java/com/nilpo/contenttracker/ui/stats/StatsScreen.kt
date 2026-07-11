@@ -64,6 +64,7 @@ import com.nilpo.contenttracker.core.stats.StatsSegment
 import com.nilpo.contenttracker.core.stats.StatsSnapshot
 import com.nilpo.contenttracker.core.stats.StatusStatsBucket
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
+import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -1974,22 +1975,31 @@ private fun StatsMediaTile(
                         ),
                     ),
             )
-            statLabel?.let { label ->
-                Surface(
+            if (trackedMedia.item.ownership.isOwned || statLabel != null) {
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(10.dp),
-                    shape = RoundedCornerShape(999.dp),
-                    color = accent,
-                    contentColor = OmnilogColors.AppBackground,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    Text(
-                        text = label,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                    )
+                    if (trackedMedia.item.ownership.isOwned) {
+                        OwnedBadge()
+                    }
+                    statLabel?.let { label ->
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = accent,
+                            contentColor = OmnilogColors.AppBackground,
+                        ) {
+                            Text(
+                                text = label,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                            )
+                        }
+                    }
                 }
             }
             Column(
