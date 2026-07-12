@@ -162,6 +162,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             ?.takeIf { path -> File(path).isFile }
     }
     var statsReturnDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
+    var detailHistory by remember { mutableStateOf<List<DetailHistoryEntry>>(emptyList()) }
     var detailReturnTarget by remember { mutableStateOf<DetailReturnTarget>(DetailReturnTarget.Section) }
     var collectionReturnTarget by remember { mutableStateOf<CollectionReturnTarget>(CollectionReturnTarget.Section) }
     var authorReturnTarget by remember { mutableStateOf<AuthorReturnTarget>(AuthorReturnTarget.Section) }
@@ -210,31 +211,42 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val metadataLinkSuccessMessage = stringResource(R.string.metadata_link_success)
     val metadataLinkErrorMessage = stringResource(R.string.metadata_link_error)
     val navigateBackFromDetail = {
-        when (val returnTarget = detailReturnTarget) {
-            DetailReturnTarget.Home -> {
-                selectedDestination = AppDestination.Home
-                selectedMediaId = null
-                selectedCollectionId = null
+        val poppedDetail = detailHistory.popDetail()
+        val previousDetail = poppedDetail.previous
+        if (previousDetail != null) {
+            detailHistory = poppedDetail.remaining
+            viewModel.selectSection(previousDetail.section)
+            selectedMediaId = previousDetail.mediaItemId
+            selectedCollectionId = null
+            selectedAuthor = null
+            detailReturnTarget = previousDetail.returnTarget
+        } else {
+            when (val returnTarget = detailReturnTarget) {
+                DetailReturnTarget.Home -> {
+                    selectedDestination = AppDestination.Home
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                }
+                DetailReturnTarget.Profile -> {
+                    selectedDestination = AppDestination.Profile
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                }
+                is DetailReturnTarget.Collection -> {
+                    selectedDestination = AppDestination.Section
+                    selectedMediaId = null
+                    selectedCollectionId = returnTarget.collectionId
+                }
+                is DetailReturnTarget.Author -> {
+                    selectedMediaId = null
+                    selectedAuthor = returnTarget.author
+                }
+                DetailReturnTarget.Section -> {
+                    selectedMediaId = null
+                }
             }
-            DetailReturnTarget.Profile -> {
-                selectedDestination = AppDestination.Profile
-                selectedMediaId = null
-                selectedCollectionId = null
-            }
-            is DetailReturnTarget.Collection -> {
-                selectedDestination = AppDestination.Section
-                selectedMediaId = null
-                selectedCollectionId = returnTarget.collectionId
-            }
-            is DetailReturnTarget.Author -> {
-                selectedMediaId = null
-                selectedAuthor = returnTarget.author
-            }
-            DetailReturnTarget.Section -> {
-                selectedMediaId = null
-            }
+            detailReturnTarget = DetailReturnTarget.Section
         }
-        detailReturnTarget = DetailReturnTarget.Section
     }
     val navigateBackFromCollection = {
         when (val returnTarget = collectionReturnTarget) {
@@ -259,6 +271,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         authorReturnTarget = AuthorReturnTarget.Section
     }
     val navigateBackFromStats = {
+        detailHistory = emptyList()
         selectedDestination = statsReturnDestination
         selectedMediaId = null
         selectedCollectionId = null
@@ -267,18 +280,21 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         isAdding = false
     }
     val navigateBackFromProfile = {
+        detailHistory = emptyList()
         selectedDestination = AppDestination.Home
         selectedMediaId = null
         selectedCollectionId = null
         isAdding = false
     }
     val navigateBackFromSettings = {
+        detailHistory = emptyList()
         selectedDestination = AppDestination.Profile
         selectedMediaId = null
         selectedCollectionId = null
         isAdding = false
     }
     val openProfile = {
+        detailHistory = emptyList()
         selectedDestination = AppDestination.Profile
         selectedMediaId = null
         selectedCollectionId = null
@@ -287,6 +303,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         viewModel.clearMetadataSearch()
     }
     val openSettings = {
+        detailHistory = emptyList()
         selectedDestination = AppDestination.Settings
         selectedMediaId = null
         selectedCollectionId = null
@@ -296,6 +313,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
     val openTrackedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
+        detailHistory = emptyList()
         viewModel.selectSection(trackedMedia.item.type.homeSection())
         selectedDestination = AppDestination.Section
         selectedCollectionId = null
@@ -306,9 +324,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
     val openRelatedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
+        detailHistory = detailHistory.pushDetail(
+            mediaItemId = selectedMediaId,
+            section = uiState.selectedSection,
+            returnTarget = detailReturnTarget,
+        )
         viewModel.selectSection(trackedMedia.item.type.homeSection())
         selectedDestination = AppDestination.Section
         selectedCollectionId = null
+        selectedAuthor = null
+        detailReturnTarget = DetailReturnTarget.Section
         selectedMediaId = trackedMedia.item.id
         isAdding = false
     }
@@ -634,6 +659,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             ?: return@LaunchedEffect
 
         val targetCollection = addTargetCollection
+        detailHistory = emptyList()
         viewModel.selectSection(trackedMedia.item.type.homeSection())
         selectedDestination = AppDestination.Section
         if (targetCollection != null) {
@@ -661,6 +687,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             pendingImportConfirmation != null ||
             pendingImport != null ||
             showRestoreList ||
+            detailActions.isManagingExternalRatings ||
             selectedMediaId != null ||
             isAdding ||
             selectedCollectionId != null ||
@@ -677,7 +704,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             pendingImportConfirmation != null -> pendingImportConfirmation = null
             pendingImport != null -> pendingImport = null
             showRestoreList -> showRestoreList = false
-            selectedMediaId != null -> navigateBackFromDetail()
+            detailActions.isManagingExternalRatings -> detailActions.onCloseExternalRatings()
+            selectedMediaId != null && !isAdding -> navigateBackFromDetail()
             isAdding -> {
                 viewModel.clearMetadataSearch()
                 isAdding = false
@@ -748,6 +776,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     selectedDestination = selectedDestination,
                     selectedSection = uiState.selectedSection,
                     onHomeClick = {
+                        detailHistory = emptyList()
                         selectedDestination = AppDestination.Home
                         selectedMediaId = null
                 selectedCollectionId = null
@@ -759,6 +788,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 viewModel.clearMetadataSearch()
             },
                     onSectionClick = { section ->
+                        detailHistory = emptyList()
                         selectedDestination = AppDestination.Section
                         selectedMediaId = null
                         selectedCollectionId = null
@@ -829,6 +859,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 uiState = uiState,
                 onMediaClick = { trackedMedia ->
                     val section = trackedMedia.item.type.homeSection()
+                    detailHistory = emptyList()
                     viewModel.selectSection(section)
                     selectedDestination = AppDestination.Section
                     selectedCollectionId = null
@@ -838,6 +869,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 },
                 onSectionSearch = { section, query ->
                     viewModel.selectSectionWithSearch(section, query)
+                    detailHistory = emptyList()
                     selectedDestination = AppDestination.Section
                     selectedMediaId = null
                     selectedCollectionId = null
@@ -846,6 +878,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 },
                 onStatsClick = {
                     statsReturnDestination = AppDestination.Home
+                    detailHistory = emptyList()
                     selectedDestination = AppDestination.Stats
                     selectedMediaId = null
                     selectedCollectionId = null
@@ -905,6 +938,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 items = uiState.allTrackedItems,
                 onMediaClick = { trackedMedia ->
                     val section = trackedMedia.item.type.homeSection()
+                    detailHistory = emptyList()
                     viewModel.selectSection(section)
                     selectedDestination = AppDestination.Section
                     selectedCollectionId = null
@@ -979,6 +1013,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 uiState = uiState,
                 metadataUiState = metadataUiState,
                 onMediaClick = {
+                    detailHistory = emptyList()
                     detailReturnTarget = DetailReturnTarget.Section
                     collectionReturnTarget = CollectionReturnTarget.Section
                     selectedMediaId = it.item.id
@@ -1840,12 +1875,45 @@ private enum class AppDestination {
     Section,
 }
 
-private sealed interface DetailReturnTarget {
+internal sealed interface DetailReturnTarget {
     data object Home : DetailReturnTarget
     data object Profile : DetailReturnTarget
     data object Section : DetailReturnTarget
     data class Collection(val collectionId: Long) : DetailReturnTarget
     data class Author(val author: String) : DetailReturnTarget
+}
+
+internal data class DetailHistoryEntry(
+    val mediaItemId: Long,
+    val section: MediaSection,
+    val returnTarget: DetailReturnTarget,
+)
+
+internal data class DetailHistoryPop(
+    val remaining: List<DetailHistoryEntry>,
+    val previous: DetailHistoryEntry?,
+)
+
+internal fun List<DetailHistoryEntry>.pushDetail(
+    mediaItemId: Long?,
+    section: MediaSection,
+    returnTarget: DetailReturnTarget,
+): List<DetailHistoryEntry> {
+    return mediaItemId?.let { currentMediaId ->
+        this + DetailHistoryEntry(
+            mediaItemId = currentMediaId,
+            section = section,
+            returnTarget = returnTarget,
+        )
+    } ?: this
+}
+
+internal fun List<DetailHistoryEntry>.popDetail(): DetailHistoryPop {
+    return if (isEmpty()) {
+        DetailHistoryPop(remaining = this, previous = null)
+    } else {
+        DetailHistoryPop(remaining = dropLast(1), previous = last())
+    }
 }
 
 private sealed interface CollectionReturnTarget {
