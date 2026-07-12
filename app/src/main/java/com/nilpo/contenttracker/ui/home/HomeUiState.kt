@@ -10,7 +10,7 @@ data class HomeUiState(
     val trackedItems: List<TrackedMedia> = emptyList(),
     val searchQuery: String = "",
     val statusFilter: TrackingStatus? = null,
-    val groupMode: HomeGroupMode = HomeGroupMode.None,
+    val browseMode: HomeBrowseMode = HomeBrowseMode.Items,
     val sortMode: HomeSortMode = HomeSortMode.Recent,
     val sortDirection: HomeSortDirection = HomeSortDirection.Descending,
     val advancedFilters: HomeAdvancedFilters = HomeAdvancedFilters(),
@@ -41,7 +41,13 @@ data class HomeAdvancedFilters(
             minimumExternalRating != null || minimumUserRating != null
 }
 
-enum class HomeGroupMode {
+enum class HomeBrowseMode {
+    Items,
+    Collections,
+    Authors,
+}
+
+internal enum class HomeGroupMode {
     None,
     Status,
     Collection,

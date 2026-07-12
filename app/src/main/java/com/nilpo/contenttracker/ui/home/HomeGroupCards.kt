@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -195,7 +196,9 @@ private fun AuthorGroupCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
+        onClick = {
+            if (group.title.isBlank()) onClick() else onAuthorClick(group.title)
+        },
         shape = RoundedCornerShape(10.dp),
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
@@ -277,23 +280,21 @@ private fun AuthorGroupCard(
                             maxLines = 1,
                         )
                     }
-                    if (group.title.isNotBlank()) {
-                        Text(
-                            text = stringResource(R.string.author_open),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = accent,
-                            modifier = Modifier.clickable { onAuthorClick(group.title) },
+                    IconButton(
+                        onClick = onClick,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowDown,
+                            contentDescription = stringResource(
+                                if (isCollapsed) R.string.author_expand else R.string.author_collapse,
+                            ),
+                            modifier = Modifier
+                                .size(20.dp)
+                                .graphicsLayer { rotationZ = arrowRotation.value },
+                            tint = accent,
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(if (isCollapsed) 20.dp else 18.dp)
-                            .graphicsLayer { rotationZ = arrowRotation.value },
-                        tint = accent,
-                    )
                 }
                 AnimatedVisibility(
                     visible = isCollapsed,
@@ -413,7 +414,7 @@ private fun CollectionGroupCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
+        onClick = { group.collection?.let(onCollectionClick) },
         shape = RoundedCornerShape(10.dp),
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
@@ -495,23 +496,21 @@ private fun CollectionGroupCard(
                             maxLines = 1,
                         )
                     }
-                    if (group.collection != null) {
-                        Text(
-                            text = stringResource(R.string.author_open),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = accent,
-                            modifier = Modifier.clickable { onCollectionClick(group.collection) },
+                    androidx.compose.material3.IconButton(
+                        onClick = onClick,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowDown,
+                            contentDescription = stringResource(
+                                if (isCollapsed) R.string.collection_expand else R.string.collection_collapse,
+                            ),
+                            modifier = Modifier
+                                .size(20.dp)
+                                .graphicsLayer { rotationZ = arrowRotation.value },
+                            tint = accent,
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(if (isCollapsed) 20.dp else 18.dp)
-                            .graphicsLayer { rotationZ = arrowRotation.value },
-                        tint = accent,
-                    )
                 }
                 AnimatedVisibility(
                     visible = isCollapsed,

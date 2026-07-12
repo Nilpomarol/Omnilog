@@ -48,7 +48,7 @@ class HomeViewModel(
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
     private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
-    private val groupMode = MutableStateFlow(HomeGroupMode.None)
+    private val browseMode = MutableStateFlow(HomeBrowseMode.Items)
     private val sortMode = MutableStateFlow(HomeSortMode.Recent)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Descending)
     private val advancedFilters = MutableStateFlow(HomeAdvancedFilters())
@@ -68,14 +68,12 @@ class HomeViewModel(
     private val filters = combine(
         searchQuery,
         statusFilter,
-        groupMode,
         sortMode,
         sortDirection,
-    ) { query, status, group, sort, direction ->
+    ) { query, status, sort, direction ->
         HomeFilters(
             query = query,
             status = status,
-            group = group,
             sort = sort,
             direction = direction,
         )
@@ -101,7 +99,7 @@ class HomeViewModel(
             trackedItems = visibleItems,
             searchQuery = filters.query,
             statusFilter = filters.status,
-            groupMode = filters.group,
+            browseMode = browseMode.value,
             sortMode = filters.sort,
             sortDirection = filters.direction,
             advancedFilters = advanced,
@@ -160,6 +158,7 @@ class HomeViewModel(
         cancelMetadataSearch()
         selectedSection.value = section
         searchQuery.value = ""
+        browseMode.value = HomeBrowseMode.Items
         metadataSearchState.value = MetadataSearchUiState()
     }
 
@@ -167,6 +166,7 @@ class HomeViewModel(
         cancelMetadataSearch()
         selectedSection.value = section
         searchQuery.value = query
+        browseMode.value = HomeBrowseMode.Items
         metadataSearchState.value = MetadataSearchUiState(query = query)
     }
 
@@ -336,8 +336,8 @@ class HomeViewModel(
         statusFilter.value = status
     }
 
-    fun updateGroupMode(mode: HomeGroupMode) {
-        groupMode.value = mode
+    fun updateBrowseMode(mode: HomeBrowseMode) {
+        browseMode.value = mode
     }
 
     fun updateSortMode(mode: HomeSortMode) {
@@ -690,7 +690,6 @@ sealed interface HomeUiEvent {
 private data class HomeFilters(
     val query: String,
     val status: TrackingStatus?,
-    val group: HomeGroupMode,
     val sort: HomeSortMode,
     val direction: HomeSortDirection,
 )

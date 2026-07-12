@@ -179,14 +179,15 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             viewModel.loadRecommendations(current, uiState.allTrackedItems)
         }
     }
-    val selectedCollection = uiState.trackedItems
+    val selectedCollection = uiState.allTrackedItems
         .mapNotNull { it.collection }
         .firstOrNull { it.id == selectedCollectionId }
-    val selectedCollectionItems = uiState.trackedItems
+    val selectedCollectionItems = uiState.allTrackedItems
         .filter { it.collection?.id == selectedCollectionId }
         .sortedWith(collectionItemComparator())
     val selectedAuthorItems = selectedAuthor?.let { author ->
-        uiState.trackedItems.filter { trackedMedia ->
+        uiState.allTrackedItems.filter { trackedMedia ->
+            trackedMedia.item.type in uiState.selectedSection.types &&
             trackedMedia.item.creators.any { it.trim().equals(author.trim(), ignoreCase = true) }
         }
     }.orEmpty()
@@ -1070,7 +1071,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     }
                 },
                 onStatusFilterChange = viewModel::updateStatusFilter,
-                onGroupModeChange = viewModel::updateGroupMode,
+                onBrowseModeChange = viewModel::updateBrowseMode,
                 onSortModeChange = viewModel::updateSortMode,
                 onSortDirectionChange = viewModel::updateSortDirection,
                 onAdvancedFiltersChange = viewModel::updateAdvancedFilters,

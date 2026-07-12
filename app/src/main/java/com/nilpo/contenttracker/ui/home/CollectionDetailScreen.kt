@@ -108,6 +108,8 @@ fun CollectionDetailScreen(
     val hasUnsavedReorder = isReordering && draftOrderValues != sortedItems.toDraftOrderValues()
     val nextCollectionOrder = (items.maxOfOrNull { it.item.collectionSortOrder ?: 0.0 } ?: 0.0) + 1.0
     val averageRating = items.collectionAverageRating()
+    val progressSummary = items.collectionProgressSummary()
+    val collectionCoverUrl = items.collectionCoverUrl()
     val requestBack = {
         if (hasUnsavedReorder) {
             showDiscardReorderConfirmation = true
@@ -192,22 +194,6 @@ fun CollectionDetailScreen(
                         Text(text = stringResource(R.string.save), color = accent)
                     }
                 } else {
-                    averageRating?.let { rating ->
-                        Text(
-                            text = stringResource(R.string.collection_average_rating, rating),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = accent,
-                            maxLines = 1,
-                            modifier = Modifier.padding(end = 8.dp),
-                        )
-                    }
-                    Text(
-                        text = stringResource(R.string.collection_item_count, items.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
-                        maxLines = 1,
-                    )
                     IconButton(onClick = { onAddToCollection(collection, nextCollectionOrder) }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
@@ -219,7 +205,7 @@ fun CollectionDetailScreen(
                         IconButton(onClick = { menuExpanded = true }) {
                             Icon(
                                 imageVector = Icons.Filled.MoreVert,
-                                contentDescription = null,
+                                contentDescription = stringResource(R.string.collection_menu),
                                 tint = OmnilogColors.AppMuted,
                             )
                         }
@@ -259,6 +245,52 @@ fun CollectionDetailScreen(
                 }
             }
 
+            if (items.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MetadataCoverImage(
+                        coverUrl = collectionCoverUrl,
+                        modifier = Modifier.size(width = 72.dp, height = 108.dp),
+                        shape = RoundedCornerShape(6.dp),
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.collection_item_count, items.size),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = OmnilogColors.AppInk,
+                        )
+                        Text(
+                            text = stringResource(R.string.group_progress_prefix, progressSummary.label),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogColors.AppMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        GroupProgressBar(
+                            fraction = progressSummary.progressFraction,
+                            color = accent,
+                        )
+                        averageRating?.let { rating ->
+                            Text(
+                                text = stringResource(R.string.collection_average_rating, rating),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accent,
+                            )
+                        }
+                    }
+                }
+            }
             HorizontalDivider(color = OmnilogColors.AppLine)
 
             // ── Item list ──────────────────────────────────────────────────
@@ -608,7 +640,7 @@ private fun CollectionItemCard(
             Box {
                 Surface(
                     onClick = { menuExpanded = true },
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(48.dp),
                     shape = RoundedCornerShape(999.dp),
                     color = OmnilogColors.AppLine,
                     contentColor = OmnilogColors.AppMuted,
@@ -616,7 +648,7 @@ private fun CollectionItemCard(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
-                            contentDescription = null,
+                            contentDescription = stringResource(R.string.collection_item_menu),
                             modifier = Modifier.size(17.dp),
                         )
                     }

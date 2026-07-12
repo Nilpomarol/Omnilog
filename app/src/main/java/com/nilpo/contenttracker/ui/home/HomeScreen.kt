@@ -92,7 +92,7 @@ fun HomeScreen(
     onApiSuggestionSelected: (MetadataSuggestion) -> Unit,
     duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
-    onGroupModeChange: (HomeGroupMode) -> Unit,
+    onBrowseModeChange: (HomeBrowseMode) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
     onAdvancedFiltersChange: (HomeAdvancedFilters) -> Unit,
@@ -100,12 +100,13 @@ fun HomeScreen(
 ) {
     val section = uiState.selectedSection
     var filtersExpanded by remember { mutableStateOf(false) }
-    val groupedItems = remember(uiState.trackedItems, uiState.groupMode, uiState.sortMode, uiState.sortDirection) {
-        buildHomeGroups(uiState.trackedItems, uiState.groupMode, uiState.sortMode, uiState.sortDirection)
+    val groupMode = uiState.browseMode.groupMode()
+    val groupedItems = remember(uiState.trackedItems, uiState.browseMode, uiState.sortMode, uiState.sortDirection) {
+        buildHomeGroups(uiState.trackedItems, groupMode, uiState.sortMode, uiState.sortDirection)
     }
-    val collapsedGroupKeysState = remember(section, uiState.groupMode, groupedItems.map { it.key }) {
+    val collapsedGroupKeysState = remember(section, uiState.browseMode, groupedItems.map { it.key }) {
         mutableStateOf(
-            if (uiState.groupMode == HomeGroupMode.Collection || uiState.groupMode == HomeGroupMode.Author) {
+            if (uiState.browseMode != HomeBrowseMode.Items) {
                 groupedItems.map { it.key }
             } else {
                 emptyList()
@@ -165,13 +166,13 @@ fun HomeScreen(
                     }
                     BrowseControls(
                         statusFilter = uiState.statusFilter,
-                        groupMode = uiState.groupMode,
+                        browseMode = uiState.browseMode,
                         sortMode = uiState.sortMode,
                         sortDirection = uiState.sortDirection,
                         advancedFilters = uiState.advancedFilters,
                         accent = section.accent,
                         onStatusFilterChange = onStatusFilterChange,
-                        onGroupModeChange = onGroupModeChange,
+                        onBrowseModeChange = onBrowseModeChange,
                         onSortModeChange = onSortModeChange,
                         onSortDirectionChange = onSortDirectionChange,
                         onAdvancedFiltersClick = { filtersExpanded = true },
@@ -203,7 +204,7 @@ fun HomeScreen(
                         color = OmnilogColors.AppMuted,
                     )
                 }
-            } else if (uiState.groupMode != HomeGroupMode.None) {
+            } else if (uiState.browseMode != HomeBrowseMode.Items) {
                 groupedItems.forEach { group ->
                     val isCollapsed = group.key in collapsedGroupKeys
                     val groupItems = if (group.type == HomeGroupType.Collection) {
@@ -331,22 +332,26 @@ private fun ListItemCounter(
 @Composable
 private fun BrowseControls(
     statusFilter: TrackingStatus?,
-    groupMode: HomeGroupMode,
+    browseMode: HomeBrowseMode,
     sortMode: HomeSortMode,
     sortDirection: HomeSortDirection,
     advancedFilters: HomeAdvancedFilters,
     accent: Color,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
-    onGroupModeChange: (HomeGroupMode) -> Unit,
+    onBrowseModeChange: (HomeBrowseMode) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
     onAdvancedFiltersClick: () -> Unit,
 ) {
     var statusExpanded by remember { mutableStateOf(false) }
-    var groupExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        BrowseModeTabs(
+            selectedMode = browseMode,
+            accent = accent,
+            onModeSelected = onBrowseModeChange,
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -378,32 +383,6 @@ private fun BrowseControls(
                                 )
                             },
                             onClick = { onStatusFilterChange(status); statusExpanded = false },
-                        )
-                    }
-                }
-            }
-
-            Box(modifier = Modifier.weight(0.95f)) {
-                DropdownChip(
-                    modifier = Modifier.fillMaxWidth(),
-                    label = groupMode.label(),
-                    selected = groupMode != HomeGroupMode.None,
-                    color = accent,
-                    onClick = { groupExpanded = true },
-                )
-                DropdownMenu(
-                    expanded = groupExpanded,
-                    onDismissRequest = { groupExpanded = false },
-                ) {
-                    HomeGroupMode.entries.forEach { mode ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = mode.label(),
-                                    fontWeight = if (groupMode == mode) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            },
-                            onClick = { onGroupModeChange(mode); groupExpanded = false },
                         )
                     }
                 }
@@ -474,6 +453,48 @@ private fun BrowseControls(
                 color = accent,
                 onClick = onAdvancedFiltersClick,
             )
+        }
+    }
+}
+
+@Composable
+private fun BrowseModeTabs(
+    selectedMode: HomeBrowseMode,
+    accent: Color,
+    onModeSelected: (HomeBrowseMode) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        HomeBrowseMode.entries.forEach { mode ->
+            val selected = mode == selectedMode
+            Surface(
+                onClick = { onModeSelected(mode) },
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = if (selected) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
+                border = BorderStroke(
+                    1.dp,
+                    if (selected) accent.copy(alpha = 0.50f) else OmnilogColors.AppLine,
+                ),
+                contentColor = if (selected) accent else OmnilogColors.AppMuted,
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = mode.label(),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }
@@ -898,14 +919,17 @@ private fun TrackingStatus.label(): String {
     }
 }
 
+private fun HomeBrowseMode.groupMode(): HomeGroupMode = when (this) {
+    HomeBrowseMode.Items -> HomeGroupMode.None
+    HomeBrowseMode.Collections -> HomeGroupMode.Collection
+    HomeBrowseMode.Authors -> HomeGroupMode.Author
+}
+
 @Composable
-private fun HomeGroupMode.label(): String {
-    return when (this) {
-        HomeGroupMode.None -> stringResource(R.string.group_none)
-        HomeGroupMode.Status -> stringResource(R.string.group_status)
-        HomeGroupMode.Collection -> stringResource(R.string.group_collection)
-        HomeGroupMode.Author -> stringResource(R.string.group_author)
-    }
+private fun HomeBrowseMode.label(): String = when (this) {
+    HomeBrowseMode.Items -> stringResource(R.string.browse_items)
+    HomeBrowseMode.Collections -> stringResource(R.string.browse_collections)
+    HomeBrowseMode.Authors -> stringResource(R.string.browse_authors)
 }
 
 @Composable
