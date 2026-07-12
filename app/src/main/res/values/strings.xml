@@ -132,10 +132,15 @@
     <string name="detail_external_scores">Puntuacions</string>
     <string name="detail_related_collection_title">Més de %1$s</string>
     <string name="detail_related_collection_fallback">Més de la col·lecció</string>
-    <string name="detail_related_title">També et pot interessar</string>
+    <string name="detail_related_title">Relacionats de la teva biblioteca</string>
     <string name="detail_related_same_collection">Mateixa col·lecció</string>
     <string name="detail_related_same_creator">Mateix autor o creador</string>
     <string name="detail_related_shared_genres">Gèneres en comú</string>
+    <string name="detail_external_recommendations">Recomanacions externes</string>
+    <string name="detail_external_recommendation_loading">Buscant recomanacions...</string>
+    <string name="detail_external_recommendation_error">No s\'han pogut carregar les recomanacions.</string>
+    <string name="detail_external_recommendation_retry">Torna-ho a provar</string>
+    <string name="detail_external_recommendation_add">Afegeix</string>
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
     <string name="add_with_status">Afegeix com a %1$s</string>

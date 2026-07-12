@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.home
 
+import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.TrackedMedia
 
@@ -14,6 +15,13 @@ data class HomeUiState(
     val sortDirection: HomeSortDirection = HomeSortDirection.Descending,
     val advancedFilters: HomeAdvancedFilters = HomeAdvancedFilters(),
     val refreshingMetadataItemId: Long? = null,
+)
+
+data class RecommendationUiState(
+    val mediaItemId: Long? = null,
+    val recommendations: List<ExternalRecommendation> = emptyList(),
+    val isLoading: Boolean = false,
+    val hasError: Boolean = false,
 )
 
 data class HomeAdvancedFilters(

@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
+import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
@@ -20,6 +22,7 @@ import com.nilpo.contenttracker.core.repository.MediaRepository
 import com.nilpo.contenttracker.core.repository.MetadataRefreshField
 import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.MetadataRepository
+import com.nilpo.contenttracker.core.repository.RecommendationRepository
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlImportResult
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvImportResult
@@ -40,6 +43,7 @@ import java.time.LocalDate
 class HomeViewModel(
     private val mediaRepository: MediaRepository,
     private val metadataRepository: MetadataRepository,
+    private val recommendationRepository: RecommendationRepository,
 ) : ViewModel() {
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
@@ -51,10 +55,14 @@ class HomeViewModel(
     private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
     private var metadataSearchJob: Job? = null
     private val metadataSearchCache = LinkedHashMap<MetadataSearchCacheKey, CachedMetadataSearch>()
+    private val recommendationState = MutableStateFlow(RecommendationUiState())
+    private var recommendationJob: Job? = null
+    private val recommendationCache = LinkedHashMap<RecommendationCacheKey, CachedRecommendations>()
     private val refreshingMetadataItemId = MutableStateFlow<Long?>(null)
     private val mutableEvents = MutableSharedFlow<HomeUiEvent>()
 
     val metadataUiState = metadataSearchState.asStateFlow()
+    val recommendationUiState = recommendationState.asStateFlow()
     val events = mutableEvents.asSharedFlow()
 
     private val filters = combine(
@@ -226,6 +234,69 @@ class HomeViewModel(
         }
     }
 
+    fun loadRecommendations(
+        current: TrackedMedia,
+        library: List<TrackedMedia>,
+        forceRefresh: Boolean = false,
+    ) {
+        recommendationJob?.cancel()
+        val source = current.item.metadataSource
+        val externalId = current.item.metadataExternalId
+        val cacheKey = when {
+            current.item.type == MediaType.Book -> {
+                RecommendationCacheKey(
+                    source = source ?: MetadataSource.OpenLibrary,
+                    externalId = externalId?.takeIf { it.isNotBlank() }
+                        ?: "local:" + current.item.id.toString(),
+                )
+            }
+            source != null && !externalId.isNullOrBlank() -> {
+                RecommendationCacheKey(source = source, externalId = externalId)
+            }
+            else -> null
+        }
+        if (cacheKey == null) {
+            recommendationState.value = RecommendationUiState(mediaItemId = current.item.id)
+            return
+        }
+
+        if (!forceRefresh) {
+            cachedRecommendations(cacheKey)?.let { cached ->
+                recommendationState.value = RecommendationUiState(
+                    mediaItemId = current.item.id,
+                    recommendations = cached.recommendations,
+                )
+                return
+            }
+        }
+
+        recommendationState.value = RecommendationUiState(
+            mediaItemId = current.item.id,
+            isLoading = true,
+        )
+        val librarySnapshot = library.toList()
+        recommendationJob = viewModelScope.launch {
+            val result = runCatching {
+                recommendationRepository.getRecommendations(
+                    current = current,
+                    library = librarySnapshot,
+                )
+            }
+            if (!isActive || recommendationState.value.mediaItemId != current.item.id) {
+                return@launch
+            }
+
+            val recommendations = result.getOrDefault(emptyList())
+            recommendationState.value = RecommendationUiState(
+                mediaItemId = current.item.id,
+                recommendations = recommendations,
+                hasError = result.isFailure,
+            )
+            if (result.isSuccess) {
+                cacheRecommendations(cacheKey, recommendations)
+            }
+        }
+    }
     fun clearMetadataSearch() {
         cancelMetadataSearch()
         metadataSearchState.value = MetadataSearchUiState()
@@ -513,6 +584,31 @@ class HomeViewModel(
         metadataSearchJob = null
     }
 
+    private fun cachedRecommendations(key: RecommendationCacheKey): CachedRecommendations? {
+        val cached = recommendationCache[key] ?: return null
+        return if (
+            System.currentTimeMillis() - cached.cachedAtEpochMillis <= RECOMMENDATION_CACHE_TTL_MILLIS
+        ) {
+            cached
+        } else {
+            recommendationCache.remove(key)
+            null
+        }
+    }
+
+    private fun cacheRecommendations(
+        key: RecommendationCacheKey,
+        recommendations: List<ExternalRecommendation>,
+    ) {
+        recommendationCache.remove(key)
+        recommendationCache[key] = CachedRecommendations(
+            recommendations = recommendations,
+            cachedAtEpochMillis = System.currentTimeMillis(),
+        )
+        while (recommendationCache.size > MAX_RECOMMENDATION_CACHE_ENTRIES) {
+            recommendationCache.entries.iterator().next().let { recommendationCache.remove(it.key) }
+        }
+    }
     private fun cachedMetadataSearch(key: MetadataSearchCacheKey): CachedMetadataSearch? {
         val cached = metadataSearchCache[key] ?: return null
         return if (System.currentTimeMillis() - cached.cachedAtEpochMillis <= METADATA_SEARCH_CACHE_TTL_MILLIS) {
@@ -540,12 +636,14 @@ class HomeViewModel(
     class Factory(
         private val mediaRepository: MediaRepository,
         private val metadataRepository: MetadataRepository,
+        private val recommendationRepository: RecommendationRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return HomeViewModel(
                 mediaRepository = mediaRepository,
                 metadataRepository = metadataRepository,
+                recommendationRepository = recommendationRepository,
             ) as T
         }
     }
@@ -566,9 +664,21 @@ private data class CachedMetadataSearch(
     val cachedAtEpochMillis: Long,
 )
 
+private data class RecommendationCacheKey(
+    val source: MetadataSource,
+    val externalId: String,
+)
+
+private data class CachedRecommendations(
+    val recommendations: List<ExternalRecommendation>,
+    val cachedAtEpochMillis: Long,
+)
+
 private const val MINIMUM_AUTOMATIC_SEARCH_LENGTH = 3
 private const val METADATA_SEARCH_CACHE_TTL_MILLIS = 5 * 60 * 1_000L
 private const val MAX_METADATA_SEARCH_CACHE_ENTRIES = 20
+private const val RECOMMENDATION_CACHE_TTL_MILLIS = 24 * 60 * 60 * 1_000L
+private const val MAX_RECOMMENDATION_CACHE_ENTRIES = 20
 
 sealed interface HomeUiEvent {
     data class MediaItemCreated(val mediaItemId: Long) : HomeUiEvent

@@ -14,13 +14,19 @@ import com.nilpo.contenttracker.BuildConfig
 import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
+import com.nilpo.contenttracker.core.repository.BookRecommendationRepository
 import com.nilpo.contenttracker.core.repository.CompositeMetadataRepository
 import com.nilpo.contenttracker.core.repository.GoogleBooksMetadataRepository
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.core.repository.OfflineMediaRepository
 import com.nilpo.contenttracker.core.repository.OpenLibraryMetadataRepository
 import com.nilpo.contenttracker.core.repository.RawgMetadataRepository
+import com.nilpo.contenttracker.core.repository.CompositeRecommendationRepository
+import com.nilpo.contenttracker.core.repository.RecommendationRepository
 import com.nilpo.contenttracker.core.repository.TmdbMetadataRepository
+import com.nilpo.contenttracker.core.repository.AniListRecommendationRepository
+import com.nilpo.contenttracker.core.repository.RawgRecommendationRepository
+import com.nilpo.contenttracker.core.repository.TmdbRecommendationRepository
 
 class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
@@ -69,6 +75,15 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             openLibrary = OpenLibraryMetadataRepository(),
             googleBooks = GoogleBooksMetadataRepository(BuildConfig.GOOGLE_BOOKS_API_KEY),
             rawg = RawgMetadataRepository(BuildConfig.RAWG_API_KEY),
+        )
+    }
+
+    val recommendationRepository: RecommendationRepository by lazy {
+        CompositeRecommendationRepository(
+            tmdb = TmdbRecommendationRepository(BuildConfig.TMDB_API_KEY),
+            aniList = AniListRecommendationRepository(),
+            rawg = RawgRecommendationRepository(BuildConfig.RAWG_API_KEY),
+            books = BookRecommendationRepository(metadataRepository),
         )
     }
 }

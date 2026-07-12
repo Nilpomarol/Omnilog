@@ -121,6 +121,7 @@ import java.time.format.DateTimeFormatter
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val metadataUiState by viewModel.metadataUiState.collectAsStateWithLifecycle()
+    val recommendationUiState by viewModel.recommendationUiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -167,6 +168,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val backupActions = remember { BackupHeaderActions() }
     val selectedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == selectedMediaId }
+
+    LaunchedEffect(
+        selectedMedia?.item?.id,
+        selectedMedia?.item?.metadataSource,
+        selectedMedia?.item?.metadataExternalId,
+    ) {
+        selectedMedia?.let { current ->
+            viewModel.loadRecommendations(current, uiState.allTrackedItems)
+        }
+    }
     val selectedCollection = uiState.trackedItems
         .mapNotNull { it.collection }
         .firstOrNull { it.id == selectedCollectionId }
@@ -300,6 +311,26 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         selectedCollectionId = null
         selectedMediaId = trackedMedia.item.id
         isAdding = false
+    }
+    val openExternalRecommendation: (MetadataSuggestion) -> Unit = { suggestion ->
+        when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+            is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
+            is DuplicateMatch.Possible -> {
+                pendingPossibleDuplicate = PendingPossibleDuplicate(
+                    suggestion = suggestion,
+                    trackedMedia = duplicate.trackedMedia,
+                    requiresAddTransition = true,
+                )
+            }
+            DuplicateMatch.None -> {
+                viewModel.selectMetadataSuggestion(suggestion)
+                isAdding = true
+                addTargetCollection = null
+                addTargetCollectionOrder = null
+                selectedCollectionId = null
+                collectionReturnTarget = CollectionReturnTarget.Section
+            }
+        }
     }
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -1055,6 +1086,22 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     authorReturnTarget = AuthorReturnTarget.Detail(selectedMedia.item.id)
                 },
                 onRelatedMediaClick = openRelatedMedia,
+                externalRecommendations = recommendationUiState
+                    .takeIf { it.mediaItemId == selectedMedia.item.id }
+                    ?.recommendations
+                    .orEmpty(),
+                isExternalRecommendationsLoading = recommendationUiState.mediaItemId == selectedMedia.item.id &&
+                    recommendationUiState.isLoading,
+                hasExternalRecommendationsError = recommendationUiState.mediaItemId == selectedMedia.item.id &&
+                    recommendationUiState.hasError,
+                onRefreshExternalRecommendations = {
+                    viewModel.loadRecommendations(
+                        current = selectedMedia,
+                        library = uiState.allTrackedItems,
+                        forceRefresh = true,
+                    )
+                },
+                onExternalRecommendationClick = openExternalRecommendation,
                 askForGoodreadsRating = askForGoodreadsRating,
                 modifier = Modifier
                     .fillMaxSize()

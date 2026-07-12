@@ -35,9 +35,11 @@ import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
+import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -75,6 +77,11 @@ fun DetailScreen(
     onCollectionClick: () -> Unit,
     onAuthorClick: (String) -> Unit,
     onRelatedMediaClick: (TrackedMedia) -> Unit,
+    externalRecommendations: List<ExternalRecommendation> = emptyList(),
+    isExternalRecommendationsLoading: Boolean = false,
+    hasExternalRecommendationsError: Boolean = false,
+    onRefreshExternalRecommendations: () -> Unit = {},
+    onExternalRecommendationClick: (MetadataSuggestion) -> Unit = {},
     askForGoodreadsRating: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -270,7 +277,24 @@ fun DetailScreen(
                     )
                 }
             }
+            if (
+                externalRecommendations.isNotEmpty() ||
+                isExternalRecommendationsLoading ||
+                hasExternalRecommendationsError
+            ) {
+                item {
+                    ExternalRecommendationsSection(
+                        recommendations = externalRecommendations,
+                        accent = accent,
+                        isLoading = isExternalRecommendationsLoading,
+                        hasError = hasExternalRecommendationsError,
+                        onRefresh = onRefreshExternalRecommendations,
+                        onRecommendationClick = onExternalRecommendationClick,
+                    )
+                }
+            }
         }
+
     }
 
     if (showGoodreadsPrompt) {

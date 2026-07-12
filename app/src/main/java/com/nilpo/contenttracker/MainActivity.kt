@@ -13,6 +13,7 @@ class MainActivity : ComponentActivity() {
         HomeViewModel.Factory(
             mediaRepository = (application as ContentTrackerApplication).mediaRepository,
             metadataRepository = (application as ContentTrackerApplication).metadataRepository,
+            recommendationRepository = (application as ContentTrackerApplication).recommendationRepository,
         )
     }
 
