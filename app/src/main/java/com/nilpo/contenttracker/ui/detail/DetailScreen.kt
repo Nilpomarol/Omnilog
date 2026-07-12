@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -114,6 +116,11 @@ fun DetailScreen(
             library = allTrackedMedia,
         )
     }
+    val detailListState = rememberLazyListState()
+    LaunchedEffect(trackedMedia.item.id) {
+        detailListState.scrollToItem(0)
+    }
+
     val collectionSectionTitle = trackedMedia.collection?.name?.let { collectionName ->
         stringResource(R.string.detail_related_collection_title, collectionName)
     } ?: stringResource(R.string.detail_related_collection_fallback)
@@ -168,6 +175,7 @@ fun DetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 24.dp),
+            state = detailListState,
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
