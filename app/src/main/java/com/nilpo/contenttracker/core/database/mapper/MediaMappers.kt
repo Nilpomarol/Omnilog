@@ -142,7 +142,9 @@ fun ProgressUpdateEntity.toDomain(): ProgressUpdate {
         sessionId = sessionId,
         progressValue = progressValue,
         loggedAt = LocalDate.ofEpochDay(loggedAtEpochDay),
+        hasKnownDate = hasKnownDate,
         createdAtEpochMillis = createdAtEpochMillis,
+        countsTowardObjectives = countsTowardObjectives,
     )
 }
 

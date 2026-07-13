@@ -33,5 +33,7 @@ data class ProgressUpdateEntity(
     val sessionId: Long,
     val progressValue: Int,
     val loggedAtEpochDay: Long,
+    val hasKnownDate: Boolean = true,
     val createdAtEpochMillis: Long = System.currentTimeMillis(),
+    val countsTowardObjectives: Boolean = true,
 )

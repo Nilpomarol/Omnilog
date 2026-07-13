@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,8 +32,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -52,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.res.painterResource
@@ -74,6 +75,8 @@ import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.add.SearchStatePanel
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.delay
 
@@ -346,71 +349,54 @@ private fun BrowseControls(
     var statusExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.weight(1.2f)) {
-                DropdownChip(
-                    modifier = Modifier.fillMaxWidth(),
-                    label = statusFilter?.label() ?: stringResource(R.string.filter_all_statuses),
-                    selected = statusFilter != null,
-                    color = statusFilter?.stateColor ?: accent,
-                    onClick = { statusExpanded = true },
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GroupModeSegmented(
+            selectedMode = browseMode,
+            accent = accent,
+            onModeSelected = onBrowseModeChange,
+        )
+
+        Box(modifier = Modifier.weight(1f)) {
+            DropdownChip(
+                modifier = Modifier.fillMaxWidth(),
+                label = statusFilter?.label() ?: stringResource(R.string.filter_all_statuses),
+                selected = statusFilter != null,
+                color = statusFilter?.stateColor ?: accent,
+                onClick = { statusExpanded = true },
+            )
+            OmnilogDropdownMenu(
+                expanded = statusExpanded,
+                onDismissRequest = { statusExpanded = false },
+            ) {
+                OmnilogDropdownItem(
+                    text = stringResource(R.string.filter_all_statuses),
+                    selected = statusFilter == null,
+                    accent = accent,
+                    onClick = { onStatusFilterChange(null); statusExpanded = false },
                 )
-                DropdownMenu(
-                    expanded = statusExpanded,
-                    onDismissRequest = { statusExpanded = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.filter_all_statuses)) },
-                        onClick = { onStatusFilterChange(null); statusExpanded = false },
+                TrackingStatus.entries.forEach { status ->
+                    OmnilogDropdownItem(
+                        text = status.label(),
+                        selected = statusFilter == status,
+                        accent = status.stateColor,
+                        labelColor = status.stateColor,
+                        onClick = { onStatusFilterChange(status); statusExpanded = false },
                     )
-                    TrackingStatus.entries.forEach { status ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = status.label(),
-                                    color = status.stateColor,
-                                    fontWeight = if (statusFilter == status) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            },
-                            onClick = { onStatusFilterChange(status); statusExpanded = false },
-                        )
-                    }
                 }
             }
+        }
 
-            Box(modifier = Modifier.weight(0.95f)) {
-                DropdownChip(
-                    modifier = Modifier.fillMaxWidth(),
-                    label = sortMode.label(),
-                    selected = true,
-                    color = accent,
-                    onClick = { sortExpanded = true },
-                )
-                DropdownMenu(
-                    expanded = sortExpanded,
-                    onDismissRequest = { sortExpanded = false },
-                ) {
-                    HomeSortMode.entries.forEach { mode ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = mode.label(),
-                                    fontWeight = if (sortMode == mode) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            },
-                            onClick = { onSortModeChange(mode); sortExpanded = false },
-                        )
-                    }
-                }
-            }
-
-            Surface(
-                onClick = {
+        Box {
+            SortChip(
+                sortMode = sortMode,
+                sortDirection = sortDirection,
+                accent = accent,
+                onOpenMenu = { sortExpanded = true },
+                onToggleDirection = {
                     onSortDirectionChange(
                         if (sortDirection == HomeSortDirection.Ascending) {
                             HomeSortDirection.Descending
@@ -419,84 +405,137 @@ private fun BrowseControls(
                         },
                     )
                 },
-                modifier = Modifier.size(40.dp),
-                shape = RoundedCornerShape(999.dp),
-                color = accent.copy(alpha = 0.16f),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.50f)),
-                contentColor = accent,
+            )
+            OmnilogDropdownMenu(
+                expanded = sortExpanded,
+                onDismissRequest = { sortExpanded = false },
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(
-                            if (sortDirection == HomeSortDirection.Ascending) {
-                                R.drawable.ic_arrow_up
-                            } else {
-                                R.drawable.ic_arrow_down
-                            },
-                        ),
-                        contentDescription = stringResource(R.string.sort_direction_label),
-                        modifier = Modifier.size(18.dp),
+                HomeSortMode.entries.forEach { mode ->
+                    OmnilogDropdownItem(
+                        text = mode.label(),
+                        selected = sortMode == mode,
+                        accent = accent,
+                        onClick = { onSortModeChange(mode); sortExpanded = false },
                     )
                 }
             }
-
-            AdvancedFiltersButton(
-                activeCount = advancedFilters.activeCount,
-                color = accent,
-                onClick = onAdvancedFiltersClick,
-            )
         }
-        BrowseModeTabs(
-            selectedMode = browseMode,
-            accent = accent,
-            onModeSelected = onBrowseModeChange,
+
+        AdvancedFiltersButton(
+            activeCount = advancedFilters.activeCount,
+            color = accent,
+            onClick = onAdvancedFiltersClick,
         )
     }
 }
 
 @Composable
-private fun BrowseModeTabs(
+private fun GroupModeSegmented(
     selectedMode: HomeBrowseMode,
     accent: Color,
     onModeSelected: (HomeBrowseMode) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = OmnilogColors.AppPanel,
+        border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
-        HomeBrowseMode.entries.forEach { mode ->
-            val selected = mode == selectedMode
-            Surface(
-                onClick = { onModeSelected(mode) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp),
-                shape = RoundedCornerShape(999.dp),
-                color = if (selected) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
-                border = BorderStroke(
-                    1.dp,
-                    if (selected) accent.copy(alpha = 0.50f) else OmnilogColors.AppLine,
-                ),
-                contentColor = if (selected) accent else OmnilogColors.AppMuted,
-            ) {
+        Row(
+            modifier = Modifier.padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            HomeBrowseMode.entries.forEach { mode ->
+                val selected = mode == selectedMode
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .size(width = 34.dp, height = 30.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .then(
+                            if (selected) Modifier.background(accent.copy(alpha = 0.20f)) else Modifier,
+                        )
+                        .clickable { onModeSelected(mode) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = mode.label(),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Icon(
+                        painter = painterResource(mode.iconRes()),
+                        contentDescription = mode.label(),
+                        tint = if (selected) accent else OmnilogColors.AppMuted,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SortChip(
+    sortMode: HomeSortMode,
+    sortDirection: HomeSortDirection,
+    accent: Color,
+    onOpenMenu: () -> Unit,
+    onToggleDirection: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = accent.copy(alpha = 0.16f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.50f)),
+        contentColor = accent,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable { onOpenMenu() }
+                    .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = sortMode.label(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(width = 1.dp, height = 18.dp)
+                    .background(accent.copy(alpha = 0.35f)),
+            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable { onToggleDirection() }
+                    .padding(horizontal = 9.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(
+                        if (sortDirection == HomeSortDirection.Ascending) {
+                            R.drawable.ic_arrow_up
+                        } else {
+                            R.drawable.ic_arrow_down
+                        },
+                    ),
+                    contentDescription = stringResource(R.string.sort_direction_label),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
+private fun HomeBrowseMode.iconRes(): Int = when (this) {
+    HomeBrowseMode.Items -> R.drawable.ic_group_items
+    HomeBrowseMode.Collections -> R.drawable.ic_group_collections
+    HomeBrowseMode.Authors -> R.drawable.ic_group_authors
 }
 
 @Composable

@@ -14,11 +14,15 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +42,8 @@ import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.OmnilogModal
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
@@ -47,10 +53,12 @@ fun ProgressHistoryAction(
     mediaType: MediaType,
     accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
 ) {
-    if (updates.isEmpty()) return
+    val visibleUpdates = updates.filter { it.countsTowardObjectives }
+    if (visibleUpdates.isEmpty()) return
 
-    var showHistory by rememberSaveable(updates.size, updates.lastOrNull()?.id) {
+    var showHistory by rememberSaveable(visibleUpdates.size, visibleUpdates.lastOrNull()?.id) {
         mutableStateOf(false)
     }
 
@@ -59,7 +67,7 @@ fun ProgressHistoryAction(
         modifier = Modifier.height(32.dp),
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
     ) {
-        Text(text = stringResource(R.string.progress_history_open, updates.size))
+        Text(text = stringResource(R.string.progress_history_open, visibleUpdates.size))
     }
 
     if (showHistory) {
@@ -68,6 +76,7 @@ fun ProgressHistoryAction(
             mediaType = mediaType,
             accent = accent,
             onDeleteProgressUpdate = onDeleteProgressUpdate,
+            onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
             onDismiss = { showHistory = false },
         )
     }
@@ -79,6 +88,7 @@ private fun ProgressHistoryModal(
     mediaType: MediaType,
     accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sortedUpdates = updates.sortedWith(compareBy<ProgressUpdate> { it.loggedAt }.thenBy { it.createdAtEpochMillis })
@@ -114,7 +124,7 @@ private fun ProgressHistoryModal(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                sortedUpdates.asReversed().forEach { update ->
+                sortedUpdates.filter { it.countsTowardObjectives }.asReversed().forEach { update ->
                     val delta = deltasById[update.id] ?: update.progressValue
                     ProgressHistoryRow(
                         update = update,
@@ -122,6 +132,7 @@ private fun ProgressHistoryModal(
                         mediaType = mediaType,
                         accent = accent,
                         onDelete = { onDeleteProgressUpdate(update.id) },
+                        onUpdateDate = { loggedAt -> onUpdateProgressUpdateDate(update.id, loggedAt) },
                     )
                 }
             }
@@ -129,6 +140,7 @@ private fun ProgressHistoryModal(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProgressHistoryRow(
     update: ProgressUpdate,
@@ -136,8 +148,15 @@ private fun ProgressHistoryRow(
     mediaType: MediaType,
     accent: Color,
     onDelete: () -> Unit,
+    onUpdateDate: (LocalDate?) -> Unit,
 ) {
     var pendingDelete by rememberSaveable { mutableStateOf<Long?>(null) }
+    var showDatePicker by rememberSaveable(update.id) { mutableStateOf(false) }
+    val dateLabel = if (update.hasKnownDate) {
+        update.loggedAt.formatDate()
+    } else {
+        stringResource(R.string.progress_history_date_unknown)
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -148,14 +167,32 @@ private fun ProgressHistoryRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(
-                text = update.loggedAt.formatDate(),
-                color = OmnilogColors.AppMuted,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    onClick = { showDatePicker = true },
+                    contentPadding = PaddingValues(0.dp),
+                ) {
+                    Text(
+                        text = dateLabel,
+                        color = OmnilogColors.AppMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (update.hasKnownDate) {
+                    TextButton(
+                        onClick = { onUpdateDate(null) },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.progress_history_remove_date),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+            }
             Text(
                 text = stringResource(
                     R.string.progress_history_delta,
@@ -186,6 +223,41 @@ private fun ProgressHistoryRow(
         }
     }
 
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = update.loggedAt
+                .takeIf { update.hasKnownDate }
+                ?.atStartOfDay(ZoneId.systemDefault())
+                ?.toInstant()
+                ?.toEpochMilli(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            onUpdateDate(
+                                Instant.ofEpochMilli(millis)
+                                    .atZone(ZoneId.systemDefault())
+                                    .toLocalDate(),
+                            )
+                        }
+                        showDatePicker = false
+                    },
+                ) {
+                    Text(text = stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
     pendingDelete?.let {
         OmnilogAlertDialog(
             onDismissRequest = { pendingDelete = null },
@@ -194,7 +266,7 @@ private fun ProgressHistoryRow(
                 Text(
                     text = stringResource(
                         R.string.delete_progress_update_message,
-                        update.loggedAt.formatDate(),
+                        dateLabel,
                         stringResource(
                             R.string.progress_history_delta,
                             delta,

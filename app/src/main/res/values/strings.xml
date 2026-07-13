@@ -83,6 +83,8 @@
     <string name="progress_value">Progrés %1$d</string>
     <string name="progress_with_total">Progrés %1$d/%2$d</string>
     <string name="progress_history_title">Historial de progres</string>
+    <string name="progress_history_date_unknown">Data desconeguda</string>
+    <string name="progress_history_remove_date">Sense data</string>
     <string name="progress_history_open">Veure historial (%1$d)</string>
     <string name="progress_history_entry">%1$s · +%2$d %3$s</string>
     <string name="progress_history_delta">%1$+d %2$s · total %3$d</string>
@@ -124,6 +126,7 @@
     <string name="session_dates">Dates</string>
     <string name="session_started_label">Data d\'inici</string>
     <string name="session_finished_label">Data de final</string>
+    <string name="session_finished_unknown">Acabat (data desconeguda)</string>
     <string name="pick_date">Tria</string>
     <string name="clear_date">Buida la data</string>
     <string name="detail_item_details">Dades de l\'element</string>
@@ -254,6 +257,17 @@
     <string name="collection_suggestion_existing">Col·lecció existent</string>
     <string name="collection_suggestion_provider">Suggerit per les metadades</string>
     <string name="collection_suggestion_title">Crea des del títol</string>
+    <string name="collection_sheet_title">Afegeix a una col·lecció</string>
+    <string name="collection_sheet_adding">Afegint %1$s</string>
+    <string name="collection_sheet_search_hint">Cerca o crea una col·lecció</string>
+    <string name="collection_sheet_match">Sembla que forma part de %1$s</string>
+    <string name="collection_sheet_suggested">Suggerides</string>
+    <string name="collection_sheet_next">Següent: posició</string>
+    <string name="collection_sheet_position">Posició a la col·lecció</string>
+    <string name="collection_sheet_next_slot">següent lloc lliure</string>
+    <string name="collection_sheet_unordered">Aquesta col·lecció no té ordre</string>
+    <string name="collection_sheet_confirm">Afegeix a la col·lecció</string>
+    <string name="collection_sheet_adding_badge">afegint</string>
     <string name="collection_expand">Expandeix la col·lecció</string>
     <string name="collection_collapse">Col·lapsa la col·lecció</string>
     <string name="author_expand">Expandeix l\'autor</string>

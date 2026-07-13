@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -44,11 +45,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
@@ -86,7 +93,6 @@ fun CollectionDetailScreen(
     var showDiscardReorderConfirmation by rememberSaveable(collection.id) { mutableStateOf(false) }
     var isReordering by rememberSaveable(collection.id) { mutableStateOf(false) }
     var draftOrderValues by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
-    var menuExpanded by remember { mutableStateOf(false) }
     var itemPendingRemoval by remember { mutableStateOf<TrackedMedia?>(null) }
     var itemPendingMove by remember { mutableStateOf<TrackedMedia?>(null) }
     val context = LocalContext.current
@@ -111,7 +117,7 @@ fun CollectionDetailScreen(
     val nextCollectionOrder = (items.maxOfOrNull { it.item.collectionSortOrder ?: 0.0 } ?: 0.0) + 1.0
     val averageRating = items.collectionAverageRating()
     val progressSummary = items.collectionProgressSummary()
-    val collectionCoverUrl = items.collectionCoverUrl()
+    val collectionCoverStack = sortedItems.mapNotNull { it.item.coverUrl }.take(3)
     val requestBack = {
         if (hasUnsavedReorder) {
             showDiscardReorderConfirmation = true
@@ -147,164 +153,45 @@ fun CollectionDetailScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // ── Header bar ────────────────────────────────────────────────
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = accent.copy(alpha = 0.10f),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.34f)),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 12.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.field_collection),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = accent,
-                    )
-                    Text(
-                        text = collection.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogColors.AppInk,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                if (isReordering) {
-                    TextButton(
-                        onClick = {
-                            if (hasUnsavedReorder) {
-                                showDiscardReorderConfirmation = true
-                            } else {
-                                isReordering = false
-                                draftOrderValues = sortedItems.toDraftOrderValues()
-                            }
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    TextButton(
-                        onClick = {
-                            onUpdateCollectionItemOrder(
-                                collection.id,
-                                displayedItems.toCollectionItemOrders(draftOrderValues),
-                            )
+            // ── Header ────────────────────────────────────────────────────
+            if (isReordering) {
+                ReorderHeaderBar(
+                    collectionName = collection.name,
+                    accent = accent,
+                    onCancel = {
+                        if (hasUnsavedReorder) {
+                            showDiscardReorderConfirmation = true
+                        } else {
                             isReordering = false
-                        },
-                    ) {
-                        Text(text = stringResource(R.string.save), color = accent)
-                    }
-                } else {
-                    IconButton(onClick = { onAddToCollection(collection, nextCollectionOrder) }) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = stringResource(R.string.collection_add_item),
-                            tint = accent,
+                            draftOrderValues = sortedItems.toDraftOrderValues()
+                        }
+                    },
+                    onSave = {
+                        onUpdateCollectionItemOrder(
+                            collection.id,
+                            displayedItems.toCollectionItemOrders(draftOrderValues),
                         )
-                    }
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(
-                                imageVector = Icons.Filled.MoreVert,
-                                contentDescription = stringResource(R.string.collection_menu),
-                                tint = OmnilogColors.AppMuted,
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.edit)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    showRenameDialog = true
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.collection_reorder)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    draftOrderValues = sortedItems.toDraftOrderValues()
-                                    isReordering = true
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = stringResource(R.string.delete),
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    showDeleteConfirmation = true
-                                },
-                            )
-                        }
-                    }
-                }
+                        isReordering = false
+                    },
+                )
+            } else {
+                CollectionHeroHeader(
+                    collection = collection,
+                    accent = accent,
+                    coverStack = collectionCoverStack,
+                    itemCount = items.size,
+                    progressSummary = progressSummary,
+                    averageRating = averageRating,
+                    onAdd = { onAddToCollection(collection, nextCollectionOrder) },
+                    onEdit = { showRenameDialog = true },
+                    onReorder = {
+                        draftOrderValues = sortedItems.toDraftOrderValues()
+                        isReordering = true
+                    },
+                    onDelete = { showDeleteConfirmation = true },
+                )
             }
 
-            if (items.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    MetadataCoverImage(
-                        coverUrl = collectionCoverUrl,
-                        modifier = Modifier.size(width = 68.dp, height = 102.dp),
-                        shape = RoundedCornerShape(6.dp),
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.collection_item_count, items.size),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmnilogColors.AppInk,
-                        )
-                        Text(
-                            text = stringResource(R.string.group_progress_prefix, progressSummary.label),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmnilogColors.AppMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        GroupProgressBar(
-                            fraction = progressSummary.progressFraction,
-                            color = accent,
-                        )
-                        averageRating?.let { rating ->
-                            Text(
-                                text = stringResource(R.string.collection_average_rating, rating),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = accent,
-                            )
-                        }
-                    }
-                }
-            }
-            }
             if (items.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -530,6 +417,291 @@ fun CollectionDetailScreen(
                 itemPendingMove = null
             },
         )
+    }
+}
+
+@Composable
+private fun CollectionHeroHeader(
+    collection: MediaCollection,
+    accent: Color,
+    coverStack: List<String>,
+    itemCount: Int,
+    progressSummary: CollectionProgressSummary,
+    averageRating: Double?,
+    onAdd: () -> Unit,
+    onEdit: () -> Unit,
+    onReorder: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    // Contained hero: a soft accent glow lives inside the rounded card (which
+    // clips it), so the header reads as part of the app rather than a floating
+    // spotlight on the page background.
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = accent.copy(alpha = 0.07f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.24f)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(accent.copy(alpha = 0.18f), Color.Transparent),
+                            center = Offset(x = size.width / 2f, y = size.height * 0.28f),
+                            radius = size.width * 0.60f,
+                        ),
+                    )
+                },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, top = 8.dp, end = 8.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // ── Covers with overlaid actions ──────────────────────────
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (coverStack.isNotEmpty()) {
+                        Box(modifier = Modifier.align(Alignment.TopCenter)) {
+                            CollectionPosterStack(coverStack = coverStack)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.align(Alignment.TopEnd),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = onAdd) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = stringResource(R.string.collection_add_item),
+                                tint = accent,
+                            )
+                        }
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Filled.MoreVert,
+                                    contentDescription = stringResource(R.string.collection_menu),
+                                    tint = OmnilogColors.AppMuted,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.edit)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onEdit()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.collection_reorder)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onReorder()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = stringResource(R.string.delete),
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onDelete()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = collection.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.AppInk,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp),
+                )
+
+                if (itemCount > 0) {
+                    Row(
+                        modifier = Modifier.padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HeroStatChip(
+                            text = stringResource(R.string.collection_item_count, itemCount),
+                            accent = accent,
+                            emphasized = false,
+                        )
+                        averageRating?.let { rating ->
+                            HeroStatChip(
+                                text = stringResource(R.string.collection_average_rating, rating),
+                                accent = accent,
+                                emphasized = true,
+                            )
+                        }
+                    }
+
+                    // Progress label + bar share a single row.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = progressSummary.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogColors.AppMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            GroupProgressBar(
+                                fraction = progressSummary.progressFraction,
+                                color = accent,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectionPosterStack(coverStack: List<String>) {
+    val posterWidth = 68.dp
+    val posterHeight = 102.dp
+    val fanOffset = 30.dp
+    val shape = RoundedCornerShape(8.dp)
+    Box(
+        modifier = Modifier
+            .width(posterWidth + fanOffset * 2)
+            .height(112.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Draw back posters first so the primary cover sits on top.
+        coverStack.getOrNull(1)?.let { url ->
+            MetadataCoverImage(
+                coverUrl = url,
+                modifier = Modifier
+                    .offset(x = -fanOffset)
+                    .rotate(-11f)
+                    .shadow(elevation = 6.dp, shape = shape, clip = false)
+                    .size(width = posterWidth, height = posterHeight),
+                shape = shape,
+            )
+        }
+        coverStack.getOrNull(2)?.let { url ->
+            MetadataCoverImage(
+                coverUrl = url,
+                modifier = Modifier
+                    .offset(x = fanOffset)
+                    .rotate(11f)
+                    .shadow(elevation = 6.dp, shape = shape, clip = false)
+                    .size(width = posterWidth, height = posterHeight),
+                shape = shape,
+            )
+        }
+        MetadataCoverImage(
+            coverUrl = coverStack.firstOrNull(),
+            modifier = Modifier
+                .shadow(elevation = 10.dp, shape = shape, clip = false)
+                .size(width = posterWidth, height = posterHeight),
+            shape = shape,
+        )
+    }
+}
+
+@Composable
+private fun HeroStatChip(
+    text: String,
+    accent: Color,
+    emphasized: Boolean,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = if (emphasized) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
+        border = BorderStroke(
+            1.dp,
+            if (emphasized) accent.copy(alpha = 0.44f) else OmnilogColors.AppLine,
+        ),
+        contentColor = if (emphasized) accent else OmnilogColors.AppMuted,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun ReorderHeaderBar(
+    collectionName: String,
+    accent: Color,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = accent.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.34f)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.field_collection),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accent,
+                )
+                Text(
+                    text = collectionName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogColors.AppInk,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TextButton(onClick = onCancel) {
+                Text(text = stringResource(R.string.cancel))
+            }
+            TextButton(onClick = onSave) {
+                Text(text = stringResource(R.string.save), color = accent)
+            }
+        }
     }
 }
 

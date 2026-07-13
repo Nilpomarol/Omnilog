@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -24,6 +25,7 @@ data class BackupPreview(
     val trackingSessionCount: Int,
     val progressUpdateCount: Int,
     val externalRatingCount: Int,
+    val objectiveCount: Int = 0,
 )
 
 data class CollectionItemOrder(
@@ -65,7 +67,15 @@ enum class MetadataRefreshField {
 interface MediaRepository {
     fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>>
 
+    fun observeObjectives(): Flow<List<Objective>>
+
     suspend fun seedSampleDataIfEmpty()
+
+    suspend fun addObjective(objective: Objective): Long
+
+    suspend fun updateObjective(objective: Objective)
+
+    suspend fun deleteObjective(objectiveId: Long)
 
     suspend fun exportBackupJson(): String
 
@@ -102,6 +112,7 @@ interface MediaRepository {
     suspend fun deletePastSession(sessionId: Long)
 
     suspend fun deleteProgressUpdate(progressUpdateId: Long)
+    suspend fun updateProgressUpdateDate(progressUpdateId: Long, loggedAt: LocalDate?)
 
     suspend fun deleteMediaItem(mediaItemId: Long)
 

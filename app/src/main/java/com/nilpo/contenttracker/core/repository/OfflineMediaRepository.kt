@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.ObjectiveEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
@@ -21,12 +22,14 @@ import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -63,6 +66,27 @@ class OfflineMediaRepository(
         }
     }
 
+    override fun observeObjectives(): Flow<List<Objective>> = mediaDao.observeObjectives().map { entities -> entities.map { it.toDomain() } }
+
+    override suspend fun addObjective(objective: Objective): Long {
+        require(objective.name.isNotBlank())
+        require(objective.targetValue > 0)
+        require(!objective.endDate.isBefore(objective.startDate))
+        return mediaDao.insertObjective(objective.toEntity())
+    }
+
+    override suspend fun updateObjective(objective: Objective) {
+        require(objective.id > 0)
+        require(objective.name.isNotBlank())
+        require(objective.targetValue > 0)
+        require(!objective.endDate.isBefore(objective.startDate))
+        mediaDao.insertObjective(objective.toEntity())
+    }
+
+    override suspend fun deleteObjective(objectiveId: Long) {
+        mediaDao.deleteObjective(objectiveId)
+    }
+
     override suspend fun seedSampleDataIfEmpty() {
         if (mediaDao.countMediaItems() > 0) {
             return
@@ -84,7 +108,7 @@ class OfflineMediaRepository(
 
     override suspend fun exportBackupJson(): String {
         return JSONObject()
-            .put("schemaVersion", 4)
+            .put("schemaVersion", 5)
             .put("exportedAtEpochMillis", System.currentTimeMillis())
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
@@ -92,6 +116,7 @@ class OfflineMediaRepository(
             .put("trackingSessions", JSONArray(mediaDao.getAllTrackingSessions().map { it.toJson() }))
             .put("progressUpdates", JSONArray(mediaDao.getProgressUpdates().map { it.toJson() }))
             .put("externalRatings", JSONArray(mediaDao.getExternalRatings().map { it.toJson() }))
+.put("objectives", JSONArray(mediaDao.getObjectives().map { it.toJson() }))
             .toString(2)
     }
 
@@ -107,6 +132,7 @@ class OfflineMediaRepository(
             trackingSessionCount = backup.sessions.size,
             progressUpdateCount = backup.progressUpdates.size,
             externalRatingCount = backup.externalRatings.size,
+            objectiveCount = backup.objectives.size,
         )
     }
 
@@ -119,6 +145,7 @@ class OfflineMediaRepository(
             sessions = backup.sessions,
             progressUpdates = backup.progressUpdates,
             externalRatings = backup.externalRatings,
+            objectives = backup.objectives,
         )
     }
 
@@ -333,6 +360,7 @@ class OfflineMediaRepository(
             sessionId = sessionId,
             progressValue = validProgress,
             createdAtEpochMillis = updatedAtEpochMillis,
+            countsTowardObjectives = request.status != TrackingStatus.Completed || request.finishedAt == LocalDate.now(),
         )
     }
 
@@ -455,6 +483,7 @@ class OfflineMediaRepository(
             sessionId = initialSessionId,
             progressValue = initialProgress,
             createdAtEpochMillis = initialUpdatedAtEpochMillis,
+            countsTowardObjectives = request.initialStatus != TrackingStatus.Completed || request.initialFinishedAt == LocalDate.now(),
         )
         return mediaItemId
     }
@@ -493,6 +522,7 @@ class OfflineMediaRepository(
                 sessionId = sessionId,
                 progressValue = validProgress,
                 createdAtEpochMillis = updatedAtEpochMillis,
+                countsTowardObjectives = status != TrackingStatus.Completed || finishedAt == LocalDate.now(),
             )
         }
     }
@@ -508,6 +538,18 @@ class OfflineMediaRepository(
 
         mediaDao.deleteProgressUpdatesForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
+    }
+
+    override suspend fun updateProgressUpdateDate(
+        progressUpdateId: Long,
+        loggedAt: LocalDate?,
+    ) {
+        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return
+        mediaDao.updateProgressUpdateDate(
+            progressUpdateId = progressUpdateId,
+            loggedAtEpochDay = loggedAt?.toEpochDay() ?: update.loggedAtEpochDay,
+            hasKnownDate = loggedAt != null,
+        )
     }
 
     override suspend fun deleteProgressUpdate(progressUpdateId: Long) {
@@ -1468,6 +1510,7 @@ private suspend fun MediaDao.insertProgressUpdateIfNeeded(
     sessionId: Long,
     progressValue: Int,
     createdAtEpochMillis: Long,
+    countsTowardObjectives: Boolean = true,
 ) {
     if (progressValue <= 0) return
 
@@ -1478,6 +1521,7 @@ private suspend fun MediaDao.insertProgressUpdateIfNeeded(
             progressValue = progressValue,
             loggedAtEpochDay = LocalDate.now().toEpochDay(),
             createdAtEpochMillis = createdAtEpochMillis,
+            countsTowardObjectives = countsTowardObjectives,
         ),
     )
 }
@@ -1539,7 +1583,7 @@ private fun String.normalizedImportTitle(): String =
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
     val schemaVersion = root.optInt("schemaVersion", -1)
-    if (schemaVersion !in 1..4) {
+    if (schemaVersion !in 1..5) {
         throw UnsupportedBackupSchemaException(schemaVersion)
     }
 
@@ -1555,6 +1599,7 @@ private data class ParsedBackup(
     val sessions: List<TrackingSessionEntity>,
     val progressUpdates: List<ProgressUpdateEntity>,
     val externalRatings: List<ExternalRatingEntity>,
+    val objectives: List<ObjectiveEntity>,
 )
 
 private fun parseBackupData(json: String): ParsedBackup {
@@ -1574,6 +1619,8 @@ private fun parseBackupData(json: String): ParsedBackup {
             .mapObjects { it.toProgressUpdateEntity() },
         externalRatings = root.optJSONArray("externalRatings").orEmptyArray()
             .mapObjects { it.toExternalRatingEntity() },
+        objectives = root.optJSONArray("objectives").orEmptyArray()
+            .mapObjects { it.toObjectiveEntity() },
     ).also { it.validate() }
 }
 
@@ -1584,6 +1631,7 @@ private fun ParsedBackup.validate() {
     sessions.requireUniquePositiveIds("tracking sessions") { it.id }
     progressUpdates.requireUniquePositiveIds("progress updates") { it.id }
     externalRatings.requireUniquePositiveIds("external ratings") { it.id }
+    objectives.requireUniquePositiveIds("objectives") { it.id }
 
     val collectionIds = collections.map { it.id }.toSet()
     val mediaItemIds = mediaItems.map { it.id }.toSet()
@@ -1659,6 +1707,11 @@ private fun ParsedBackup.validate() {
         }
     }
 
+    objectives.forEach { objective ->
+        require(objective.name.isNotBlank()) { "Objective names cannot be blank" }
+        require(objective.targetValue > 0) { "Objective targets must be positive" }
+        require(objective.endDateEpochDay >= objective.startDateEpochDay) { "Objective end date cannot precede start date" }
+    }
 }
 
 private fun ExternalRatingEntity.toPrimaryRating(): MetadataRatingSuggestion {
@@ -1740,7 +1793,9 @@ private fun ProgressUpdateEntity.toJson(): JSONObject {
         .put("sessionId", sessionId)
         .put("progressValue", progressValue)
         .put("loggedAtEpochDay", loggedAtEpochDay)
+        .put("hasKnownDate", hasKnownDate)
         .put("createdAtEpochMillis", createdAtEpochMillis)
+        .put("countsTowardObjectives", countsTowardObjectives)
 }
 
 private fun ExternalRatingEntity.toJson(): JSONObject {
@@ -1752,6 +1807,20 @@ private fun ExternalRatingEntity.toJson(): JSONObject {
         .put("maxScore", maxScore)
         .putNullable("voteCount", voteCount)
         .put("origin", origin)
+}
+
+private fun ObjectiveEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("name", name)
+        .put("metric", metric)
+        .put("unit", unit)
+        .putNullable("mediaType", mediaType)
+        .put("targetValue", targetValue)
+        .put("startDateEpochDay", startDateEpochDay)
+        .put("endDateEpochDay", endDateEpochDay)
+        .put("createdAtEpochMillis", createdAtEpochMillis)
+        .putNullable("archivedAtEpochMillis", archivedAtEpochMillis)
 }
 
 private fun JSONObject.toMediaCollectionEntity(): MediaCollectionEntity {
@@ -1797,6 +1866,21 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
     )
 }
 
+private fun JSONObject.toObjectiveEntity(): ObjectiveEntity {
+    return ObjectiveEntity(
+        id = getLong("id"),
+        name = getString("name"),
+        metric = getString("metric"),
+        unit = getString("unit"),
+        mediaType = optNullableString("mediaType"),
+        targetValue = getInt("targetValue"),
+        startDateEpochDay = getLong("startDateEpochDay"),
+        endDateEpochDay = getLong("endDateEpochDay"),
+        createdAtEpochMillis = optLong("createdAtEpochMillis", System.currentTimeMillis()),
+        archivedAtEpochMillis = optNullableLong("archivedAtEpochMillis"),
+    )
+}
+
 private fun JSONObject.toMediaCreditEntity(): MediaCreditEntity {
     return MediaCreditEntity(
         id = getLong("id"),
@@ -1833,7 +1917,9 @@ private fun JSONObject.toProgressUpdateEntity(): ProgressUpdateEntity {
         sessionId = getLong("sessionId"),
         progressValue = optInt("progressValue", 0),
         loggedAtEpochDay = optLong("loggedAtEpochDay", LocalDate.now().toEpochDay()),
+        hasKnownDate = optBoolean("hasKnownDate", true),
         createdAtEpochMillis = optLong("createdAtEpochMillis", 0),
+        countsTowardObjectives = optBoolean("countsTowardObjectives", true),
     )
 }
 

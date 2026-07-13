@@ -54,6 +54,7 @@ fun SessionDetail(
     mediaType: MediaType,
     accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
     onDelete: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
@@ -99,6 +100,7 @@ fun SessionDetail(
                             mediaType = mediaType,
                             accent = visualState.color,
                             onDeleteProgressUpdate = onDeleteProgressUpdate,
+                            onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
                         )
                     }
                     trailingContent?.invoke()
@@ -282,12 +284,17 @@ private fun SessionMetaRow(session: TrackingSession, mediaType: MediaType) {
             it.formatDate(),
         )
     }
-    val updatedAt = if (finishedAt == null) {
+    val finishedWithoutDate = if (session.status == TrackingStatus.Completed && session.finishedAt == null) {
+        stringResource(R.string.session_finished_unknown)
+    } else {
+        null
+    }
+    val updatedAt = if (finishedAt == null && finishedWithoutDate == null) {
         session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
     } else {
         null
     }
-    val values = listOfNotNull(startedAt, finishedAt, updatedAt)
+    val values = listOfNotNull(startedAt, finishedAt, finishedWithoutDate, updatedAt)
     if (values.isEmpty()) return
 
     Row(

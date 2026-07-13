@@ -21,6 +21,7 @@ class TmdbMetadataRepository(
     private val apiKey: String,
     private val omdbApiKey: String = "",
 ) : MetadataRepository {
+    private val tmdbApi = TmdbApiClient(apiKey)
     override suspend fun searchSuggestions(
         request: MetadataSearchRequest,
     ): List<MetadataSuggestion> {
@@ -53,9 +54,9 @@ class TmdbMetadataRepository(
                 val seasonRef = suggestion.externalId.toTmdbSeasonRef()
                 if (suggestion.mediaType == MediaType.TvShow && seasonRef != null) {
                     val seriesUrl = "https://api.themoviedb.org/3/tv/${seasonRef.seriesId}" +
-                        "?api_key=$apiKey&language=en-US&append_to_response=credits,external_ids"
+                        "?language=en-US&append_to_response=credits,external_ids"
                     val seriesSuggestion = suggestion.copy(externalId = seasonRef.seriesId)
-                    val detailedSeries = getJson(seriesUrl).toDetailedSuggestion(seriesSuggestion)
+                    val detailedSeries = tmdbApi.getJson(seriesUrl).toDetailedSuggestion(seriesSuggestion)
                     return@runCatching detailedSeries.seasonSuggestions
                         .firstOrNull { season -> season.seasonNumber == seasonRef.seasonNumber }
                         ?.toMetadataSuggestion(detailedSeries)
@@ -64,13 +65,13 @@ class TmdbMetadataRepository(
                 val url = when (suggestion.mediaType) {
                     MediaType.Movie ->
                         "https://api.themoviedb.org/3/movie/${suggestion.externalId}" +
-                            "?api_key=$apiKey&language=en-US&append_to_response=credits,external_ids"
+                            "?language=en-US&append_to_response=credits,external_ids"
                     MediaType.TvShow ->
                         "https://api.themoviedb.org/3/tv/${suggestion.externalId}" +
-                            "?api_key=$apiKey&language=en-US&append_to_response=credits,external_ids"
+                            "?language=en-US&append_to_response=credits,external_ids"
                     else -> return@withContext suggestion
                 }
-                getJson(url).toDetailedSuggestion(suggestion)
+                tmdbApi.getJson(url).toDetailedSuggestion(suggestion)
             }.getOrElse { suggestion }
         }
     }
@@ -81,9 +82,9 @@ class TmdbMetadataRepository(
         mediaType: MediaType,
     ): List<MetadataSuggestion> {
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
-        val response = getJson(
+        val response = tmdbApi.getJson(
             "https://api.themoviedb.org/3/search/$endpoint" +
-                "?api_key=$apiKey&query=$encodedQuery&include_adult=false&language=en-US",
+                "?query=$encodedQuery&include_adult=false&language=en-US",
         )
         val results = response.optJSONArray("results") ?: return emptyList()
 

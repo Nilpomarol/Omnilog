@@ -67,6 +67,7 @@ fun DetailScreen(
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
     onAddExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onSetPrimaryExternalRating: (Long) -> Unit,
@@ -201,6 +202,7 @@ fun DetailScreen(
                         accent = accent,
                         onUpdateSessionDetails = onUpdateSessionDetails,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
+                        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
                     )
                 }
             }
@@ -209,7 +211,7 @@ fun DetailScreen(
                 DetailQuickActionsSection(
                     item = trackedMedia.item,
                     collection = trackedMedia.collection,
-                    availableCollections = trackedMedia.availableCollections,
+                    library = allTrackedMedia,
                     currentSession = currentSession,
                     accent = accent,
                     onSaveItemDetails = { title, collectionId, newCollectionName, collectionSortOrder, progressTotal, ownershipType ->
@@ -247,6 +249,7 @@ fun DetailScreen(
                         accent = accent,
                         onUpdateSessionDetails = onUpdateSessionDetails,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
+                        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
                         onDeleteSession = { onDeletePastSession(session.id) },
                     )
                 }

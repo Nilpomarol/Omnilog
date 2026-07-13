@@ -12,6 +12,7 @@ import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
+import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
@@ -108,6 +109,7 @@ class HomeViewModel(
     }
 
     val uiState = baseUiState
+        .combine(mediaRepository.observeObjectives()) { state, objectives -> state.copy(objectives = objectives) }
         .combine(browseMode) { state, selectedBrowseMode ->
             state.copy(browseMode = selectedBrowseMode)
         }
@@ -358,6 +360,12 @@ class HomeViewModel(
         advancedFilters.value = filters
     }
 
+    fun addObjective(objective: Objective) { viewModelScope.launch { mediaRepository.addObjective(objective) } }
+
+    fun updateObjective(objective: Objective) { viewModelScope.launch { mediaRepository.updateObjective(objective) } }
+
+    fun deleteObjective(objectiveId: Long) { viewModelScope.launch { mediaRepository.deleteObjective(objectiveId) } }
+
     fun startNewSession(request: AddTrackingSessionRequest) {
         viewModelScope.launch {
             mediaRepository.startNewSession(request)
@@ -399,12 +407,17 @@ class HomeViewModel(
         }
     }
 
+    fun updateProgressUpdateDate(progressUpdateId: Long, loggedAt: LocalDate?) {
+        viewModelScope.launch {
+            mediaRepository.updateProgressUpdateDate(progressUpdateId, loggedAt)
+        }
+    }
+
     fun deleteProgressUpdate(progressUpdateId: Long) {
         viewModelScope.launch {
             mediaRepository.deleteProgressUpdate(progressUpdateId)
         }
     }
-
     fun deleteMediaItem(mediaItemId: Long) {
         viewModelScope.launch {
             mediaRepository.deleteMediaItem(mediaItemId)

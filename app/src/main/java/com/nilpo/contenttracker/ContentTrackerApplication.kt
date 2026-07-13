@@ -57,7 +57,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             "content-tracker.db",
         )
             .fallbackToDestructiveMigration(false)
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                        .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
             .build()
     }
 
@@ -85,6 +85,54 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             rawg = RawgRecommendationRepository(BuildConfig.RAWG_API_KEY),
             books = BookRecommendationRepository(metadataRepository),
         )
+    }
+}
+
+private val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS objectives (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                metric TEXT NOT NULL,
+                unit TEXT NOT NULL,
+                mediaType TEXT,
+                targetValue INTEGER NOT NULL,
+                startDateEpochDay INTEGER NOT NULL,
+                endDateEpochDay INTEGER NOT NULL,
+                createdAtEpochMillis INTEGER NOT NULL,
+                archivedAtEpochMillis INTEGER
+            )
+            """.trimIndent(),
+        )
+    }
+}
+
+private val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE progress_updates ADD COLUMN countsTowardObjectives INTEGER NOT NULL DEFAULT 1")
+        db.execSQL(
+            """
+            UPDATE progress_updates
+            SET countsTowardObjectives = 0
+            WHERE sessionId IN (
+                SELECT id
+                FROM tracking_sessions
+                WHERE status = 'Completed'
+                  AND (
+                      finishedAtEpochDay IS NULL
+                      OR loggedAtEpochDay > finishedAtEpochDay
+                  )
+            )
+            """.trimIndent(),
+        )
+    }
+}
+
+private val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE progress_updates ADD COLUMN hasKnownDate INTEGER NOT NULL DEFAULT 1")
     }
 }
 

@@ -4,7 +4,10 @@
       "mcp__visualize__read_me",
       "mcp__visualize__show_widget",
       "Bash(./gradlew.bat :app:compileDebugKotlin --console=plain)",
-      "Bash(./gradlew.bat :app:compileDebugKotlin --console=plain --rerun)"
+      "Bash(./gradlew.bat :app:compileDebugKotlin --console=plain --rerun)",
+      "Bash(./gradlew :app:compileDebugKotlin -q)",
+      "PowerShell($j = @\\(\"$env:JAVA_HOME\",\"$env:LOCALAPPDATA\\\\Programs\\\\Android Studio\\\\jbr\",\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\",\"$env:ProgramFiles\\\\Android\\\\Android Studio\\\\jbr\"\\) | Where-Object { $_ -and \\(Test-Path \"$_\\\\bin\\\\java.exe\"\\) } | Select-Object -First 1; if \\($j\\) { \"FOUND: $j\" } else { \"none\"; Get-Command java -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source })",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"D:\\\\Documents\\\\Personal\\\\Content-tracking-android-app\"; .\\\\gradlew.bat :app:compileDebugKotlin -q 2>&1 | Select-Object -Last 45)"
     ]
   }
 }

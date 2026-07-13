@@ -16,6 +16,8 @@ object ProfilePreferences {
     const val AVATAR_IMAGE_PATH_KEY = "profile_avatar_image_path"
     /** Previous versions stored a provider URI. Kept only for one-time migration. */
     const val AVATAR_IMAGE_URI_KEY = "profile_avatar_image_uri"
+    /** Ids of objectives whose completion has already been celebrated, so it only fires once. */
+    const val CELEBRATED_OBJECTIVES_KEY = "celebrated_objective_ids"
 
     const val DEFAULT_DISPLAY_NAME = "El teu perfil"
     const val DEFAULT_BIO = "La meva biblioteca personal"

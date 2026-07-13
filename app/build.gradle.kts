@@ -4,40 +4,20 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val tmdbApiKey = providers.gradleProperty("TMDB_API_KEY")
-    .orElse(providers.environmentVariable("TMDB_API_KEY"))
-    .orElse("")
-    .get()
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
+fun providerCredential(name: String): String {
+    val value = providers.gradleProperty(name).orNull
+        ?.takeIf { it.isNotBlank() }
+        ?: providers.environmentVariable(name).orNull.orEmpty()
+    return value
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+}
 
-val googleBooksApiKey = providers.gradleProperty("GOOGLE_BOOKS_API_KEY")
-    .orElse(providers.environmentVariable("GOOGLE_BOOKS_API_KEY"))
-    .orElse("")
-    .get()
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
-
-val rawgApiKey = providers.gradleProperty("RAWG_API_KEY")
-    .orElse(providers.environmentVariable("RAWG_API_KEY"))
-    .orElse("")
-    .get()
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
-
-val omdbApiKey = providers.gradleProperty("OMDB_API_KEY")
-    .orElse(providers.environmentVariable("OMDB_API_KEY"))
-    .orElse("")
-    .get()
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
-
-val malClientId = providers.gradleProperty("MAL_CLIENT_ID")
-    .orElse(providers.environmentVariable("MAL_CLIENT_ID"))
-    .orElse("")
-    .get()
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
+val tmdbApiKey = providerCredential("TMDB_API_KEY")
+val googleBooksApiKey = providerCredential("GOOGLE_BOOKS_API_KEY")
+val rawgApiKey = providerCredential("RAWG_API_KEY")
+val omdbApiKey = providerCredential("OMDB_API_KEY")
+val malClientId = providerCredential("MAL_CLIENT_ID")
 
 android {
     namespace = "com.nilpo.contenttracker"

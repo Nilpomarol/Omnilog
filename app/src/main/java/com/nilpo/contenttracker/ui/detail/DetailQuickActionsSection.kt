@@ -34,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -53,13 +54,13 @@ import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.OwnershipType
+import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.CollectionPickerSheet
 import com.nilpo.contenttracker.ui.common.OmnilogModal
-import com.nilpo.contenttracker.ui.common.bestCollectionMatch
-import com.nilpo.contenttracker.ui.common.buildCollectionQuickSuggestions
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
-import com.nilpo.contenttracker.ui.common.formatCollectionOrder
+import com.nilpo.contenttracker.ui.common.toCollectionPickerOptions
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -68,7 +69,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 fun DetailQuickActionsSection(
     item: MediaItem,
     collection: MediaCollection?,
-    availableCollections: List<MediaCollection>,
+    library: List<TrackedMedia>,
     currentSession: TrackingSession?,
     accent: Color,
     onSaveItemDetails: (String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
@@ -120,20 +121,23 @@ fun DetailQuickActionsSection(
     }
 
     if (showCollectionDialog) {
-        CollectionDialog(
+        val pickerOptions = remember(library, item.type) {
+            library.toCollectionPickerOptions(forType = item.type)
+        }
+        CollectionPickerSheet(
             itemTitle = item.title,
             providerCollectionTitle = item.providerCollectionTitle,
-            collection = collection,
-            availableCollections = availableCollections,
-            currentSortOrder = item.collectionSortOrder,
+            options = pickerOptions,
+            initialCollectionId = collection?.id,
+            initialSortOrder = item.collectionSortOrder,
             accent = accent,
             onDismiss = { showCollectionDialog = false },
-            onSave = { collectionId, newCollectionName, collectionSortOrder ->
+            onConfirm = { result ->
                 onSaveItemDetails(
                     item.title,
-                    collectionId,
-                    newCollectionName,
-                    collectionSortOrder,
+                    result.collectionId,
+                    result.newCollectionName,
+                    result.sortOrder,
                     item.effectiveProgressTotal(),
                     item.ownership.type,
                 )
@@ -197,238 +201,6 @@ private fun QuickActionButton(
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-@Composable
-@OptIn(ExperimentalMaterial3Api::class)
-private fun CollectionDialog(
-    itemTitle: String,
-    providerCollectionTitle: String?,
-    collection: MediaCollection?,
-    availableCollections: List<MediaCollection>,
-    currentSortOrder: Double?,
-    accent: Color,
-    onDismiss: () -> Unit,
-    onSave: (Long?, String?, Double?) -> Unit,
-) {
-    var selectedCollectionId by rememberSaveable(collection?.id) { mutableStateOf(collection?.id) }
-    var searchQuery by rememberSaveable(collection?.id) { mutableStateOf(collection?.name.orEmpty()) }
-    var orderText by rememberSaveable(collection?.id, currentSortOrder) {
-        mutableStateOf(currentSortOrder?.let(::formatCollectionOrder).orEmpty())
-    }
-    val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
-    val trimmedQuery = searchQuery.trim()
-    val quickSuggestions = if (trimmedQuery.isBlank()) {
-        buildCollectionQuickSuggestions(
-            availableCollections = availableCollections,
-            providerCollectionTitle = providerCollectionTitle,
-            itemTitle = itemTitle,
-        )
-    } else {
-        emptyList()
-    }
-    val visibleCollections = if (quickSuggestions.isEmpty()) {
-        availableCollections.filter { availableCollection ->
-            trimmedQuery.isBlank() || availableCollection.name.contains(trimmedQuery, ignoreCase = true)
-        }
-    } else {
-        emptyList()
-    }
-    val matchedCollection = availableCollections.bestCollectionMatch(trimmedQuery)
-    val canCreateCollection = trimmedQuery.isNotBlank() && matchedCollection == null
-
-    OmnilogModal(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.collection_modal_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = onDismiss) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    Button(
-                        onClick = {
-                            val collectionIdToSave = selectedCollectionId ?: matchedCollection?.id
-                            val newCollectionName = if (collectionIdToSave == null) {
-                                trimmedQuery.takeIf { it.isNotBlank() }
-                            } else {
-                                null
-                            }
-                            val hasCollection = collectionIdToSave != null || newCollectionName != null
-                            onSave(
-                                collectionIdToSave,
-                                newCollectionName,
-                                orderText.toCollectionOrderOrNull()?.takeIf { hasCollection },
-                            )
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black),
-                    ) {
-                        Text(text = stringResource(R.string.save))
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    selectedCollectionId = null
-                },
-                label = { Text(stringResource(R.string.collection_search)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = omnilogModalTextFieldColors(accent),
-            )
-
-            OutlinedTextField(
-                value = orderText,
-                onValueChange = { value ->
-                    orderText = value.toCollectionOrderInput()
-                },
-                label = { Text(stringResource(R.string.field_collection_order)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                colors = omnilogModalTextFieldColors(accent),
-            )
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 260.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                item {
-                    CollectionOptionRow(
-                        text = stringResource(R.string.collection_none),
-                        subtitle = null,
-                        selected = selectedCollection == null && trimmedQuery.isBlank(),
-                        accent = accent,
-                        onClick = {
-                            selectedCollectionId = null
-                            searchQuery = ""
-                        },
-                    )
-                }
-                items(quickSuggestions) { suggestion ->
-                    CollectionOptionRow(
-                        text = suggestion.name,
-                        subtitle = stringResource(suggestion.labelResId),
-                        selected = false,
-                        accent = accent,
-                        onClick = {
-                            selectedCollectionId = null
-                            searchQuery = suggestion.name
-                        },
-                    )
-                }
-                items(visibleCollections) { availableCollection ->
-                    CollectionOptionRow(
-                        text = availableCollection.name,
-                        subtitle = stringResource(R.string.collection_suggestion_existing),
-                        selected = availableCollection.id == selectedCollectionId,
-                        accent = accent,
-                        onClick = {
-                            selectedCollectionId = availableCollection.id
-                            searchQuery = availableCollection.name
-                        },
-                    )
-                }
-                if (canCreateCollection) {
-                    item {
-                        CollectionOptionRow(
-                            text = stringResource(R.string.collection_create_from_search, trimmedQuery),
-                            subtitle = null,
-                            selected = selectedCollection == null,
-                            accent = accent,
-                            onClick = {
-                                selectedCollectionId = null
-                            },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CollectionOptionRow(
-    text: String,
-    subtitle: String?,
-    selected: Boolean,
-    accent: Color,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
-        border = BorderStroke(
-            width = if (selected) 1.5.dp else 1.dp,
-            color = if (selected) accent.copy(alpha = 0.72f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
-        ),
-        contentColor = if (selected) accent else MaterialTheme.colorScheme.onSurface,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            subtitle?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-private fun String.toCollectionOrderInput(): String {
-    val normalized = replace(',', '.')
-    val builder = StringBuilder()
-    var hasSeparator = false
-
-    normalized.forEach { character ->
-        when {
-            character.isDigit() -> builder.append(character)
-            character == '.' && !hasSeparator -> {
-                builder.append(character)
-                hasSeparator = true
-            }
-        }
-    }
-
-    return builder.toString().take(8)
-}
-
-private fun String.toCollectionOrderOrNull(): Double? {
-    return replace(',', '.')
-        .toDoubleOrNull()
-        ?.takeIf { it >= 0.0 }
 }
 
 @Composable

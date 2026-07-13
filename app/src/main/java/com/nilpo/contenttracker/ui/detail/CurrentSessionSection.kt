@@ -95,6 +95,7 @@ fun CurrentSessionSection(
     accent: Color,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -105,6 +106,7 @@ fun CurrentSessionSection(
         accent = accent,
         onEditClick = { showEditor = true },
         onDeleteProgressUpdate = onDeleteProgressUpdate,
+        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
     )
 
     if (showEditor) {
@@ -136,6 +138,7 @@ private fun SessionCard(
     accent: Color,
     onEditClick: () -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
 ) {
     val visualState = session.visualState(accent = accent)
     val progressFraction = session.progressFraction(progressTotal)
@@ -172,6 +175,7 @@ private fun SessionCard(
                             mediaType = mediaType,
                             accent = visualState.color,
                             onDeleteProgressUpdate = onDeleteProgressUpdate,
+        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
                         )
                     }
                     FilledTonalIconButton(
@@ -973,12 +977,17 @@ private fun SessionDates(
             it.formatDate(),
         )
     }
-    val updatedAt = if (finishedAt == null) {
+    val finishedWithoutDate = if (session.status == TrackingStatus.Completed && session.finishedAt == null) {
+        stringResource(R.string.session_finished_unknown)
+    } else {
+        null
+    }
+    val updatedAt = if (finishedAt == null && finishedWithoutDate == null) {
         session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
     } else {
         null
     }
-    if (startedAt == null && finishedAt == null && updatedAt == null) return
+    if (startedAt == null && finishedAt == null && finishedWithoutDate == null && updatedAt == null) return
 
     val primaryDateColor = if (highlightedStartedAt && startedAt != null) {
         highlightColor
@@ -1002,6 +1011,16 @@ private fun SessionDates(
             )
         }
         finishedAt?.let { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        finishedWithoutDate?.let { label ->
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,

@@ -119,11 +119,11 @@ private fun sortCollectionGroups(
     return sorted + noCollection
 }
 
-internal fun List<TrackedMedia>.collectionCoverUrl(): String? =
+internal fun List<TrackedMedia>.collectionCoverStack(limit: Int = 3): List<String> =
     sortedWith(
         compareBy<TrackedMedia> { it.item.collectionSortOrder ?: Double.MAX_VALUE }
             .thenBy { it.item.title.lowercase() },
-    ).firstOrNull { it.item.coverUrl != null }?.item?.coverUrl
+    ).mapNotNull { it.item.coverUrl }.take(limit)
 
 internal fun List<TrackedMedia>.collectionLastUpdatedMillis(): Long? =
     mapNotNull { it.currentSession?.updatedAtEpochMillis?.takeIf { ms -> ms > 0 } }.maxOrNull()

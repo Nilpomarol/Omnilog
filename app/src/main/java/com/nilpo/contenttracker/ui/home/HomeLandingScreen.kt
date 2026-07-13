@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -76,9 +77,11 @@ fun HomeLandingScreen(
     onMediaClick: (TrackedMedia) -> Unit,
     onSectionSearch: (MediaSection, String) -> Unit,
     onStatsClick: () -> Unit,
+    onObjectivesClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
+    val objectiveProgress = remember(items, uiState.objectives) { ObjectiveCalculator().calculate(items, uiState.objectives) }.filter { it.objective.archivedAtEpochMillis == null && !it.isExpired(LocalDate.now()) }
     val context = LocalContext.current
     val dashboardPreferences = remember(context) {
         context.getSharedPreferences("omnilog_dashboard_preferences", android.content.Context.MODE_PRIVATE)
@@ -180,6 +183,13 @@ fun HomeLandingScreen(
                                 },
                             )
                         }
+                    }
+
+                    item {
+                        DashboardObjectivesPreview(
+                            objectives = objectiveProgress,
+                            onClick = onObjectivesClick,
+                        )
                     }
 
                     item {

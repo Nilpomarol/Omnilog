@@ -215,12 +215,13 @@ private fun AuthorGroupCard(
                     .alpha(coverAlpha.value)
                     .clipToBounds(),
             ) {
-                MetadataCoverImage(
-                    coverUrl = topItem?.item?.coverUrl ?: group.items.collectionCoverUrl(),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(6.dp)),
-                    shape = RoundedCornerShape(6.dp),
+                CollectionCoverStack(
+                    coverStack = (
+                        listOfNotNull(topItem?.item?.coverUrl) +
+                            group.items.mapNotNull { it.item.coverUrl }
+                    ).distinct().take(3),
+                    itemCount = group.items.size,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
             Spacer(modifier = Modifier.width(coverGap.value))
@@ -431,12 +432,10 @@ private fun CollectionGroupCard(
                     .alpha(coverAlpha.value)
                     .clipToBounds(),
             ) {
-                MetadataCoverImage(
-                    coverUrl = group.items.collectionCoverUrl(),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(6.dp)),
-                    shape = RoundedCornerShape(6.dp),
+                CollectionCoverStack(
+                    coverStack = group.items.collectionCoverStack(),
+                    itemCount = group.items.size,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
             Spacer(modifier = Modifier.width(coverGap.value))
@@ -562,6 +561,33 @@ private fun CollectionGroupCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CollectionCoverStack(
+    coverStack: List<String>,
+    itemCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(6.dp)
+    val layers = itemCount.coerceIn(1, 3)
+    val step = 5.dp
+    Box(modifier = modifier) {
+        // Draw the furthest sheet first; each layer peeks a step further at the
+        // top-right corner so a multi-item group reads as a small stack of covers.
+        for (layer in (layers - 1) downTo 0) {
+            val inset = step * (layers - 1 - layer)
+            val push = step * layer
+            MetadataCoverImage(
+                coverUrl = coverStack.getOrNull(layer),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = inset, end = inset, start = push, bottom = push)
+                    .clip(shape),
+                shape = shape,
+            )
         }
     }
 }

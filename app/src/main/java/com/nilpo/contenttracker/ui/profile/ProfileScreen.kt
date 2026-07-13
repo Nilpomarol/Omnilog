@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.Objective
+import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.stats.StatsCalculator
@@ -73,7 +75,10 @@ import java.net.URL
 @Composable
 fun ProfileScreen(
     items: List<TrackedMedia>,
+    objectives: List<Objective> = emptyList(),
     onOpenMedia: (TrackedMedia) -> Unit,
+    onSaveObjective: (Objective) -> Unit = {},
+    onDeleteObjective: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -223,6 +228,9 @@ fun ProfileScreen(
         }.filter { (_, count) -> count > 0 }
     }
 
+    val objectiveProgress = remember(items, objectives) { ObjectiveCalculator().calculate(items, objectives) }
+
+
     Surface(
         modifier = modifier,
         color = OmnilogColors.AppBackground,
@@ -291,6 +299,14 @@ fun ProfileScreen(
             }
 
             item {
+                ProfileObjectivesSection(
+                    objectives = objectiveProgress,
+                    onSave = onSaveObjective,
+                    onDelete = onDeleteObjective,
+                )
+            }
+
+            item {
                 ProfileActivityCard(
                     activeItems = activeItems,
                     plannedItems = plannedItems,
@@ -319,6 +335,7 @@ private fun ProfileHero(
     imagePath: String?,
     onEdit: () -> Unit,
 ) {
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -356,7 +373,8 @@ private fun ProfileHero(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Surface(
+        
+    Surface(
                 modifier = Modifier
                     .size(34.dp)
                     .clickable(onClick = onEdit),
@@ -396,6 +414,7 @@ private fun ProfileEditor(
     onCancel: () -> Unit,
     onSave: () -> Unit,
 ) {
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -519,6 +538,7 @@ private fun AvatarColorOption(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+
     Surface(
         modifier = Modifier
             .size(42.dp)
@@ -537,6 +557,7 @@ private fun ProfileAvatar(
     imagePath: String?,
     modifier: Modifier = Modifier,
 ) {
+
     Surface(
         modifier = modifier,
         shape = CircleShape,
@@ -578,7 +599,8 @@ private fun ProfileStatsCard(
             fontWeight = FontWeight.ExtraBold,
             color = OmnilogColors.AppInk,
         )
-        Surface(
+    
+    Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
             color = OmnilogColors.AppPanel,
@@ -632,7 +654,8 @@ private fun ProfileActivityCard(
             fontWeight = FontWeight.ExtraBold,
             color = OmnilogColors.AppInk,
         )
-        Surface(
+    
+    Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
             color = OmnilogColors.AppPanel,
@@ -693,6 +716,7 @@ private fun ProfileActivityMetric(
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
@@ -744,6 +768,7 @@ private fun ProfileMediaRow(
     trackedMedia: TrackedMedia,
     onClick: () -> Unit,
 ) {
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -800,7 +825,8 @@ private fun ProfileLibraryMixCard(
             fontWeight = FontWeight.ExtraBold,
             color = OmnilogColors.AppInk,
         )
-        Surface(
+    
+    Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
             color = OmnilogColors.AppPanel,
@@ -823,7 +849,8 @@ private fun ProfileLibraryMixCard(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Surface(
+                        
+    Surface(
                                 modifier = Modifier.size(10.dp),
                                 shape = CircleShape,
                                 color = type.profileAccent(),
@@ -860,7 +887,8 @@ private fun ProfileLibraryMixCard(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         topGenres.forEach { genre ->
-                            Surface(
+                        
+    Surface(
                                 shape = RoundedCornerShape(50),
                                 color = OmnilogColors.Dashboard.copy(alpha = 0.12f),
                             ) {
@@ -932,7 +960,8 @@ private fun IconButtonSurface(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Surface(
+    
+    Surface(
             modifier = Modifier
                 .size(42.dp)
                 .clickable(onClick = onClick),

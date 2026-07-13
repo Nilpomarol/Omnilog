@@ -25,6 +25,7 @@ fun PastSessionSection(
     accent: Color,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
+    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
     onDeleteSession: () -> Unit,
 ) {
     var isEditing by rememberSaveable(session.id) { mutableStateOf(false) }
@@ -35,6 +36,7 @@ fun PastSessionSection(
         mediaType = mediaType,
         accent = accent,
         onDeleteProgressUpdate = onDeleteProgressUpdate,
+        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
         onDelete = onDeleteSession,
         trailingContent = {
             TextButton(onClick = { isEditing = true }) {

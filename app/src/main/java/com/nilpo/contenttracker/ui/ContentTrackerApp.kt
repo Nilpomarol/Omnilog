@@ -85,7 +85,6 @@ import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
-import com.nilpo.contenttracker.ui.add.AddCollectionOption
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
@@ -815,7 +814,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             AddMediaScreen(
                 initialMediaType = initialAddType,
                 availableMediaTypes = uiState.selectedSection.types.toList(),
-                availableCollections = uiState.allTrackedItems.toAddCollectionOptions(),
+                library = uiState.allTrackedItems,
                 initialCollection = targetCollection,
                 initialCollectionName = targetCollection?.name,
                 initialCollectionOrder = addTargetCollectionOrder?.let { formatCollectionOrder(it) },
@@ -891,6 +890,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     detailReturnTarget = DetailReturnTarget.Home
                     isAdding = false
                 },
+                onObjectivesClick = openProfile,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -898,7 +898,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         } else if (selectedDestination == AppDestination.Profile) {
             ProfileScreen(
                 items = uiState.allTrackedItems,
+                objectives = uiState.objectives,
                 onOpenMedia = openTrackedMedia,
+                onSaveObjective = viewModel::addObjective,
+                onDeleteObjective = viewModel::deleteObjective,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -1100,6 +1103,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onUpdateSessionDetails = viewModel::updateSessionDetails,
                 onDeletePastSession = viewModel::deletePastSession,
                 onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
+                onUpdateProgressUpdateDate = viewModel::updateProgressUpdateDate,
                 onAddExternalRating = viewModel::addExternalRating,
                 onUpdateExternalRating = viewModel::updateExternalRating,
                 onSetPrimaryExternalRating = viewModel::setPrimaryExternalRating,
@@ -2299,19 +2303,6 @@ private fun collectionItemComparator(): Comparator<TrackedMedia> =
         .thenBy { it.item.releaseYear ?: Int.MAX_VALUE }
         .thenBy { it.item.title.lowercase() }
 
-private fun List<TrackedMedia>.toAddCollectionOptions(): List<AddCollectionOption> {
-    return filter { trackedMedia -> trackedMedia.collection != null }
-        .groupBy { trackedMedia -> trackedMedia.collection!!.id }
-        .mapNotNull { (_, trackedItems) ->
-            val collection = trackedItems.firstNotNullOfOrNull { trackedMedia -> trackedMedia.collection }
-                ?: return@mapNotNull null
-            AddCollectionOption(
-                collection = collection,
-                mediaTypes = trackedItems.map { trackedMedia -> trackedMedia.item.type }.toSet(),
-            )
-        }
-        .sortedBy { option -> option.collection.name.lowercase() }
-}
 
 private val HeaderBackground = OmnilogColors.AppBackground
 private val HeaderPanel = OmnilogColors.AppPanel

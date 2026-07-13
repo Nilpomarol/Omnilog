@@ -42,6 +42,30 @@ fun buildCollectionQuickSuggestions(
         .take(3)
 }
 
+fun String.toCollectionOrderInput(): String {
+    val normalized = replace(',', '.')
+    val builder = StringBuilder()
+    var hasSeparator = false
+
+    normalized.forEach { character ->
+        when {
+            character.isDigit() -> builder.append(character)
+            character == '.' && !hasSeparator -> {
+                builder.append(character)
+                hasSeparator = true
+            }
+        }
+    }
+
+    return builder.toString().take(8)
+}
+
+fun String.toCollectionOrderOrNull(): Double? {
+    return replace(',', '.')
+        .toDoubleOrNull()
+        ?.takeIf { it >= 0.0 }
+}
+
 fun List<MediaCollection>.bestCollectionMatch(candidateName: String): MediaCollection? {
     val normalizedCandidate = candidateName.normalizedCollectionName()
     if (normalizedCandidate.isBlank()) return null
