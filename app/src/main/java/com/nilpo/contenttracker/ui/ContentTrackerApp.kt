@@ -136,6 +136,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
     var selectedMediaId by remember { mutableStateOf<Long?>(null) }
     var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
+    var collectionBackRequest by remember { mutableStateOf<(() -> Unit)?>(null) }
     var selectedAuthor by remember { mutableStateOf<String?>(null) }
     var showRestoreList by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
@@ -745,7 +746,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     showBackNavigation = selectedMedia != null && !isAdding ||
                         selectedDestination == AppDestination.Stats ||
                         selectedDestination == AppDestination.Profile ||
-                        selectedDestination == AppDestination.Settings,
+                        selectedDestination == AppDestination.Settings ||
+                        selectedCollectionId != null && selectedMedia == null,
                     showDetailActions = selectedMedia != null && !isAdding && !detailActions.isManagingExternalRatings,
                     showProfileAction = selectedMedia == null &&
                         !isAdding &&
@@ -766,6 +768,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         navigateBackFromSettings
                     } else if (selectedDestination == AppDestination.Profile) {
                         navigateBackFromProfile
+                    } else if (selectedCollectionId != null && selectedMedia == null) {
+                        collectionBackRequest ?: navigateBackFromCollection
                     } else {
                         navigateBackFromDetail
                     },
@@ -976,6 +980,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 items = selectedCollectionItems,
                 accent = uiState.selectedSection.accent,
                 onBack = navigateBackFromCollection,
+                onRegisterBackRequest = { handler -> collectionBackRequest = handler },
                 onMediaClick = {
                     detailReturnTarget = DetailReturnTarget.Collection(selectedCollection.id)
                     selectedMediaId = it.item.id

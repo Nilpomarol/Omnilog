@@ -234,6 +234,7 @@
     <string name="collection_none">Sense col·lecció</string>
     <string name="clear_collection">Treu col·lecció</string>
     <string name="collection_item_count">%1$d elements</string>
+    <string name="collection_items_section">Elements</string>
     <string name="list_item_count">%1$d/%2$d elements</string>
     <string name="collection_average_rating">Mitjana %.1f/10</string>
     <string name="collection_rename_title">Reanomena la col·lecció</string>

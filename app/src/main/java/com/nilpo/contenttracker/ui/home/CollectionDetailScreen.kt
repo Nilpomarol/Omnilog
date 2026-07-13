@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -36,11 +35,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,6 +77,7 @@ fun CollectionDetailScreen(
     onUpdateCollectionItemOrder: (Long, List<CollectionItemOrder>) -> Unit,
     onUpdateMediaItemCollection: (TrackedMedia, Long?, Double?) -> Unit,
     onCollectionActionMessage: (String) -> Unit,
+    onRegisterBackRequest: (((() -> Unit)?) -> Unit) = {},
     modifier: Modifier = Modifier,
 ) {
     var nameText by rememberSaveable(collection.id) { mutableStateOf(collection.name) }
@@ -120,6 +122,11 @@ fun CollectionDetailScreen(
             onBack()
         }
     }
+    val latestRequestBack by rememberUpdatedState(requestBack)
+    DisposableEffect(collection.id) {
+        onRegisterBackRequest { latestRequestBack() }
+        onDispose { onRegisterBackRequest(null) }
+    }
 
     // Keep nameText in sync if the collection name changes externally (e.g. after a save)
     LaunchedEffect(collection.id, collection.name) {
@@ -141,33 +148,39 @@ fun CollectionDetailScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             // ── Header bar ────────────────────────────────────────────────
-            Row(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = accent.copy(alpha = 0.10f),
+                border = BorderStroke(1.dp, accent.copy(alpha = 0.34f)),
             ) {
-                IconButton(
-                    onClick = requestBack,
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                        tint = OmnilogColors.AppInk,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.field_collection),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accent,
+                    )
+                    Text(
+                        text = collection.name,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogColors.AppInk,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-
-                Text(
-                    text = collection.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 4.dp),
-                )
 
                 if (isReordering) {
                     TextButton(
@@ -249,13 +262,13 @@ fun CollectionDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     MetadataCoverImage(
                         coverUrl = collectionCoverUrl,
-                        modifier = Modifier.size(width = 72.dp, height = 108.dp),
+                        modifier = Modifier.size(width = 68.dp, height = 102.dp),
                         shape = RoundedCornerShape(6.dp),
                     )
                     Column(
@@ -264,8 +277,8 @@ fun CollectionDetailScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.collection_item_count, items.size),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = OmnilogColors.AppInk,
                         )
                         Text(
@@ -291,8 +304,29 @@ fun CollectionDetailScreen(
                     }
                 }
             }
-            HorizontalDivider(color = OmnilogColors.AppLine)
+            }
+            if (items.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.collection_items_section),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogColors.AppMuted,
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 10.dp),
+                        color = OmnilogColors.AppLine,
+                    )
+                }
 
+            }
             // ── Item list ──────────────────────────────────────────────────
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -638,20 +672,16 @@ private fun CollectionItemCard(
         onClick = { onMediaClick(trackedMedia) },
         trailingAction = {
             Box {
-                Surface(
+                IconButton(
                     onClick = { menuExpanded = true },
-                    modifier = Modifier.size(48.dp),
-                    shape = RoundedCornerShape(999.dp),
-                    color = OmnilogColors.AppLine,
-                    contentColor = OmnilogColors.AppMuted,
+                    modifier = Modifier.size(36.dp),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = stringResource(R.string.collection_item_menu),
-                            modifier = Modifier.size(17.dp),
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.collection_item_menu),
+                        tint = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
                 DropdownMenu(
                     expanded = menuExpanded,
