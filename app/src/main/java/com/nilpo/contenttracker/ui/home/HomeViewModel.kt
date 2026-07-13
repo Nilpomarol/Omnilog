@@ -79,7 +79,7 @@ class HomeViewModel(
         )
     }
 
-    val uiState = combine(
+    private val baseUiState = combine(
         selectedSection,
         mediaRepository.observeTrackedMedia(MediaType.entries.toSet()),
         filters,
@@ -99,12 +99,17 @@ class HomeViewModel(
             trackedItems = visibleItems,
             searchQuery = filters.query,
             statusFilter = filters.status,
-            browseMode = browseMode.value,
+            browseMode = HomeBrowseMode.Items,
             sortMode = filters.sort,
             sortDirection = filters.direction,
             advancedFilters = advanced,
             refreshingMetadataItemId = refreshingItemId,
         )
+    }
+
+    val uiState = baseUiState
+        .combine(browseMode) { state, selectedBrowseMode ->
+            state.copy(browseMode = selectedBrowseMode)
         }
         .stateIn(
             scope = viewModelScope,
