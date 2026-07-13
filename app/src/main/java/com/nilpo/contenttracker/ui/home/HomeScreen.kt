@@ -346,12 +346,7 @@ private fun BrowseControls(
     var statusExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        BrowseModeTabs(
-            selectedMode = browseMode,
-            accent = accent,
-            onModeSelected = onBrowseModeChange,
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -454,6 +449,11 @@ private fun BrowseControls(
                 onClick = onAdvancedFiltersClick,
             )
         }
+        BrowseModeTabs(
+            selectedMode = browseMode,
+            accent = accent,
+            onModeSelected = onBrowseModeChange,
+        )
     }
 }
 
@@ -465,7 +465,7 @@ private fun BrowseModeTabs(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         HomeBrowseMode.entries.forEach { mode ->
             val selected = mode == selectedMode
@@ -473,7 +473,7 @@ private fun BrowseModeTabs(
                 onClick = { onModeSelected(mode) },
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 44.dp),
+                    .height(36.dp),
                 shape = RoundedCornerShape(999.dp),
                 color = if (selected) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
                 border = BorderStroke(
@@ -488,7 +488,7 @@ private fun BrowseModeTabs(
                 ) {
                     Text(
                         text = mode.label(),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
