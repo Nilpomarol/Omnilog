@@ -246,7 +246,7 @@ private fun SettingsHero() {
                 modifier = Modifier.size(15.dp),
             )
             Text(
-                text = "Local-first · les teves dades es queden al dispositiu",
+                text = "Les teves dades es desen al dispositiu",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = OmnilogColors.AppMuted,
@@ -546,7 +546,7 @@ private fun SettingsAboutFooter() {
                     color = OmnilogColors.AppInk,
                 )
                 Text(
-                    text = "Biblioteca personal local-first. Les teves dades es queden al dispositiu.",
+                    text = "Biblioteca personal. Les teves dades es desen al dispositiu.",
                     style = MaterialTheme.typography.bodySmall,
                     color = OmnilogColors.AppMuted,
                 )

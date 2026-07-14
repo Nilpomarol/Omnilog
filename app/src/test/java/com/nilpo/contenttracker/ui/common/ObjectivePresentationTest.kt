@@ -74,6 +74,12 @@ class ObjectivePresentationTest {
         assertEquals("3842 de 7000 p\u00e0gines", objectiveProgressLabel(ObjectiveProgress(objective, 3842)))
     }
 
+    @Test
+    fun objectiveMediaLabelsUseNaturalCatalanPluralForms() {
+        assertEquals("Pel·lícules", objectiveMediaLabelFor(MediaType.Movie))
+        assertEquals("Sèries", objectiveMediaLabelFor(MediaType.TvShow))
+    }
+
     private fun objective(
         targetValue: Int,
         metric: ObjectiveMetric,

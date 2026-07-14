@@ -19,7 +19,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 2 | UX-02 | 5 | Clarify achieved progress versus objective targets | Medium | `[x]` |
 | 3 | UX-03 | 15 | Sanitize and render provider synopsis content | High | `[x]` |
 | 4 | UX-04 | 6 | Add recovery for destructive deletion | High | `[-]` |
-| 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[ ]` |
+| 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[-]` |
 | 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[ ]` |
 | 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[ ]` |
 | 8 | UX-08 | 11 | Label browse modes and use contextual terminology | Medium | `[ ]` |
@@ -75,7 +75,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** A user can recover an accidental deletion without replacing the rest of the library.
 
-### [ ] UX-05 — Complete a Catalan product-copy pass
+### [-] UX-05 — Complete a Catalan product-copy pass
 
 - **Original finding:** 23
 - **Issue:** Copy contains inconsistent accents, developer-facing terms such as `Local-first`, and awkward dynamic phrases such as `Més de Empiri`.
