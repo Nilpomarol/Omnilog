@@ -452,4 +452,10 @@
     <string name="make_primary_external_rating">Fes-la principal</string>
     <string name="primary_external_rating">Puntuacio principal</string>
     <string name="delete_external_rating">Elimina</string>
+    <string name="deletion_undo_action">Desfes</string>
+    <string name="deletion_undo_item_message">S\'ha eliminat %1$s.</string>
+    <string name="deletion_undo_session_message">S\'ha eliminat la sessio #%1$d.</string>
+    <string name="deletion_undo_progress_message">S\'ha eliminat l\'actualitzacio de progres.</string>
+    <string name="deletion_restored">S\'ha restaurat.</string>
+    <string name="deletion_restore_failed">No s\'ha pogut restaurar.</string>
   </resources>

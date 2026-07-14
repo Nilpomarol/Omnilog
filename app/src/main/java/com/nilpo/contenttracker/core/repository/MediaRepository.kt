@@ -1,5 +1,11 @@
 package com.nilpo.contenttracker.core.repository
 
+import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
+import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
+import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
+import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
@@ -28,10 +34,27 @@ data class BackupPreview(
     val objectiveCount: Int = 0,
 )
 
-data class CollectionItemOrder(
-    val mediaItemId: Long,
-    val sortOrder: Double,
-)
+sealed interface DeletionRecovery {
+    data class MediaItem(
+        val item: MediaItemEntity,
+        val collection: MediaCollectionEntity?,
+        val credits: List<MediaCreditEntity>,
+        val sessions: List<TrackingSessionEntity>,
+        val progressUpdates: List<ProgressUpdateEntity>,
+        val externalRatings: List<ExternalRatingEntity>,
+    ) : DeletionRecovery
+
+    data class PastSession(
+        val session: TrackingSessionEntity,
+        val progressUpdates: List<ProgressUpdateEntity>,
+    ) : DeletionRecovery
+
+    data class ProgressUpdate(
+        val update: ProgressUpdateEntity,
+        val sessionBeforeDeletion: TrackingSessionEntity,
+        val sessionAfterDeletion: TrackingSessionEntity,
+    ) : DeletionRecovery
+}
 
 data class MetadataRefreshPreview(
     val mediaItemId: Long,
@@ -109,12 +132,13 @@ interface MediaRepository {
         finishedAt: LocalDate?,
     )
 
-    suspend fun deletePastSession(sessionId: Long)
+    suspend fun deletePastSession(sessionId: Long): DeletionRecovery?
 
-    suspend fun deleteProgressUpdate(progressUpdateId: Long)
+    suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery?
     suspend fun updateProgressUpdateDate(progressUpdateId: Long, loggedAt: LocalDate?)
 
-    suspend fun deleteMediaItem(mediaItemId: Long)
+    suspend fun deleteMediaItem(mediaItemId: Long): DeletionRecovery?
+    suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean
 
     suspend fun addExternalRating(
         mediaItemId: Long,

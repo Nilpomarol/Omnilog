@@ -537,17 +537,20 @@ class OfflineMediaRepository(
         }
     }
 
-    override suspend fun deletePastSession(sessionId: Long) {
-        val session = mediaDao.getTrackingSession(sessionId) ?: return
+    override suspend fun deletePastSession(sessionId: Long): DeletionRecovery? {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return null
         val sessions = mediaDao.getTrackingSessions(session.mediaItemId)
-        val latestSessionNumber = sessions.maxOfOrNull { it.sessionNumber } ?: return
-
+        val latestSessionNumber = sessions.maxOfOrNull { it.sessionNumber } ?: return null
         if (sessions.size <= 1 || session.sessionNumber == latestSessionNumber) {
-            return
+            return null
         }
-
+        val progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId)
         mediaDao.deleteProgressUpdatesForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
+        return DeletionRecovery.PastSession(
+            session = session,
+            progressUpdates = progressUpdates,
+        )
     }
 
     override suspend fun updateProgressUpdateDate(
@@ -562,32 +565,139 @@ class OfflineMediaRepository(
         )
     }
 
-    override suspend fun deleteProgressUpdate(progressUpdateId: Long) {
-        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return
-        mediaDao.deleteProgressUpdate(progressUpdateId)
-        val recalculatedProgress = mediaDao.getProgressUpdatesForSession(update.sessionId)
-            .maxWithOrNull(compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }
-                .thenBy { it.createdAtEpochMillis }
-                .thenBy { it.id })
+    override suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery? {
+        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return null
+        val sessionBeforeDeletion = mediaDao.getTrackingSession(update.sessionId) ?: return null
+        val remainingProgress = mediaDao.getProgressUpdatesForSession(update.sessionId)
+            .filterNot { it.id == progressUpdateId }
+        val progressAfterDeletion = remainingProgress
+            .maxWithOrNull(
+                compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }
+                    .thenBy { it.createdAtEpochMillis }
+                    .thenBy { it.id },
+            )
             ?.progressValue
             ?: 0
-
+        val updatedAtEpochMillis = System.currentTimeMillis()
+        val sessionAfterDeletion = sessionBeforeDeletion.copy(
+            progressCurrent = progressAfterDeletion,
+            updatedAtEpochMillis = updatedAtEpochMillis,
+        )
+        mediaDao.deleteProgressUpdate(progressUpdateId)
         mediaDao.updateSessionProgress(
             sessionId = update.sessionId,
-            progressCurrent = recalculatedProgress,
-            updatedAtEpochMillis = System.currentTimeMillis(),
+            progressCurrent = progressAfterDeletion,
+            updatedAtEpochMillis = updatedAtEpochMillis,
+        )
+        return DeletionRecovery.ProgressUpdate(
+            update = update,
+            sessionBeforeDeletion = sessionBeforeDeletion,
+            sessionAfterDeletion = sessionAfterDeletion,
         )
     }
 
-    override suspend fun deleteMediaItem(mediaItemId: Long) {
-        if (mediaDao.getMediaItem(mediaItemId) == null) {
-            return
-        }
+    override suspend fun deleteMediaItem(mediaItemId: Long): DeletionRecovery? {
+        val item = mediaDao.getMediaItem(mediaItemId) ?: return null
+        val collection = item.collectionId?.let { mediaDao.getMediaCollection(it) }
+        val credits = mediaDao.getMediaCreditsForItem(mediaItemId)
+        val sessions = mediaDao.getTrackingSessions(mediaItemId)
+        val sessionIds = sessions.map { it.id }.toSet()
+        val progressUpdates = mediaDao.getProgressUpdates()
+            .filter { it.mediaItemId == mediaItemId && it.sessionId in sessionIds }
+        val externalRatings = mediaDao.getExternalRatingsForItem(mediaItemId)
 
         mediaDao.deleteMediaItem(mediaItemId)
         mediaDao.deleteEmptyMediaCollections()
+        return DeletionRecovery.MediaItem(
+            item = item,
+            collection = collection,
+            credits = credits,
+            sessions = sessions,
+            progressUpdates = progressUpdates,
+            externalRatings = externalRatings,
+        )
     }
 
+    override suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean = when (recovery) {
+        is DeletionRecovery.MediaItem -> restoreMediaItemDeletion(recovery)
+        is DeletionRecovery.PastSession -> restorePastSessionDeletion(recovery)
+        is DeletionRecovery.ProgressUpdate -> restoreProgressUpdateDeletion(recovery)
+    }
+
+    private suspend fun restoreMediaItemDeletion(recovery: DeletionRecovery.MediaItem): Boolean {
+        val item = recovery.item
+        if (mediaDao.getMediaItem(item.id) != null) return false
+        if (item.collectionId != recovery.collection?.id && item.collectionId != null) return false
+        if (recovery.credits.any { it.mediaItemId != item.id }) return false
+        if (recovery.sessions.any { it.mediaItemId != item.id }) return false
+        val sessionIds = recovery.sessions.map { it.id }.toSet()
+        if (recovery.progressUpdates.any {
+                it.mediaItemId != item.id || it.sessionId !in sessionIds
+            }
+        ) return false
+        if (recovery.externalRatings.any { it.mediaItemId != item.id }) return false
+
+        val existingCreditIds = mediaDao.getMediaCredits().map { it.id }.toSet()
+        if (recovery.credits.any { it.id != 0L && it.id in existingCreditIds }) return false
+        if (recovery.sessions.any { mediaDao.getTrackingSession(it.id) != null }) return false
+        if (recovery.progressUpdates.any { mediaDao.getProgressUpdate(it.id) != null }) return false
+        if (recovery.externalRatings.any { mediaDao.getExternalRating(it.id) != null }) return false
+
+        val existingCollection = item.collectionId?.let { mediaDao.getMediaCollection(it) }
+        if (item.collectionId != null && existingCollection == null && recovery.collection == null) {
+            return false
+        }
+        if (recovery.collection != null && recovery.collection.id != item.collectionId) return false
+
+        if (recovery.collection != null && existingCollection == null) {
+            mediaDao.insertMediaCollection(recovery.collection)
+        }
+        mediaDao.insertMediaItem(item)
+        if (recovery.credits.isNotEmpty()) {
+            mediaDao.insertMediaCredits(recovery.credits)
+        }
+        recovery.sessions.forEach { mediaDao.insertTrackingSession(it) }
+        recovery.progressUpdates.forEach { mediaDao.insertProgressUpdate(it) }
+        recovery.externalRatings.forEach { mediaDao.insertExternalRating(it) }
+        return true
+    }
+
+    private suspend fun restorePastSessionDeletion(recovery: DeletionRecovery.PastSession): Boolean {
+        val session = recovery.session
+        if (mediaDao.getMediaItem(session.mediaItemId) == null) return false
+        if (mediaDao.getTrackingSession(session.id) != null) return false
+        if (recovery.progressUpdates.any {
+                it.mediaItemId != session.mediaItemId || it.sessionId != session.id
+            }
+        ) return false
+        if (recovery.progressUpdates.any { mediaDao.getProgressUpdate(it.id) != null }) return false
+        if (mediaDao.getTrackingSessions(session.mediaItemId)
+                .any { it.sessionNumber == session.sessionNumber }
+        ) return false
+
+        mediaDao.insertTrackingSession(session)
+        recovery.progressUpdates.forEach { mediaDao.insertProgressUpdate(it) }
+        return true
+    }
+
+    private suspend fun restoreProgressUpdateDeletion(recovery: DeletionRecovery.ProgressUpdate): Boolean {
+        val update = recovery.update
+        if (mediaDao.getMediaItem(update.mediaItemId) == null) return false
+        if (update.sessionId != recovery.sessionBeforeDeletion.id) return false
+        if (update.mediaItemId != recovery.sessionBeforeDeletion.mediaItemId) return false
+        if (recovery.sessionBeforeDeletion.id != recovery.sessionAfterDeletion.id) return false
+        if (mediaDao.getProgressUpdate(update.id) != null) return false
+        val currentSession = mediaDao.getTrackingSession(update.sessionId) ?: return false
+        if (currentSession != recovery.sessionAfterDeletion) return false
+
+        mediaDao.updateSessionProgress(
+            sessionId = recovery.sessionBeforeDeletion.id,
+            progressCurrent = recovery.sessionBeforeDeletion.progressCurrent,
+            updatedAtEpochMillis = recovery.sessionBeforeDeletion.updatedAtEpochMillis,
+        )
+        mediaDao.insertProgressUpdate(update)
+        return true
+    }
     override suspend fun addExternalRating(
         mediaItemId: Long,
         source: ExternalRatingSource,

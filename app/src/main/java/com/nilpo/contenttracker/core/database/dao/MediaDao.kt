@@ -409,7 +409,6 @@ interface MediaDao {
 
     @Query("DELETE FROM external_ratings WHERE id = :externalRatingId")
     suspend fun deleteExternalRating(externalRatingId: Long)
-
     @Query("DELETE FROM external_ratings")
     suspend fun deleteAllExternalRatings()
 
@@ -421,7 +420,6 @@ interface MediaDao {
 
     @Query("DELETE FROM media_items")
     suspend fun deleteAllMediaItems()
-
     @Query("DELETE FROM media_credits")
     suspend fun deleteAllMediaCredits()
 

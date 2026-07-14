@@ -18,7 +18,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 1 | UX-01 | 4 | Make objective metrics, labels, and units consistent | High | `[x]` |
 | 2 | UX-02 | 5 | Clarify achieved progress versus objective targets | Medium | `[x]` |
 | 3 | UX-03 | 15 | Sanitize and render provider synopsis content | High | `[x]` |
-| 4 | UX-04 | 6 | Add recovery for destructive deletion | High | `[ ]` |
+| 4 | UX-04 | 6 | Add recovery for destructive deletion | High | `[-]` |
 | 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[ ]` |
 | 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[ ]` |
 | 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[ ]` |
@@ -66,7 +66,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** No raw markup is visible in previews, saved-item details, recommendations, or metadata-refresh previews.
 
-### [ ] UX-04 — Provide recovery after destructive deletion
+### [-] UX-04 — Provide recovery after destructive deletion
 
 - **Original finding:** 6
 - **Issue:** Deleting an item or session is confirmed but cannot be undone without restoring a complete backup.

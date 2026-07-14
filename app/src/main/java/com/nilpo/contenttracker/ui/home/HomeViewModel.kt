@@ -16,6 +16,8 @@ import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
+import com.nilpo.contenttracker.core.repository.DeletionRecovery
+import com.nilpo.contenttracker.core.repository.DeletionRecoveryStore
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.ImdbCsvImportResult
 import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
@@ -61,6 +63,7 @@ class HomeViewModel(
     private val recommendationCache = LinkedHashMap<RecommendationCacheKey, CachedRecommendations>()
     private val refreshingMetadataItemId = MutableStateFlow<Long?>(null)
     private val mutableEvents = MutableSharedFlow<HomeUiEvent>()
+    private val deletionRecoveryStore = DeletionRecoveryStore()
 
     val metadataUiState = metadataSearchState.asStateFlow()
     val recommendationUiState = recommendationState.asStateFlow()
@@ -403,7 +406,7 @@ class HomeViewModel(
 
     fun deletePastSession(sessionId: Long) {
         viewModelScope.launch {
-            mediaRepository.deletePastSession(sessionId)
+            mediaRepository.deletePastSession(sessionId)?.let { publishDeletionRecovery(it) }
         }
     }
 
@@ -415,13 +418,23 @@ class HomeViewModel(
 
     fun deleteProgressUpdate(progressUpdateId: Long) {
         viewModelScope.launch {
-            mediaRepository.deleteProgressUpdate(progressUpdateId)
+            mediaRepository.deleteProgressUpdate(progressUpdateId)?.let { publishDeletionRecovery(it) }
         }
     }
+
     fun deleteMediaItem(mediaItemId: Long) {
         viewModelScope.launch {
-            mediaRepository.deleteMediaItem(mediaItemId)
+            mediaRepository.deleteMediaItem(mediaItemId)?.let { publishDeletionRecovery(it) }
         }
+    }
+
+    suspend fun restoreDeletion(token: Long): Result<Boolean> {
+        val recovery = deletionRecoveryStore.take(token) ?: return Result.success(false)
+        return runCatching { mediaRepository.restoreDeletion(recovery) }
+    }
+
+    fun expireDeletion(token: Long) {
+        deletionRecoveryStore.discard(token)
     }
 
     fun addExternalRating(
@@ -602,6 +615,20 @@ class HomeViewModel(
         metadataSearchJob = null
     }
 
+    private suspend fun publishDeletionRecovery(recovery: DeletionRecovery) {
+        val token = deletionRecoveryStore.put(recovery)
+        when (recovery) {
+            is DeletionRecovery.MediaItem -> mutableEvents.emit(
+                HomeUiEvent.MediaItemDeletionAvailable(token, recovery.item.title),
+            )
+            is DeletionRecovery.PastSession -> mutableEvents.emit(
+                HomeUiEvent.PastSessionDeletionAvailable(token, recovery.session.sessionNumber),
+            )
+            is DeletionRecovery.ProgressUpdate -> mutableEvents.emit(
+                HomeUiEvent.ProgressUpdateDeletionAvailable(token),
+            )
+        }
+    }
     private fun cachedRecommendations(key: RecommendationCacheKey): CachedRecommendations? {
         val cached = recommendationCache[key] ?: return null
         return if (
@@ -700,6 +727,9 @@ private const val MAX_RECOMMENDATION_CACHE_ENTRIES = 20
 
 sealed interface HomeUiEvent {
     data class MediaItemCreated(val mediaItemId: Long) : HomeUiEvent
+    data class MediaItemDeletionAvailable(val deletionToken: Long, val title: String) : HomeUiEvent
+    data class PastSessionDeletionAvailable(val deletionToken: Long, val sessionNumber: Int) : HomeUiEvent
+    data class ProgressUpdateDeletionAvailable(val deletionToken: Long) : HomeUiEvent
     data object MetadataRefreshSucceeded : HomeUiEvent
     data object MetadataRefreshUnavailable : HomeUiEvent
     data object MetadataRefreshFailed : HomeUiEvent

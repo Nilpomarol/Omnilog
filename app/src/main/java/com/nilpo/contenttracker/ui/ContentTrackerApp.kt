@@ -41,6 +41,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -89,6 +91,7 @@ import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
+import com.nilpo.contenttracker.ui.common.OmnilogSnackbar
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.AuthorDetailScreen
@@ -211,6 +214,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val metadataRefreshErrorMessage = stringResource(R.string.metadata_refresh_error)
     val metadataLinkSuccessMessage = stringResource(R.string.metadata_link_success)
     val metadataLinkErrorMessage = stringResource(R.string.metadata_link_error)
+    val deletionUndoAction = stringResource(R.string.deletion_undo_action)
+    val deletionUndoProgressMessage = stringResource(R.string.deletion_undo_progress_message)
+    val deletionRestoredMessage = stringResource(R.string.deletion_restored)
+    val deletionRestoreFailedMessage = stringResource(R.string.deletion_restore_failed)
     val navigateBackFromDetail = {
         val poppedDetail = detailHistory.popDetail()
         val previousDetail = poppedDetail.previous
@@ -632,11 +639,52 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         }
     }
 
+    suspend fun showDeletionRecovery(deletionToken: Long, message: String) {
+        val snackbarResult = snackbarHostState.showSnackbar(
+            message = message,
+            actionLabel = deletionUndoAction,
+            duration = SnackbarDuration.Long,
+        )
+        if (snackbarResult == SnackbarResult.ActionPerformed) {
+            val restoreResult = viewModel.restoreDeletion(deletionToken)
+            snackbarHostState.showSnackbar(
+                if (restoreResult.getOrDefault(false)) {
+                    deletionRestoredMessage
+                } else {
+                    deletionRestoreFailedMessage
+                },
+            )
+        } else {
+            viewModel.expireDeletion(deletionToken)
+        }
+    }
+
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 is HomeUiEvent.MediaItemCreated -> {
                     pendingCreatedMediaId = event.mediaItemId
+                }
+                is HomeUiEvent.MediaItemDeletionAvailable -> {
+                    showDeletionRecovery(
+                        deletionToken = event.deletionToken,
+                        message = context.getString(R.string.deletion_undo_item_message, event.title),
+                    )
+                }
+                is HomeUiEvent.PastSessionDeletionAvailable -> {
+                    showDeletionRecovery(
+                        deletionToken = event.deletionToken,
+                        message = context.getString(
+                            R.string.deletion_undo_session_message,
+                            event.sessionNumber,
+                        ),
+                    )
+                }
+                is HomeUiEvent.ProgressUpdateDeletionAvailable -> {
+                    showDeletionRecovery(
+                        deletionToken = event.deletionToken,
+                        message = deletionUndoProgressMessage,
+                    )
                 }
                 HomeUiEvent.MetadataRefreshSucceeded,
                 HomeUiEvent.MetadataRefreshUnavailable,
@@ -646,14 +694,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         HomeUiEvent.MetadataRefreshSucceeded -> metadataRefreshSuccessMessage
                         HomeUiEvent.MetadataRefreshUnavailable -> metadataRefreshUnavailableMessage
                         HomeUiEvent.MetadataRefreshFailed -> metadataRefreshErrorMessage
-                        is HomeUiEvent.MediaItemCreated -> return@collect
+                        else -> return@collect
                     }
                     snackbarHostState.showSnackbar(message)
                 }
             }
         }
     }
-
     LaunchedEffect(uiState.allTrackedItems, pendingCreatedMediaId) {
         val mediaItemId = pendingCreatedMediaId ?: return@LaunchedEffect
         val trackedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == mediaItemId }
@@ -1160,7 +1207,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(start = 16.dp, top = 82.dp, end = 16.dp),
-        )
+        ) { snackbarData ->
+            OmnilogSnackbar(snackbarData = snackbarData)
+        }
     }
 
     if (showRestoreList) {
