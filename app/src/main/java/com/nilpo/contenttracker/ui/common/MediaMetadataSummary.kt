@@ -41,6 +41,7 @@ import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import coil3.compose.AsyncImage
 
@@ -260,6 +261,7 @@ fun MediaMetadataSecondary(
                 title = stringResource(R.string.metadata_summary),
                 body = synopsis,
                 collapsible = true,
+                renderAsSynopsis = true,
             )
         }
 
@@ -495,9 +497,11 @@ private fun MetadataSection(
     title: String,
     body: String,
     collapsible: Boolean,
+    renderAsSynopsis: Boolean = false,
 ) {
     var isExpanded by remember(body) { mutableStateOf(false) }
-    val shouldCollapse = collapsible && body.length > 260
+    val plainBody = remember(body) { plainSynopsis(body).orEmpty() }
+    val shouldCollapse = collapsible && plainBody.length > 260
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
@@ -506,13 +510,23 @@ private fun MetadataSection(
             color = OmnilogColors.AppMuted,
             fontWeight = FontWeight.SemiBold,
         )
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = OmnilogColors.AppInk.copy(alpha = 0.84f),
-            maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (renderAsSynopsis) {
+            SynopsisText(
+                body = body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+                maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else {
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+                maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         if (shouldCollapse) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

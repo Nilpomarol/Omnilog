@@ -17,7 +17,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 |---:|---|---:|---|---|---|
 | 1 | UX-01 | 4 | Make objective metrics, labels, and units consistent | High | `[x]` |
 | 2 | UX-02 | 5 | Clarify achieved progress versus objective targets | Medium | `[x]` |
-| 3 | UX-03 | 15 | Sanitize and render provider synopsis content | High | `[ ]` |
+| 3 | UX-03 | 15 | Sanitize and render provider synopsis content | High | `[-]` |
 | 4 | UX-04 | 6 | Add recovery for destructive deletion | High | `[ ]` |
 | 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[ ]` |
 | 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[ ]` |
@@ -57,7 +57,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** Medium
 - **Done when:** Incomplete, complete, and exceeded objectives all communicate current value and target without ambiguity.
 
-### [ ] UX-03 — Sanitize and render synopsis content
+### [-] UX-03 — Sanitize and render synopsis content
 
 - **Original finding:** 15
 - **Issue:** Provider HTML such as `<p>` and `<b>` is displayed literally in item summaries.

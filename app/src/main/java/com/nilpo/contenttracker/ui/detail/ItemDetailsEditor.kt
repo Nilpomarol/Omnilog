@@ -36,6 +36,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.ui.common.LanguageDropdown
 
 @Composable
@@ -68,7 +69,7 @@ fun ItemDetailsEditor(
     var creatorsText by rememberSaveable(item.id) { mutableStateOf(item.creators.joinToString(", ")) }
     var coverUrl by rememberSaveable(item.id) { mutableStateOf(item.coverUrl.orEmpty()) }
     var sourceUrl by rememberSaveable(item.id) { mutableStateOf(item.sourceUrl.orEmpty()) }
-    var synopsis by rememberSaveable(item.id) { mutableStateOf(item.synopsis.orEmpty()) }
+    var synopsis by rememberSaveable(item.id) { mutableStateOf(plainSynopsis(item.synopsis).orEmpty()) }
 
     Scaffold(
         topBar = {

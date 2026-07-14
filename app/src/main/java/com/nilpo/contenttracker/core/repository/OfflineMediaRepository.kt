@@ -22,6 +22,8 @@ import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.normalizeSynopsis
+import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.ObjectiveUnit
@@ -405,7 +407,7 @@ class OfflineMediaRepository(
                 genresJson = request.genres.toJsonArrayString(),
                 creatorsJson = request.creators.toJsonArrayString(),
                 coverUrl = request.coverUrl,
-                synopsis = request.synopsis,
+                synopsis = normalizeSynopsis(request.synopsis),
                 sourceUrl = request.sourceUrl,
                 externalRatingScore = primaryExternalRating?.score,
                 externalRatingMax = primaryExternalRating?.maxScore,
@@ -778,7 +780,7 @@ class OfflineMediaRepository(
         val validGenres = genres.cleanMetadataList()
         val validCreators = creators.cleanMetadataList()
         val validCoverUrl = coverUrl?.trim()?.takeIf { it.isNotBlank() }
-        val validSynopsis = synopsis?.trim()?.takeIf { it.isNotBlank() }
+        val validSynopsis = normalizeSynopsis(synopsis)
         val validSourceUrl = sourceUrl?.trim()?.takeIf { it.isNotBlank() }
         val updatedOverrideFields = currentItem.metadataOverrideFields() + buildSet {
             if (currentItem.title != validTitle) add(MetadataRefreshField.Title)
@@ -892,7 +894,7 @@ class OfflineMediaRepository(
             creators = refreshed.creators.cleanMetadataList(),
             progressTotal = refreshedTotal,
             coverUrl = refreshed.coverUrl?.trim()?.takeIf { it.isNotBlank() },
-            synopsis = refreshed.synopsis?.trim()?.takeIf { it.isNotBlank() },
+            synopsis = normalizeSynopsis(refreshed.synopsis),
             sourceUrl = refreshed.sourceUrl?.trim()?.takeIf { it.isNotBlank() },
             externalRatings = refreshedRatings,
         )
@@ -1182,7 +1184,7 @@ class OfflineMediaRepository(
             genresJson = linked.genres.cleanMetadataList().toJsonArrayString(),
             creatorsJson = linked.creators.cleanMetadataList().toJsonArrayString(),
             coverUrl = linked.coverUrl?.trim()?.takeIf { it.isNotBlank() },
-            synopsis = linked.synopsis?.trim()?.takeIf { it.isNotBlank() },
+            synopsis = normalizeSynopsis(linked.synopsis),
             sourceUrl = linked.sourceUrl?.trim()?.takeIf { it.isNotBlank() },
             externalRatingScore = linkedPrimaryRating?.score,
             externalRatingMax = linkedPrimaryRating?.maxScore,
@@ -1303,8 +1305,8 @@ private fun buildMetadataRefreshChanges(
     )
     addChange(
         field = MetadataRefreshField.Synopsis,
-        currentValue = currentItem.synopsis,
-        newValue = refreshed.synopsis,
+        currentValue = plainSynopsis(currentItem.synopsis),
+        newValue = plainSynopsis(refreshed.synopsis),
     )
     addChange(
         field = MetadataRefreshField.SourceUrl,
@@ -1860,7 +1862,7 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         genresJson = optStringArray("genres").toJsonArrayString(),
         creatorsJson = optStringArray("creators").toJsonArrayString(),
         coverUrl = optNullableString("coverUrl"),
-        synopsis = optNullableString("synopsis"),
+        synopsis = normalizeSynopsis(optNullableString("synopsis")),
         sourceUrl = optNullableString("sourceUrl"),
         externalRatingScore = optNullableDouble("externalRatingScore"),
         externalRatingMax = optNullableDouble("externalRatingMax"),

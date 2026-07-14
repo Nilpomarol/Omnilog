@@ -73,12 +73,14 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSeasonSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.LanguageDropdown
 import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
+import com.nilpo.contenttracker.ui.common.SynopsisText
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
 import com.nilpo.contenttracker.ui.common.TrackingDateRange
@@ -690,8 +692,8 @@ private fun SeasonSuggestionRow(
                     )
                 }
                 season.synopsis?.takeIf { it.isNotBlank() }?.let { synopsis ->
-                    Text(
-                        text = synopsis,
+                    SynopsisText(
+                        body = synopsis,
                         style = MaterialTheme.typography.bodySmall,
                         color = OmnilogColors.AppMuted,
                         maxLines = 2,
@@ -1027,8 +1029,8 @@ private fun ReviewMetadataSection(
             color = OmnilogColors.AppMuted,
             fontWeight = FontWeight.SemiBold,
         )
-        Text(
-            text = body,
+        SynopsisText(
+            body = body,
             style = MaterialTheme.typography.bodyMedium,
             color = OmnilogColors.AppInk.copy(alpha = 0.84f),
             maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
