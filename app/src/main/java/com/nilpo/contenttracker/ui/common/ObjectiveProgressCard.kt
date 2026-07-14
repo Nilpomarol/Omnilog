@@ -35,10 +35,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.ObjectiveProgress
 import com.nilpo.contenttracker.core.model.ObjectiveStatus
 import com.nilpo.contenttracker.core.model.ObjectiveUnit
+import com.nilpo.contenttracker.core.model.canonicalUnit
 import com.nilpo.contenttracker.core.model.pace
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.LocalDate
@@ -101,7 +103,7 @@ fun ObjectiveProgressCard(
                 AccentBadge(objective.mediaType, accent)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = objective.name,
+                        text = objectiveProgressLabel(progress),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = OmnilogColors.AppInk,
@@ -124,16 +126,10 @@ fun ObjectiveProgressCard(
 
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = progress.currentValue.toString(),
+                    text = "Objectiu: ${objectiveTargetLabel(objective)}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogColors.AppInk,
-                )
-                Text(
-                    text = " / ${objective.targetValue} ${objective.unit.label(objective.targetValue)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = OmnilogColors.AppMuted,
-                    modifier = Modifier.padding(bottom = 1.dp),
                 )
                 Text(
                     text = "${(progress.percentage * 100).roundToInt()}%",
@@ -214,7 +210,7 @@ fun CompactObjectiveCard(
                 AccentBadge(objective.mediaType, accent, size = 28.dp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = objective.name,
+                        text = objectiveProgressLabel(progress),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = OmnilogColors.AppInk,
@@ -382,7 +378,7 @@ private fun ObjectiveStatus.chipStyle(): Triple<String, Color, Boolean> = when (
 }
 
 private fun Objective.cardSubtitle(): String {
-    val mediaLabel = mediaType.objectiveMediaLabel()
+    val mediaLabel = objectiveMediaLabelFor(mediaType)
     return "$mediaLabel · ${rangeLabel()}"
 }
 
@@ -405,13 +401,6 @@ private val catalan = Locale("ca")
 private val shortDate: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", catalan)
 private val shortDateYear: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", catalan)
 
-private fun ObjectiveUnit.label(value: Int): String = when (this) {
-    ObjectiveUnit.Titles -> if (value == 1) "títol" else "títols"
-    ObjectiveUnit.Pages -> if (value == 1) "pàgina" else "pàgines"
-    ObjectiveUnit.Episodes -> if (value == 1) "episodi" else "episodis"
-    ObjectiveUnit.Minutes -> if (value == 1) "minut" else "minuts"
-    ObjectiveUnit.Hours -> if (value == 1) "hora" else "hores"
-}
 
 private fun MediaType?.badgeLetter(): String = when (this) {
     MediaType.Anime -> "A"
@@ -422,14 +411,6 @@ private fun MediaType?.badgeLetter(): String = when (this) {
     null -> "★"
 }
 
-private fun MediaType?.objectiveMediaLabel(): String = when (this) {
-    MediaType.Anime -> "Anime"
-    MediaType.Book -> "Llibres"
-    MediaType.Movie -> "Pel·lícules"
-    MediaType.TvShow -> "Sèries"
-    MediaType.Game -> "Jocs"
-    null -> "Tots els formats"
-}
 
 private fun MediaType?.objectiveAccent(): Color = when (this) {
     MediaType.Anime -> OmnilogColors.Anime
@@ -439,3 +420,81 @@ private fun MediaType?.objectiveAccent(): Color = when (this) {
     MediaType.Game -> OmnilogColors.Games
     null -> OmnilogColors.Dashboard
 }
+
+data class ObjectivePresentation(
+    val title: String,
+    val mediaLabel: String,
+    val unit: ObjectiveUnit,
+)
+
+fun objectivePresentation(objective: Objective): ObjectivePresentation {
+    val unit = objective.canonicalUnit()
+    return ObjectivePresentation(
+        title = objectiveDisplayTitle(
+            metric = objective.metric,
+            mediaType = objective.mediaType,
+            targetValue = objective.targetValue,
+            unit = unit,
+        ),
+        mediaLabel = objectiveMediaLabelFor(objective.mediaType),
+        unit = unit,
+    )
+}
+
+fun objectiveDisplayTitle(
+    metric: ObjectiveMetric,
+    mediaType: MediaType?,
+    targetValue: Int,
+    unit: ObjectiveUnit,
+): String = when (metric) {
+    ObjectiveMetric.CompletedTitles -> "$targetValue ${completedTitleLabel(mediaType, targetValue)}"
+    ObjectiveMetric.ProgressUnits -> "$targetValue ${objectiveUnitLabel(unit, targetValue)}"
+}
+
+fun objectiveProgressLabel(progress: ObjectiveProgress): String =
+    "${progress.currentValue} de ${objectiveTargetLabel(progress.objective)}"
+
+fun objectiveTargetLabel(objective: Objective): String = when (objective.metric) {
+    ObjectiveMetric.CompletedTitles ->
+        "${objective.targetValue} ${completedTitleUnitLabel(objective.mediaType, objective.targetValue)}"
+    ObjectiveMetric.ProgressUnits ->
+        "${objective.targetValue} ${objectiveUnitLabel(objective.canonicalUnit(), objective.targetValue)}"
+}
+
+fun objectiveUnitLabel(unit: ObjectiveUnit, value: Int): String = when (unit) {
+    ObjectiveUnit.Titles -> if (value == 1) "títol" else "títols"
+    ObjectiveUnit.Pages -> if (value == 1) "pàgina" else "pàgines"
+    ObjectiveUnit.Episodes -> if (value == 1) "episodi" else "episodis"
+    ObjectiveUnit.Minutes -> if (value == 1) "minut" else "minuts"
+    ObjectiveUnit.Hours -> if (value == 1) "hora" else "hores"
+}
+
+fun objectiveMediaLabelFor(mediaType: MediaType?): String = when (mediaType) {
+    MediaType.Anime -> "Anime"
+    MediaType.Book -> "Llibres"
+    MediaType.Movie -> "Pel·lícules"
+    MediaType.TvShow -> "Sèries"
+    MediaType.Game -> "Jocs"
+    null -> "Tots els formats"
+}
+
+private fun completedTitleLabel(mediaType: MediaType?, value: Int): String = when (mediaType) {
+    MediaType.Anime -> plural(value, "anime completat", "anime completats")
+    MediaType.Book -> plural(value, "llibre completat", "llibres completats")
+    MediaType.Movie -> plural(value, "pel·lícula completada", "pel·lícules completades")
+    MediaType.TvShow -> plural(value, "sèrie completada", "sèries completades")
+    MediaType.Game -> plural(value, "joc completat", "jocs completats")
+    null -> plural(value, "títol completat", "títols completats")
+}
+
+private fun completedTitleUnitLabel(mediaType: MediaType?, value: Int): String = when (mediaType) {
+    MediaType.Anime -> plural(value, "anime", "animes")
+    MediaType.Book -> plural(value, "llibre", "llibres")
+    MediaType.Movie -> plural(value, "pel\u00b7l\u00edcula", "pel\u00b7l\u00edcules")
+    MediaType.TvShow -> plural(value, "s\u00e8rie", "s\u00e8ries")
+    MediaType.Game -> plural(value, "joc", "jocs")
+    null -> plural(value, "t\u00edtol", "t\u00edtols")
+}
+
+private fun plural(value: Int, singular: String, plural: String): String =
+    if (value == 1) singular else plural

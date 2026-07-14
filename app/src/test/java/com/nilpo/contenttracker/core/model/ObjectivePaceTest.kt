@@ -60,6 +60,11 @@ class ObjectivePaceTest {
     }
 
     @Test
+    fun percentageShowsOverachievementInsteadOfCappingAtOneHundred() {
+        assertEquals(1.5f, progress(current = 150, target = 100).percentage, 0f)
+    }
+
+    @Test
     fun unitsVsExpectedIsPositiveWhenAheadAndNegativeWhenBehind() {
         // Halfway (Jul 16) expects 50 of 100.
         assertEquals(30, progress(current = 80).pace(today = LocalDate.of(2026, 7, 16)).unitsVsExpected)

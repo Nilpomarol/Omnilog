@@ -58,11 +58,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.ObjectiveDefinition
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.ObjectiveProgress
 import com.nilpo.contenttracker.core.model.ObjectiveUnit
 import com.nilpo.contenttracker.ui.common.ObjectiveProgressCard
+import com.nilpo.contenttracker.ui.common.objectiveDisplayTitle
+import com.nilpo.contenttracker.ui.common.objectivePresentation
+import com.nilpo.contenttracker.ui.common.objectiveUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.Instant
 import java.time.LocalDate
@@ -102,7 +106,7 @@ fun ProfileObjectivesSection(
         if (newlyCompletedIds.isNotEmpty()) {
             celebrationNames = allObjectives
                 .filter { it.objective.id.toString() in newlyCompletedIds }
-                .map { it.objective.name }
+                .map { objectivePresentation(it.objective).title }
             preferences.edit()
                 .putStringSet(
                     ProfilePreferences.CELEBRATED_OBJECTIVES_KEY,
@@ -287,8 +291,11 @@ private fun ObjectiveEditorDialog(
     var customEnd by remember(initial) { mutableStateOf(initial?.endDate ?: today.withMonth(12).withDayOfMonth(31)) }
     var pickerTarget by remember(initial) { mutableStateOf<DatePickerTarget?>(null) }
 
-    val effectiveMediaType = if (metric == ObjectiveMetric.CompletedTitles) mediaType else mediaType ?: MediaType.Book
-    val unit = if (metric == ObjectiveMetric.CompletedTitles) ObjectiveUnit.Titles else effectiveMediaType.objectiveUnit()
+    val definition = ObjectiveDefinition(metric = metric, mediaType = mediaType)
+    val unit = definition.canonicalUnit
+    val targetValue = targetText.toIntOrNull()
+    val formatOptionsForMetric: List<MediaType?> =
+        if (metric == ObjectiveMetric.ProgressUnits) MediaType.entries.map { it } else formatOptions
     val range = if (period == PeriodPreset.Custom) customStart to customEnd else period.range(today)
     val startDate = range.first
     val endDate = range.second
@@ -322,10 +329,20 @@ private fun ObjectiveEditorDialog(
             EditorDropdown(
                 label = "Format",
                 selected = mediaType,
-                options = formatOptions,
-                optionLabel = { it.formatLabel() },
+                options = formatOptionsForMetric,
+                optionLabel = {
+                    if (metric == ObjectiveMetric.ProgressUnits && it == null) "Selecciona un format" else it.formatLabel()
+                },
                 onSelected = { mediaType = it },
             )
+
+            if (!definition.isValid) {
+                Text(
+                    text = "Selecciona un format per mesurar el progrés.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogColors.Dashboard,
+                )
+            }
             EditorDropdown(
                 label = "Període",
                 selected = period,
@@ -352,27 +369,34 @@ private fun ObjectiveEditorDialog(
             OutlinedTextField(
                 value = targetText,
                 onValueChange = { targetText = it.filter(Char::isDigit) },
-                label = { Text("Objectiu en ${unit.label(2)}") },
+                label = { Text("Objectiu en ${unit?.let { objectiveUnitLabel(it, targetValue ?: 2) } ?: "unitats"}") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
+            if (definition.isValid && targetValue != null && targetValue > 0) {
+                Text(
+                    text = "Previsualització: ${objectiveDisplayTitle(metric, mediaType, targetValue, unit ?: ObjectiveUnit.Titles)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogColors.AppMuted,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = onDismiss) { Text("Cancel·la") }
-                Button(
+                Button(enabled = definition.isValid && targetValue != null && targetValue > 0,
                     onClick = {
-                        val target = targetText.toIntOrNull() ?: return@Button
-                        if (target <= 0) return@Button
+                        val target = targetValue ?: return@Button
+                        val objectiveUnit = unit ?: return@Button
                         onSave(
                             Objective(
                                 id = initial?.id ?: 0,
-                                name = "$target ${effectiveMediaType.objectiveMediaLabel()} ${if (metric == ObjectiveMetric.CompletedTitles) "completats" else "registrats"}",
+                                name = objectiveDisplayTitle(metric, mediaType, target, objectiveUnit),
                                 metric = metric,
-                                unit = unit,
-                                mediaType = if (metric == ObjectiveMetric.CompletedTitles) mediaType else effectiveMediaType,
+                                unit = objectiveUnit,
+                                mediaType = mediaType,
                                 targetValue = target,
                                 startDate = startDate,
                                 endDate = maxOf(endDate, startDate),
@@ -637,30 +661,6 @@ private fun LocalDate.toObjectivePickerMillis(): Long =
 private fun Long.toObjectiveLocalDate(): LocalDate =
     Instant.ofEpochMilli(this).atZone(ZoneOffset.UTC).toLocalDate()
 
-private fun ObjectiveUnit.label(value: Int): String = when (this) {
-    ObjectiveUnit.Titles -> if (value == 1) "títol" else "títols"
-    ObjectiveUnit.Pages -> if (value == 1) "pàgina" else "pàgines"
-    ObjectiveUnit.Episodes -> if (value == 1) "episodi" else "episodis"
-    ObjectiveUnit.Minutes -> if (value == 1) "minut" else "minuts"
-    ObjectiveUnit.Hours -> if (value == 1) "hora" else "hores"
-}
-
-private fun MediaType?.objectiveUnit(): ObjectiveUnit = when (this) {
-    MediaType.Book -> ObjectiveUnit.Pages
-    MediaType.Anime, MediaType.TvShow -> ObjectiveUnit.Episodes
-    MediaType.Movie -> ObjectiveUnit.Minutes
-    MediaType.Game -> ObjectiveUnit.Hours
-    null -> ObjectiveUnit.Titles
-}
-
-private fun MediaType?.objectiveMediaLabel(): String = when (this) {
-    MediaType.Anime -> "anime"
-    MediaType.Book -> "llibres"
-    MediaType.Movie -> "pel·lícules"
-    MediaType.TvShow -> "sèries"
-    MediaType.Game -> "jocs"
-    null -> "títols"
-}
 
 private fun MediaType.label(): String = when (this) {
     MediaType.Anime -> "Anime"

@@ -23,6 +23,10 @@ import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.Objective
+import com.nilpo.contenttracker.core.model.ObjectiveMetric
+import com.nilpo.contenttracker.core.model.ObjectiveUnit
+import com.nilpo.contenttracker.core.model.canonicalUnit
+import com.nilpo.contenttracker.core.model.definition
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -70,6 +74,8 @@ class OfflineMediaRepository(
 
     override suspend fun addObjective(objective: Objective): Long {
         require(objective.name.isNotBlank())
+        require(objective.definition().isValid) { "Objective definitions must be compatible" }
+        require(objective.unit == objective.canonicalUnit()) { "Objective units must match their definitions" }
         require(objective.targetValue > 0)
         require(!objective.endDate.isBefore(objective.startDate))
         return mediaDao.insertObjective(objective.toEntity())
@@ -78,6 +84,8 @@ class OfflineMediaRepository(
     override suspend fun updateObjective(objective: Objective) {
         require(objective.id > 0)
         require(objective.name.isNotBlank())
+        require(objective.definition().isValid) { "Objective definitions must be compatible" }
+        require(objective.unit == objective.canonicalUnit()) { "Objective units must match their definitions" }
         require(objective.targetValue > 0)
         require(!objective.endDate.isBefore(objective.startDate))
         mediaDao.insertObjective(objective.toEntity())
@@ -1708,6 +1716,14 @@ private fun ParsedBackup.validate() {
     }
 
     objectives.forEach { objective ->
+        requireEnum<ObjectiveMetric>(objective.metric) { "Unknown objective metric: ${objective.metric}" }
+        requireEnum<ObjectiveUnit>(objective.unit) { "Unknown objective unit: ${objective.unit}" }
+        objective.mediaType?.let { mediaType ->
+            requireEnum<MediaType>(mediaType) { "Unknown objective media type: $mediaType" }
+        }
+        val domainObjective = objective.toDomain()
+        require(domainObjective.definition().isValid) { "Objective definitions must be compatible" }
+        require(domainObjective.unit == domainObjective.canonicalUnit()) { "Objective units must match their definitions" }
         require(objective.name.isNotBlank()) { "Objective names cannot be blank" }
         require(objective.targetValue > 0) { "Objective targets must be positive" }
         require(objective.endDateEpochDay >= objective.startDateEpochDay) { "Objective end date cannot precede start date" }

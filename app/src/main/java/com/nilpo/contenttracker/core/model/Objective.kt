@@ -18,6 +18,24 @@ enum class ObjectiveUnit {
     Hours,
 }
 
+/**
+ * The semantic definition behind an objective. Progress units only make sense for one concrete
+ * media type because pages, episodes, minutes, and hours cannot be added together.
+ */
+data class ObjectiveDefinition(
+    val metric: ObjectiveMetric,
+    val mediaType: MediaType?,
+) {
+    val canonicalUnit: ObjectiveUnit?
+        get() = when (metric) {
+            ObjectiveMetric.CompletedTitles -> ObjectiveUnit.Titles
+            ObjectiveMetric.ProgressUnits -> mediaType?.progressObjectiveUnit()
+        }
+
+    val isValid: Boolean
+        get() = canonicalUnit != null
+}
+
 data class Objective(
     val id: Long = 0,
     val name: String,
@@ -31,14 +49,33 @@ data class Objective(
     val archivedAtEpochMillis: Long? = null,
 )
 
+fun Objective.definition(): ObjectiveDefinition = ObjectiveDefinition(
+    metric = metric,
+    mediaType = mediaType,
+)
+
+/**
+ * Returns the unit implied by the objective definition. The stored unit remains a fallback for
+ * legacy or externally-created records so they can still be displayed while being repaired.
+ */
+fun Objective.canonicalUnit(): ObjectiveUnit = definition().canonicalUnit ?: unit
+
+fun MediaType.progressObjectiveUnit(): ObjectiveUnit = when (this) {
+    MediaType.Book -> ObjectiveUnit.Pages
+    MediaType.Anime, MediaType.TvShow -> ObjectiveUnit.Episodes
+    MediaType.Movie -> ObjectiveUnit.Minutes
+    MediaType.Game -> ObjectiveUnit.Hours
+}
+
 data class ObjectiveProgress(
     val objective: Objective,
     val currentValue: Int,
 ) {
+    /** Progress as a ratio of the target; values above 1.0 represent overachievement. */
     val percentage: Float
         get() = if (objective.targetValue <= 0) 0f else {
             currentValue.toFloat() / objective.targetValue.toFloat()
-        }.coerceIn(0f, 1f)
+        }
 
     val isComplete: Boolean
         get() = currentValue >= objective.targetValue
