@@ -23,7 +23,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[x]` |
 | 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[-]` |
 | 8 | UX-08 | 11 | Label browse modes and use contextual terminology | Medium | `[ ]` |
-| 9 | UX-09 | 16 | Make library rows work with larger system text | High | `[ ]` |
+| 9 | UX-09 | 16 | Make library rows work with larger system text | High | `[x]` |
 | 10 | UX-10 | 19 | Improve secondary-text and chip readability | Medium | `[ ]` |
 | 11 | UX-11 | 17 | Replace the ten-small-stars rating control | High | `[ ]` |
 | 12 | UX-12 | 18 | Clarify status, ownership, and rating indicators | Medium | `[ ]` |
@@ -114,7 +114,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 
 ## Phase 2: Accessibility and Reusable UI Foundations
 
-### [ ] UX-09 — Support larger system text in library rows
+### [x] UX-09 — Support larger system text in library rows
 
 - **Original finding:** 16
 - **Issue:** At 130% font size, fixed-height rows truncate titles, hide metadata, and compress genre chips.
@@ -122,6 +122,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Allow rows to grow, remove fixed-height assumptions, prioritize essential metadata, and limit secondary chips when space is constrained.
 - **Priority:** High
 - **Done when:** Core screens remain readable and operable at 200% font scaling without overlapping, clipping essential content, or hiding actions.
+- **Verification note:** Verified with the debug APK on a connected Android device at 200% system font scale. The Anime library kept titles, metadata, genre chips, progress, dates, and status actions within each row; the device font scale was restored to 100%.
 
 ### [ ] UX-10 — Improve secondary-text and chip readability
 

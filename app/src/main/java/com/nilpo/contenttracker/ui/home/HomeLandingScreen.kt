@@ -550,7 +550,7 @@ private fun DashboardSearchResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(66.dp)
+            .heightIn(min = 66.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -570,7 +570,7 @@ private fun DashboardSearchResultRow(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = OmnilogColors.AppInk,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (secondary.isNotBlank()) {
@@ -579,7 +579,7 @@ private fun DashboardSearchResultRow(
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = OmnilogColors.AppMuted,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

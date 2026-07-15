@@ -6,9 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -43,6 +45,7 @@ import java.time.format.DateTimeFormatter
 
 private val CoverWidth = 84.dp
 private val CoverHeight = 126.dp  // 2:3 ratio
+private const val MaxVisibleGenres = 2
 
 @Composable
 fun MediaCard(
@@ -58,7 +61,8 @@ fun MediaCard(
         trackedMedia.collection?.name,
         item.collectionSortOrder,
     )
-    val genres = item.genres.take(3)
+    val genres = item.genres.take(MaxVisibleGenres)
+    val additionalGenreCount = (item.genres.size - genres.size).coerceAtLeast(0)
 
     Surface(
         modifier = Modifier
@@ -78,31 +82,28 @@ fun MediaCard(
                 shape = RoundedCornerShape(6.dp),
             )
 
-            // Info column: top content first (priority), bottom clips if short on space
+            // Keep the cover compact at the default scale, but let the information
+            // column grow when system text needs more room.
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .height(CoverHeight)
-                    .clipToBounds(),
+                    .heightIn(min = CoverHeight),
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                // Top: title/creator/genres + pill — always renders fully
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .clipToBounds(),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(1.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
                             text = displayMediaTitle(item.title),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = OmnilogColors.AppInk,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                         if (collection != null) {
@@ -111,7 +112,7 @@ fun MediaCard(
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = accent,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
@@ -120,31 +121,15 @@ fun MediaCard(
                                 text = creator,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = OmnilogColors.AppMuted,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
                         if (genres.isNotEmpty()) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                genres.forEach { genre ->
-                                    Surface(
-                                        shape = RoundedCornerShape(999.dp),
-                                        color = OmnilogColors.AppLine,
-                                        contentColor = OmnilogColors.AppMuted,
-                                    ) {
-                                        Text(
-                                            text = genre,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontSize = 9.sp,
-                                                lineHeight = 10.sp,
-                                            ),
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                        )
-                                    }
-                                }
-                            }
+                            GenreChips(
+                                genres = genres,
+                                additionalGenreCount = additionalGenreCount,
+                            )
                         }
                     }
                     Row(
@@ -170,6 +155,48 @@ fun MediaCard(
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GenreChips(
+    genres: List<String>,
+    additionalGenreCount: Int,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        maxItemsInEachRow = 2,
+    ) {
+        genres.forEach { genre ->
+            GenreChip(text = genre)
+        }
+        if (additionalGenreCount > 0) {
+            GenreChip(text = "+$additionalGenreCount")
+        }
+    }
+}
+
+@Composable
+private fun GenreChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = OmnilogColors.AppLine,
+        contentColor = OmnilogColors.AppMuted,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 9.sp,
+                lineHeight = 10.sp,
+            ),
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
