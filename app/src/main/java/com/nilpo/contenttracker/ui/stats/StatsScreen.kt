@@ -2210,7 +2210,7 @@ private fun StatsMediaFilter.label(): String {
         StatsMediaFilter.All -> stringResource(R.string.stats_filter_all)
         StatsMediaFilter.Anime -> stringResource(R.string.nav_anime)
         StatsMediaFilter.Books -> stringResource(R.string.nav_books)
-        StatsMediaFilter.Movies -> stringResource(R.string.nav_movies)
+        StatsMediaFilter.Movies -> stringResource(R.string.nav_movies_tv)
         StatsMediaFilter.Games -> stringResource(R.string.nav_games)
     }
 }

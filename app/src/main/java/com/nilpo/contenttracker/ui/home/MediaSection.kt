@@ -15,6 +15,6 @@ enum class MediaSection(
 ) {
     Anime(R.string.nav_anime, R.string.empty_anime, OmnilogColors.Anime, "A", setOf(MediaType.Anime), MediaType.Anime),
     Books(R.string.nav_books, R.string.empty_books, OmnilogColors.Books, "B", setOf(MediaType.Book), MediaType.Book),
-    Movies(R.string.nav_movies, R.string.empty_movies, OmnilogColors.Tv, "TV", setOf(MediaType.Movie, MediaType.TvShow), MediaType.Movie),
+    Movies(R.string.nav_movies_tv, R.string.empty_movies, OmnilogColors.Tv, "C/TV", setOf(MediaType.Movie, MediaType.TvShow), MediaType.Movie),
     Games(R.string.nav_games, R.string.empty_games, OmnilogColors.Games, "G", setOf(MediaType.Game), MediaType.Game),
 }

@@ -46,9 +46,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 
@@ -173,8 +175,11 @@ fun SettingsScreen(
                     SettingsActionRow(
                         icon = Icons.Filled.PlayArrow,
                         accent = OmnilogColors.Tv,
-                        title = "IMDb CSV",
-                        description = "Afegeix pel·lícules i sèries.",
+                        title = stringResource(R.string.import_imdb_csv),
+                        description = stringResource(
+                            R.string.import_imdb_description,
+                            stringResource(R.string.nav_movies_tv),
+                        ),
                         onClick = onImportImdbCsv,
                     )
                     SettingsDivider()

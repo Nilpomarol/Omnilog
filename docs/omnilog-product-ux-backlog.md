@@ -84,7 +84,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** Low
 - **Done when:** All visible copy is natural, correctly accented, and consistent across equivalent actions and states.
 
-### [ ] UX-06 — Rename the combined movies and TV destination
+### [x] UX-06 — Rename the combined movies and TV destination
 
 - **Original finding:** 8
 - **Issue:** The `TV` destination also contains movies, but neither its label nor its icon communicates that.

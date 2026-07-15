@@ -5,7 +5,7 @@
     <string name="nav_home">Inici</string>
     <string name="nav_anime">Anime</string>
     <string name="nav_books">Llibres</string>
-    <string name="nav_movies">TV</string>
+    <string name="nav_movies_tv">Cinema i TV</string>
     <string name="nav_games">Jocs</string>
     <string name="home_title">La teva biblioteca</string>
     <string name="home_empty_state">Encara no hi ha activitat per resumir.</string>
@@ -68,7 +68,7 @@
 
     <string name="empty_anime">L\'anime que segueixis apareixerà aquí.</string>
     <string name="empty_books">Els llibres que llegeixis i rellegeixis apareixeran aquí.</string>
-    <string name="empty_movies">Les pel·lícules i sèries que miris apareixeran aquí.</string>
+    <string name="empty_movies">Les pel·lícules i sèries que miris apareixeran a Cinema i TV.</string>
     <string name="empty_games">Els jocs que juguis i rejuguis apareixeran aquí.</string>
 
     <string name="session_first_time">Primera vegada</string>
@@ -327,7 +327,7 @@
     <string name="export_backup">Exporta còpia</string>
     <string name="import_backup">Importa còpia</string>
     <string name="import_mal_xml">Importa MyAnimeList XML</string>
-    <string name="import_imdb_csv">Importa IMDb CSV</string>
+    <string name="import_imdb_csv">Importa IMDb CSV a Cinema i TV</string>
     <string name="import_storygraph_csv">Importa StoryGraph CSV</string>
     <string name="account_menu">Compte</string>
     <string name="import_backup_title">Importa còpia</string>
@@ -350,7 +350,8 @@
     <string name="backup_import_read_error">No s\'ha pogut llegir el fitxer de còpia.</string>
     <string name="backup_import_invalid">Aquest fitxer no és una còpia vàlida.</string>
     <string name="backup_import_unsupported">Aquesta versió de còpia no és compatible.</string>
-    <string name="imdb_import_title">Importa IMDb CSV</string>
+    <string name="imdb_import_title">Importa IMDb CSV a %1$s</string>
+    <string name="import_imdb_description">Afegeix pel·lícules i sèries a %1$s.</string>
     <string name="imdb_import_message_with_summary">S\'importaran %1$d elements de %2$d files.\n\nDuplicats ignorats: %3$d\nTipus no compatibles: %4$d</string>
     <string name="imdb_import_confirm">Importa elements</string>
     <string name="imdb_import_success_with_summary">%1$d elements importats. Duplicats ignorats: %2$d. No compatibles: %3$d.</string>
