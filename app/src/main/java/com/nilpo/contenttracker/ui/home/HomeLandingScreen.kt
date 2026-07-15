@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -64,6 +65,7 @@ import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
+import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -78,6 +80,8 @@ fun HomeLandingScreen(
     onSectionSearch: (MediaSection, String) -> Unit,
     onStatsClick: () -> Unit,
     onObjectivesClick: () -> Unit,
+    onQuickSetProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
+    onQuickComplete: (TrackedMedia) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
@@ -164,6 +168,8 @@ fun HomeLandingScreen(
                                 title = stringResource(R.string.home_active_title),
                                 items = activeItemsVisible,
                                 onMediaClick = onMediaClick,
+                                onQuickSetProgress = onQuickSetProgress,
+                                onQuickComplete = onQuickComplete,
                                 trailingContent = if (activeItemsHasGames) {
                                     {
                                         DashboardToggle(
@@ -670,6 +676,8 @@ private fun HomeActiveCarousel(
     title: String,
     items: List<TrackedMedia>,
     onMediaClick: (TrackedMedia) -> Unit,
+    onQuickSetProgress: (TrackedMedia, Int) -> Unit,
+    onQuickComplete: (TrackedMedia) -> Unit,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -686,6 +694,8 @@ private fun HomeActiveCarousel(
                         trackedMedia = trackedMedia,
                         accent = trackedMedia.item.type.sectionAccent(),
                         onClick = { onMediaClick(trackedMedia) },
+                        onQuickSetProgress = { onQuickSetProgress(trackedMedia, it) },
+                        onQuickComplete = { onQuickComplete(trackedMedia) },
                     )
                 }
             }
@@ -771,9 +781,18 @@ private fun HomeMediaTile(
     trackedMedia: TrackedMedia,
     accent: Color,
     onClick: () -> Unit,
+    onQuickSetProgress: ((Int) -> Unit)? = null,
+    onQuickComplete: (() -> Unit)? = null,
 ) {
     val session = trackedMedia.currentSession
     val isGame = trackedMedia.item.type == MediaType.Game
+    val quickActionsEnabled = onQuickSetProgress != null && onQuickComplete != null &&
+        session != null &&
+        (session.status == TrackingStatus.InProgress || session.status == TrackingStatus.Paused)
+    var showQuickSheet by remember(trackedMedia.item.id) { mutableStateOf(false) }
+    LaunchedEffect(quickActionsEnabled) {
+        if (!quickActionsEnabled) showQuickSheet = false
+    }
 
     Surface(
         modifier = Modifier
@@ -814,6 +833,15 @@ private fun HomeMediaTile(
                         ),
                     ),
             )
+            if (quickActionsEnabled) {
+                TileQuickActionButton(
+                    accent = accent,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp),
+                    onClick = { showQuickSheet = true },
+                )
+            }
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -866,6 +894,43 @@ private fun HomeMediaTile(
                         )
                     }
             }
+        }
+    }
+
+    if (showQuickSheet && quickActionsEnabled) {
+        QuickProgressSheet(
+            trackedMedia = trackedMedia,
+            accent = accent,
+            onSetProgress = { onQuickSetProgress?.invoke(it) },
+            onComplete = {
+                onQuickComplete?.invoke()
+                showQuickSheet = false
+            },
+            onDismiss = { showQuickSheet = false },
+        )
+    }
+}
+
+@Composable
+private fun TileQuickActionButton(
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.size(32.dp),
+        shape = RoundedCornerShape(999.dp),
+        color = OmnilogColors.AppBackground.copy(alpha = 0.82f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.60f)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(R.string.quick_progress_open),
+                tint = accent,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

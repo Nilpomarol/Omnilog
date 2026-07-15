@@ -14,6 +14,7 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.core.repository.DeletionRecovery
@@ -404,6 +405,85 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * UX-13 quick action: set the active session's progress to [newProgress].
+     * Promotes a Planned/Paused session to In progress, and auto-completes (with an
+     * undo affordance) when the value reaches the total. Plain increments give
+     * immediate visual feedback via the list flow, so they don't raise a snackbar.
+     */
+    fun quickSetProgress(media: TrackedMedia, newProgress: Int) {
+        val session = media.currentSession ?: return
+        val item = media.item
+        val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }
+        val clamped = total?.let { newProgress.coerceIn(0, it) } ?: newProgress.coerceAtLeast(0)
+        if (clamped == session.progressCurrent) return
+
+        if (total != null && clamped >= total) {
+            completeSession(session, progress = total, offerUndoFrom = session)
+            return
+        }
+
+        val status = when (session.status) {
+            TrackingStatus.Planned, TrackingStatus.Paused -> TrackingStatus.InProgress
+            else -> session.status
+        }
+        val startedAt = session.startedAt
+            ?: LocalDate.now().takeIf { status == TrackingStatus.InProgress }
+        viewModelScope.launch {
+            mediaRepository.updateSessionDetails(
+                sessionId = session.id,
+                status = status,
+                progressCurrent = clamped,
+                rating = session.rating,
+                notes = session.notes,
+                startedAt = startedAt,
+                finishedAt = session.finishedAt,
+            )
+        }
+    }
+
+    /** UX-13 quick action: mark the active session completed, with undo. */
+    fun quickComplete(media: TrackedMedia) {
+        val session = media.currentSession ?: return
+        val item = media.item
+        val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }
+        completeSession(session, progress = total ?: session.progressCurrent, offerUndoFrom = session)
+    }
+
+    /** Re-applies the pre-action session snapshot captured for the undo snackbar. */
+    fun undoQuickProgress(previous: TrackingSession) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionDetails(
+                sessionId = previous.id,
+                status = previous.status,
+                progressCurrent = previous.progressCurrent,
+                rating = previous.rating,
+                notes = previous.notes,
+                startedAt = previous.startedAt,
+                finishedAt = previous.finishedAt,
+            )
+        }
+    }
+
+    private fun completeSession(
+        session: TrackingSession,
+        progress: Int,
+        offerUndoFrom: TrackingSession,
+    ) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionDetails(
+                sessionId = session.id,
+                status = TrackingStatus.Completed,
+                progressCurrent = progress,
+                rating = session.rating,
+                notes = session.notes,
+                startedAt = session.startedAt,
+                finishedAt = session.finishedAt ?: LocalDate.now(),
+            )
+            mutableEvents.emit(HomeUiEvent.SessionCompletedReversible(offerUndoFrom))
+        }
+    }
+
     fun deletePastSession(sessionId: Long) {
         viewModelScope.launch {
             mediaRepository.deletePastSession(sessionId)?.let { publishDeletionRecovery(it) }
@@ -730,6 +810,7 @@ sealed interface HomeUiEvent {
     data class MediaItemDeletionAvailable(val deletionToken: Long, val title: String) : HomeUiEvent
     data class PastSessionDeletionAvailable(val deletionToken: Long, val sessionNumber: Int) : HomeUiEvent
     data class ProgressUpdateDeletionAvailable(val deletionToken: Long) : HomeUiEvent
+    data class SessionCompletedReversible(val previous: TrackingSession) : HomeUiEvent
     data object MetadataRefreshSucceeded : HomeUiEvent
     data object MetadataRefreshUnavailable : HomeUiEvent
     data object MetadataRefreshFailed : HomeUiEvent

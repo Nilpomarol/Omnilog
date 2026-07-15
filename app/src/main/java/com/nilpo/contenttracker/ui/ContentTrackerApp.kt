@@ -687,6 +687,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         message = deletionUndoProgressMessage,
                     )
                 }
+                is HomeUiEvent.SessionCompletedReversible -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(R.string.quick_progress_completed_message),
+                        actionLabel = deletionUndoAction,
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.undoQuickProgress(event.previous)
+                    }
+                }
                 HomeUiEvent.MetadataRefreshSucceeded,
                 HomeUiEvent.MetadataRefreshUnavailable,
                 HomeUiEvent.MetadataRefreshFailed,
@@ -939,6 +949,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     isAdding = false
                 },
                 onObjectivesClick = openProfile,
+                onQuickSetProgress = viewModel::quickSetProgress,
+                onQuickComplete = viewModel::quickComplete,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
