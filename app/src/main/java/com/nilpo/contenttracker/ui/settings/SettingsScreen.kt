@@ -133,27 +133,27 @@ fun SettingsScreen(
             item {
                 SettingsGroup(
                     title = "Dades i còpies",
-                    description = "Protegeix la biblioteca i recupera-la quan ho necessitis.",
+                    description = stringResource(R.string.settings_backup_group_description),
                     accent = OmnilogColors.Dashboard,
                 ) {
                     SettingsActionRow(
                         icon = Icons.AutoMirrored.Filled.ArrowForward,
                         title = "Exporta una còpia",
-                        description = "Desa tota la biblioteca en un fitxer JSON.",
+                        description = stringResource(R.string.settings_export_backup_description),
                         onClick = onExportBackup,
                     )
                     SettingsDivider()
                     SettingsActionRow(
                         icon = Icons.Filled.ArrowDropDown,
                         title = "Importa una còpia",
-                        description = "Substitueix les dades locals per una còpia validada.",
+                        description = stringResource(R.string.settings_import_backup_description),
                         onClick = onImportBackup,
                     )
                     SettingsDivider()
                     SettingsActionRow(
                         icon = Icons.Filled.CheckCircle,
                         title = "Restaura una còpia anterior",
-                        description = "Recupera una còpia automàtica guardada per Omnilog.",
+                        description = stringResource(R.string.settings_restore_backup_description),
                         onClick = onRestoreBackup,
                     )
                 }
@@ -251,7 +251,7 @@ private fun SettingsHero() {
                 modifier = Modifier.size(15.dp),
             )
             Text(
-                text = "Les teves dades es desen al dispositiu",
+                text = stringResource(R.string.settings_local_storage_notice),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = OmnilogColors.AppMuted,
@@ -551,7 +551,7 @@ private fun SettingsAboutFooter() {
                     color = OmnilogColors.AppInk,
                 )
                 Text(
-                    text = "Biblioteca personal. Les teves dades es desen al dispositiu.",
+                    text = stringResource(R.string.settings_local_storage_footer),
                     style = MaterialTheme.typography.bodySmall,
                     color = OmnilogColors.AppMuted,
                 )

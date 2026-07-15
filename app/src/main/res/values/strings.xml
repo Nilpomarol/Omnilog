@@ -329,7 +329,14 @@
     <string name="import_mal_xml">Importa MyAnimeList XML</string>
     <string name="import_imdb_csv">Importa IMDb CSV a Cinema i TV</string>
     <string name="import_storygraph_csv">Importa StoryGraph CSV</string>
-    <string name="account_menu">Compte</string>
+    <string name="profile_menu">Obre el perfil</string>
+    <string name="profile_local_storage_notice">Perfil local. Les teves dades es desen al dispositiu.</string>
+    <string name="settings_local_storage_notice">Les teves dades es desen al dispositiu. Omnilog no t&#233; cap compte ni sincronitzaci&#243; en l&#237;nia.</string>
+    <string name="settings_local_storage_footer">Biblioteca personal. Les teves dades es desen al dispositiu. Omnilog no t&#233; cap compte ni sincronitzaci&#243; en l&#237;nia.</string>
+    <string name="settings_backup_group_description">La biblioteca &#233;s local. Exporta-la o configura una c&#242;pia autom&#224;tica per conservar-la i recuperar-la.</string>
+    <string name="settings_export_backup_description">Desa tota la biblioteca en un fitxer JSON per conservar-la o moure-la.</string>
+    <string name="settings_import_backup_description">Substitueix les dades locals per una c&#242;pia validada.</string>
+    <string name="settings_restore_backup_description">Recupera una c&#242;pia autom&#224;tica desada per Omnilog.</string>
     <string name="import_backup_title">Importa còpia</string>
     <string name="import_backup_message">Això substituirà totes les dades locals actuals per les de la còpia.</string>
     <string name="import_backup_message_with_summary">Còpia v%1$d validada.\n\nAixò substituirà totes les dades locals actuals per les de la còpia.\n\nLa còpia conté:\n%2$d col·leccions\n%3$d elements\n%4$d crèdits\n%5$d sessions\n%6$d actualitzacions de progrés\n%7$d notes externes</string>

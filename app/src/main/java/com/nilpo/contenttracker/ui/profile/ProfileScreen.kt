@@ -46,11 +46,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
@@ -371,6 +373,11 @@ private fun ProfileHero(
                     color = OmnilogColors.AppMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.profile_local_storage_notice),
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                    color = OmnilogColors.Dashboard,
                 )
             }
         

@@ -2302,7 +2302,7 @@ private fun OmnilogTopBar(
                     if (profileImagePath != null) {
                         AsyncImage(
                             model = File(profileImagePath),
-                            contentDescription = stringResource(R.string.account_menu),
+                            contentDescription = stringResource(R.string.profile_menu),
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape),
@@ -2311,7 +2311,7 @@ private fun OmnilogTopBar(
                     } else {
                         Icon(
                             imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = stringResource(R.string.account_menu),
+                            contentDescription = stringResource(R.string.profile_menu),
                             tint = HeaderMuted,
                         )
                     }

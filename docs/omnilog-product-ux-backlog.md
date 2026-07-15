@@ -18,10 +18,10 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 1 | UX-01 | 4 | Make objective metrics, labels, and units consistent | High | `[x]` |
 | 2 | UX-02 | 5 | Clarify achieved progress versus objective targets | Medium | `[x]` |
 | 3 | UX-03 | 15 | Sanitize and render provider synopsis content | High | `[x]` |
-| 4 | UX-04 | 6 | Add recovery for destructive deletion | High | `[-]` |
-| 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[-]` |
-| 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[ ]` |
-| 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[ ]` |
+| 4 | UX-04 | 6 | Add recovery for destructive deletion | High | `[x]` |
+| 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[x]` |
+| 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[x]` |
+| 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[-]` |
 | 8 | UX-08 | 11 | Label browse modes and use contextual terminology | Medium | `[ ]` |
 | 9 | UX-09 | 16 | Make library rows work with larger system text | High | `[ ]` |
 | 10 | UX-10 | 19 | Improve secondary-text and chip readability | Medium | `[ ]` |
@@ -66,7 +66,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** No raw markup is visible in previews, saved-item details, recommendations, or metadata-refresh previews.
 
-### [-] UX-04 — Provide recovery after destructive deletion
+### [x] UX-04 — Provide recovery after destructive deletion
 
 - **Original finding:** 6
 - **Issue:** Deleting an item or session is confirmed but cannot be undone without restoring a complete backup.
@@ -75,7 +75,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** A user can recover an accidental deletion without replacing the rest of the library.
 
-### [-] UX-05 — Complete a Catalan product-copy pass
+### [x] UX-05 — Complete a Catalan product-copy pass
 
 - **Original finding:** 23
 - **Issue:** Copy contains inconsistent accents, developer-facing terms such as `Local-first`, and awkward dynamic phrases such as `Més de Empiri`.
@@ -93,7 +93,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** Navigation, empty states, filters, headings, and import entry points use the same inclusive section name.
 
-### [ ] UX-07 — Replace misleading account terminology
+### [-] UX-07 — Replace misleading account terminology
 
 - **Original finding:** 14
 - **Issue:** The profile entry is called `Compte` even though Omnilog is local-first and has no online account model.
@@ -101,6 +101,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Rename it `Perfil` or `La meva biblioteca` and state clearly that the data remains on the device unless exported or backed up.
 - **Priority:** Medium
 - **Done when:** Profile, settings, backup messaging, and accessibility labels set the correct expectation about storage and synchronization.
+- **Verification note:** Implementation is complete; device/emulator accessibility QA is pending because no Android target is connected.
 
 ### [ ] UX-08 — Label browse modes contextually
 
