@@ -18,3 +18,51 @@ enum class MediaSection(
     Movies(R.string.nav_movies_tv, R.string.empty_movies, OmnilogColors.Tv, "C/TV", setOf(MediaType.Movie, MediaType.TvShow), MediaType.Movie),
     Games(R.string.nav_games, R.string.empty_games, OmnilogColors.Games, "G", setOf(MediaType.Game), MediaType.Game),
 }
+
+internal val MediaSection.creatorBrowseLabelResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.browse_studios
+        MediaSection.Books -> R.string.browse_authors
+        MediaSection.Movies -> R.string.browse_directors
+        MediaSection.Games -> R.string.browse_developers
+    }
+
+internal val MediaSection.creatorFilterLabelResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.filter_studios
+        MediaSection.Books -> R.string.filter_authors
+        MediaSection.Movies -> R.string.filter_directors
+        MediaSection.Games -> R.string.filter_developers
+    }
+
+internal val MediaSection.creatorUnknownLabelResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.group_creator_unknown_studio
+        MediaSection.Books -> R.string.group_author_unknown
+        MediaSection.Movies -> R.string.group_creator_unknown_director
+        MediaSection.Games -> R.string.group_creator_unknown_developer
+    }
+
+internal val MediaSection.creatorDetailLabelResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.creator_page_subtitle_studio
+        MediaSection.Books -> R.string.author_page_subtitle
+        MediaSection.Movies -> R.string.creator_page_subtitle_director
+        MediaSection.Games -> R.string.creator_page_subtitle_developer
+    }
+
+internal val MediaSection.creatorExpandLabelResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.creator_expand_studio
+        MediaSection.Books -> R.string.author_expand
+        MediaSection.Movies -> R.string.creator_expand_director
+        MediaSection.Games -> R.string.creator_expand_developer
+    }
+
+internal val MediaSection.creatorCollapseLabelResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.creator_collapse_studio
+        MediaSection.Books -> R.string.author_collapse
+        MediaSection.Movies -> R.string.creator_collapse_director
+        MediaSection.Games -> R.string.creator_collapse_developer
+    }

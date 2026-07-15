@@ -1,6 +1,8 @@
 package com.nilpo.contenttracker.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -19,12 +21,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -59,6 +65,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -168,6 +175,7 @@ fun HomeScreen(
                         }
                     }
                     BrowseControls(
+                        section = section,
                         statusFilter = uiState.statusFilter,
                         browseMode = uiState.browseMode,
                         sortMode = uiState.sortMode,
@@ -183,6 +191,7 @@ fun HomeScreen(
                     if (filtersExpanded) {
                         AdvancedFiltersSheet(
                             currentFilters = uiState.advancedFilters,
+                            section = section,
                             availableItems = uiState.allTrackedItems.filter { it.item.type in section.types },
                             accent = section.accent,
                             onDismiss = { filtersExpanded = false },
@@ -222,6 +231,7 @@ fun HomeScreen(
                         Column {
                             HomeGroupHeader(
                                 group = group,
+                                section = section,
                                 accent = section.accent,
                                 isCollapsed = isCollapsed,
                                 onClick = {
@@ -334,6 +344,7 @@ private fun ListItemCounter(
 
 @Composable
 private fun BrowseControls(
+    section: MediaSection,
     statusFilter: TrackingStatus?,
     browseMode: HomeBrowseMode,
     sortMode: HomeSortMode,
@@ -349,18 +360,23 @@ private fun BrowseControls(
     var statusExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
 
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         GroupModeSegmented(
+            section = section,
             selectedMode = browseMode,
             accent = accent,
             onModeSelected = onBrowseModeChange,
         )
 
-        Box(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
             DropdownChip(
                 modifier = Modifier.fillMaxWidth(),
                 label = statusFilter?.label() ?: stringResource(R.string.filter_all_statuses),
@@ -426,42 +442,86 @@ private fun BrowseControls(
             color = accent,
             onClick = onAdvancedFiltersClick,
         )
+        }
     }
 }
 
 @Composable
 private fun GroupModeSegmented(
+    section: MediaSection,
     selectedMode: HomeBrowseMode,
     accent: Color,
     onModeSelected: (HomeBrowseMode) -> Unit,
 ) {
+    val modes = HomeBrowseMode.entries
+    val selectedIndex = modes.indexOf(selectedMode).coerceAtLeast(0)
+    val segmentHeight = 30.dp
     Surface(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(999.dp),
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
-        Row(
-            modifier = Modifier.padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(2.dp),
         ) {
-            HomeBrowseMode.entries.forEach { mode ->
-                val selected = mode == selectedMode
-                Box(
-                    modifier = Modifier
-                        .size(width = 34.dp, height = 30.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .then(
-                            if (selected) Modifier.background(accent.copy(alpha = 0.20f)) else Modifier,
-                        )
-                        .clickable { onModeSelected(mode) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(mode.iconRes()),
-                        contentDescription = mode.label(),
-                        tint = if (selected) accent else OmnilogColors.AppMuted,
-                        modifier = Modifier.size(18.dp),
+            val segmentWidth = maxWidth / modes.size
+            val indicatorOffset by animateDpAsState(
+                targetValue = segmentWidth * selectedIndex,
+                animationSpec = tween(durationMillis = 220),
+                label = "segmentIndicatorOffset",
+            )
+            Box(
+                modifier = Modifier
+                    .offset(x = indicatorOffset)
+                    .width(segmentWidth)
+                    .height(segmentHeight)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accent.copy(alpha = 0.20f)),
+            )
+            Row(modifier = Modifier.fillMaxWidth().selectableGroup()) {
+                modes.forEach { mode ->
+                    val selected = mode == selectedMode
+                    val contentColor by animateColorAsState(
+                        targetValue = if (selected) accent else OmnilogColors.AppMuted,
+                        animationSpec = tween(durationMillis = 220),
+                        label = "segmentContentColor",
                     )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(segmentHeight)
+                            .clip(RoundedCornerShape(999.dp))
+                            .selectable(
+                                selected = selected,
+                                onClick = { onModeSelected(mode) },
+                                role = Role.Tab,
+                            )
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                painter = painterResource(mode.iconRes()),
+                                contentDescription = null,
+                                tint = contentColor,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = mode.label(section),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = contentColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -487,7 +547,7 @@ private fun SortChip(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .clickable { onOpenMenu() }
-                    .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 12.dp, end = 6.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
             ) {
@@ -513,7 +573,7 @@ private fun SortChip(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .clickable { onToggleDirection() }
-                    .padding(horizontal = 9.dp, vertical = 8.dp),
+                    .padding(horizontal = 9.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -537,7 +597,6 @@ private fun HomeBrowseMode.iconRes(): Int = when (this) {
     HomeBrowseMode.Collections -> R.drawable.ic_group_collections
     HomeBrowseMode.Authors -> R.drawable.ic_group_authors
 }
-
 @Composable
 private fun AdvancedFiltersButton(
     activeCount: Int,
@@ -547,7 +606,7 @@ private fun AdvancedFiltersButton(
     Box {
         Surface(
             onClick = onClick,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(34.dp),
             shape = RoundedCornerShape(999.dp),
             color = if (activeCount > 0) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
             border = BorderStroke(1.dp, if (activeCount > 0) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
@@ -586,6 +645,7 @@ private fun AdvancedFiltersButton(
 @Composable
 private fun AdvancedFiltersSheet(
     currentFilters: HomeAdvancedFilters,
+    section: MediaSection,
     availableItems: List<TrackedMedia>,
     accent: Color,
     onDismiss: () -> Unit,
@@ -667,7 +727,7 @@ private fun AdvancedFiltersSheet(
                 }
 
                 SearchableFilterDropdown(
-                    title = stringResource(R.string.filter_authors),
+                    title = stringResource(section.creatorFilterLabelResId),
                     query = authorQuery,
                     onQueryChange = { authorQuery = it },
                     expanded = authorsExpanded,
@@ -926,7 +986,7 @@ private fun DropdownChip(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -965,10 +1025,10 @@ private fun HomeBrowseMode.groupMode(): HomeGroupMode = when (this) {
 }
 
 @Composable
-private fun HomeBrowseMode.label(): String = when (this) {
+private fun HomeBrowseMode.label(section: MediaSection): String = when (this) {
     HomeBrowseMode.Items -> stringResource(R.string.browse_items)
     HomeBrowseMode.Collections -> stringResource(R.string.browse_collections)
-    HomeBrowseMode.Authors -> stringResource(R.string.browse_authors)
+    HomeBrowseMode.Authors -> stringResource(section.creatorBrowseLabelResId)
 }
 
 @Composable

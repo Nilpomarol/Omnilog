@@ -100,6 +100,7 @@ import com.nilpo.contenttracker.ui.home.HomeLandingScreen
 import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
+import com.nilpo.contenttracker.ui.home.creatorDetailLabelResId
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.profile.ProfileScreen
 import com.nilpo.contenttracker.ui.profile.ProfilePreferences
@@ -1012,6 +1013,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         } else if (selectedAuthor != null && selectedMedia == null) {
             AuthorDetailScreen(
                 author = selectedAuthor.orEmpty(),
+                creatorLabelResId = uiState.selectedSection.creatorDetailLabelResId,
                 items = selectedAuthorItems,
                 accent = uiState.selectedSection.accent,
                 onBack = navigateBackFromAuthor,

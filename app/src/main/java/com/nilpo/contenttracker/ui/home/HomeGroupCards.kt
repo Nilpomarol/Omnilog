@@ -58,6 +58,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 internal fun HomeGroupHeader(
     group: HomeDisplayGroup,
+    section: MediaSection,
     accent: Color,
     isCollapsed: Boolean,
     onClick: () -> Unit,
@@ -67,6 +68,7 @@ internal fun HomeGroupHeader(
     when {
         group.type == HomeGroupType.Collection && group.collection != null -> CollectionGroupCard(
             group = group,
+            section = section,
             accent = accent,
             isCollapsed = isCollapsed,
             onClick = onClick,
@@ -74,6 +76,7 @@ internal fun HomeGroupHeader(
         )
         group.type == HomeGroupType.Author -> AuthorGroupCard(
             group = group,
+            section = section,
             accent = accent,
             isCollapsed = isCollapsed,
             onClick = onClick,
@@ -81,6 +84,7 @@ internal fun HomeGroupHeader(
         )
         else -> SimpleGroupHeader(
             group = group,
+            section = section,
             accent = accent,
             isCollapsed = isCollapsed,
             onClick = onClick,
@@ -91,6 +95,7 @@ internal fun HomeGroupHeader(
 @Composable
 internal fun SimpleGroupHeader(
     group: HomeDisplayGroup,
+    section: MediaSection,
     accent: Color,
     isCollapsed: Boolean,
     onClick: () -> Unit,
@@ -122,7 +127,7 @@ internal fun SimpleGroupHeader(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = group.resolvedTitle(),
+                    text = group.resolvedTitle(section),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -149,6 +154,7 @@ internal fun SimpleGroupHeader(
 @Composable
 private fun AuthorGroupCard(
     group: HomeDisplayGroup,
+    section: MediaSection,
     accent: Color,
     isCollapsed: Boolean,
     onClick: () -> Unit,
@@ -244,7 +250,7 @@ private fun AuthorGroupCard(
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
-                            text = group.resolvedTitle(),
+                            text = group.resolvedTitle(section),
                             style = if (isCollapsed) {
                                 MaterialTheme.typography.titleMedium
                             } else {
@@ -288,7 +294,7 @@ private fun AuthorGroupCard(
                         Icon(
                             imageVector = Icons.Filled.KeyboardArrowDown,
                             contentDescription = stringResource(
-                                if (isCollapsed) R.string.author_expand else R.string.author_collapse,
+                                if (isCollapsed) section.creatorExpandLabelResId else section.creatorCollapseLabelResId,
                             ),
                             modifier = Modifier
                                 .size(20.dp)
@@ -367,6 +373,7 @@ private fun AuthorGroupCard(
 @Composable
 private fun CollectionGroupCard(
     group: HomeDisplayGroup,
+    section: MediaSection,
     accent: Color,
     isCollapsed: Boolean,
     onClick: () -> Unit,
@@ -458,7 +465,7 @@ private fun CollectionGroupCard(
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
-                            text = group.resolvedTitle(),
+                            text = group.resolvedTitle(section),
                             style = if (isCollapsed) {
                                 MaterialTheme.typography.titleLarge
                             } else {
@@ -630,12 +637,12 @@ private fun CollectionAverageRatingSlot(
 // â”€â”€ Composable helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
-internal fun HomeDisplayGroup.resolvedTitle(): String {
+internal fun HomeDisplayGroup.resolvedTitle(section: MediaSection): String {
     return when {
         status != null -> status.label()
         title.isNotBlank() -> title
         type == HomeGroupType.Collection -> stringResource(R.string.collection_none)
-        type == HomeGroupType.Author -> stringResource(R.string.group_author_unknown)
+        type == HomeGroupType.Author -> stringResource(section.creatorUnknownLabelResId)
         else -> title
     }
 }

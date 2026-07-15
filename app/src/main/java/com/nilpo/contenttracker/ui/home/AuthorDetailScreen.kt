@@ -33,6 +33,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 @Composable
 fun AuthorDetailScreen(
     author: String,
+    creatorLabelResId: Int,
     items: List<TrackedMedia>,
     accent: Color,
     onBack: () -> Unit,
@@ -72,7 +73,7 @@ fun AuthorDetailScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = stringResource(R.string.author_page_subtitle),
+                        text = stringResource(creatorLabelResId),
                         style = MaterialTheme.typography.labelMedium,
                         color = OmnilogColors.AppMuted,
                     )
