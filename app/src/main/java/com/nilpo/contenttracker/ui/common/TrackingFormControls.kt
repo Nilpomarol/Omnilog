@@ -207,7 +207,7 @@ private fun LegacyTrackingProgressField(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                Text(text = label, style = MaterialTheme.typography.labelMedium, color = OmnilogColors.AppMuted)
                 OutlinedTextField(
                     value = value,
                     onValueChange = { input ->
@@ -222,7 +222,7 @@ private fun LegacyTrackingProgressField(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 progressTotal?.takeIf { it > 0 }?.let { total ->
-                    Text(text = "de $total ${progressUnitLabel(mediaType, total)}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.40f))
+                    Text(text = "de $total ${progressUnitLabel(mediaType, total)}", style = MaterialTheme.typography.labelMedium, color = OmnilogColors.AppMuted)
                 }
             }
             FilledTonalIconButton(
@@ -278,13 +278,13 @@ fun TrackingProgressField(
                         Text(
                             text = "$current / $progressTotal ${progressUnitLabel(mediaType, progressTotal)} • $percentage%",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.50f),
+                            color = OmnilogColors.AppMuted,
                         )
                     } else {
                         Text(
                             text = "$current ${progressUnitLabel(mediaType, current)}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.50f),
+                            color = OmnilogColors.AppMuted,
                         )
                     }
                 }
@@ -465,7 +465,7 @@ private fun TrackingDateRangeItem(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.52f),
+                    color = OmnilogColors.AppMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

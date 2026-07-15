@@ -331,7 +331,7 @@ private fun DropdownChip(
         shape = RoundedCornerShape(999.dp),
         color = if (selected) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
-        contentColor = if (selected) color else OmnilogColors.AppMuted,
+        contentColor = if (selected) OmnilogColors.AppInk else OmnilogColors.AppMuted,
     ) {
         Row(
             modifier = Modifier
@@ -648,7 +648,7 @@ private fun DeltaChip(text: String, color: Color) {
             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.ExtraBold,
-            color = color,
+            color = OmnilogColors.AppInk,
             maxLines = 1,
         )
     }
@@ -729,7 +729,7 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
                                     text = midpoint.toString(),
                                     modifier = Modifier.align(Alignment.CenterEnd),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                                    color = OmnilogColors.AppMuted,
                                     maxLines = 1,
                                 )
                             }
@@ -737,7 +737,7 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
                                 text = "0",
                                 modifier = Modifier.align(Alignment.BottomEnd),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                                color = OmnilogColors.AppMuted,
                                 maxLines = 1,
                             )
                         }
@@ -995,12 +995,12 @@ private fun AverageRatingDotPlot(stats: List<MediumStats>) {
             Text(
                 text = "0",
                 style = MaterialTheme.typography.labelSmall,
-                color = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                color = OmnilogColors.AppMuted,
             )
             Text(
                 text = "10",
                 style = MaterialTheme.typography.labelSmall,
-                color = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                color = OmnilogColors.AppMuted,
             )
         }
     }
@@ -1114,12 +1114,12 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
                         Text(
                             text = "5",
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                            color = OmnilogColors.AppMuted,
                         )
                         Text(
                             text = "0",
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                            color = OmnilogColors.AppMuted,
                         )
                     }
                     Canvas(
@@ -1288,7 +1288,7 @@ private fun LanguageBlock(
                 text = bucket.value.toString(),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppBackground.copy(alpha = 0.82f),
+                color = OmnilogColors.AppBackground,
                 maxLines = 1,
             )
         }
@@ -2028,7 +2028,7 @@ private fun StatsMediaTile(
                     Text(
                         text = creator,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.78f),
+                        color = OmnilogColors.AppInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -2038,8 +2038,8 @@ private fun StatsMediaTile(
                         genres.forEach { genre ->
                             Surface(
                                 shape = RoundedCornerShape(999.dp),
-                                color = Color.White.copy(alpha = 0.12f),
-                                contentColor = Color.White.copy(alpha = 0.78f),
+                                color = OmnilogColors.AppPanel.copy(alpha = 0.92f),
+                                contentColor = OmnilogColors.AppInk,
                             ) {
                                 Text(
                                     text = genre,

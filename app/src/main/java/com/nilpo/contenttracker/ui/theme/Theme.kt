@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 
 object OmnilogColors {
@@ -79,7 +80,13 @@ private val OmnilogTypography = Typography(
     bodySmall = BaseTypography.bodySmall.copy(fontFamily = BodyFontFamily),
     labelLarge = BaseTypography.labelLarge.copy(fontFamily = BodyFontFamily),
     labelMedium = BaseTypography.labelMedium.copy(fontFamily = BodyFontFamily),
-    labelSmall = BaseTypography.labelSmall.copy(fontFamily = BodyFontFamily),
+    // Keep compact labels readable across chips, legends, metadata, and navigation.
+    // User-facing secondary text should not fall below this 11sp baseline.
+    labelSmall = BaseTypography.labelSmall.copy(
+        fontFamily = BodyFontFamily,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+    ),
 )
 
 @Composable

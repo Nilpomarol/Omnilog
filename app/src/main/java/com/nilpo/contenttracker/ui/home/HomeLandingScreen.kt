@@ -849,7 +849,7 @@ private fun HomeMediaTile(
                                 MaterialTheme.typography.labelSmall
                             },
                             fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            color = if (isGame) accent else Color.White.copy(alpha = 0.78f),
+                            color = if (isGame) accent else OmnilogColors.AppInk,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )

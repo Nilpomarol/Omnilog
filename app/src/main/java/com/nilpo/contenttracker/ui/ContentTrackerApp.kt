@@ -2117,7 +2117,7 @@ private fun OmnilogNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val contentColor = if (selected) accent else HeaderMuted.copy(alpha = 0.76f)
+    val contentColor = if (selected) accent else HeaderMuted
     val containerColor = if (selected) accent.copy(alpha = 0.15f) else Color.Transparent
     val borderColor = if (selected) accent.copy(alpha = 0.36f) else Color.Transparent
 
@@ -2143,8 +2143,8 @@ private fun OmnilogNavItem(
             )
             Text(
                 text = stringResource(labelResId),
-                color = if (selected) HeaderInk else HeaderMuted.copy(alpha = 0.82f),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = if (selected) HeaderInk else HeaderMuted,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
                 maxLines = 1,
             )

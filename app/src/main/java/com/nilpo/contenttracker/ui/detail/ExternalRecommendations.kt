@@ -30,7 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
@@ -146,7 +146,7 @@ private fun ExternalRecommendationCard(
                 Text(
                     text = suggestion.source.name,
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = OmnilogColors.AppInk,
                 )
@@ -181,7 +181,7 @@ private fun ExternalRecommendationCard(
                     Text(
                         text = stringResource(R.string.detail_external_recommendation_add),
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = OmnilogColors.AppBackground,
                     )

@@ -391,7 +391,7 @@ private fun EditSectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+        color = OmnilogColors.AppMuted,
         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
     )
 }
@@ -534,7 +534,7 @@ private fun ProgressEditorRow(
                     Text(
                         text = "de $progressTotal ${progressUnitLabel(mediaType, progressTotal)}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.40f),
+                        color = OmnilogColors.AppMuted,
                     )
                 }
             }
@@ -732,7 +732,7 @@ private fun PlannedSummary(session: TrackingSession, mediaType: MediaType, color
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.session_planned_prompt),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            color = OmnilogColors.AppMuted,
             style = MaterialTheme.typography.bodyMedium,
         )
         QuickHintRow(
@@ -790,7 +790,7 @@ private fun ProgressSummary(
         session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
             Text(
                 text = notes,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+                color = OmnilogColors.AppMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -811,7 +811,7 @@ private fun CompletedSummary(
         }
         Text(
             text = progressText(session, progressTotal, mediaType),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+            color = OmnilogColors.AppMuted,
             style = MaterialTheme.typography.bodyMedium,
         )
         SessionDates(session = session, mediaType = mediaType)
@@ -832,7 +832,7 @@ private fun DroppedSummary(
         } else {
             Text(
                 text = progressText(session, progressTotal, mediaType),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                color = OmnilogColors.AppMuted,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
@@ -844,7 +844,7 @@ private fun DroppedSummary(
         if (session.rating != null) {
             Text(
                 text = progressText(session, progressTotal, mediaType),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+                color = OmnilogColors.AppMuted,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -891,7 +891,7 @@ private fun RatingDisplay(rating: Int?, color: Color) {
             Text(
                 text = stringResource(R.string.field_rating),
                 color = if (rating != null) color
-                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                else OmnilogColors.AppMuted,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
@@ -902,7 +902,7 @@ private fun RatingDisplay(rating: Int?, color: Color) {
                     stringResource(R.string.rating_empty)
                 },
                 color = if (rating != null) color
-                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                else OmnilogColors.AppMuted,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
             )
@@ -1035,7 +1035,7 @@ private fun SessionDates(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
+                color = OmnilogColors.AppMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

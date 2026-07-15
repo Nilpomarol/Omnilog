@@ -79,6 +79,6 @@ fun omnilogModalTextFieldColors(accent: androidx.compose.ui.graphics.Color) =
         cursorColor = accent,
         unfocusedBorderColor = OmnilogColors.AppLine,
         focusedLabelColor = accent,
-        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.52f),
-        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+        focusedPlaceholderColor = OmnilogColors.AppMuted,
+        unfocusedPlaceholderColor = OmnilogColors.AppMuted,
     )

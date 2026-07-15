@@ -851,7 +851,7 @@ private fun CollectionItemCard(
                     Icon(
                         imageVector = Icons.Filled.MoreVert,
                         contentDescription = stringResource(R.string.collection_item_menu),
-                        tint = OmnilogColors.AppMuted.copy(alpha = 0.72f),
+                        tint = OmnilogColors.AppMuted,
                         modifier = Modifier.size(18.dp),
                     )
                 }

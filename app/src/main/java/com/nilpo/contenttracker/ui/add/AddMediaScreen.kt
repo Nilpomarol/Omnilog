@@ -1289,7 +1289,7 @@ private fun ReviewProgressField(
                 Text(
                     text = stringResource(labelResId),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                    color = OmnilogColors.AppMuted,
                 )
                 OutlinedTextField(
                     value = value,
@@ -1313,7 +1313,7 @@ private fun ReviewProgressField(
                     Text(
                         text = "de $total ${progressUnitLabel(mediaType, total)}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.40f),
+                        color = OmnilogColors.AppMuted,
                     )
                 }
             }

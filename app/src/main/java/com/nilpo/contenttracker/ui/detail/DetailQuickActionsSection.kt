@@ -179,9 +179,9 @@ private fun QuickActionButton(
         MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
     }
     val contentColor = if (selected) {
-        accent
+        OmnilogColors.AppInk
     } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+        OmnilogColors.AppMuted
     }
 
     Surface(

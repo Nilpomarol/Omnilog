@@ -24,7 +24,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[-]` |
 | 8 | UX-08 | 11 | Label browse modes and use contextual terminology | Medium | `[ ]` |
 | 9 | UX-09 | 16 | Make library rows work with larger system text | High | `[x]` |
-| 10 | UX-10 | 19 | Improve secondary-text and chip readability | Medium | `[ ]` |
+| 10 | UX-10 | 19 | Improve secondary-text and chip readability | Medium | `[x]` |
 | 11 | UX-11 | 17 | Replace the ten-small-stars rating control | High | `[ ]` |
 | 12 | UX-12 | 18 | Clarify status, ownership, and rating indicators | Medium | `[ ]` |
 | 13 | UX-13 | 1 | Add quick progress actions to daily-use surfaces | High | `[ ]` |
@@ -93,7 +93,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** Navigation, empty states, filters, headings, and import entry points use the same inclusive section name.
 
-### [-] UX-07 — Replace misleading account terminology
+### [x] UX-07 — Replace misleading account terminology
 
 - **Original finding:** 14
 - **Issue:** The profile entry is called `Compte` even though Omnilog is local-first and has no online account model.
@@ -103,7 +103,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Done when:** Profile, settings, backup messaging, and accessibility labels set the correct expectation about storage and synchronization.
 - **Verification note:** Implementation is complete; device/emulator accessibility QA is pending because no Android target is connected.
 
-### [ ] UX-08 — Label browse modes contextually
+### [x] UX-08 — Label browse modes contextually
 
 - **Original finding:** 11
 - **Issue:** Browse modes use unlabeled icons and the generic term `Autors` where studios, developers, directors, or creators may be more accurate.
@@ -124,7 +124,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Done when:** Core screens remain readable and operable at 200% font scaling without overlapping, clipping essential content, or hiding actions.
 - **Verification note:** Verified with the debug APK on a connected Android device at 200% system font scale. The Anime library kept titles, metadata, genre chips, progress, dates, and status actions within each row; the device font scale was restored to 100%.
 
-### [ ] UX-10 — Improve secondary-text and chip readability
+### [x] UX-10 — Improve secondary-text and chip readability
 
 - **Original finding:** 19
 - **Issue:** Muted metadata, genre chips, chart legends, and secondary actions are very small and low contrast.
@@ -132,6 +132,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Raise contrast, increase the minimum secondary type size, and reserve the faintest treatment for genuinely optional information.
 - **Priority:** Medium
 - **Done when:** Text and controls meet the chosen accessibility contrast target in every section accent and theme.
+- **Verification note:** Implemented the 11sp compact-label baseline, removed 9–11sp text overrides, replaced low-opacity secondary text and same-accent chip foregrounds, and improved chart legends, badges, metadata chips, and secondary actions. Debug APK build and unit tests pass; the app launched on a connected Android device at 100% and 200% font scale, then the device was restored to 100%. Light theme remains scoped to UX-21 because the app currently has a dark-only theme.
 
 ### [ ] UX-11 — Replace the ten-small-stars rating control
 

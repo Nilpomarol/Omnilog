@@ -485,7 +485,7 @@ private fun GroupModeSegmented(
                 modes.forEach { mode ->
                     val selected = mode == selectedMode
                     val contentColor by animateColorAsState(
-                        targetValue = if (selected) accent else OmnilogColors.AppMuted,
+                        targetValue = if (selected) OmnilogColors.AppInk else OmnilogColors.AppMuted,
                         animationSpec = tween(durationMillis = 220),
                         label = "segmentContentColor",
                     )
@@ -540,7 +540,7 @@ private fun SortChip(
         shape = RoundedCornerShape(999.dp),
         color = accent.copy(alpha = 0.16f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.50f)),
-        contentColor = accent,
+        contentColor = OmnilogColors.AppInk,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
@@ -610,7 +610,7 @@ private fun AdvancedFiltersButton(
             shape = RoundedCornerShape(999.dp),
             color = if (activeCount > 0) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
             border = BorderStroke(1.dp, if (activeCount > 0) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
-            contentColor = if (activeCount > 0) color else OmnilogColors.AppMuted,
+            contentColor = if (activeCount > 0) OmnilogColors.AppInk else OmnilogColors.AppMuted,
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
@@ -956,7 +956,7 @@ private fun RatingFilterSection(
                     label = { Text(stringResource(R.string.filter_rating_at_least, minimum)) },
                     colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                         selectedContainerColor = accent.copy(alpha = 0.20f),
-                        selectedLabelColor = accent,
+                        selectedLabelColor = OmnilogColors.AppInk,
                     ),
                 )
             }
@@ -981,7 +981,7 @@ private fun DropdownChip(
         shape = RoundedCornerShape(999.dp),
         color = if (selected) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
-        contentColor = if (selected) color else OmnilogColors.AppMuted,
+        contentColor = if (selected) OmnilogColors.AppInk else OmnilogColors.AppMuted,
     ) {
         Row(
             modifier = Modifier
