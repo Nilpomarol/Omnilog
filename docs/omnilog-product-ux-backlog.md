@@ -22,11 +22,11 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[x]` |
 | 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[x]` |
 | 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[-]` |
-| 8 | UX-08 | 11 | Label browse modes and use contextual terminology | Medium | `[ ]` |
+| 8 | UX-08 | 11 | Label browse modes and use contextual terminology | Medium | `[x]` |
 | 9 | UX-09 | 16 | Make library rows work with larger system text | High | `[x]` |
 | 10 | UX-10 | 19 | Improve secondary-text and chip readability | Medium | `[x]` |
-| 11 | UX-11 | 17 | Replace the ten-small-stars rating control | High | `[ ]` |
-| 12 | UX-12 | 18 | Clarify status, ownership, and rating indicators | Medium | `[ ]` |
+| 11 | UX-11 | 17 | Replace the ten-small-stars rating control | High | `[x]` |
+| 12 | UX-12 | 18 | Clarify status, ownership, and rating indicators | Medium | `[x]` |
 | 13 | UX-13 | 1 | Add quick progress actions to daily-use surfaces | High | `[ ]` |
 | 14 | UX-14 | 2 | Make the add and metadata-search flow explicit | High | `[ ]` |
 | 15 | UX-15 | 9 | Separate saved and external search results | Medium | `[ ]` |
@@ -134,7 +134,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Done when:** Text and controls meet the chosen accessibility contrast target in every section accent and theme.
 - **Verification note:** Implemented the 11sp compact-label baseline, removed 9–11sp text overrides, replaced low-opacity secondary text and same-accent chip foregrounds, and improved chart legends, badges, metadata chips, and secondary actions. Debug APK build and unit tests pass; the app launched on a connected Android device at 100% and 200% font scale, then the device was restored to 100%. Light theme remains scoped to UX-21 because the app currently has a dark-only theme.
 
-### [ ] UX-11 — Replace the ten-small-stars rating control
+### [x] UX-11 — Replace the ten-small-stars rating control
 
 - **Original finding:** 17
 - **Issue:** Ten small star targets are difficult to select accurately and have weak unselected-state contrast.
@@ -143,7 +143,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** Every rating value can be selected accurately with accessible touch targets and is announced clearly by assistive technology.
 
-### [ ] UX-12 — Clarify list-row indicators
+### [x] UX-12 — Clarify list-row indicators
 
 - **Original finding:** 18
 - **Issue:** Library rows use unexplained ownership and status icons and show a bare rating number without identifying the score type.

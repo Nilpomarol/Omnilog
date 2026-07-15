@@ -223,6 +223,8 @@
     <string name="field_progress">Progrés</string>
     <string name="field_final_progress">Progrés final</string>
     <string name="field_rating">Nota</string>
+    <string name="library_row_personal_rating">La teva nota: %1$d de 10</string>
+    <string name="library_row_external_rating">Nota externa: %1$s de 10</string>
     <string name="field_notes">Notes</string>
     <string name="notes_placeholder">Afegeix una nota...</string>
     <string name="field_status">Estat</string>

@@ -26,6 +26,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -152,6 +154,8 @@ fun MediaCard(
                     mediaType = item.type,
                     progressColor = session?.status?.stateColor ?: accent,
                     accent = accent,
+                    externalRatingScore = item.externalRatingScore,
+                    externalRatingMax = item.externalRatingMax,
                 )
             }
         }
@@ -204,6 +208,8 @@ private fun CardProgressFooter(
     mediaType: MediaType,
     progressColor: Color,
     accent: Color,
+    externalRatingScore: Double?,
+    externalRatingMax: Double?,
 ) {
     val isGame = mediaType == MediaType.Game
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -214,6 +220,7 @@ private fun CardProgressFooter(
         ) {
             Text(
                 text = session.progressLabel(progressTotal, mediaType),
+                modifier = Modifier.weight(1f, fill = false),
                 style = if (isGame) {
                     MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp)
                 } else {
@@ -224,14 +231,12 @@ private fun CardProgressFooter(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            session?.rating?.let { rating ->
-                Text(
-                    text = rating.toString(),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = accent,
-                )
-            }
+            CardRatings(
+                personalRating = session?.rating,
+                externalRatingScore = externalRatingScore,
+                externalRatingMax = externalRatingMax,
+                accent = accent,
+            )
         }
         if (progressTotal != null && progressTotal > 0) {
             CardProgressBar(
@@ -240,6 +245,78 @@ private fun CardProgressFooter(
             )
         }
         CardDates(session = session)
+    }
+}
+
+@Composable
+private fun CardRatings(
+    personalRating: Int?,
+    externalRatingScore: Double?,
+    externalRatingMax: Double?,
+    accent: Color,
+) {
+    val externalRating = if (externalRatingScore != null && externalRatingMax != null) {
+        formatExternalRatingCompact(externalRatingScore, externalRatingMax)
+    } else {
+        null
+    }
+    if (personalRating == null && externalRating == null) return
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        personalRating?.let { rating ->
+            val description = stringResource(R.string.library_row_personal_rating, rating)
+            Row(
+                modifier = Modifier.clearAndSetSemantics { contentDescription = description },
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_kpi_rating),
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(15.dp),
+                )
+                Text(
+                    text = "$rating/10",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accent,
+                )
+            }
+        }
+        externalRating?.let { value ->
+            val description = stringResource(R.string.library_row_external_rating, value)
+            Row(
+                modifier = Modifier.clearAndSetSemantics { contentDescription = description },
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_external_rating),
+                    contentDescription = null,
+                    tint = OmnilogColors.AppMuted,
+                    modifier = Modifier.size(12.dp),
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmnilogColors.AppMuted,
+                )
+            }
+        }
+    }
+}
+
+private fun formatExternalRatingCompact(score: Double, maxScore: Double): String {
+    val normalized = if (maxScore > 0.0) score / maxScore * 10.0 else score
+    return if (normalized % 1.0 == 0.0) {
+        normalized.toInt().toString()
+    } else {
+        "%.1f".format(normalized)
     }
 }
 
