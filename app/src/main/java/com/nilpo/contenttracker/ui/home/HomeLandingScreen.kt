@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -77,6 +76,9 @@ import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
+import com.nilpo.contenttracker.ui.common.rememberDashboardPreferences
+import com.nilpo.contenttracker.ui.common.rememberHiddenDashboardSections
+import com.nilpo.contenttracker.ui.common.writeHiddenDashboardSections
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.text.NumberFormat
 import java.time.LocalDate
@@ -98,47 +100,47 @@ fun HomeLandingScreen(
 ) {
     val items = uiState.allTrackedItems
     val objectiveProgress = remember(items, uiState.objectives) { ObjectiveCalculator().calculate(items, uiState.objectives) }.filter { it.objective.archivedAtEpochMillis == null && !it.isExpired(LocalDate.now()) }
-    val context = LocalContext.current
-    val dashboardPreferences = remember(context) {
-        context.getSharedPreferences("omnilog_dashboard_preferences", android.content.Context.MODE_PRIVATE)
-    }
+    val dashboardPreferences = rememberDashboardPreferences()
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearchOverlay by rememberSaveable { mutableStateOf(false) }
-    var hideGamesFromActive by rememberSaveable {
-        mutableStateOf(dashboardPreferences.getBoolean(HideGamesFromActivePreferenceKey, false))
-    }
+    // Settings owns this control (UX-18); Home only renders the result and offers a way out.
+    val hiddenSections by rememberHiddenDashboardSections(dashboardPreferences)
     val dashboardListState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val normalizedSearchQuery = searchQuery.trim()
     val searchMatches = items
         .filter { it.matchesDashboardQuery(normalizedSearchQuery) }
         .sortedBy { displayMediaTitle(it.item.title).lowercase() }
-    val activeItems = items
+    // Each carousel's candidates before the section filter: the daily sections need to know whether
+    // they had anything to begin with, so their empty copy can name the filter as the reason.
+    val activeCandidates = items
         .filter { it.currentSession?.status == TrackingStatus.InProgress }
         .sortedByDescending { it.latestActivityMillis() }
-    val activeItemsVisible = activeItems
-        .filter { trackedMedia -> !hideGamesFromActive || trackedMedia.item.type != MediaType.Game }
-        .take(8)
-    val activeItemsHasGames = activeItems.any { trackedMedia -> trackedMedia.item.type == MediaType.Game }
-    val plannedItems = items
+    val plannedCandidates = items
         .filter { it.currentSession?.status == TrackingStatus.Planned }
         .sortedByDescending { it.latestActivityMillis() }
-        .take(8)
     // Longest-stalled first: the whole point of the section is the titles you have stopped
     // noticing, so the ones you touched most recently are the least useful to surface.
-    val pausedItems = items
+    val pausedCandidates = items
         .filter { it.currentSession?.status == TrackingStatus.Paused }
         .sortedBy { it.currentSession?.updatedAtEpochMillis ?: 0L }
-        .take(8)
     // Ordered strictly by finish date. A completion with no recorded finish date has no honest
     // position on a recency axis, so it is left out rather than placed by a proxy: updatedAt moves
     // whenever any field changes, which would promote a years-old entry the moment its notes were
     // edited.
-    val completedItems = items
+    val completedCandidates = items
         .mapNotNull { media -> media.completionDate()?.let { date -> media to date } }
         .sortedByDescending { (_, date) -> date }
-        .take(8)
         .map { (media, _) -> media }
+
+    val isSectionVisible = { media: TrackedMedia ->
+        media.item.type.dashboardSection() !in hiddenSections
+    }
+
+    val activeItemsVisible = activeCandidates.filter(isSectionVisible).take(8)
+    val plannedItems = plannedCandidates.filter(isSectionVisible).take(8)
+    val pausedItems = pausedCandidates.filter(isSectionVisible).take(8)
+    val completedItems = completedCandidates.filter(isSectionVisible).take(8)
 
     LaunchedEffect(dashboardListState.isScrollInProgress) {
         if (dashboardListState.isScrollInProgress) {
@@ -185,6 +187,17 @@ fun HomeLandingScreen(
                         )
                     }
                 } else {
+                    // Only when a filter is actually on. The dashboard should never quietly leave
+                    // content out, but the default — nothing hidden — costs no space at all.
+                    if (hiddenSections.isNotEmpty()) {
+                        item {
+                            DashboardFilterNotice(
+                                hiddenSections = MediaSection.entries.filter { it in hiddenSections },
+                                onShowAll = { dashboardPreferences.writeHiddenDashboardSections(emptySet()) },
+                            )
+                        }
+                    }
+
                     item {
                         HomeActiveCarousel(
                             title = stringResource(R.string.home_active_title),
@@ -192,24 +205,7 @@ fun HomeLandingScreen(
                             onMediaClick = onMediaClick,
                             onQuickSetProgress = onQuickSetProgress,
                             onQuickComplete = onQuickComplete,
-                            isFiltered = activeItems.isNotEmpty(),
-                            trailingContent = if (activeItemsHasGames) {
-                                {
-                                    DashboardToggle(
-                                        label = stringResource(R.string.home_active_hide_games),
-                                        checked = hideGamesFromActive,
-                                        onCheckedChange = { isChecked ->
-                                            hideGamesFromActive = isChecked
-                                            dashboardPreferences
-                                                .edit()
-                                                .putBoolean(HideGamesFromActivePreferenceKey, isChecked)
-                                                .apply()
-                                        },
-                                    )
-                                }
-                            } else {
-                                null
-                            },
+                            isFiltered = activeCandidates.isNotEmpty(),
                         )
                     }
 
@@ -218,7 +214,11 @@ fun HomeLandingScreen(
                             title = stringResource(R.string.home_planned_title),
                             items = plannedItems,
                             onMediaClick = onMediaClick,
-                            emptyText = stringResource(R.string.home_planned_empty),
+                            emptyText = if (plannedCandidates.isNotEmpty()) {
+                                stringResource(R.string.home_planned_filtered_empty)
+                            } else {
+                                stringResource(R.string.home_planned_empty)
+                            },
                             onQuickStart = onQuickStart,
                         )
                     }
@@ -781,13 +781,9 @@ private fun HomeActiveCarousel(
     onQuickSetProgress: (TrackedMedia, Int) -> Unit,
     onQuickComplete: (TrackedMedia) -> Unit,
     isFiltered: Boolean,
-    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        DashboardSectionTitle(
-            title = title,
-            trailingContent = trailingContent,
-        )
+        DashboardSectionTitle(title = title)
         if (items.isEmpty()) {
             EmptyCarouselState(
                 text = if (isFiltered) {
@@ -813,7 +809,7 @@ private fun HomeActiveCarousel(
 }
 
 @Composable
-private fun EmptyCarouselState(text: String = stringResource(R.string.home_active_filtered_empty)) {
+private fun EmptyCarouselState(text: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -831,10 +827,7 @@ private fun EmptyCarouselState(text: String = stringResource(R.string.home_activ
 }
 
 @Composable
-private fun DashboardSectionTitle(
-    title: String,
-    trailingContent: (@Composable () -> Unit)? = null,
-) {
+private fun DashboardSectionTitle(title: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -852,35 +845,43 @@ private fun DashboardSectionTitle(
                 .height(1.dp)
                 .background(OmnilogColors.AppLine),
         )
-        trailingContent?.invoke()
     }
 }
 
+/**
+ * Says so when the dashboard is leaving a section out, and undoes it in one tap. The control itself
+ * lives in Settings — it is set once and then forgotten, which is exactly why the forgetting needs
+ * to be visible here rather than nowhere.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DashboardToggle(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+private fun DashboardFilterNotice(
+    hiddenSections: List<MediaSection>,
+    onShowAll: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = Modifier
-            .height(24.dp)
-            .clickable { onCheckedChange(!checked) },
-        shape = RoundedCornerShape(999.dp),
-        color = if (checked) OmnilogColors.Dashboard.copy(alpha = 0.16f) else Color.Transparent,
-        border = BorderStroke(
-            1.dp,
-            if (checked) OmnilogColors.Dashboard.copy(alpha = 0.42f) else OmnilogColors.AppLine.copy(alpha = 0.70f),
-        ),
+    val names = hiddenSections.map { stringResource(it.titleResId) }.joinToString(", ")
+    // Wraps at large font scales rather than the label crushing the action out of reach (UX-09).
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
+            text = stringResource(R.string.home_hidden_sections_notice, names),
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
-            color = if (checked) OmnilogColors.Dashboard else OmnilogColors.AppMuted.copy(alpha = 0.70f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            color = OmnilogColors.AppMuted,
+        )
+        Text(
+            text = stringResource(R.string.home_hidden_sections_show_all),
+            // Padding inside the clickable, so the tap target is bigger than the glyphs.
+            modifier = Modifier
+                .clickable(onClick = onShowAll)
+                .padding(vertical = 4.dp, horizontal = 2.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = OmnilogColors.Dashboard,
         )
     }
 }
@@ -1305,8 +1306,6 @@ private fun TrackedMedia.completionDate(): LocalDate? =
     currentSession
         ?.takeIf { it.status == TrackingStatus.Completed }
         ?.finishedAt
-
-private const val HideGamesFromActivePreferenceKey = "hide_games_from_active"
 
 private val catalan = Locale("ca")
 

@@ -20,8 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
@@ -38,20 +38,20 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
+import com.nilpo.contenttracker.ui.common.DashboardSectionChips
+import com.nilpo.contenttracker.ui.common.rememberDashboardPreferences
+import com.nilpo.contenttracker.ui.common.rememberHiddenDashboardSections
+import com.nilpo.contenttracker.ui.common.writeHiddenDashboardSections
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 
 @Composable
@@ -71,13 +71,8 @@ fun SettingsScreen(
     onAutoBackupDisabled: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val dashboardPreferences = remember(context) {
-        context.getSharedPreferences("omnilog_dashboard_preferences", android.content.Context.MODE_PRIVATE)
-    }
-    var hideGamesFromActive by remember {
-        mutableStateOf(dashboardPreferences.getBoolean("hide_games_from_active", false))
-    }
+    val dashboardPreferences = rememberDashboardPreferences()
+    val hiddenSections by rememberHiddenDashboardSections(dashboardPreferences)
 
     Surface(
         modifier = modifier,
@@ -115,19 +110,25 @@ fun SettingsScreen(
                         onCheckedChange = onAskForGoodreadsRatingChange,
                     )
                     SettingsDivider()
-                    SettingsSwitchRow(
-                        icon = Icons.Filled.Close,
+                    SettingsChipsRow(
+                        icon = Icons.Filled.Home,
                         accent = OmnilogColors.Dashboard,
-                        title = "Amagar jocs d'Ara mateix",
-                        description = "Mantén el resum de l'inici centrat en lectures i visionats.",
-                        checked = hideGamesFromActive,
-                        onCheckedChange = { enabled ->
-                            hideGamesFromActive = enabled
-                            dashboardPreferences.edit()
-                                .putBoolean("hide_games_from_active", enabled)
-                                .apply()
-                        },
-                    )
+                        title = stringResource(R.string.settings_dashboard_sections_title),
+                        description = stringResource(R.string.settings_dashboard_sections_description),
+                    ) {
+                        DashboardSectionChips(
+                            hiddenSections = hiddenSections,
+                            onToggleSection = { section ->
+                                dashboardPreferences.writeHiddenDashboardSections(
+                                    if (section in hiddenSections) {
+                                        hiddenSections - section
+                                    } else {
+                                        hiddenSections + section
+                                    },
+                                )
+                            },
+                        )
+                    }
                 }
             }
             item {
@@ -427,6 +428,53 @@ private fun SettingsLeadingIcon(
                 tint = accent.copy(alpha = if (enabled) 1f else 0.56f),
                 modifier = Modifier.size(18.dp),
             )
+        }
+    }
+}
+
+/**
+ * A settings row whose control is too wide to sit beside its label, so it sits under it — the same
+ * shape `AutoBackupCard` uses for its frequency options.
+ */
+@Composable
+private fun SettingsChipsRow(
+    icon: ImageVector,
+    accent: Color,
+    title: String,
+    description: String,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingsLeadingIcon(icon = icon, accent = accent)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogColors.AppInk,
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogColors.AppMuted,
+                )
+            }
+        }
+        // Indented to the label, not the icon, so the chips read as belonging to this row.
+        Box(modifier = Modifier.padding(start = 48.dp)) {
+            content()
         }
     }
 }
