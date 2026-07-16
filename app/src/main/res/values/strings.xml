@@ -149,8 +149,15 @@
     <string name="add_with_status">Afegeix com a %1$s</string>
     <string name="add_media_title">Afegeix contingut</string>
     <string name="metadata_search_title">Cerca %1$s</string>
+    <string name="add_title_book">Afegeix un llibre</string>
+    <string name="add_title_movie">Afegeix una pel·lícula</string>
+    <string name="add_title_tv">Afegeix una sèrie</string>
+    <string name="add_title_anime">Afegeix un anime</string>
+    <string name="add_title_game">Afegeix un joc</string>
+    <string name="add_search_subtitle">Cerca pel títol per omplir les dades automàticament, o afegeix-lo manualment.</string>
     <string name="metadata_search_label">Títol a cercar</string>
-    <string name="metadata_search_prompt">Cerca per trobar metadades abans de crear l\'element.</string>
+    <string name="metadata_search_prompt">Escriu un títol i cerca per trobar-lo abans de crear l\'element.</string>
+    <string name="clear_search">Esborra la cerca</string>
     <string name="metadata_search_loading">Cercant...</string>
     <string name="metadata_details_loading">Carregant detalls...</string>
     <string name="metadata_details_error">No s\'han pogut carregar tots els detalls. Pots continuar amb les metadades disponibles.</string>

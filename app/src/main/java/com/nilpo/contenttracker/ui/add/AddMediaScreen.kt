@@ -26,9 +26,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -55,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -491,6 +495,7 @@ private fun MetadataSearchStep(
     onManualAdd: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(uiState.query) {
         if (uiState.query.trim().length >= 3) {
             delay(300)
@@ -499,7 +504,17 @@ private fun MetadataSearchStep(
             onSearch()
         }
     }
+    // Dismiss the keyboard once results are on screen so they are not hidden behind it.
+    LaunchedEffect(uiState.hasSearched, uiState.isLoading, uiState.suggestions.size) {
+        if (uiState.hasSearched && !uiState.isLoading && uiState.suggestions.isNotEmpty()) {
+            keyboardController?.hide()
+        }
+    }
     val accent = initialMediaType.sectionAccent()
+    val submitSearch = {
+        keyboardController?.hide()
+        onSearchSubmitted()
+    }
 
     Column(
         modifier = Modifier
@@ -507,13 +522,53 @@ private fun MetadataSearchStep(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        AddScreenHeader(
+            title = initialMediaType.addTitle(),
+            subtitle = stringResource(R.string.add_search_subtitle),
+        )
+
         DashboardStyleSearchBar(
             query = uiState.query,
             onQueryChange = onQueryChange,
-            onSearchSubmitted = onSearchSubmitted,
+            onSearchSubmitted = submitSearch,
             isLoading = uiState.isLoading,
             accent = accent,
-        )
+            leadingIcon = Icons.Filled.Search,
+        ) {
+            if (uiState.query.isNotBlank()) {
+                IconButton(
+                    onClick = { onQueryChange("") },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.clear_search),
+                        tint = OmnilogColors.AppMuted,
+                    )
+                }
+            }
+            if (uiState.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                    color = accent,
+                )
+            } else {
+                FilledTonalIconButton(
+                    onClick = submitSearch,
+                    modifier = Modifier.size(40.dp),
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = accent.copy(alpha = 0.16f),
+                        contentColor = accent,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = stringResource(R.string.search_action),
+                    )
+                }
+            }
+        }
 
         Column(
             modifier = Modifier
@@ -536,9 +591,10 @@ private fun MetadataSearchStep(
             TextButton(onClick = onCancel) {
                 Text(text = stringResource(R.string.cancel))
             }
-            TextButton(
+            OutlinedButton(
                 onClick = onManualAdd,
-                colors = ButtonDefaults.textButtonColors(contentColor = accent),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = accent),
+                border = BorderStroke(1.dp, accent.copy(alpha = 0.58f)),
             ) {
                 Text(text = stringResource(R.string.add_manual))
             }
@@ -1843,6 +1899,7 @@ internal fun DashboardStyleSearchBar(
     onSearchSubmitted: () -> Unit = {},
     isLoading: Boolean,
     accent: Color,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     content: @Composable () -> Unit = {},
 ) {
     Surface(
@@ -1861,6 +1918,14 @@ internal fun DashboardStyleSearchBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (leadingIcon != null) {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    tint = if (query.isNotBlank()) accent else OmnilogColors.AppMuted,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -2098,6 +2163,17 @@ private fun MediaType.label(): String {
         MediaType.Movie -> stringResource(R.string.media_type_movie)
         MediaType.TvShow -> stringResource(R.string.media_type_tv_show)
         MediaType.Game -> stringResource(R.string.media_type_game)
+    }
+}
+
+@Composable
+private fun MediaType.addTitle(): String {
+    return when (this) {
+        MediaType.Anime -> stringResource(R.string.add_title_anime)
+        MediaType.Book -> stringResource(R.string.add_title_book)
+        MediaType.Movie -> stringResource(R.string.add_title_movie)
+        MediaType.TvShow -> stringResource(R.string.add_title_tv)
+        MediaType.Game -> stringResource(R.string.add_title_game)
     }
 }
 
