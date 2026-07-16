@@ -30,7 +30,6 @@ import com.nilpo.contenttracker.core.model.ObjectiveUnit
 import com.nilpo.contenttracker.core.model.canonicalUnit
 import com.nilpo.contenttracker.core.model.definition
 import com.nilpo.contenttracker.core.model.OwnershipType
-import com.nilpo.contenttracker.core.model.SampleTrackedMedia
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
@@ -95,25 +94,6 @@ class OfflineMediaRepository(
 
     override suspend fun deleteObjective(objectiveId: Long) {
         mediaDao.deleteObjective(objectiveId)
-    }
-
-    override suspend fun seedSampleDataIfEmpty() {
-        if (mediaDao.countMediaItems() > 0) {
-            return
-        }
-
-        SampleTrackedMedia.items.forEach { trackedMedia ->
-            mediaDao.insertMediaItem(trackedMedia.item.toEntity())
-            trackedMedia.sessions.forEach { session ->
-                mediaDao.insertTrackingSession(session.toEntity())
-            }
-            trackedMedia.credits.forEach { credit ->
-                mediaDao.insertMediaCredit(credit.toEntity())
-            }
-            trackedMedia.externalRatings.forEach { rating ->
-                mediaDao.insertExternalRating(rating.toEntity())
-            }
-        }
     }
 
     override suspend fun exportBackupJson(): String {

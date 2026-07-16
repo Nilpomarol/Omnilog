@@ -123,12 +123,6 @@ class HomeViewModel(
             initialValue = HomeUiState(),
         )
 
-    init {
-        viewModelScope.launch {
-            mediaRepository.seedSampleDataIfEmpty()
-        }
-    }
-
     suspend fun exportBackupJson(): String {
         return mediaRepository.exportBackupJson()
     }

@@ -18,9 +18,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MediaDao {
-    @Query("SELECT COUNT(*) FROM media_items")
-    suspend fun countMediaItems(): Int
-
     @Transaction
     @Query("SELECT * FROM media_items WHERE type IN (:types) ORDER BY title")
     fun observeTrackedMedia(types: List<String>): Flow<List<TrackedMediaRelation>>

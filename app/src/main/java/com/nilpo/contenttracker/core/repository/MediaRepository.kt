@@ -92,8 +92,6 @@ interface MediaRepository {
 
     fun observeObjectives(): Flow<List<Objective>>
 
-    suspend fun seedSampleDataIfEmpty()
-
     suspend fun addObjective(objective: Objective): Long
 
     suspend fun updateObjective(objective: Objective)
