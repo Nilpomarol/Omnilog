@@ -177,6 +177,8 @@
     <string name="book_edition_isbn">ISBN %1$s</string>
     <string name="metadata_season_episode_count">%1$d episodis</string>
     <string name="metadata_multi_season_count">%1$d temp.</string>
+    <string name="search_section_external">Resultats externs</string>
+    <string name="search_section_external_hint">Toca un resultat per afegir-lo</string>
     <string name="metadata_already_in_library">Ja a Omnilog</string>
     <string name="metadata_possible_duplicate">Possible duplicat</string>
     <string name="metadata_suggestion_source">Font: %1$s</string>

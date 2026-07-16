@@ -40,7 +40,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -278,13 +277,12 @@ fun HomeScreen(
             }
 
             if (showApiSection) {
-                if (uiState.trackedItems.isNotEmpty() && (apiResults.isNotEmpty() || metadataUiState.isLoading)) {
-                    item {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            color = OmnilogColors.AppLine.copy(alpha = 0.60f),
-                        )
-                    }
+                item(key = "external_section_header") {
+                    SearchSectionHeader(
+                        title = stringResource(R.string.search_section_external),
+                        count = if (metadataUiState.isLoading) null else apiResults.size,
+                        hint = stringResource(R.string.search_section_external_hint),
+                    )
                 }
 
                 when {
@@ -297,14 +295,16 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    metadataUiState.hasSearched && apiResults.isEmpty() && uiState.trackedItems.isEmpty() -> item {
+                    metadataUiState.hasSearched && apiResults.isEmpty() -> item {
                         SearchStatePanel(text = stringResource(R.string.metadata_search_empty))
                     }
                     else -> items(apiResults) { suggestion ->
+                        val suggestionAccent = suggestion.mediaType.sectionAccent()
                         MetadataSuggestionRow(
                             suggestion = suggestion,
-                            accent = suggestion.mediaType.sectionAccent(),
+                            accent = suggestionAccent,
                             duplicateState = duplicateStateForSuggestion(suggestion),
+                            borderColor = suggestionAccent.copy(alpha = 0.55f),
                             onClick = { onApiSuggestionSelected(suggestion) },
                         )
                     }
@@ -319,6 +319,49 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SearchSectionHeader(
+    title: String,
+    count: Int?,
+    modifier: Modifier = Modifier,
+    hint: String? = null,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = OmnilogColors.AppInk,
+            )
+            if (count != null) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogColors.AppMuted,
+                )
+            }
+        }
+        if (hint != null) {
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.labelMedium,
+                color = OmnilogColors.AppMuted,
+            )
         }
     }
 }

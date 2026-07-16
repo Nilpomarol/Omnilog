@@ -1984,6 +1984,7 @@ internal fun MetadataSuggestionRow(
     accent: Color,
     duplicateState: MetadataDuplicateState,
     showSourceChip: Boolean = true,
+    borderColor: Color = OmnilogColors.AppLine,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -1992,7 +1993,7 @@ internal fun MetadataSuggestionRow(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        border = BorderStroke(1.dp, borderColor),
     ) {
         Box {
             Row(

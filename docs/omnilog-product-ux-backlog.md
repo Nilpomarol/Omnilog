@@ -29,7 +29,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 12 | UX-12 | 18 | Clarify status, ownership, and rating indicators | Medium | `[x]` |
 | 13 | UX-13 | 1 | Add quick progress actions to daily-use surfaces | High | `[x]` |
 | 14 | UX-14 | 2 | Make the add and metadata-search flow explicit | High | `[-]` |
-| 15 | UX-15 | 9 | Separate saved and external search results | Medium | `[ ]` |
+| 15 | UX-15 | 9 | Separate saved and external search results | Medium | `[x]` |
 | 16 | UX-16 | 3 | Turn empty states into useful starting points | High | `[ ]` |
 | 17 | UX-17 | 12 | Rebalance the Home information hierarchy | Medium | `[ ]` |
 | 18 | UX-18 | 13 | Replace the games-only Home preference | Medium | `[ ]` |
@@ -174,7 +174,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Implementation note:** The metadata-search step now shows a media-type-specific title (`Afegeix un llibre` / `una pel·lícula` / `una sèrie` / `un anime` / `un joc`) with a subtitle explaining search-vs-manual, a leading magnifier plus an inline search button and a clear (✕) control in the pill (loading spinner replaces the search button while a query runs), and the keyboard is dismissed when results arrive and on explicit submit. Manual entry was promoted from a low-emphasis text button to an outlined button; Cancel remains the back path. Debounced auto-search is retained as additive behaviour.
 - **Verification note:** Debug APK build and `:app:testDebugUnitTest` pass. Device/emulator QA (default and 200% font scale, keyboard-dismissal behaviour) is pending because no Android target is currently connected.
 
-### [ ] UX-15 — Separate saved and external search results
+### [x] UX-15 — Separate saved and external search results
 
 - **Original finding:** 9
 - **Issue:** Section search presents saved items and provider results with only a divider between them.
@@ -182,6 +182,8 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Add persistent `A la teva biblioteca` and `Resultats externs` headings and give external rows an explicit add/review affordance.
 - **Priority:** Medium
 - **Done when:** Ownership state and the consequence of tapping each result are obvious before interaction.
+- **Implementation note:** During an active section search, the external provider results are now grouped under a persistent `Resultats externs` header (with a result count plus the hint `Toca un resultat per afegir-lo`), replacing the previous bare divider. The saved-library results above stay unlabelled so default browsing is unchanged. External rows are given an accent-tinted border so they read as distinct, non-owned suggestions rather than library items. The header appears only while searching. (Chosen approach: external heading + row styling and an explicit tap hint, rather than a per-row add button.)
+- **Verification note:** `:app:compileDebugKotlin` and `:app:testDebugUnitTest` pass. Device/emulator QA (default and 200% font scale; empty-library-vs-external and possible-duplicate states) is pending because no Android target is currently connected.
 
 ### [ ] UX-16 — Make empty states actionable
 
