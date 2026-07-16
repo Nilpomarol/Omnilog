@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -53,6 +54,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,15 +71,16 @@ import com.nilpo.contenttracker.core.stats.StatsCalculator
 import com.nilpo.contenttracker.core.stats.StatsBucket
 import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
+import com.nilpo.contenttracker.core.stats.ProgressTotalStats
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import java.time.Instant
+import java.text.NumberFormat
 import java.time.LocalDate
-import java.time.ZoneId
+import java.util.Locale
 
 @Composable
 fun HomeLandingScreen(
@@ -90,6 +93,7 @@ fun HomeLandingScreen(
     onImportBackup: () -> Unit,
     onQuickSetProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
     onQuickComplete: (TrackedMedia) -> Unit = {},
+    onQuickStart: (TrackedMedia) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
@@ -116,17 +120,25 @@ fun HomeLandingScreen(
         .filter { trackedMedia -> !hideGamesFromActive || trackedMedia.item.type != MediaType.Game }
         .take(8)
     val activeItemsHasGames = activeItems.any { trackedMedia -> trackedMedia.item.type == MediaType.Game }
-    val topRatedItems = items
-        .filter { it.bestRating() != null }
-        .sortedWith(
-            compareByDescending<TrackedMedia> { it.bestRating() ?: 0 }
-                .thenByDescending { it.latestActivityMillis() },
-        )
-        .take(8)
-    val recentItems = items
-        .filter { it.latestActivityMillis() > 0L }
+    val plannedItems = items
+        .filter { it.currentSession?.status == TrackingStatus.Planned }
         .sortedByDescending { it.latestActivityMillis() }
         .take(8)
+    // Longest-stalled first: the whole point of the section is the titles you have stopped
+    // noticing, so the ones you touched most recently are the least useful to surface.
+    val pausedItems = items
+        .filter { it.currentSession?.status == TrackingStatus.Paused }
+        .sortedBy { it.currentSession?.updatedAtEpochMillis ?: 0L }
+        .take(8)
+    // Ordered strictly by finish date. A completion with no recorded finish date has no honest
+    // position on a recency axis, so it is left out rather than placed by a proxy: updatedAt moves
+    // whenever any field changes, which would promote a years-old entry the moment its notes were
+    // edited.
+    val completedItems = items
+        .mapNotNull { media -> media.completionDate()?.let { date -> media to date } }
+        .sortedByDescending { (_, date) -> date }
+        .take(8)
+        .map { (media, _) -> media }
 
     LaunchedEffect(dashboardListState.isScrollInProgress) {
         if (dashboardListState.isScrollInProgress) {
@@ -202,6 +214,16 @@ fun HomeLandingScreen(
                     }
 
                     item {
+                        HomeCarousel(
+                            title = stringResource(R.string.home_planned_title),
+                            items = plannedItems,
+                            onMediaClick = onMediaClick,
+                            emptyText = stringResource(R.string.home_planned_empty),
+                            onQuickStart = onQuickStart,
+                        )
+                    }
+
+                    item {
                         DashboardObjectivesPreview(
                             objectives = objectiveProgress,
                             onClick = onObjectivesClick,
@@ -215,21 +237,25 @@ fun HomeLandingScreen(
                         )
                     }
 
-                    if (topRatedItems.isNotEmpty()) {
+                    // Below the goal and analytics cards: the rediscover-and-review half of the
+                    // library. Both hide when empty — unlike the two carousels above, which are
+                    // daily surfaces worth explaining, these are only worth space when populated.
+                    if (pausedItems.isNotEmpty()) {
                         item {
                             HomeCarousel(
-                                title = stringResource(R.string.home_top_rated_title),
-                                items = topRatedItems,
+                                title = stringResource(R.string.home_paused_title),
+                                items = pausedItems,
                                 onMediaClick = onMediaClick,
+                                onQuickStart = onQuickStart,
                             )
                         }
                     }
 
-                    if (recentItems.isNotEmpty()) {
+                    if (completedItems.isNotEmpty()) {
                         item {
                             HomeCarousel(
-                                title = stringResource(R.string.home_recent_title),
-                                items = recentItems,
+                                title = stringResource(R.string.home_completed_title),
+                                items = completedItems,
                                 onMediaClick = onMediaClick,
                             )
                         }
@@ -315,35 +341,94 @@ private fun DashboardAnalyticsPreview(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Bottom,
             ) {
-                Text(
-                    text = snapshot.completedInPeriod.toString(),
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.Completed,
+                KpiStat(
+                    value = snapshot.completedInPeriod.toString(),
+                    label = stringResource(R.string.home_analytics_preview_completed),
+                    valueColor = OmnilogColors.Completed,
+                    modifier = Modifier.weight(1f),
                 )
-                Column(
-                    modifier = Modifier.padding(bottom = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(1.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.home_analytics_preview_completed),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogColors.AppInk,
-                    )
-                    Text(
-                        text = stringResource(R.string.home_analytics_preview_description),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = OmnilogColors.AppMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                snapshot.averageRating?.let { average ->
+                    KpiStat(
+                        value = ratingFormat.format(average),
+                        label = stringResource(R.string.home_analytics_average_rating),
+                        valueColor = OmnilogColors.AppInk,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
+            VolumeChips(totals = snapshot.progressTotals)
             MonthlyActivityPreview(buckets = snapshot.completedByMonth)
+        }
+    }
+}
+
+/**
+ * A headline figure over its own label. Stacked rather than side-by-side so the label is free to
+ * wrap at large font scales instead of fighting the value for one line.
+ */
+@Composable
+private fun KpiStat(
+    value: String,
+    label: String,
+    valueColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = valueColor,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = OmnilogColors.AppMuted,
+        )
+    }
+}
+
+/**
+ * What the year actually consisted of, in each medium's own unit — `1.482 pàgines · 96 episodis`.
+ *
+ * One chip per medium rather than a single headline figure: the values are different units, so a
+ * "biggest" number would be meaningless (pages always dwarf episodes) and a sum would be nonsense.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun VolumeChips(
+    totals: List<ProgressTotalStats>,
+    modifier: Modifier = Modifier,
+) {
+    val visible = totals.filter { it.value > 0 }
+    if (visible.isEmpty()) return
+
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        visible.forEach { total ->
+            val accent = total.mediaType.sectionAccent()
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = accent.copy(alpha = 0.14f),
+                border = BorderStroke(1.dp, accent.copy(alpha = 0.34f)),
+            ) {
+                Text(
+                    text = "${volumeFormat.format(total.value)} ${total.mediaType.progressUnit()}",
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
@@ -359,7 +444,9 @@ private fun MonthlyActivityPreview(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(86.dp),
+            // Min, not fixed: the month labels scale with the system font and a hard height
+            // clips them at large scales (UX-09). The bars keep their own fixed height.
+            .heightIn(min = 86.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -653,20 +740,24 @@ private fun DashboardSectionSearchRow(
     }
 }
 
+/**
+ * A titled row of media tiles. Pass [emptyText] for a section that should explain itself when it
+ * has nothing (the daily surfaces near the top); omit it and the caller is expected to skip the
+ * section entirely instead. Pass [onQuickStart] to give each tile a start/resume action — it only
+ * appears on tiles whose status can actually be started (see [HomeMediaTile]).
+ */
 @Composable
 private fun HomeCarousel(
     title: String,
     items: List<TrackedMedia>,
     onMediaClick: (TrackedMedia) -> Unit,
-    trailingContent: (@Composable () -> Unit)? = null,
+    emptyText: String? = null,
+    onQuickStart: ((TrackedMedia) -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        DashboardSectionTitle(
-            title = title,
-            trailingContent = trailingContent,
-        )
+        DashboardSectionTitle(title = title)
         if (items.isEmpty()) {
-            EmptyCarouselState()
+            emptyText?.let { EmptyCarouselState(text = it) }
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(items) { trackedMedia ->
@@ -674,6 +765,7 @@ private fun HomeCarousel(
                         trackedMedia = trackedMedia,
                         accent = trackedMedia.item.type.sectionAccent(),
                         onClick = { onMediaClick(trackedMedia) },
+                        onQuickStart = onQuickStart?.let { start -> { start(trackedMedia) } },
                     )
                 }
             }
@@ -800,12 +892,15 @@ private fun HomeMediaTile(
     onClick: () -> Unit,
     onQuickSetProgress: ((Int) -> Unit)? = null,
     onQuickComplete: (() -> Unit)? = null,
+    onQuickStart: (() -> Unit)? = null,
 ) {
     val session = trackedMedia.currentSession
     val isGame = trackedMedia.item.type == MediaType.Game
     val quickActionsEnabled = onQuickSetProgress != null && onQuickComplete != null &&
         session != null &&
         (session.status == TrackingStatus.InProgress || session.status == TrackingStatus.Paused)
+    val startActionEnabled = onQuickStart != null &&
+        (session?.status == TrackingStatus.Planned || session?.status == TrackingStatus.Paused)
     var showQuickSheet by remember(trackedMedia.item.id) { mutableStateOf(false) }
     LaunchedEffect(quickActionsEnabled) {
         if (!quickActionsEnabled) showQuickSheet = false
@@ -852,11 +947,28 @@ private fun HomeMediaTile(
             )
             if (quickActionsEnabled) {
                 TileQuickActionButton(
+                    icon = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.quick_progress_open),
                     accent = accent,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp),
                     onClick = { showQuickSheet = true },
+                )
+            } else if (startActionEnabled) {
+                TileQuickActionButton(
+                    icon = Icons.Filled.PlayArrow,
+                    // Same action, different word: you start something planned, you resume a pause.
+                    contentDescription = if (session?.status == TrackingStatus.Paused) {
+                        stringResource(R.string.home_paused_resume)
+                    } else {
+                        stringResource(R.string.home_planned_start)
+                    },
+                    accent = accent,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp),
+                    onClick = { onQuickStart?.invoke() },
                 )
             }
             Column(
@@ -930,6 +1042,8 @@ private fun HomeMediaTile(
 
 @Composable
 private fun TileQuickActionButton(
+    icon: ImageVector,
+    contentDescription: String,
     accent: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
@@ -943,8 +1057,8 @@ private fun TileQuickActionButton(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = stringResource(R.string.quick_progress_open),
+                imageVector = icon,
+                contentDescription = contentDescription,
                 tint = accent,
                 modifier = Modifier.size(18.dp),
             )
@@ -1145,16 +1259,6 @@ private fun MediaType.dashboardSection(): MediaSection =
         MediaType.Game -> MediaSection.Games
     }
 
-private fun TrackingSession.statsDate(): LocalDate? {
-    return finishedAt
-        ?: startedAt
-        ?: updatedAtEpochMillis.takeIf { millis -> millis > 0L }?.let { millis ->
-            Instant.ofEpochMilli(millis)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate()
-        }
-}
-
 private val MediaSection.iconResId: Int
     get() = when (this) {
         MediaSection.Anime -> R.drawable.ic_nav_anime
@@ -1188,22 +1292,28 @@ private fun MediaType.progressUnit(): String = when (this) {
     MediaType.Anime,
     MediaType.TvShow,
         -> "episodis"
-    MediaType.Book -> "pagines"
+    MediaType.Book -> "pàgines"
     MediaType.Movie -> "min"
     MediaType.Game -> "h"
-}
-
-private fun TrackingSession.updatedDate(): LocalDate? {
-    if (updatedAtEpochMillis <= 0L) return null
-    return Instant.ofEpochMilli(updatedAtEpochMillis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
 }
 
 private fun TrackedMedia.latestActivityMillis(): Long =
     sessions.maxOfOrNull { it.updatedAtEpochMillis } ?: 0L
 
-private fun TrackedMedia.bestRating(): Int? =
-    sessions.mapNotNull { it.rating }.maxOrNull()
+/** The date this was finished, or null if it is not completed or carries no finish date. */
+private fun TrackedMedia.completionDate(): LocalDate? =
+    currentSession
+        ?.takeIf { it.status == TrackingStatus.Completed }
+        ?.finishedAt
 
 private const val HideGamesFromActivePreferenceKey = "hide_games_from_active"
+
+private val catalan = Locale("ca")
+
+/** Grouped thousands, so a year's reading reads as `1.482` rather than `1482`. */
+private val volumeFormat: NumberFormat = NumberFormat.getIntegerInstance(catalan)
+
+private val ratingFormat: NumberFormat = NumberFormat.getNumberInstance(catalan).apply {
+    minimumFractionDigits = 1
+    maximumFractionDigits = 1
+}

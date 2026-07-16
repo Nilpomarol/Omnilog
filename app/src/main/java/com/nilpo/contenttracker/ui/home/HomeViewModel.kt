@@ -436,6 +436,36 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * UX-17 quick action: start a planned title, or resume a paused one, from the dashboard.
+     * Progress is untouched — this only moves the session to In progress, so the title moves into
+     * `Ara mateix`.
+     *
+     * Only a Planned session gets today stamped as its start date, and only if it has none. A
+     * paused session was started at some point in the past; stamping today would both misreport
+     * the history and, because StatsCalculator buckets an unfinished session by its start date,
+     * file a months-old title into the current period. If it has no start date, it keeps none.
+     */
+    fun quickStart(media: TrackedMedia) {
+        val session = media.currentSession ?: return
+        val startedAt = when (session.status) {
+            TrackingStatus.Planned -> session.startedAt ?: LocalDate.now()
+            TrackingStatus.Paused -> session.startedAt
+            else -> return
+        }
+        viewModelScope.launch {
+            mediaRepository.updateSessionDetails(
+                sessionId = session.id,
+                status = TrackingStatus.InProgress,
+                progressCurrent = session.progressCurrent,
+                rating = session.rating,
+                notes = session.notes,
+                startedAt = startedAt,
+                finishedAt = session.finishedAt,
+            )
+        }
+    }
+
     /** UX-13 quick action: mark the active session completed, with undo. */
     fun quickComplete(media: TrackedMedia) {
         val session = media.currentSession ?: return

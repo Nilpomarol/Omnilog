@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -172,11 +173,15 @@ fun ObjectiveProgressCard(
 }
 
 /**
- * Compact single-objective card for the dashboard preview: denser and more direct than
- * [ObjectiveProgressCard] — name, headline percentage, an ahead/behind hint, and a slim bar.
+ * One objective rendered as a chrome-less row for the dashboard's single objectives card (UX-17).
+ *
+ * Unlike [ObjectiveProgressCard] this draws no Surface of its own — the parent card provides the
+ * panel — so several objectives stack without turning into a wall of cards. The ahead/behind text
+ * hint is dropped here because the parent's header carries a status roll-up; pace survives as the
+ * expected-progress tick on the bar and the status-coloured percentage.
  */
 @Composable
-fun CompactObjectiveCard(
+fun ObjectiveSummaryRow(
     progress: ObjectiveProgress,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
@@ -193,64 +198,62 @@ fun CompactObjectiveCard(
         pace.status == ObjectiveStatus.OnTrack ||
         pace.status == ObjectiveStatus.Behind
 
-    Surface(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(11.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                AccentBadge(objective.mediaType, accent, size = 28.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = objectiveProgressLabel(progress),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppInk,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = pace.compactHint(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = pace.hintColor(),
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                }
-                Text(
-                    text = "${(progress.percentage * 100).roundToInt()}%",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogColors.AppInk,
-                )
-            }
-            ObjectiveProgressBar(
-                fraction = progress.percentage,
-                expectedFraction = pace.expectedFraction,
-                fillColor = fillColor,
-                showMarker = isActive,
-                height = 6.dp,
+            AccentBadge(objective.mediaType, accent, size = 24.dp)
+            Text(
+                // UX-01/UX-02: value and target together — never a bare percentage.
+                text = objectiveProgressLabel(progress),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = OmnilogColors.AppInk,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${(progress.percentage * 100).roundToInt()}%",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = pace.status.summaryPercentColor(),
             )
         }
+        ObjectiveProgressBar(
+            fraction = progress.percentage,
+            expectedFraction = pace.expectedFraction,
+            fillColor = fillColor,
+            showMarker = isActive,
+            height = 5.dp,
+        )
     }
 }
 
+/** Pace status for this snapshot, for callers that need the status without the full pace object. */
+fun ObjectiveProgress.paceStatus(today: LocalDate = LocalDate.now()): ObjectiveStatus =
+    pace(today).status
+
+/**
+ * [size] is a floor, not a fixed box: the letter scales with the system font, so a hard `size()`
+ * clips it to a sliver at large scales (UX-09). Padding lets the badge grow to fit instead.
+ */
 @Composable
 private fun AccentBadge(mediaType: MediaType?, accent: Color, size: androidx.compose.ui.unit.Dp = 34.dp) {
     Surface(
-        modifier = Modifier.size(size),
         shape = RoundedCornerShape(10.dp),
         color = accent.copy(alpha = 0.16f),
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .defaultMinSize(minWidth = size, minHeight = size)
+                .padding(horizontal = 5.dp, vertical = 2.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 text = mediaType.badgeLetter(),
                 style = MaterialTheme.typography.labelLarge,
@@ -350,17 +353,22 @@ private fun com.nilpo.contenttracker.core.model.ObjectivePace.deltaText(): Strin
     else -> "Just al previst"
 }
 
+/**
+ * Percentage colour for [ObjectiveSummaryRow]. Signals only the states worth signalling and keeps
+ * full-contrast ink otherwise — this is the row's headline number, so the muted treatment
+ * `paceColor` uses for supporting hints would under-serve it (UX-10).
+ */
+private fun ObjectiveStatus.summaryPercentColor(): Color = when (this) {
+    ObjectiveStatus.Completed, ObjectiveStatus.Ahead -> OmnilogColors.Completed
+    ObjectiveStatus.Behind -> OmnilogColors.Dashboard
+    ObjectiveStatus.Missed -> OmnilogColors.AppMuted
+    ObjectiveStatus.OnTrack -> OmnilogColors.AppInk
+}
+
 private fun ObjectiveStatus.paceColor(): Color = when (this) {
     ObjectiveStatus.Behind -> OmnilogColors.Dashboard
     ObjectiveStatus.Ahead -> OmnilogColors.Completed
     else -> OmnilogColors.AppMuted
-}
-
-/** One-line status hint for the compact card. */
-private fun com.nilpo.contenttracker.core.model.ObjectivePace.compactHint(): String = when (status) {
-    ObjectiveStatus.Completed -> "Completat"
-    ObjectiveStatus.Missed -> "No assolit"
-    else -> deltaText()
 }
 
 private fun com.nilpo.contenttracker.core.model.ObjectivePace.hintColor(): Color = when (status) {

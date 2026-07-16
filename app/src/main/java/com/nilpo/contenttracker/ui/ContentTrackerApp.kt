@@ -965,6 +965,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onImportBackup = { backupActions.onImportBackupRequested() },
                 onQuickSetProgress = viewModel::quickSetProgress,
                 onQuickComplete = viewModel::quickComplete,
+                onQuickStart = viewModel::quickStart,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

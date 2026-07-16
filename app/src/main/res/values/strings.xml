@@ -15,12 +15,19 @@
     <string name="home_active_hide_games">Amaga jocs</string>
     <string name="home_active_filtered_empty">No hi ha elements actius visibles.</string>
     <string name="home_active_empty">Res en curs ara mateix. Marca un títol com a En curs i el veuràs aquí.</string>
-    <string name="home_top_rated_title">Millors notes</string>
-    <string name="home_recent_title">Activitat recent</string>
+    <string name="home_planned_title">Següent a la llista</string>
+    <string name="home_planned_empty">Res planificat. Marca un títol com a Planificat i el veuràs aquí.</string>
+    <string name="home_planned_start">Comença</string>
+    <string name="home_paused_title">En pausa</string>
+    <string name="home_paused_resume">Reprèn</string>
+    <string name="home_completed_title">Completats recentment</string>
     <string name="home_analytics_preview_title">El teu any en contingut</string>
     <string name="home_analytics_preview_open">Veure anàlisi</string>
     <string name="home_analytics_preview_completed">completats aquest any</string>
-    <string name="home_analytics_preview_description">Descobreix la teva activitat, les notes i els favorits.</string>
+    <string name="home_analytics_average_rating">nota mitjana</string>
+    <string name="home_objectives_title">Objectius personals</string>
+    <string name="home_objectives_open">Obre els objectius</string>
+    <string name="home_objectives_more">+%1$d més</string>
     <string name="home_redesign_placeholder">Aquest espai serà el resum visual d\'Omnilog: lectures, visionats, partides, estadístiques i activitat recent.</string>
     <string name="dashboard_search_in_section">Busca \"%1$s\" a %2$s</string>
     <string name="stats_title">Estadístiques</string>
@@ -83,6 +90,18 @@
     <string name="empty_import_movies">Importa des d\'IMDb</string>
 
     <string name="empty_filtered_title">Cap element amb aquests filtres</string>
+    <plurals name="home_objectives_summary_on_track">
+        <item quantity="one">%1$d al dia</item>
+        <item quantity="other">%1$d al dia</item>
+    </plurals>
+    <plurals name="home_objectives_summary_behind">
+        <item quantity="one">%1$d endarrerit</item>
+        <item quantity="other">%1$d endarrerits</item>
+    </plurals>
+    <plurals name="home_objectives_summary_completed">
+        <item quantity="one">%1$d completat</item>
+        <item quantity="other">%1$d completats</item>
+    </plurals>
     <plurals name="empty_filtered_body">
         <item quantity="one">Tens 1 element a %2$s, però no coincideix amb els filtres actuals.</item>
         <item quantity="other">Tens %1$d elements a %2$s, però cap coincideix amb els filtres actuals.</item>
