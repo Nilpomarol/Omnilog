@@ -9,9 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -45,8 +47,12 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-private val CoverWidth = 84.dp
-private val CoverHeight = 126.dp  // 2:3 ratio
+private val CardPadding = 6.dp
+private const val CoverAspectRatio = 2f / 3f
+// Every card is pinned to this height so lists read as an even stack. It has to fit the
+// tallest the information column can get: a two-line title, collection, creator, one genre
+// row, and the full progress footer.
+private val BaseCardBodyHeight = 156.dp
 private const val MaxVisibleGenres = 2
 
 @Composable
@@ -65,6 +71,9 @@ fun MediaCard(
     )
     val genres = item.genres.take(MaxVisibleGenres)
     val additionalGenreCount = (item.genres.size - genres.size).coerceAtLeast(0)
+    // Text is measured in sp and the card in dp, so the pin has to track the system font
+    // setting or larger text would clip. fontScale is global, so cards stay uniform.
+    val bodyHeight = BaseCardBodyHeight * LocalDensity.current.fontScale
 
     Surface(
         modifier = Modifier
@@ -75,21 +84,25 @@ fun MediaCard(
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
         Row(
-            modifier = Modifier.padding(6.dp),
+            modifier = Modifier
+                .padding(CardPadding)
+                .height(bodyHeight),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            // The row is a fixed height, so the cover fills it and derives its width from
+            // the 2:3 poster ratio. Nothing is cropped and no gap opens up underneath.
             MetadataCoverImage(
                 coverUrl = item.coverUrl,
-                modifier = Modifier.size(width = CoverWidth, height = CoverHeight),
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .aspectRatio(CoverAspectRatio),
                 shape = RoundedCornerShape(6.dp),
             )
 
-            // Keep the cover compact at the default scale, but let the information
-            // column grow when system text needs more room.
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = CoverHeight),
+                    .fillMaxHeight(),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(
@@ -114,7 +127,7 @@ fun MediaCard(
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = accent,
-                                maxLines = 2,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
@@ -123,7 +136,7 @@ fun MediaCard(
                                 text = creator,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = OmnilogColors.AppMuted,
-                                maxLines = 2,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
@@ -171,8 +184,8 @@ private fun GenreChips(
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-        maxItemsInEachRow = 2,
+        maxItemsInEachRow = MaxVisibleGenres + 1,
+        maxLines = 1,
     ) {
         genres.forEach { genre ->
             GenreChip(text = genre)
