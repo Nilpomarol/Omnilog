@@ -19,6 +19,40 @@ enum class MediaSection(
     Games(R.string.nav_games, R.string.empty_games, OmnilogColors.Games, "G", setOf(MediaType.Game), MediaType.Game),
 }
 
+internal val MediaSection.navIconResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.drawable.ic_nav_anime
+        MediaSection.Books -> R.drawable.ic_nav_books
+        MediaSection.Movies -> R.drawable.ic_nav_movies_tv
+        MediaSection.Games -> R.drawable.ic_nav_games
+    }
+
+internal val MediaSection.emptyTitleResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.empty_anime_title
+        MediaSection.Books -> R.string.empty_books_title
+        MediaSection.Movies -> R.string.empty_movies_title
+        MediaSection.Games -> R.string.empty_games_title
+    }
+
+/** Label for the action that starts the add flow, matching the title of the screen it opens. */
+internal val MediaSection.addActionResId: Int
+    get() = when (this) {
+        MediaSection.Anime -> R.string.add_title_anime
+        MediaSection.Books -> R.string.add_title_book
+        MediaSection.Movies -> R.string.add_title_movie_tv
+        MediaSection.Games -> R.string.add_title_game
+    }
+
+/** Null where no provider offers a bulk export for this section. */
+internal val MediaSection.importActionResId: Int?
+    get() = when (this) {
+        MediaSection.Anime -> R.string.empty_import_anime
+        MediaSection.Books -> R.string.empty_import_books
+        MediaSection.Movies -> R.string.empty_import_movies
+        MediaSection.Games -> null
+    }
+
 internal val MediaSection.creatorBrowseLabelResId: Int
     get() = when (this) {
         MediaSection.Anime -> R.string.browse_studios

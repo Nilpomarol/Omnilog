@@ -8,10 +8,13 @@
     <string name="nav_movies_tv">Cinema i TV</string>
     <string name="nav_games">Jocs</string>
     <string name="home_title">La teva biblioteca</string>
-    <string name="home_empty_state">Encara no hi ha activitat per resumir.</string>
+    <string name="home_empty_title">Encara no segueixes res</string>
+    <string name="home_empty_state">Afegeix el primer títol i Omnilog en seguirà el progrés, les notes i les estadístiques. Les dades es queden al teu dispositiu.</string>
+    <string name="home_empty_import_backup">Importa una còpia de seguretat</string>
     <string name="home_active_title">Ara mateix</string>
     <string name="home_active_hide_games">Amaga jocs</string>
     <string name="home_active_filtered_empty">No hi ha elements actius visibles.</string>
+    <string name="home_active_empty">Res en curs ara mateix. Marca un títol com a En curs i el veuràs aquí.</string>
     <string name="home_top_rated_title">Millors notes</string>
     <string name="home_recent_title">Activitat recent</string>
     <string name="home_analytics_preview_title">El teu any en contingut</string>
@@ -66,10 +69,25 @@
     <string name="stats_empty_ratings">Encara no hi ha notes per a aquest filtre.</string>
     <string name="stats_empty_metadata">Encara no hi ha metadades suficients per a aquest filtre.</string>
 
-    <string name="empty_anime">L\'anime que segueixis apareixerà aquí.</string>
-    <string name="empty_books">Els llibres que llegeixis i rellegeixis apareixeran aquí.</string>
-    <string name="empty_movies">Les pel·lícules i sèries que miris apareixeran a Cinema i TV.</string>
-    <string name="empty_games">Els jocs que juguis i rejuguis apareixeran aquí.</string>
+    <string name="empty_anime_title">Comença la teva biblioteca d\'anime</string>
+    <string name="empty_anime">Cerca un anime pel títol i Omnilog n\'omplirà la portada, l\'estudi i els episodis. Si no el trobes, afegeix-lo a mà.</string>
+    <string name="empty_books_title">Comença la teva biblioteca de llibres</string>
+    <string name="empty_books">Cerca un llibre pel títol i Omnilog n\'omplirà la portada, l\'autor i les pàgines. Si no el trobes, afegeix-lo a mà.</string>
+    <string name="empty_movies_title">Comença la teva biblioteca de cinema i TV</string>
+    <string name="empty_movies">Cerca una pel·lícula o una sèrie pel títol i Omnilog n\'omplirà la portada, la direcció i la durada. Si no la trobes, afegeix-la a mà.</string>
+    <string name="empty_games_title">Comença la teva biblioteca de jocs</string>
+    <string name="empty_games">Cerca un joc pel títol i Omnilog n\'omplirà la portada, l\'estudi i la durada. Si no el trobes, afegeix-lo a mà.</string>
+
+    <string name="empty_import_anime">Importa des de MyAnimeList</string>
+    <string name="empty_import_books">Importa des de StoryGraph</string>
+    <string name="empty_import_movies">Importa des d\'IMDb</string>
+
+    <string name="empty_filtered_title">Cap element amb aquests filtres</string>
+    <plurals name="empty_filtered_body">
+        <item quantity="one">Tens 1 element a %2$s, però no coincideix amb els filtres actuals.</item>
+        <item quantity="other">Tens %1$d elements a %2$s, però cap coincideix amb els filtres actuals.</item>
+    </plurals>
+    <string name="empty_filtered_clear">Esborra els filtres</string>
 
     <string name="session_first_time">Primera vegada</string>
     <string name="session_number">Sessió #%1$d</string>
@@ -151,6 +169,7 @@
     <string name="metadata_search_title">Cerca %1$s</string>
     <string name="add_title_book">Afegeix un llibre</string>
     <string name="add_title_movie">Afegeix una pel·lícula</string>
+    <string name="add_title_movie_tv">Afegeix una pel·lícula o sèrie</string>
     <string name="add_title_tv">Afegeix una sèrie</string>
     <string name="add_title_anime">Afegeix un anime</string>
     <string name="add_title_game">Afegeix un joc</string>

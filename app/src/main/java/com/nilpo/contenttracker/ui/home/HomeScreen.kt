@@ -61,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,8 +82,10 @@ import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.add.SearchStatePanel
+import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
+import com.nilpo.contenttracker.ui.common.OmnilogEmptyState
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.delay
 
@@ -94,6 +97,7 @@ fun HomeScreen(
     onCollectionClick: (MediaCollection) -> Unit,
     onAuthorClick: (String) -> Unit,
     onManualAddClick: () -> Unit,
+    onImportRequested: (() -> Unit)?,
     onSearchQueryChange: (String) -> Unit,
     onMetadataQueryChange: (String) -> Unit,
     onMetadataSearch: () -> Unit,
@@ -209,11 +213,44 @@ fun HomeScreen(
 
             if (uiState.trackedItems.isEmpty() && uiState.searchQuery.isBlank()) {
                 item {
-                    Text(
-                        text = stringResource(section.emptyMessageResId),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = OmnilogColors.AppMuted,
-                    )
+                    if (sectionItemCount == 0) {
+                        OmnilogEmptyState(
+                            title = stringResource(section.emptyTitleResId),
+                            body = stringResource(section.emptyMessageResId),
+                            accent = section.accent,
+                            iconResId = section.navIconResId,
+                            primaryAction = EmptyStateAction(
+                                label = stringResource(section.addActionResId),
+                                onClick = onManualAddClick,
+                            ),
+                            secondaryAction = section.importActionResId?.let { importLabelResId ->
+                                onImportRequested?.let { onImport ->
+                                    EmptyStateAction(
+                                        label = stringResource(importLabelResId),
+                                        onClick = onImport,
+                                    )
+                                }
+                            },
+                        )
+                    } else {
+                        OmnilogEmptyState(
+                            title = stringResource(R.string.empty_filtered_title),
+                            body = pluralStringResource(
+                                R.plurals.empty_filtered_body,
+                                sectionItemCount,
+                                sectionItemCount,
+                                stringResource(section.titleResId),
+                            ),
+                            accent = section.accent,
+                            primaryAction = EmptyStateAction(
+                                label = stringResource(R.string.empty_filtered_clear),
+                                onClick = {
+                                    onStatusFilterChange(null)
+                                    onAdvancedFiltersChange(HomeAdvancedFilters())
+                                },
+                            ),
+                        )
+                    }
                 }
             } else if (uiState.browseMode != HomeBrowseMode.Items) {
                 groupedItems.forEach { group ->

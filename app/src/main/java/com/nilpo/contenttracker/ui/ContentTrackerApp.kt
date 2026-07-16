@@ -101,6 +101,7 @@ import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.home.creatorDetailLabelResId
+import com.nilpo.contenttracker.ui.home.navIconResId
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.profile.ProfileScreen
 import com.nilpo.contenttracker.ui.profile.ProfilePreferences
@@ -949,6 +950,19 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     isAdding = false
                 },
                 onObjectivesClick = openProfile,
+                onAddToSection = { section ->
+                    viewModel.selectSection(section)
+                    viewModel.clearMetadataSearch()
+                    detailHistory = emptyList()
+                    selectedDestination = AppDestination.Section
+                    selectedMediaId = null
+                    selectedCollectionId = null
+                    addTargetCollection = null
+                    addTargetCollectionOrder = null
+                    collectionReturnTarget = CollectionReturnTarget.Section
+                    isAdding = true
+                },
+                onImportBackup = { backupActions.onImportBackupRequested() },
                 onQuickSetProgress = viewModel::quickSetProgress,
                 onQuickComplete = viewModel::quickComplete,
                 modifier = Modifier
@@ -1107,6 +1121,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     addTargetCollectionOrder = null
                     selectedCollectionId = null
                     collectionReturnTarget = CollectionReturnTarget.Section
+                },
+                onImportRequested = when (uiState.selectedSection) {
+                    MediaSection.Anime -> { { backupActions.onImportMyAnimeListXmlRequested() } }
+                    MediaSection.Books -> { { backupActions.onImportStoryGraphCsvRequested() } }
+                    MediaSection.Movies -> { { backupActions.onImportImdbCsvRequested() } }
+                    MediaSection.Games -> null
                 },
                 onSearchQueryChange = viewModel::updateSearchQuery,
                 onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
@@ -2108,7 +2128,7 @@ private fun OmnilogBottomBar(
                 MediaSection.entries.forEach { section ->
                     OmnilogNavItem(
                         labelResId = section.titleResId,
-                        iconResId = section.navIconResId(),
+                        iconResId = section.navIconResId,
                         accent = section.accent,
                         selected = selectedDestination == AppDestination.Section && selectedSection == section,
                         onClick = { onSectionClick(section) },
@@ -2165,15 +2185,6 @@ private fun OmnilogNavItem(
 }
 
 @DrawableRes
-private fun MediaSection.navIconResId(): Int {
-    return when (this) {
-        MediaSection.Anime -> R.drawable.ic_nav_anime
-        MediaSection.Books -> R.drawable.ic_nav_books
-        MediaSection.Movies -> R.drawable.ic_nav_movies_tv
-        MediaSection.Games -> R.drawable.ic_nav_games
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OmnilogTopBar(

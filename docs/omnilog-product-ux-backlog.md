@@ -30,7 +30,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 13 | UX-13 | 1 | Add quick progress actions to daily-use surfaces | High | `[x]` |
 | 14 | UX-14 | 2 | Make the add and metadata-search flow explicit | High | `[-]` |
 | 15 | UX-15 | 9 | Separate saved and external search results | Medium | `[x]` |
-| 16 | UX-16 | 3 | Turn empty states into useful starting points | High | `[ ]` |
+| 16 | UX-16 | 3 | Turn empty states into useful starting points | High | `[x]` |
 | 17 | UX-17 | 12 | Rebalance the Home information hierarchy | Medium | `[ ]` |
 | 18 | UX-18 | 13 | Replace the games-only Home preference | Medium | `[ ]` |
 | 19 | UX-19 | 20 | Add actionable loading and error recovery | Medium | `[ ]` |
@@ -185,7 +185,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Implementation note:** During an active section search, the external provider results are now grouped under a persistent `Resultats externs` header (with a result count plus the hint `Toca un resultat per afegir-lo`), replacing the previous bare divider. The saved-library results above stay unlabelled so default browsing is unchanged. External rows are given an accent-tinted border so they read as distinct, non-owned suggestions rather than library items. The header appears only while searching. (Chosen approach: external heading + row styling and an explicit tap hint, rather than a per-row add button.)
 - **Verification note:** `:app:compileDebugKotlin` and `:app:testDebugUnitTest` pass. Device/emulator QA (default and 200% font scale; empty-library-vs-external and possible-duplicate states) is pending because no Android target is currently connected.
 
-### [ ] UX-16 — Make empty states actionable
+### [x] UX-16 — Make empty states actionable
 
 - **Original finding:** 3
 - **Issue:** Empty Home and section states explain that no content exists but do not provide a next action.
@@ -193,6 +193,14 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Add a primary `Afegeix…` action, a relevant import action where available, and a short explanation of metadata search versus manual entry.
 - **Priority:** High
 - **Done when:** A first-time user can start a library directly from every empty state.
+- **Implementation note:** Added a shared `OmnilogEmptyState` component (`ui/common`) taking an icon, title, body, and up to two actions, so later items reuse it instead of hand-rolling panels. Empty is now split into three distinct reasons rather than one branch:
+  - **Section with no items:** section-specific title and a one-sentence search-vs-manual explanation, a primary `Afegeix…` action whose label matches the add screen it opens (UX-14), and an import action where a provider export exists (MyAnimeList → Anime, StoryGraph → Llibres, IMDb → Cinema i TV; Jocs has no importer and shows only the primary action). Imports were previously reachable only from Settings.
+  - **Filters match nothing:** new state reporting how many items the section actually holds plus an `Esborra els filtres` action. This also fixes a real defect — the old condition (`trackedItems.isEmpty() && searchQuery.isBlank()`) showed the "library is empty" copy to users whose library was merely filtered.
+  - **Home first run:** title, a body carrying the UX-07 local-first promise, one accented button per media section routing into that section's add flow, and `Importa una còpia de seguretat`.
+  Section empty copy moved from descriptive (`L'anime que segueixis apareixerà aquí.`) to instructional. `MediaSection` gained `emptyTitleResId`, `addActionResId`, `importActionResId`, and `navIconResId` (the last moved from a private helper in `ContentTrackerApp` so both call sites share one definition).
+- **Scope note:** The `Ara mateix` empty state was pulled in from UX-17 at the maintainer's request. When the library had items but none in progress, the section vanished silently; it now renders a placeholder (`Res en curs ara mateix…`) and keeps the filtered-empty message distinct from it.
+- **Verification note:** Verified on a connected Android device at 100% and 200% font scale; the device font scale was restored to 100%. Confirmed: Home first run, Llibres empty (with import) and Jocs empty (without), the primary action opening the correctly-titled add screen, filtered-empty with a working `Esborra els filtres` against real data, `Ara mateix` empty, and the populated Home unchanged. Action rows use `FlowRow`, so at 200% the buttons wrap to their own lines rather than clipping. Debug APK build and `:app:testDebugUnitTest` pass.
+- **Follow-up — sample data hides these states:** `HomeViewModel.init` calls `seedSampleDataIfEmpty()` on every launch, ungated by build type, so a fresh install is never empty — a real first-time user gets a demo library (Dune, Fullmetal Alchemist, Severance), not the Home first-run state. The zero-data states above therefore only appear once a user deletes everything in a section, and had to be verified with seeding temporarily disabled. This means UX-16's stated premise ("a first-time user") is currently unreachable in production, and the seeding behaviour is arguably a larger onboarding problem than the dead end UX-16 describes. Deciding whether to gate seeding to debug builds is left as its own item rather than silently widening this one.
 
 ## Phase 4: Home and Information Hierarchy
 
@@ -204,6 +212,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Reduce objectives to a compact summary and move recent activity directly below `Ara mateix`.
 - **Priority:** Medium
 - **Done when:** The first viewport prioritizes resuming content and understanding recent activity while objectives remain easy to reach.
+- **Scope note:** `Ara mateix` no longer disappears when nothing is in progress — that empty state was implemented under UX-16, so this item covers only the ordering and weight of the dashboard sections.
 
 ### [ ] UX-18 — Replace the games-only Home preference
 

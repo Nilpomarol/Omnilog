@@ -7,6 +7,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,11 +29,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,6 +86,8 @@ fun HomeLandingScreen(
     onSectionSearch: (MediaSection, String) -> Unit,
     onStatsClick: () -> Unit,
     onObjectivesClick: () -> Unit,
+    onAddToSection: (MediaSection) -> Unit,
+    onImportBackup: () -> Unit,
     onQuickSetProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
     onQuickComplete: (TrackedMedia) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -159,36 +167,38 @@ fun HomeLandingScreen(
 
                 if (items.isEmpty()) {
                     item {
-                        EmptyHomeState()
+                        EmptyHomeState(
+                            onAddToSection = onAddToSection,
+                            onImportBackup = onImportBackup,
+                        )
                     }
                 } else {
-                    if (activeItems.isNotEmpty()) {
-                        item {
-                            HomeActiveCarousel(
-                                title = stringResource(R.string.home_active_title),
-                                items = activeItemsVisible,
-                                onMediaClick = onMediaClick,
-                                onQuickSetProgress = onQuickSetProgress,
-                                onQuickComplete = onQuickComplete,
-                                trailingContent = if (activeItemsHasGames) {
-                                    {
-                                        DashboardToggle(
-                                            label = stringResource(R.string.home_active_hide_games),
-                                            checked = hideGamesFromActive,
-                                            onCheckedChange = { isChecked ->
-                                                hideGamesFromActive = isChecked
-                                                dashboardPreferences
-                                                    .edit()
-                                                    .putBoolean(HideGamesFromActivePreferenceKey, isChecked)
-                                                    .apply()
-                                            },
-                                        )
-                                    }
-                                } else {
-                                    null
-                                },
-                            )
-                        }
+                    item {
+                        HomeActiveCarousel(
+                            title = stringResource(R.string.home_active_title),
+                            items = activeItemsVisible,
+                            onMediaClick = onMediaClick,
+                            onQuickSetProgress = onQuickSetProgress,
+                            onQuickComplete = onQuickComplete,
+                            isFiltered = activeItems.isNotEmpty(),
+                            trailingContent = if (activeItemsHasGames) {
+                                {
+                                    DashboardToggle(
+                                        label = stringResource(R.string.home_active_hide_games),
+                                        checked = hideGamesFromActive,
+                                        onCheckedChange = { isChecked ->
+                                            hideGamesFromActive = isChecked
+                                            dashboardPreferences
+                                                .edit()
+                                                .putBoolean(HideGamesFromActivePreferenceKey, isChecked)
+                                                .apply()
+                                        },
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        )
                     }
 
                     item {
@@ -678,6 +688,7 @@ private fun HomeActiveCarousel(
     onMediaClick: (TrackedMedia) -> Unit,
     onQuickSetProgress: (TrackedMedia, Int) -> Unit,
     onQuickComplete: (TrackedMedia) -> Unit,
+    isFiltered: Boolean,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -686,7 +697,13 @@ private fun HomeActiveCarousel(
             trailingContent = trailingContent,
         )
         if (items.isEmpty()) {
-            EmptyCarouselState()
+            EmptyCarouselState(
+                text = if (isFiltered) {
+                    stringResource(R.string.home_active_filtered_empty)
+                } else {
+                    stringResource(R.string.home_active_empty)
+                },
+            )
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(items) { trackedMedia ->
@@ -704,7 +721,7 @@ private fun HomeActiveCarousel(
 }
 
 @Composable
-private fun EmptyCarouselState() {
+private fun EmptyCarouselState(text: String = stringResource(R.string.home_active_filtered_empty)) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -712,7 +729,7 @@ private fun EmptyCarouselState() {
         border = BorderStroke(1.dp, OmnilogColors.AppLine.copy(alpha = 0.74f)),
     ) {
         Text(
-            text = stringResource(R.string.home_active_filtered_empty),
+            text = text,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
@@ -1010,20 +1027,73 @@ private fun ProgressBar(
     }
 }
 
+/**
+ * First run: the library is empty, so every dashboard section below would be empty too.
+ * Offers one entry point per media section rather than a generic add, because the choice of
+ * section is what the rest of the product is organized around.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EmptyHomeState() {
+private fun EmptyHomeState(
+    onAddToSection: (MediaSection) -> Unit,
+    onImportBackup: () -> Unit,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         color = OmnilogColors.AppPanel,
         border = BorderStroke(1.dp, OmnilogColors.AppLine),
     ) {
-        Text(
-            text = stringResource(R.string.home_empty_state),
+        Column(
             modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = OmnilogColors.AppMuted,
-        )
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.home_empty_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogColors.AppInk,
+            )
+            Text(
+                text = stringResource(R.string.home_empty_state),
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmnilogColors.AppMuted,
+            )
+            FlowRow(
+                modifier = Modifier.padding(top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MediaSection.entries.forEach { section ->
+                    OutlinedButton(
+                        onClick = { onAddToSection(section) },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = section.accent),
+                        border = BorderStroke(1.dp, section.accent.copy(alpha = 0.58f)),
+                    ) {
+                        Icon(
+                            painter = painterResource(section.navIconResId),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = stringResource(section.titleResId),
+                            modifier = Modifier.padding(start = 6.dp),
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+            TextButton(
+                onClick = onImportBackup,
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.home_empty_import_backup),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmnilogColors.Dashboard,
+                )
+            }
+        }
     }
 }
 
