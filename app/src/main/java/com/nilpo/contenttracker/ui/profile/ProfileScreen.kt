@@ -294,7 +294,7 @@ fun ProfileScreen(
             item {
                 ProfileStatsCard(
                     totalTitles = snapshot.totalTitles,
-                    completedTitles = snapshot.completedInPeriod,
+                    completedTitles = snapshot.uniqueTitlesCompleted,
                     activeTitles = snapshot.activeNow,
                     averageRating = snapshot.averageRating,
                 )

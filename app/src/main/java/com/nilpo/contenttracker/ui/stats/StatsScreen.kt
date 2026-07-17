@@ -76,6 +76,7 @@ import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.sqrt
 
@@ -172,10 +173,13 @@ fun StatsScreen(
                 item {
                     StatsSection(title = stringResource(R.string.stats_best_rated)) {
                         StatsMediaStrip(
-                            items = snapshot.bestRatedItems,
+                            items = snapshot.bestRatedItems.map { stat -> stat.trackedMedia },
                             onMediaClick = onMediaClick,
                             statLabel = { trackedMedia ->
-                                trackedMedia.bestRating()?.let { rating -> stringResource(R.string.rating_value, rating) }
+                                snapshot.bestRatedItems
+                                    .firstOrNull { stat -> stat.trackedMedia.item.id == trackedMedia.item.id }
+                                    ?.bestRating
+                                    ?.let { rating -> stringResource(R.string.rating_value, rating) }
                             },
                         )
                     }
@@ -184,11 +188,7 @@ fun StatsScreen(
             item {
                 StatsGroupHeader(
                     title = stringResource(R.string.stats_group_content_mix),
-                    subtitle = if (snapshot.filters.period == StatsPeriod.AllTime) {
-                        stringResource(R.string.stats_content_mix_all_time_scope)
-                    } else {
-                        stringResource(R.string.stats_content_mix_period_scope)
-                    },
+                    subtitle = stringResource(R.string.stats_content_mix_period_scope),
                 )
             }
             item {
@@ -403,7 +403,7 @@ private fun DropdownChip(
 
 @Composable
 private fun StatsActivityHero(snapshot: StatsSnapshot) {
-    val buckets = snapshot.completedByMonth.takeLast(12)
+    val buckets = snapshot.completionSessionsByMonth.takeLast(12)
     val maxValue = buckets.maxOfOrNull { bucket -> bucket.value } ?: 0
     val busiestMonth = buckets.maxByOrNull { bucket -> bucket.value }
         ?.takeIf { bucket -> bucket.value > 0 }
@@ -448,20 +448,29 @@ private fun StatsActivityHero(snapshot: StatsSnapshot) {
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Text(
-                    text = snapshot.completedInPeriod.toString(),
+                    text = snapshot.completionSessions.toString(),
                     style = MaterialTheme.typography.displayLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = OmnilogColors.Completed,
                 )
                 Text(
-                    text = stringResource(R.string.stats_completed_titles),
+                    text = stringResource(R.string.stats_completion_sessions),
                     modifier = Modifier.padding(bottom = 8.dp),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = OmnilogColors.AppInk,
                 )
             }
-            val delta = snapshot.deltas.completed
+            Text(
+                text = stringResource(
+                    R.string.stats_unique_titles_completed_value,
+                    snapshot.uniqueTitlesCompleted,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = OmnilogColors.AppMuted,
+            )
+            val delta = snapshot.deltas.completionSessions
             val basis = snapshot.deltas.basis
             if (delta != null && basis != null) {
                 DeltaWithBasis(delta = delta, basisLabel = basis.label())
@@ -973,7 +982,7 @@ private fun MonthlyLegend(mediaTypes: List<MediaType>) {
 @Composable
 private fun MediumStatsGraphs(stats: List<MediumStats>) {
     val visibleStats = stats.filter { stat ->
-        stat.completedCount > 0 || stat.averageRating != null || stat.averageLength != null
+        stat.completionSessionCount > 0 || stat.averageRating != null || stat.averageLength != null
     }
 
     StatsPanel {
@@ -989,10 +998,17 @@ private fun MediumStatsGraphs(stats: List<MediumStats>) {
 
 @Composable
 private fun CompletedSharePie(stats: List<MediumStats>) {
-    val completedStats = stats.filter { stat -> stat.completedCount > 0 }
-    val total = completedStats.sumOf { stat -> stat.completedCount }
+    val completedStats = stats.filter { stat -> stat.completionSessionCount > 0 }
+    val total = completedStats.sumOf { stat -> stat.completionSessionCount }
 
     if (total == 0) return
+
+    Text(
+        text = stringResource(R.string.stats_completion_sessions_by_medium),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.ExtraBold,
+        color = OmnilogColors.AppInk,
+    )
 
     Row(
         modifier = Modifier
@@ -1010,7 +1026,7 @@ private fun CompletedSharePie(stats: List<MediumStats>) {
             Canvas(modifier = Modifier.size(168.dp)) {
                 var startAngle = -90f
                 completedStats.forEach { stat ->
-                    val sweep = 360f * stat.completedCount.toFloat() / total.toFloat()
+                    val sweep = 360f * stat.completionSessionCount.toFloat() / total.toFloat()
                     drawArc(
                         color = stat.mediaType.statsColor(),
                         startAngle = startAngle,
@@ -1046,7 +1062,7 @@ private fun CompletedSharePie(stats: List<MediumStats>) {
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = stat.completedCount.toString(),
+                        text = stat.completionSessionCount.toString(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = stat.mediaType.statsColor(),
@@ -2249,6 +2265,7 @@ private fun statsPeriodOptions(items: List<TrackedMedia>): List<StatsPeriod> {
     val yearOptions = items
         .flatMap { trackedMedia -> trackedMedia.sessions }
         .mapNotNull { session -> session.statsYear() }
+        .filter { year -> year < LocalDate.now().year }
         .distinct()
         .sortedDescending()
         .map { year -> StatsPeriod.Year(year) }
@@ -2317,10 +2334,6 @@ private fun Int.compactStatValue(): String {
         this >= 10_000 -> "%.1fk".format(this / 1_000.0)
         else -> this.toString()
     }
-}
-
-private fun TrackedMedia.bestRating(): Int? {
-    return sessions.mapNotNull { session -> session.rating }.maxOrNull()
 }
 
 private fun genreChartColor(index: Int): Color {

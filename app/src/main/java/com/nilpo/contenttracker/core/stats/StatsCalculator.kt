@@ -35,14 +35,9 @@ class StatsCalculator(
                 .filter { session -> filters.period.contains(session.statsDate(), today) }
                 .map { session -> trackedMedia to session }
         }
-        val periodItems = filteredItems
-            .filter { trackedMedia ->
-                filters.period == StatsPeriod.AllTime ||
-                    trackedMedia.sessions.any { session ->
-                        session.status == TrackingStatus.Completed &&
-                            session.finishedAt?.let { filters.period.contains(it, today) } == true
-                    }
-            }
+        val completedItems = completedSessions
+            .map { (trackedMedia, _) -> trackedMedia }
+            .distinctBy { trackedMedia -> trackedMedia.item.id }
         val activeNow = filteredItems.count { trackedMedia ->
             trackedMedia.currentSession?.status == TrackingStatus.InProgress
         }
@@ -57,15 +52,16 @@ class StatsCalculator(
         return StatsSnapshot(
             filters = filters,
             totalTitles = filteredItems.size,
-            completedInPeriod = completedSessions
+            uniqueTitlesCompleted = completedSessions
                 .map { (trackedMedia, _) -> trackedMedia.item.id }
                 .distinct()
                 .size,
+            completionSessions = completedSessions.size,
             activeNow = activeNow,
             plannedNow = plannedNow,
             averageRating = averageRating,
             revisitCount = revisitSessions.size,
-            completedByMonth = completedByMonth(
+            completionSessionsByMonth = completionSessionsByMonth(
                 completedSessions = completedSessions,
                 period = filters.period,
             ),
@@ -85,9 +81,9 @@ class StatsCalculator(
                 mediaTypes = filters.mediaTypes,
                 revisitSessions = revisitSessions,
             ),
-            topGenres = rankedStrings(periodItems.flatMap { trackedMedia -> trackedMedia.item.genres }),
-            topCreators = rankedStrings(periodItems.flatMap { trackedMedia -> trackedMedia.item.creators }),
-            languageBreakdown = languageBreakdown(periodItems),
+            topGenres = rankedStrings(completedItems.flatMap { trackedMedia -> trackedMedia.item.genres }),
+            topCreators = rankedStrings(completedItems.flatMap { trackedMedia -> trackedMedia.item.creators }),
+            languageBreakdown = languageBreakdown(completedItems),
             bestRatedItems = bestRatedItems(ratedSessions),
             mostRevisitedItems = mostRevisitedItems(revisitSessions),
             deltas = calculateDelta(items = items, filters = filters),
@@ -112,7 +108,7 @@ class StatsCalculator(
 
         return PeriodDelta(
             basis = filters.period.comparisonBasis(),
-            completed = current.completed - previous.completed,
+            completionSessions = current.completionSessions - previous.completionSessions,
             averageRating = current.averageRating
                 ?.let { avg -> previous.averageRating?.let { avg - it } },
             revisits = current.revisits - previous.revisits,
@@ -124,7 +120,7 @@ class StatsCalculator(
      * (via [contains]) or an explicit [window] date range.
      */
     private data class PeriodKpis(
-        val completed: Int,
+        val completionSessions: Int,
         val averageRating: Double?,
         val revisits: Int,
     )
@@ -138,14 +134,12 @@ class StatsCalculator(
         fun inScope(date: LocalDate?): Boolean =
             period?.let { it.contains(date, today) } ?: window!!.contains(date)
 
-        val completedIds = filteredItems.flatMap { trackedMedia ->
+        val completionSessions = filteredItems.sumOf { trackedMedia ->
             trackedMedia.sessions
-                .filter { session -> session.status == TrackingStatus.Completed }
-                .filter { session -> inScope(session.finishedAt) }
-                .map { session -> trackedMedia.item.id }
+                .count { session ->
+                    session.status == TrackingStatus.Completed && inScope(session.finishedAt)
+                }
         }
-            .distinct()
-            .size
         val ratings = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
                 .filter { session -> session.rating != null }
@@ -160,7 +154,7 @@ class StatsCalculator(
             .size
 
         return PeriodKpis(
-            completed = completedIds,
+            completionSessions = completionSessions,
             averageRating = ratings.takeIf { it.isNotEmpty() }?.average(),
             revisits = revisits,
         )
@@ -170,7 +164,11 @@ class StatsCalculator(
         return when (this) {
             StatsPeriod.AllTime -> null
             StatsPeriod.ThisYear -> ComparisonBasis.SamePeriodOfYear(today.year - 1)
-            is StatsPeriod.Year -> ComparisonBasis.FullYear(year - 1)
+            is StatsPeriod.Year -> when {
+                year < today.year -> ComparisonBasis.FullYear(year - 1)
+                year == today.year -> ComparisonBasis.SamePeriodOfYear(year - 1)
+                else -> null
+            }
             StatsPeriod.Last12Months -> ComparisonBasis.Previous12Months
         }
     }
@@ -184,14 +182,17 @@ class StatsCalculator(
                 val prevYear = today.year - 1
                 LocalDate.of(prevYear, 1, 1)..today.minusYears(1)
             }
-            is StatsPeriod.Year -> {
-                val prevYear = year - 1
-                LocalDate.of(prevYear, 1, 1)..LocalDate.of(prevYear, 12, 31)
+            is StatsPeriod.Year -> when {
+                year < today.year -> {
+                    val prevYear = year - 1
+                    LocalDate.of(prevYear, 1, 1)..LocalDate.of(prevYear, 12, 31)
+                }
+                year == today.year -> LocalDate.of(year - 1, 1, 1)..today.minusYears(1)
+                else -> null
             }
             StatsPeriod.Last12Months -> {
                 val currentStart = today.minusMonths(11).withDayOfMonth(1)
-                val prevStart = today.minusMonths(23).withDayOfMonth(1)
-                prevStart..currentStart.minusDays(1)
+                currentStart.minusYears(1)..today.minusYears(1)
             }
         }
     }
@@ -201,7 +202,7 @@ class StatsCalculator(
         return !date.isBefore(start) && !date.isAfter(endInclusive)
     }
 
-    private fun completedByMonth(
+    private fun completionSessionsByMonth(
         completedSessions: List<Pair<TrackedMedia, TrackingSession>>,
         period: StatsPeriod,
     ): List<StatsBucket> {
@@ -347,7 +348,7 @@ class StatsCalculator(
                 } else {
                     MediumStats(
                         mediaType = mediaType,
-                        completedCount = completions.size,
+                        completionSessionCount = completions.size,
                         averageRating = ratings.takeIf { values -> values.isNotEmpty() }?.average(),
                         averageLength = lengths.takeIf { values -> values.isNotEmpty() }?.average(),
                         totalLength = lengths.sum(),
@@ -442,7 +443,7 @@ class StatsCalculator(
 
     private fun bestRatedItems(
         ratedSessions: List<Pair<TrackedMedia, TrackingSession>>,
-    ): List<TrackedMedia> {
+    ): List<RatedMediaStat> {
         return ratedSessions
             .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
             .mapNotNull { (_, sessions) ->
@@ -455,7 +456,7 @@ class StatsCalculator(
                     .thenBy { (trackedMedia, _) -> trackedMedia.item.title.lowercase() },
             )
             .take(8)
-            .map { (trackedMedia, _) -> trackedMedia }
+            .map { (trackedMedia, rating) -> RatedMediaStat(trackedMedia = trackedMedia, bestRating = rating) }
     }
 
     private fun mostRevisitedItems(
@@ -491,8 +492,8 @@ class StatsCalculator(
         if (date == null) return this == StatsPeriod.AllTime
         return when (this) {
             StatsPeriod.AllTime -> true
-            StatsPeriod.ThisYear -> date.year == today.year
-            is StatsPeriod.Year -> date.year == year
+            StatsPeriod.ThisYear -> date.year == today.year && !date.isAfter(today)
+            is StatsPeriod.Year -> date.year == year && (year < today.year || !date.isAfter(today))
             StatsPeriod.Last12Months -> {
                 val start = today.minusMonths(11).withDayOfMonth(1)
                 !date.isBefore(start) && !date.isAfter(today)

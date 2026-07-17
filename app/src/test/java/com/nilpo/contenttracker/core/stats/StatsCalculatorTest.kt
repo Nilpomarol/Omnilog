@@ -62,14 +62,15 @@ class StatsCalculatorTest {
         )
 
         assertEquals(2, snapshot.totalTitles)
-        assertEquals(1, snapshot.completedInPeriod)
+        assertEquals(1, snapshot.uniqueTitlesCompleted)
+        assertEquals(1, snapshot.completionSessions)
         assertEquals(8.0, snapshot.averageRating ?: 0.0, 0.001)
         val ratingEight = snapshot.ratingDistribution.first { it.key == "8" }
         assertEquals(1, ratingEight.value)
         assertEquals(1, ratingEight.segments.first { it.mediaType == MediaType.Book }.value)
         assertEquals(300, snapshot.progressTotals.first { it.mediaType == MediaType.Book }.value)
         val bookStats = snapshot.mediumStats.first { it.mediaType == MediaType.Book }
-        assertEquals(1, bookStats.completedCount)
+        assertEquals(1, bookStats.completionSessionCount)
         assertEquals(8.0, bookStats.averageRating ?: 0.0, 0.001)
         assertEquals(300.0, bookStats.averageLength ?: 0.0, 0.001)
         assertEquals(1, snapshot.topGenres.first { it.label == "Sci-Fi" }.value)
@@ -121,13 +122,14 @@ class StatsCalculatorTest {
         )
 
         assertEquals(1, snapshot.totalTitles)
-        assertEquals(1, snapshot.completedInPeriod)
+        assertEquals(1, snapshot.uniqueTitlesCompleted)
+        assertEquals(1, snapshot.completionSessions)
         assertEquals(10.0, snapshot.averageRating ?: 0.0, 0.001)
         assertEquals(40, snapshot.progressTotals.first { it.mediaType == MediaType.Game }.value)
     }
 
     @Test
-    fun allTimeStatsIncludeCompletedSessionsWithoutFinishedDate() {
+    fun allTimeTotalsIncludeUndatedCompletionsButMonthlyChartDoesNot() {
         val items = listOf(
             trackedMedia(
                 id = 1,
@@ -173,8 +175,11 @@ class StatsCalculatorTest {
             ),
         )
 
-        assertEquals(2, allTime.completedInPeriod)
-        assertEquals(0, thisYear.completedInPeriod)
+        assertEquals(2, allTime.uniqueTitlesCompleted)
+        assertEquals(2, allTime.completionSessions)
+        assertEquals(1, allTime.completionSessionsByMonth.sumOf { bucket -> bucket.value })
+        assertEquals(0, thisYear.uniqueTitlesCompleted)
+        assertEquals(0, thisYear.completionSessions)
     }
 
     @Test
@@ -216,14 +221,15 @@ class StatsCalculatorTest {
             ),
         )
 
-        assertEquals(1, snapshot.completedInPeriod)
+        assertEquals(1, snapshot.uniqueTitlesCompleted)
+        assertEquals(1, snapshot.completionSessions)
         assertEquals(9.0, snapshot.averageRating ?: 0.0, 0.001)
-        assertEquals(12, snapshot.completedByMonth.size)
-        assertEquals(1, snapshot.completedByMonth.first { bucket -> bucket.key == "2025-03" }.value)
+        assertEquals(12, snapshot.completionSessionsByMonth.size)
+        assertEquals(1, snapshot.completionSessionsByMonth.first { bucket -> bucket.key == "2025-03" }.value)
     }
 
     @Test
-    fun completedKpiCountsDistinctTitlesNotCompletedSessions() {
+    fun uniqueTitleAndCompletionSessionDefinitionsStayDistinct() {
         val items = listOf(
             trackedMedia(
                 id = 1,
@@ -254,8 +260,10 @@ class StatsCalculatorTest {
             ),
         )
 
-        assertEquals(1, snapshot.completedInPeriod)
-        assertEquals(2, snapshot.completedByMonth.sumOf { bucket -> bucket.value })
+        assertEquals(1, snapshot.uniqueTitlesCompleted)
+        assertEquals(2, snapshot.completionSessions)
+        assertEquals(2, snapshot.completionSessionsByMonth.sumOf { bucket -> bucket.value })
+        assertEquals(2, snapshot.mediumStats.single().completionSessionCount)
     }
 
     @Test
@@ -356,7 +364,7 @@ class StatsCalculatorTest {
                 mediaTypes = MediaType.entries.toSet(),
             ),
         )
-        val july = snapshot.completedByMonth.first { bucket -> bucket.key == "2026-07" }
+        val july = snapshot.completionSessionsByMonth.first { bucket -> bucket.key == "2026-07" }
 
         assertEquals(2, july.value)
         assertEquals(1, july.segments.first { segment -> segment.mediaType == MediaType.Book }.value)
@@ -503,8 +511,8 @@ class StatsCalculatorTest {
         )
 
         // today is 2026-07-08, so the chart must stop at July, not extend to Dec.
-        assertEquals(7, snapshot.completedByMonth.size)
-        assertEquals("2026-07", snapshot.completedByMonth.last().key)
+        assertEquals(7, snapshot.completionSessionsByMonth.size)
+        assertEquals("2026-07", snapshot.completionSessionsByMonth.last().key)
     }
 
     @Test
@@ -593,8 +601,9 @@ class StatsCalculatorTest {
             ),
         )
 
-        // 1 distinct title completed now vs 1 before -> 0 (completed counts titles)
-        assertEquals(0, snapshot.deltas.completed)
+        // The hero compares completion sessions, matching the monthly chart:
+        // 2 current sessions vs 1 previous session -> +1.
+        assertEquals(1, snapshot.deltas.completionSessions)
         // avg 7.0 now vs 9.0 before -> -2.0
         assertEquals(-2.0, snapshot.deltas.averageRating ?: 0.0, 0.001)
         // 1 revisit now (session 2) vs 0 before -> +1
@@ -680,7 +689,7 @@ class StatsCalculatorTest {
 
         // 2 completed now vs 1 in the same date range of 2025 -> +1.
         // The old whole-previous-year window would have produced 2 - 3 = -1.
-        assertEquals(1, snapshot.deltas.completed)
+        assertEquals(1, snapshot.deltas.completionSessions)
     }
 
     @Test
@@ -740,7 +749,7 @@ class StatsCalculatorTest {
         )
 
         // AllTime has no previous comparison window -> no chips should render.
-        assertNull(snapshot.deltas.completed)
+        assertNull(snapshot.deltas.completionSessions)
         assertNull(snapshot.deltas.averageRating)
         assertNull(snapshot.deltas.revisits)
     }
@@ -774,8 +783,294 @@ class StatsCalculatorTest {
 
         // completed delta still computable (+1); rating delta is null because
         // the previous window had no ratings, so the UI omits that chip.
-        assertEquals(1, snapshot.deltas.completed)
+        assertEquals(1, snapshot.deltas.completionSessions)
         assertNull(snapshot.deltas.averageRating)
+    }
+
+    @Test
+    fun allTimeContentMixUsesOnlyDistinctCompletedTitles() {
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                genres = listOf("Sci-Fi"),
+                creators = listOf("Author One"),
+                language = "ca",
+                sessions = listOf(
+                    session(
+                        id = 1,
+                        mediaItemId = 1,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 2, 1),
+                    ),
+                    session(
+                        id = 2,
+                        mediaItemId = 1,
+                        sessionNumber = 2,
+                        status = TrackingStatus.Completed,
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 2,
+                type = MediaType.Book,
+                genres = listOf("Fantasy"),
+                creators = listOf("Author Two"),
+                language = "en",
+                sessions = listOf(
+                    session(
+                        id = 3,
+                        mediaItemId = 2,
+                        status = TrackingStatus.Planned,
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = items,
+            filters = StatsFilters(
+                period = StatsPeriod.AllTime,
+                mediaTypes = setOf(MediaType.Book),
+            ),
+        )
+
+        assertEquals(1, snapshot.topGenres.single { it.label == "Sci-Fi" }.value)
+        assertTrue(snapshot.topGenres.none { it.label == "Fantasy" })
+        assertEquals(1, snapshot.topCreators.single { it.label == "Author One" }.value)
+        assertTrue(snapshot.topCreators.none { it.label == "Author Two" })
+        assertEquals(1, snapshot.languageBreakdown.single { it.label == "ca" }.value)
+        assertTrue(snapshot.languageBreakdown.none { it.label == "en" })
+    }
+
+    @Test
+    fun bestRatedBadgeUsesOnlyRatingsInsideActivePeriodAndMediaFilter() {
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 1,
+                        mediaItemId = 1,
+                        status = TrackingStatus.Completed,
+                        rating = 10,
+                        finishedAt = LocalDate.of(2025, 5, 1),
+                    ),
+                    session(
+                        id = 2,
+                        mediaItemId = 1,
+                        sessionNumber = 2,
+                        status = TrackingStatus.Completed,
+                        rating = 7,
+                        finishedAt = LocalDate.of(2026, 5, 1),
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 2,
+                type = MediaType.Game,
+                sessions = listOf(
+                    session(
+                        id = 3,
+                        mediaItemId = 2,
+                        status = TrackingStatus.Completed,
+                        rating = 9,
+                        finishedAt = LocalDate.of(2026, 5, 1),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = items,
+            filters = StatsFilters(
+                period = StatsPeriod.ThisYear,
+                mediaTypes = setOf(MediaType.Book),
+            ),
+        )
+
+        assertEquals(1, snapshot.bestRatedItems.size)
+        assertEquals(1L, snapshot.bestRatedItems.single().trackedMedia.item.id)
+        assertEquals(7, snapshot.bestRatedItems.single().bestRating)
+    }
+
+    @Test
+    fun last12MonthsUsesMatchingCurrentAndPreviousPartialMonthBoundaries() {
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 1,
+                        mediaItemId = 1,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 8, 1),
+                    ),
+                    session(
+                        id = 2,
+                        mediaItemId = 1,
+                        sessionNumber = 2,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 7, 8),
+                    ),
+                    session(
+                        id = 3,
+                        mediaItemId = 1,
+                        sessionNumber = 3,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 7, 31),
+                    ),
+                    session(
+                        id = 4,
+                        mediaItemId = 1,
+                        sessionNumber = 4,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 7, 9),
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 2,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 5,
+                        mediaItemId = 2,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2024, 8, 1),
+                    ),
+                    session(
+                        id = 6,
+                        mediaItemId = 2,
+                        sessionNumber = 2,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 7, 8),
+                    ),
+                    session(
+                        id = 7,
+                        mediaItemId = 2,
+                        sessionNumber = 3,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 7, 9),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = items,
+            filters = StatsFilters(
+                period = StatsPeriod.Last12Months,
+                mediaTypes = setOf(MediaType.Book),
+            ),
+        )
+
+        assertEquals(2, snapshot.completionSessions)
+        assertEquals(0, snapshot.deltas.completionSessions)
+        assertEquals(ComparisonBasis.Previous12Months, snapshot.deltas.basis)
+    }
+
+    @Test
+    fun currentYearPeriodExcludesFutureDatesAndUsesYearToDateComparison() {
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 1,
+                        mediaItemId = 1,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 1, 1),
+                    ),
+                    session(
+                        id = 2,
+                        mediaItemId = 1,
+                        sessionNumber = 2,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 7, 9),
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 2,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 3,
+                        mediaItemId = 2,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 1, 1),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = items,
+            filters = StatsFilters(
+                period = StatsPeriod.Year(2026),
+                mediaTypes = setOf(MediaType.Book),
+            ),
+        )
+
+        assertEquals(1, snapshot.completionSessions)
+        assertEquals(0, snapshot.deltas.completionSessions)
+        assertEquals(ComparisonBasis.SamePeriodOfYear(2025), snapshot.deltas.basis)
+    }
+
+    @Test
+    fun historicalYearIncludesBothCalendarBoundariesOnly() {
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 1,
+                        mediaItemId = 1,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 1, 1),
+                    ),
+                    session(
+                        id = 2,
+                        mediaItemId = 1,
+                        sessionNumber = 2,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 12, 31),
+                    ),
+                    session(
+                        id = 3,
+                        mediaItemId = 1,
+                        sessionNumber = 3,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2024, 12, 31),
+                    ),
+                    session(
+                        id = 4,
+                        mediaItemId = 1,
+                        sessionNumber = 4,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 1, 1),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = items,
+            filters = StatsFilters(
+                period = StatsPeriod.Year(2025),
+                mediaTypes = setOf(MediaType.Book),
+            ),
+        )
+
+        assertEquals(2, snapshot.completionSessions)
+        assertEquals(1, snapshot.uniqueTitlesCompleted)
+        assertEquals(2, snapshot.completionSessionsByMonth.sumOf { bucket -> bucket.value })
+        assertEquals(ComparisonBasis.FullYear(2024), snapshot.deltas.basis)
     }
 
     private fun trackedMedia(

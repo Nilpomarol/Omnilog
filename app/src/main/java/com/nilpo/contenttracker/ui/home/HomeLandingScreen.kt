@@ -343,7 +343,7 @@ private fun DashboardAnalyticsPreview(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 KpiStat(
-                    value = snapshot.completedInPeriod.toString(),
+                    value = snapshot.completionSessions.toString(),
                     label = stringResource(R.string.home_analytics_preview_completed),
                     valueColor = OmnilogColors.Completed,
                     modifier = Modifier.weight(1f),
@@ -358,7 +358,7 @@ private fun DashboardAnalyticsPreview(
                 }
             }
             VolumeChips(totals = snapshot.progressTotals)
-            MonthlyActivityPreview(buckets = snapshot.completedByMonth)
+            MonthlyActivityPreview(buckets = snapshot.completionSessionsByMonth)
         }
     }
 }

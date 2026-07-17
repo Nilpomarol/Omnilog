@@ -19,12 +19,13 @@ data class StatsFilters(
 data class StatsSnapshot(
     val filters: StatsFilters,
     val totalTitles: Int,
-    val completedInPeriod: Int,
+    val uniqueTitlesCompleted: Int,
+    val completionSessions: Int,
     val activeNow: Int,
     val plannedNow: Int,
     val averageRating: Double?,
     val revisitCount: Int,
-    val completedByMonth: List<StatsBucket>,
+    val completionSessionsByMonth: List<StatsBucket>,
     val mediumStats: List<MediumStats>,
     val ratingTrend: List<RatingTrendPoint>,
     val ratingDistribution: List<StatsBucket>,
@@ -34,7 +35,7 @@ data class StatsSnapshot(
     val topGenres: List<RankedStat>,
     val topCreators: List<RankedStat>,
     val languageBreakdown: List<StatsBucket>,
-    val bestRatedItems: List<TrackedMedia>,
+    val bestRatedItems: List<RatedMediaStat>,
     val mostRevisitedItems: List<RevisitedMediaStat>,
     val deltas: PeriodDelta = PeriodDelta(),
 )
@@ -53,7 +54,7 @@ data class StatsSegment(
 
 data class MediumStats(
     val mediaType: MediaType,
-    val completedCount: Int,
+    val completionSessionCount: Int,
     val averageRating: Double?,
     val averageLength: Double?,
     val totalLength: Int,
@@ -86,6 +87,11 @@ data class RevisitedMediaStat(
     val value: Int,
 )
 
+data class RatedMediaStat(
+    val trackedMedia: TrackedMedia,
+    val bestRating: Int,
+)
+
 data class RankedStat(
     val label: String,
     val value: Int,
@@ -114,7 +120,7 @@ sealed interface ComparisonBasis {
  */
 data class PeriodDelta(
     val basis: ComparisonBasis? = null,
-    val completed: Int? = null,
+    val completionSessions: Int? = null,
     val averageRating: Double? = null,
     val revisits: Int? = null,
 )
