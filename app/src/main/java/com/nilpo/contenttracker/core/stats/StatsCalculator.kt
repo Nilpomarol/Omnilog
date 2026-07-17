@@ -111,6 +111,7 @@ class StatsCalculator(
         val previous = periodKpis(filteredItems, period = null, window = window)
 
         return PeriodDelta(
+            basis = filters.period.comparisonBasis(),
             completed = current.completed - previous.completed,
             averageRating = current.averageRating
                 ?.let { avg -> previous.averageRating?.let { avg - it } },
@@ -165,12 +166,23 @@ class StatsCalculator(
         )
     }
 
+    private fun StatsPeriod.comparisonBasis(): ComparisonBasis? {
+        return when (this) {
+            StatsPeriod.AllTime -> null
+            StatsPeriod.ThisYear -> ComparisonBasis.SamePeriodOfYear(today.year - 1)
+            is StatsPeriod.Year -> ComparisonBasis.FullYear(year - 1)
+            StatsPeriod.Last12Months -> ComparisonBasis.Previous12Months
+        }
+    }
+
     private fun StatsPeriod.previousWindow(today: LocalDate): ClosedRange<LocalDate>? {
         return when (this) {
             StatsPeriod.AllTime -> null
             StatsPeriod.ThisYear -> {
+                // Like-for-like: year-to-date vs the same date range of the
+                // previous year, not the whole previous calendar year.
                 val prevYear = today.year - 1
-                LocalDate.of(prevYear, 1, 1)..LocalDate.of(prevYear, 12, 31)
+                LocalDate.of(prevYear, 1, 1)..today.minusYears(1)
             }
             is StatsPeriod.Year -> {
                 val prevYear = year - 1

@@ -34,7 +34,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 17 | UX-17 | 12 | Rebalance the Home information hierarchy | Medium | `[x]` |
 | 18 | UX-18 | 13 | Replace the games-only Home preference | Medium | `[x]` |
 | 19 | UX-19 | 20 | Add actionable loading and error recovery | Medium | `[x]` |
-| 20 | UX-20 | 21 | Make statistics comparisons interpretable | Medium | `[ ]` |
+| 20 | UX-20 | 21 | Make statistics comparisons interpretable | Medium | `[x]` |
 | 21 | UX-21 | 22 | Support system, light, and dark themes | Medium | `[ ]` |
 
 ## Phase 1: Correctness, Trust, and Product Language
@@ -270,7 +270,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Verification note:** verified on device (`61070DLCQ000KB`, 2026-07-17) by forcing failures with the radios off. Search error → `Torna-ho a provar` → offline retry re-attempts cleanly → online retry returns 20 results. Partial failure fired naturally (Google Books down, Open Library up) and rendered `Google Books no ha respost, així que hi pot faltar algun resultat.` with correct singular agreement. Details error now renders non-blockingly over the review form, and its retry loads the details and advances to the edition picker. `:app:testDebugUnitTest` passes, including 5 new `PartialSearchFailureTest` cases covering the provider enumeration. **Not verified:** 200% font scaling, and the Catalan plural for 2+ failed providers (only the one-provider case occurred naturally).
 - **Deferred follow-up:** the add screen opens with the wrong media type — in `Llibres` it is titled `Afegeix una pel·lícula` with the movie accent. `selectedCollectionItems` (`ContentTrackerApp.kt`) filters `it.collection?.id == selectedCollectionId`, which with a null id matches every collection-less item, so `initialAddType` comes from an arbitrary library item instead of `selectedSection.defaultType`. Pre-existing (commit `f03ceac`), out of scope here, but it mis-colors this item's new retry buttons.
 
-### [ ] UX-20 — Make statistics comparisons interpretable
+### [x] UX-20 — Make statistics comparisons interpretable
 
 - **Original finding:** 21
 - **Issue:** The stats hero shows an unexplained change badge and charts without direct values or comparison context.
@@ -278,6 +278,14 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Label comparison periods explicitly, expose chart values on interaction, and keep period and media filters available while scrolling.
 - **Priority:** Medium
 - **Done when:** Every chart communicates its unit, period, comparison basis, and exact values without guesswork.
+- **Implementation note:** Deliberately split against `docs/omnilog-stats-improvement-plan.md`: UX-20 labels and exposes what the stats already compute; definition changes, chart-form replacements, and full drill-down stay with STATS-01/03/04.
+  - **Comparison basis is explicit.** `PeriodDelta` now carries a `ComparisonBasis` (`SamePeriodOfYear`, `FullYear`, `Previous12Months`) and the hero delta chip renders beside its label — `vs. mateix període de 2025`, `vs. 2024`, `vs. els 12 mesos anteriors` — with a merged TalkBack description (`4 més (vs. …)`) instead of a bare `↑4`.
+  - **Scope note — pulled forward from STATS-01:** `Aquest any` previously compared year-to-date against the *whole* previous calendar year; labelling that honestly would have shipped `vs. tot 2025` next to a July figure, so the like-for-like window fix (`Jan 1 .. today − 1 year`, inclusive) moved into this item. The matching STATS-01 bullets are annotated as done.
+  - **Units and populations are stated.** The hero headline reads `Títols completats` while the bars carry `Sessions completades per mes` — accurately labelling that the two count different things; unifying those definitions remains STATS-01. `Tot` appends `· últims 12 mesos` to name the bars' narrower scope. `Estat actual` gained `Biblioteca actual, independent del període`, and the `Composició` group states its population (`Basat en títols completats en el període`, or `…en tota la biblioteca` for `Tot`, matching current calculator behaviour).
+  - **Minimal tap-to-inspect.** Hero bars and rating-trend points are tappable: selection highlights the mark (other bars dim; the trend point gets a ring) and reuses the existing caption line (`maig · 4 completats`, `abr.: 7,3 de mitjana (3 notes)` — per-point sample size now visible, not only the latest). Tapping again deselects; every mark is a focusable node with a content description. Drag scrubbing, media splits, and contributing-title strips stay deferred to STATS-04.
+  - **Sticky filters.** The period and media chips became a `stickyHeader` with an opaque background, satisfying STATS-04's "filters available while scrolling" bullet (annotated there). Both chips hold one row at 200% font scale.
+  - **Tests:** `StatsCalculatorTest` gained coverage for the year-to-date window boundary (inclusive same-day cutoff, late-previous-year exclusions) and the basis mapping for all four periods.
+  - **Device-verified** (Pixel, real library): `Aquest any` / `Tot` / `2025` periods, bar and trend selection round-trips, sticky bar deep in the page, and the hero at 200% font scale.
 
 ### [ ] UX-21 — Support system, light, and dark themes
 

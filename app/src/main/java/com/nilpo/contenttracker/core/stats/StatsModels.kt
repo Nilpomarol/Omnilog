@@ -92,12 +92,28 @@ data class RankedStat(
 )
 
 /**
+ * The window a [PeriodDelta] is measured against, so the UI can name the
+ * comparison basis next to the chip instead of showing a bare arrow.
+ */
+sealed interface ComparisonBasis {
+    /** Year-to-date vs the same date range of [year]. */
+    data class SamePeriodOfYear(val year: Int) : ComparisonBasis
+
+    /** A historical calendar year vs the full calendar [year] before it. */
+    data class FullYear(val year: Int) : ComparisonBasis
+
+    /** The current 12-month window vs the 12 months immediately before it. */
+    data object Previous12Months : ComparisonBasis
+}
+
+/**
  * Change vs the previous comparison window for the period-bound KPIs.
  * Each field is null when there is no previous window (AllTime) or no prior
  * data for that field, so the UI can omit the chip instead of showing a
  * misleading zero delta.
  */
 data class PeriodDelta(
+    val basis: ComparisonBasis? = null,
     val completed: Int? = null,
     val averageRating: Double? = null,
     val revisits: Int? = null,

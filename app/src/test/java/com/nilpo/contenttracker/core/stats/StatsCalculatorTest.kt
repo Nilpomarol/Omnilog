@@ -573,7 +573,7 @@ class StatsCalculatorTest {
                 id = 2,
                 type = MediaType.Book,
                 sessions = listOf(
-                    // previous period (2025): 1 completion, rating 9, no revisit in 2026
+                    // same period of 2025 (Jan 1 - Jul 8): 1 completion, rating 9
                     session(
                         id = 3,
                         mediaItemId = 2,
@@ -599,6 +599,118 @@ class StatsCalculatorTest {
         assertEquals(-2.0, snapshot.deltas.averageRating ?: 0.0, 0.001)
         // 1 revisit now (session 2) vs 0 before -> +1
         assertEquals(1, snapshot.deltas.revisits)
+    }
+
+    @Test
+    fun thisYearDeltaComparesYearToDateNotFullPreviousYear() {
+        // today is 2026-07-08, so the comparison window is 2025-01-01..2025-07-08.
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 1,
+                        mediaItemId = 1,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 3, 1),
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 2,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 2,
+                        mediaItemId = 2,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 5, 1),
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 3,
+                type = MediaType.Book,
+                sessions = listOf(
+                    // inclusive end of the previous window: counts
+                    session(
+                        id = 3,
+                        mediaItemId = 3,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 7, 8),
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 4,
+                type = MediaType.Book,
+                sessions = listOf(
+                    // one day past the year-to-date cutoff: excluded
+                    session(
+                        id = 4,
+                        mediaItemId = 4,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 7, 9),
+                    ),
+                ),
+            ),
+            trackedMedia(
+                id = 5,
+                type = MediaType.Book,
+                sessions = listOf(
+                    // late previous year: excluded from a year-to-date comparison
+                    session(
+                        id = 5,
+                        mediaItemId = 5,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2025, 12, 31),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = items,
+            filters = StatsFilters(
+                period = StatsPeriod.ThisYear,
+                mediaTypes = setOf(MediaType.Book),
+            ),
+        )
+
+        // 2 completed now vs 1 in the same date range of 2025 -> +1.
+        // The old whole-previous-year window would have produced 2 - 3 = -1.
+        assertEquals(1, snapshot.deltas.completed)
+    }
+
+    @Test
+    fun deltaBasisNamesTheComparisonWindow() {
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                sessions = listOf(
+                    session(
+                        id = 1,
+                        mediaItemId = 1,
+                        status = TrackingStatus.Completed,
+                        finishedAt = LocalDate.of(2026, 3, 1),
+                    ),
+                ),
+            ),
+        )
+
+        fun basisFor(period: StatsPeriod): ComparisonBasis? {
+            return calculator.calculate(
+                items = items,
+                filters = StatsFilters(period = period, mediaTypes = setOf(MediaType.Book)),
+            ).deltas.basis
+        }
+
+        assertEquals(ComparisonBasis.SamePeriodOfYear(2025), basisFor(StatsPeriod.ThisYear))
+        assertEquals(ComparisonBasis.FullYear(2024), basisFor(StatsPeriod.Year(2025)))
+        assertEquals(ComparisonBasis.Previous12Months, basisFor(StatsPeriod.Last12Months))
+        assertNull(basisFor(StatsPeriod.AllTime))
     }
 
     @Test
