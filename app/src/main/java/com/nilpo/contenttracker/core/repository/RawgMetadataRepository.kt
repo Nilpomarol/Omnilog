@@ -39,12 +39,12 @@ class RawgMetadataRepository(
             return suggestion
         }
 
+        // Failures propagate: the caller reports them and offers a retry, rather than silently
+        // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
-            runCatching {
-                getJson(
-                    "https://api.rawg.io/api/games/${suggestion.externalId}?key=$apiKey",
-                ).toDetailedSuggestion(suggestion)
-            }.getOrElse { suggestion }
+            getJson(
+                "https://api.rawg.io/api/games/${suggestion.externalId}?key=$apiKey",
+            ).toDetailedSuggestion(suggestion)
         }
     }
 

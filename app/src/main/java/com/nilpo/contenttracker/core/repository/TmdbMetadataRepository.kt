@@ -49,30 +49,30 @@ class TmdbMetadataRepository(
             return suggestion
         }
 
+        // Failures propagate: the caller reports them and offers a retry, rather than silently
+        // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val seasonRef = suggestion.externalId.toTmdbSeasonRef()
-                if (suggestion.mediaType == MediaType.TvShow && seasonRef != null) {
-                    val seriesUrl = "https://api.themoviedb.org/3/tv/${seasonRef.seriesId}" +
+            val seasonRef = suggestion.externalId.toTmdbSeasonRef()
+            if (suggestion.mediaType == MediaType.TvShow && seasonRef != null) {
+                val seriesUrl = "https://api.themoviedb.org/3/tv/${seasonRef.seriesId}" +
+                    "?language=en-US&append_to_response=credits,external_ids"
+                val seriesSuggestion = suggestion.copy(externalId = seasonRef.seriesId)
+                val detailedSeries = tmdbApi.getJson(seriesUrl).toDetailedSuggestion(seriesSuggestion)
+                return@withContext detailedSeries.seasonSuggestions
+                    .firstOrNull { season -> season.seasonNumber == seasonRef.seasonNumber }
+                    ?.toMetadataSuggestion(detailedSeries)
+                    ?: detailedSeries
+            }
+            val url = when (suggestion.mediaType) {
+                MediaType.Movie ->
+                    "https://api.themoviedb.org/3/movie/${suggestion.externalId}" +
                         "?language=en-US&append_to_response=credits,external_ids"
-                    val seriesSuggestion = suggestion.copy(externalId = seasonRef.seriesId)
-                    val detailedSeries = tmdbApi.getJson(seriesUrl).toDetailedSuggestion(seriesSuggestion)
-                    return@runCatching detailedSeries.seasonSuggestions
-                        .firstOrNull { season -> season.seasonNumber == seasonRef.seasonNumber }
-                        ?.toMetadataSuggestion(detailedSeries)
-                        ?: detailedSeries
-                }
-                val url = when (suggestion.mediaType) {
-                    MediaType.Movie ->
-                        "https://api.themoviedb.org/3/movie/${suggestion.externalId}" +
-                            "?language=en-US&append_to_response=credits,external_ids"
-                    MediaType.TvShow ->
-                        "https://api.themoviedb.org/3/tv/${suggestion.externalId}" +
-                            "?language=en-US&append_to_response=credits,external_ids"
-                    else -> return@withContext suggestion
-                }
-                tmdbApi.getJson(url).toDetailedSuggestion(suggestion)
-            }.getOrElse { suggestion }
+                MediaType.TvShow ->
+                    "https://api.themoviedb.org/3/tv/${suggestion.externalId}" +
+                        "?language=en-US&append_to_response=credits,external_ids"
+                else -> return@withContext suggestion
+            }
+            tmdbApi.getJson(url).toDetailedSuggestion(suggestion)
         }
     }
 

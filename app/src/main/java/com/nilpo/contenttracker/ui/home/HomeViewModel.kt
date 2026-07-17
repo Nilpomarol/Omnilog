@@ -58,6 +58,7 @@ class HomeViewModel(
     private val advancedFilters = MutableStateFlow(HomeAdvancedFilters())
     private val metadataSearchState = MutableStateFlow(MetadataSearchUiState())
     private var metadataSearchJob: Job? = null
+    private var metadataDetailsJob: Job? = null
     private val metadataSearchCache = LinkedHashMap<MetadataSearchCacheKey, CachedMetadataSearch>()
     private val recommendationState = MutableStateFlow(RecommendationUiState())
     private var recommendationJob: Job? = null
@@ -206,7 +207,7 @@ class HomeViewModel(
                 isLoading = false,
                 hasSearched = true,
                 hasError = false,
-                hasPartialError = false,
+                failedSources = emptySet(),
             )
             return
         }
@@ -217,6 +218,7 @@ class HomeViewModel(
             isLoading = true,
             hasSearched = true,
             hasError = false,
+            failedSources = emptySet(),
         )
         metadataSearchJob = viewModelScope.launch {
             val result = runCatching { metadataRepository.searchSuggestionsWithDiagnostics(request) }
@@ -231,7 +233,7 @@ class HomeViewModel(
                 selectedSuggestion = null,
                 isLoading = false,
                 hasError = result.isFailure || (hasProviderFailure && !hasResults),
-                hasPartialError = hasProviderFailure && hasResults,
+                failedSources = if (hasResults) searchResult?.failedSources.orEmpty() else emptySet(),
             )
             searchResult?.takeIf { it.failedSources.isEmpty() }?.let { successfulSearch ->
                 cacheMetadataSearch(cacheKey, successfulSearch.suggestions)
@@ -308,23 +310,26 @@ class HomeViewModel(
     }
 
     fun selectMetadataSuggestion(suggestion: MetadataSuggestion) {
+        metadataDetailsJob?.cancel()
         metadataSearchState.value = metadataSearchState.value.copy(
             selectedSuggestion = suggestion,
             isLoadingDetails = true,
             hasDetailsError = false,
         )
 
-        viewModelScope.launch {
+        metadataDetailsJob = viewModelScope.launch {
             val result = runCatching {
                 metadataRepository.getSuggestionDetails(suggestion)
+            }
+            // A slower response for a previously selected suggestion must not overwrite the
+            // one the user is now waiting on, or they land on the review step for the wrong item.
+            if (!isActive || !metadataSearchState.value.selectedSuggestion.isSameSuggestionAs(suggestion)) {
+                return@launch
             }
             val detailedSuggestion = result.getOrDefault(suggestion)
             metadataSearchState.value = metadataSearchState.value.copy(
                 suggestions = metadataSearchState.value.suggestions.map { existingSuggestion ->
-                    if (
-                        existingSuggestion.source == detailedSuggestion.source &&
-                        existingSuggestion.externalId == detailedSuggestion.externalId
-                    ) {
+                    if (existingSuggestion.isSameSuggestionAs(detailedSuggestion)) {
                         detailedSuggestion
                     } else {
                         existingSuggestion
@@ -335,6 +340,12 @@ class HomeViewModel(
                 hasDetailsError = result.isFailure,
             )
         }
+    }
+
+    /** Retries the details load for the suggestion the user is currently on. */
+    fun retryMetadataSuggestionDetails() {
+        val suggestion = metadataSearchState.value.selectedSuggestion ?: return
+        selectMetadataSuggestion(suggestion)
     }
 
     fun updateStatusFilter(status: TrackingStatus?) {
@@ -722,6 +733,9 @@ class HomeViewModel(
     private fun cancelMetadataSearch() {
         metadataSearchJob?.cancel()
         metadataSearchJob = null
+        // A new or cleared search invalidates any details load started from the old results.
+        metadataDetailsJob?.cancel()
+        metadataDetailsJob = null
     }
 
     private suspend fun publishDeletionRecovery(recovery: DeletionRecovery) {
@@ -872,6 +886,12 @@ private fun List<TrackedMedia>.filterByStatus(status: TrackingStatus?): List<Tra
     return status?.let { selectedStatus ->
         filter { trackedMedia -> trackedMedia.currentSession?.status == selectedStatus }
     } ?: this
+}
+
+/** Suggestions are identified by the source and external id the providers round-trip. */
+private fun MetadataSuggestion?.isSameSuggestionAs(other: MetadataSuggestion?): Boolean {
+    if (this == null || other == null) return false
+    return source == other.source && externalId == other.externalId
 }
 
 private fun List<TrackedMedia>.filterByAdvancedFilters(filters: HomeAdvancedFilters): List<TrackedMedia> {

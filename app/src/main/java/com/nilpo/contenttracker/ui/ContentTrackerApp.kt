@@ -91,8 +91,10 @@ import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
+import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.OmnilogSnackbar
+import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.AuthorDetailScreen
@@ -914,6 +916,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         DuplicateMatch.None -> viewModel.selectMetadataSuggestion(suggestion)
                     }
                 },
+                onMetadataDetailsRetry = { viewModel.retryMetadataSuggestionDetails() },
                 duplicateStateForSuggestion = { suggestion ->
                     when (uiState.allTrackedItems.findDuplicateFor(suggestion)) {
                         is DuplicateMatch.Exact -> MetadataDuplicateState.Exact
@@ -1672,18 +1675,25 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         }
                     }
 
+                    val linkAccent = target.item.type.homeSection().accent
                     when {
-                        isMetadataLinkLoading -> Text(
+                        isMetadataLinkLoading -> OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_link_loading),
-                            color = HeaderMuted,
+                            accent = linkAccent,
+                            showProgressIndicator = true,
                         )
-                        hasMetadataLinkError -> Text(
+                        hasMetadataLinkError -> OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_link_search_error),
-                            color = MaterialTheme.colorScheme.error,
+                            accent = linkAccent,
+                            textColor = MaterialTheme.colorScheme.error,
+                            action = EmptyStateAction(
+                                label = stringResource(R.string.retry_action),
+                                onClick = { searchMetadataLink(target, metadataLinkQuery) },
+                            ),
                         )
-                        metadataLinkSuggestions.isEmpty() -> Text(
+                        metadataLinkSuggestions.isEmpty() -> OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_link_empty),
-                            color = HeaderMuted,
+                            accent = linkAccent,
                         )
                         else -> LazyColumn(
                             modifier = Modifier.weight(1f),

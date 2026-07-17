@@ -3,8 +3,10 @@ package com.nilpo.contenttracker.ui.common
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -16,6 +18,42 @@ fun displayMediaTitle(title: String): String {
         .trim()
 
     return cleanedTitle.ifBlank { title.trim() }
+}
+
+/**
+ * Names the providers that failed, sorted so the sentence does not reorder itself with whatever
+ * order the providers happened to fail in. [conjunctionTemplate] is `list_conjunction`, taken as
+ * a raw template so this stays testable without Android resources.
+ */
+internal fun formatProviderEnumeration(
+    failedSources: List<MetadataSource>,
+    conjunctionTemplate: String,
+): String {
+    val names = failedSources.map { it.displayName() }.sorted()
+    return when (names.size) {
+        0 -> ""
+        1 -> names.single()
+        else -> String.format(conjunctionTemplate, names.dropLast(1).joinToString(", "), names.last())
+    }
+}
+
+/**
+ * Renders the message naming the providers that failed while others returned results.
+ *
+ * The plural form agrees with how many providers failed, so the sentence reads correctly for
+ * both `TMDb no ha respost` and `TMDb i RAWG no han respost`.
+ */
+@Composable
+fun partialSearchFailureMessage(failedSources: List<MetadataSource>): String {
+    val enumeration = formatProviderEnumeration(
+        failedSources = failedSources,
+        conjunctionTemplate = stringResource(R.string.list_conjunction),
+    )
+    return pluralStringResource(
+        R.plurals.metadata_search_partial_error,
+        failedSources.size,
+        enumeration,
+    )
 }
 
 fun formatExternalRatingOnTen(score: Double, maxScore: Double): String {

@@ -80,10 +80,13 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.LanguageDropdown
 import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
+import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
+import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
 import com.nilpo.contenttracker.ui.common.SynopsisText
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
@@ -102,6 +105,7 @@ import com.nilpo.contenttracker.ui.common.toCollectionOrderInput
 import com.nilpo.contenttracker.ui.common.toCollectionOrderOrNull
 import com.nilpo.contenttracker.ui.common.toCollectionPickerOptions
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -125,6 +129,7 @@ fun AddMediaScreen(
     onMetadataSearch: () -> Unit,
     onMetadataSearchSubmitted: () -> Unit,
     onMetadataSuggestionSelected: (MetadataSuggestion) -> Unit,
+    onMetadataDetailsRetry: () -> Unit,
     duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -288,6 +293,7 @@ fun AddMediaScreen(
                                     step = AddMediaStep.Review
                                 }
                             },
+                            onRetryDetails = onMetadataDetailsRetry,
                             onBackToSearch = { step = AddMediaStep.Search },
                             onCancel = onCancel,
                         )
@@ -303,6 +309,7 @@ fun AddMediaScreen(
                                     step = AddMediaStep.Review
                                 }
                             },
+                            onRetryDetails = onMetadataDetailsRetry,
                             onBackToSearch = { step = AddMediaStep.Search },
                             onCancel = onCancel,
                         )
@@ -344,6 +351,7 @@ fun AddMediaScreen(
                     onCollectionNameChange = { collectionName = it },
                     collectionOrder = collectionOrder,
                     onCollectionOrderChange = { collectionOrder = it.toCollectionOrderInput() },
+                    onRetryDetails = onMetadataDetailsRetry,
                     onBackToSearch = { step = AddMediaStep.Search },
                     onSave = {
                         onSave(
@@ -578,7 +586,9 @@ private fun MetadataSearchStep(
         ) {
             MetadataSearchResults(
                 uiState = uiState,
+                accent = accent,
                 onSuggestionSelected = onSuggestionSelected,
+                onRetrySearch = submitSearch,
                 duplicateStateForSuggestion = duplicateStateForSuggestion,
             )
         }
@@ -605,26 +615,41 @@ private fun MetadataSearchStep(
 @Composable
 private fun MetadataSearchResults(
     uiState: MetadataSearchUiState,
+    accent: Color,
     onSuggestionSelected: (MetadataSuggestion) -> Unit,
+    onRetrySearch: () -> Unit,
     duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
 ) {
+    val retryAction = EmptyStateAction(
+        label = stringResource(R.string.retry_action),
+        onClick = onRetrySearch,
+    )
     when {
-        uiState.isLoading -> SearchStatePanel(text = stringResource(R.string.metadata_search_loading))
-        uiState.hasError -> SearchStatePanel(
+        // The search bar already spins while a query runs, so this panel stays text-only.
+        uiState.isLoading -> OmnilogStatusPanel(
+            text = stringResource(R.string.metadata_search_loading),
+            accent = accent,
+        )
+        uiState.hasError -> OmnilogStatusPanel(
             text = stringResource(R.string.metadata_search_error),
-            color = MaterialTheme.colorScheme.error,
+            accent = accent,
+            textColor = MaterialTheme.colorScheme.error,
+            action = retryAction,
         )
-        uiState.hasSearched && uiState.suggestions.isEmpty() -> SearchStatePanel(
+        uiState.hasSearched && uiState.suggestions.isEmpty() -> OmnilogStatusPanel(
             text = stringResource(R.string.metadata_search_empty),
+            accent = accent,
         )
-        !uiState.hasSearched -> SearchStatePanel(
+        !uiState.hasSearched -> OmnilogStatusPanel(
             text = stringResource(R.string.metadata_search_prompt),
+            accent = accent,
         )
         else -> {
             if (uiState.hasPartialError) {
-                SearchStatePanel(
-                    text = stringResource(R.string.metadata_search_partial_error),
-                    color = OmnilogColors.AppMuted,
+                OmnilogStatusPanel(
+                    text = partialSearchFailureMessage(uiState.failedSources.toList()),
+                    accent = accent,
+                    action = retryAction,
                 )
             }
             uiState.suggestions.forEach { suggestion ->
@@ -647,6 +672,7 @@ private fun MetadataSeasonSelectionStep(
     accent: Color,
     onSeasonSelected: (MetadataSeasonSuggestion) -> Unit,
     onUseSeries: () -> Unit,
+    onRetryDetails: () -> Unit,
     onBackToSearch: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -656,13 +682,23 @@ private fun MetadataSeasonSelectionStep(
     )
 
     when {
-        isLoadingDetails -> SearchStatePanel(text = stringResource(R.string.metadata_season_picker_loading))
-        hasDetailsError -> SearchStatePanel(
-            text = stringResource(R.string.metadata_details_error),
-            color = MaterialTheme.colorScheme.error,
+        isLoadingDetails -> OmnilogStatusPanel(
+            text = stringResource(R.string.metadata_season_picker_loading),
+            accent = accent,
+            showProgressIndicator = true,
         )
-        suggestion?.seasonSuggestions.isNullOrEmpty() -> SearchStatePanel(
+        hasDetailsError -> OmnilogStatusPanel(
+            text = stringResource(R.string.metadata_details_error),
+            accent = accent,
+            textColor = MaterialTheme.colorScheme.error,
+            action = EmptyStateAction(
+                label = stringResource(R.string.retry_action),
+                onClick = onRetryDetails,
+            ),
+        )
+        suggestion?.seasonSuggestions.isNullOrEmpty() -> OmnilogStatusPanel(
             text = stringResource(R.string.metadata_season_picker_empty),
+            accent = accent,
         )
         else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             suggestion?.seasonSuggestions.orEmpty().forEach { season ->
@@ -772,6 +808,7 @@ private fun BookEditionSelectionStep(
     hasDetailsError: Boolean,
     accent: Color,
     onEditionSelected: (BookEditionMetadata) -> Unit,
+    onRetryDetails: () -> Unit,
     onBackToSearch: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -794,13 +831,23 @@ private fun BookEditionSelectionStep(
     )
 
     when {
-        isLoadingDetails -> SearchStatePanel(text = stringResource(R.string.book_edition_picker_loading))
-        hasDetailsError -> SearchStatePanel(
-            text = stringResource(R.string.metadata_details_error),
-            color = MaterialTheme.colorScheme.error,
+        isLoadingDetails -> OmnilogStatusPanel(
+            text = stringResource(R.string.book_edition_picker_loading),
+            accent = accent,
+            showProgressIndicator = true,
         )
-        editions.isEmpty() -> SearchStatePanel(
+        hasDetailsError -> OmnilogStatusPanel(
+            text = stringResource(R.string.metadata_details_error),
+            accent = accent,
+            textColor = MaterialTheme.colorScheme.error,
+            action = EmptyStateAction(
+                label = stringResource(R.string.retry_action),
+                onClick = onRetryDetails,
+            ),
+        )
+        editions.isEmpty() -> OmnilogStatusPanel(
             text = stringResource(R.string.book_edition_picker_empty),
+            accent = accent,
         )
         else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (availableLanguages.size > 1) {
@@ -972,6 +1019,7 @@ private fun MetadataReviewStep(
     onCollectionNameChange: (String) -> Unit,
     collectionOrder: String,
     onCollectionOrderChange: (String) -> Unit,
+    onRetryDetails: () -> Unit,
     onBackToSearch: () -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
@@ -983,6 +1031,8 @@ private fun MetadataReviewStep(
             suggestion = it,
             isLoadingDetails = isLoadingDetails,
             hasDetailsError = hasDetailsError,
+            accent = accent,
+            onRetryDetails = onRetryDetails,
         )
     }
 
@@ -1045,6 +1095,8 @@ private fun MetadataReviewPreview(
     suggestion: MetadataSuggestion,
     isLoadingDetails: Boolean,
     hasDetailsError: Boolean,
+    accent: Color,
+    onRetryDetails: () -> Unit,
 ) {
     val metadata = suggestion
         .copy(progressTotal = suggestion.progressTotal.takeUnless { suggestion.mediaType == MediaType.Game })
@@ -1053,11 +1105,20 @@ private fun MetadataReviewPreview(
         MediaMetadataHero(
             metadata = metadata,
             isLoadingDetails = isLoadingDetails,
+            loadingAccent = accent,
         )
         if (hasDetailsError) {
-            SearchStatePanel(
+            // Non-blocking: the copy says the available metadata is usable, so this offers a
+            // retry without taking the review step away from the user.
+            OmnilogStatusPanel(
                 text = stringResource(R.string.metadata_details_error),
-                color = MaterialTheme.colorScheme.error,
+                accent = accent,
+                textColor = MaterialTheme.colorScheme.error,
+                action = EmptyStateAction(
+                    label = stringResource(R.string.retry_action),
+                    onClick = onRetryDetails,
+                ),
+                actionEnabled = !isLoadingDetails,
             )
         }
         MediaMetadataHeroGenres(metadata = metadata)
@@ -1958,27 +2019,6 @@ internal fun DashboardStyleSearchBar(
 }
 
 @Composable
-internal fun SearchStatePanel(
-    text: String,
-    color: Color = OmnilogColors.AppMuted,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = color,
-        )
-    }
-}
-
-@Composable
 internal fun MetadataSuggestionRow(
     suggestion: MetadataSuggestion,
     accent: Color,
@@ -2031,7 +2071,7 @@ internal fun MetadataSuggestionRow(
                         }
                         suggestion.releaseYear?.let { ResultChip(text = it.toString(), accent = accent) }
                         if (showSourceChip) {
-                            ResultChip(text = suggestion.source.name)
+                            ResultChip(text = suggestion.source.displayName())
                         }
                     }
                     suggestion.creators.firstOrNull()?.let { creator ->

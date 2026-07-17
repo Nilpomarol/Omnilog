@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,6 +41,7 @@ import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -93,6 +95,7 @@ fun MediaMetadataHero(
     metadata: MediaMetadataUi,
     modifier: Modifier = Modifier,
     isLoadingDetails: Boolean = false,
+    loadingAccent: Color = OmnilogColors.AppMuted,
     onCollectionClick: (() -> Unit)? = null,
     onCreatorClick: ((String) -> Unit)? = null,
 ) {
@@ -187,11 +190,18 @@ fun MediaMetadataHero(
                     }
                 }
                 if (isLoadingDetails) {
-                    Text(
-                        text = stringResource(R.string.metadata_details_loading),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = OmnilogColors.AppMuted,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = stringResource(R.string.metadata_details_loading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OmnilogColors.AppMuted,
+                        )
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = loadingAccent,
+                            trackColor = OmnilogColors.AppLine,
+                        )
+                    }
                 }
             }
 
@@ -455,6 +465,19 @@ fun ExternalRatingSource.displayName(): String {
         ExternalRatingSource.Steam -> "Steam"
         ExternalRatingSource.FilmAffinity -> "FilmAffinity"
         ExternalRatingSource.StoryGraph -> "StoryGraph"
+    }
+}
+
+fun MetadataSource.displayName(): String {
+    return when (this) {
+        MetadataSource.AniList -> "AniList"
+        MetadataSource.Jikan -> "MAL"
+        MetadataSource.OpenLibrary -> "Open Library"
+        MetadataSource.GoogleBooks -> "Google Books"
+        MetadataSource.Tmdb -> "TMDb"
+        MetadataSource.Rawg -> "RAWG"
+        MetadataSource.Imdb -> "IMDb"
+        MetadataSource.StoryGraph -> "StoryGraph"
     }
 }
 

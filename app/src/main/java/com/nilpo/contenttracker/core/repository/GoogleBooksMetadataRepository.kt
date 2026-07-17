@@ -44,22 +44,22 @@ class GoogleBooksMetadataRepository(
     override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
         if (apiKey.isBlank() || suggestion.source != MetadataSource.GoogleBooks) return suggestion
 
+        // Failures propagate: the caller reports them and offers a retry, rather than silently
+        // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val fields = "id,volumeInfo(title,authors,description,pageCount," +
-                    "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink," +
-                    "industryIdentifiers,publisher,printType)"
-                val detailed = getJson(
-                    "https://www.googleapis.com/books/v1/volumes/${suggestion.externalId}" +
-                        "?fields=$fields&key=$apiKey",
-                ).toMetadataSuggestion() ?: return@runCatching suggestion
+            val fields = "id,volumeInfo(title,authors,description,pageCount," +
+                "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink," +
+                "industryIdentifiers,publisher,printType)"
+            val detailed = getJson(
+                "https://www.googleapis.com/books/v1/volumes/${suggestion.externalId}" +
+                    "?fields=$fields&key=$apiKey",
+            ).toMetadataSuggestion() ?: return@withContext suggestion
 
-                detailed.copy(
-                    externalRating = detailed.externalRating ?: suggestion.externalRating,
-                    externalRatings = (suggestion.externalRatings + detailed.externalRatings)
-                        .distinctBy { it.source },
-                )
-            }.getOrElse { suggestion }
+            detailed.copy(
+                externalRating = detailed.externalRating ?: suggestion.externalRating,
+                externalRatings = (suggestion.externalRatings + detailed.externalRatings)
+                    .distinctBy { it.source },
+            )
         }
     }
 

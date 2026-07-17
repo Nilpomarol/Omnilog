@@ -36,6 +36,7 @@ import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 
 @Composable
@@ -144,7 +145,7 @@ private fun ExternalRecommendationCard(
                 border = BorderStroke(1.dp, OmnilogColors.AppLine),
             ) {
                 Text(
-                    text = suggestion.source.name,
+                    text = suggestion.source.displayName(),
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,

@@ -81,11 +81,12 @@ import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
-import com.nilpo.contenttracker.ui.add.SearchStatePanel
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
 import com.nilpo.contenttracker.ui.common.OmnilogEmptyState
+import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
+import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import kotlinx.coroutines.delay
 
@@ -323,17 +324,29 @@ fun HomeScreen(
                 }
 
                 when {
+                    // The section search bar already spins while a query runs.
                     metadataUiState.isLoading -> item {
-                        SearchStatePanel(text = stringResource(R.string.metadata_search_loading))
+                        OmnilogStatusPanel(
+                            text = stringResource(R.string.metadata_search_loading),
+                            accent = section.accent,
+                        )
                     }
                     metadataUiState.hasError -> item {
-                        SearchStatePanel(
+                        OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_search_error),
-                            color = MaterialTheme.colorScheme.error,
+                            accent = section.accent,
+                            textColor = MaterialTheme.colorScheme.error,
+                            action = EmptyStateAction(
+                                label = stringResource(R.string.retry_action),
+                                onClick = onMetadataSearchSubmitted,
+                            ),
                         )
                     }
                     metadataUiState.hasSearched && apiResults.isEmpty() -> item {
-                        SearchStatePanel(text = stringResource(R.string.metadata_search_empty))
+                        OmnilogStatusPanel(
+                            text = stringResource(R.string.metadata_search_empty),
+                            accent = section.accent,
+                        )
                     }
                     else -> items(apiResults) { suggestion ->
                         val suggestionAccent = suggestion.mediaType.sectionAccent()
@@ -349,9 +362,13 @@ fun HomeScreen(
 
                 if (metadataUiState.hasPartialError) {
                     item {
-                        SearchStatePanel(
-                            text = stringResource(R.string.metadata_search_partial_error),
-                            color = OmnilogColors.AppMuted,
+                        OmnilogStatusPanel(
+                            text = partialSearchFailureMessage(metadataUiState.failedSources.toList()),
+                            accent = section.accent,
+                            action = EmptyStateAction(
+                                label = stringResource(R.string.retry_action),
+                                onClick = onMetadataSearchSubmitted,
+                            ),
                         )
                     }
                 }

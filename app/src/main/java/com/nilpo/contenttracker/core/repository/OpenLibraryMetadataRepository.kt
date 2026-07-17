@@ -43,21 +43,21 @@ class OpenLibraryMetadataRepository : MetadataRepository {
     override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
         if (suggestion.source != MetadataSource.OpenLibrary) return suggestion
 
+        // Failures propagate: the caller reports them and offers a retry, rather than silently
+        // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
-            runCatching {
-                if (suggestion.externalId.startsWith("/books/")) {
-                    return@runCatching getJson("https://openlibrary.org${suggestion.externalId}.json")
-                        .toEditionMetadata()
-                        ?.toMetadataSuggestion(suggestion)
-                        ?: suggestion
-                }
-                val work = getJson("https://openlibrary.org${suggestion.externalId}.json")
-                val editions = getJson(
-                    "https://openlibrary.org${suggestion.externalId}/editions.json" +
-                    "?limit=20&fields=entries(key,title,number_of_pages,covers,isbn_10,isbn_13,languages,publish_date,publishers,physical_format)",
-                )
-                suggestion.enrichWith(work, editions)
-            }.getOrDefault(suggestion)
+            if (suggestion.externalId.startsWith("/books/")) {
+                return@withContext getJson("https://openlibrary.org${suggestion.externalId}.json")
+                    .toEditionMetadata()
+                    ?.toMetadataSuggestion(suggestion)
+                    ?: suggestion
+            }
+            val work = getJson("https://openlibrary.org${suggestion.externalId}.json")
+            val editions = getJson(
+                "https://openlibrary.org${suggestion.externalId}/editions.json" +
+                "?limit=20&fields=entries(key,title,number_of_pages,covers,isbn_10,isbn_13,languages,publish_date,publishers,physical_format)",
+            )
+            suggestion.enrichWith(work, editions)
         }
     }
 
