@@ -56,6 +56,7 @@
     <string name="stats_monthly_activity">Activitat mensual</string>
     <string name="stats_activity_hero_title">La teva activitat</string>
     <string name="stats_activity_hero_busiest_month">El teu mes amb més activitat: %1$s · %2$d sessions completades</string>
+    <string name="stats_observation_highest_rated_medium">Millor nota mitjana: %1$s · %2$.1f/10</string>
     <string name="stats_activity_hero_empty">Completa un títol per veure la teva activitat.</string>
     <string name="stats_activity_bars_caption">Sessions completades per mes</string>
     <string name="stats_activity_bars_caption_all_time">Sessions completades amb data per mes · últims 12 mesos</string>
@@ -63,6 +64,11 @@
     <string name="stats_medium_averages">Mitjanes per tipus</string>
     <string name="stats_completion_sessions">Sessions completades</string>
     <string name="stats_unique_titles_completed_value">%1$d títols únics completats</string>
+    <string name="stats_summary_unique_titles">Títols únics completats</string>
+    <string name="stats_summary_average_rating">Nota personal mitjana</string>
+    <string name="stats_summary_revisits">Revisions</string>
+    <string name="stats_summary_consumption_medium">Consum · %1$s · %2$s</string>
+    <string name="stats_summary_consumption_empty">Consum sense dades</string>
     <string name="stats_completion_sessions_by_medium">Sessions completades per tipus</string>
     <string name="stats_delta_basis_same_period">vs. mateix període de %1$d</string>
     <string name="stats_delta_basis_year">vs. %1$d</string>
@@ -152,6 +158,8 @@
     <string name="progress_unit_minute_many">minuts</string>
     <string name="progress_unit_hour_one">hora</string>
     <string name="progress_unit_hour_many">hores</string>
+    <string name="progress_unit_minute_compact">min</string>
+    <string name="progress_unit_hour_compact">h</string>
     <string name="rating_value">%1$d/10</string>
     <string name="rating_empty">Sense nota</string>
     <string name="rating_clear">Esborra la nota</string>

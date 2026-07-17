@@ -66,12 +66,14 @@ import com.nilpo.contenttracker.core.stats.RevisitStats
 import com.nilpo.contenttracker.core.stats.StatsBucket
 import com.nilpo.contenttracker.core.stats.StatsCalculator
 import com.nilpo.contenttracker.core.stats.StatsFilters
+import com.nilpo.contenttracker.core.stats.StatsObservation
 import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.core.stats.StatsSegment
 import com.nilpo.contenttracker.core.stats.StatsSnapshot
 import com.nilpo.contenttracker.core.stats.StatusStatsBucket
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
+import com.nilpo.contenttracker.ui.common.compactProgressUnitLabel
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -104,6 +106,16 @@ fun StatsScreen(
     val snapshot = remember(items, filters) {
         StatsCalculator().calculate(items, filters)
     }
+    val hasRatings = snapshot.averageRating != null
+    val hasRatingTrend = snapshot.ratingTrend.count { point -> point.averageRating != null } >= 2
+    val hasConsumption = snapshot.progressTotals.any { total -> total.value > 0 }
+    val hasRevisits = snapshot.revisitCount > 0
+    val hasContentMix = snapshot.topGenres.isNotEmpty() ||
+        snapshot.topCreators.isNotEmpty() || snapshot.languageBreakdown.isNotEmpty()
+    val comparableMediumCount = snapshot.mediumStats.count { stat ->
+        stat.completionSessionCount > 0 || stat.averageRating != null || stat.averageLength != null
+    }
+    val hasCurrentStatus = snapshot.statusBreakdown.any { bucket -> bucket.value > 0 }
 
     Surface(
         modifier = modifier,
@@ -134,115 +146,139 @@ fun StatsScreen(
             item {
                 StatsActivityHero(snapshot = snapshot)
             }
-            item {
-                StatsGroupHeader(title = stringResource(R.string.stats_group_overview))
-            }
-            item {
-                StatsSection(
-                    title = stringResource(R.string.stats_status_breakdown),
-                    subtitle = stringResource(R.string.stats_status_breakdown_subtitle),
-                ) {
-                    StatusBreakdown(buckets = snapshot.statusBreakdown)
-                }
-            }
-            item {
-                StatsSection(title = stringResource(R.string.stats_medium_averages)) {
-                    MediumStatsGraphs(stats = snapshot.mediumStats)
-                }
-            }
-            item {
-                StatsGroupHeader(title = stringResource(R.string.stats_group_ratings))
-            }
-            item {
-                StatsSection(title = stringResource(R.string.stats_rating_distribution)) {
-                    RatingDistributionHistogram(
-                        buckets = snapshot.ratingDistribution,
-                        emptyText = stringResource(R.string.stats_empty_ratings),
-                    )
-                }
-            }
-            item {
-                StatsSection(
-                    title = stringResource(R.string.stats_rating_trend),
-                    subtitle = stringResource(R.string.stats_rating_trend_subtitle),
-                ) {
-                    RatingTrendChart(points = snapshot.ratingTrend.takeLast(12))
-                }
-            }
-            if (snapshot.bestRatedItems.isNotEmpty()) {
+            if (hasRatings) {
                 item {
-                    StatsSection(title = stringResource(R.string.stats_best_rated)) {
-                        StatsMediaStrip(
-                            items = snapshot.bestRatedItems.map { stat -> stat.trackedMedia },
-                            onMediaClick = onMediaClick,
-                            statLabel = { trackedMedia ->
-                                snapshot.bestRatedItems
-                                    .firstOrNull { stat -> stat.trackedMedia.item.id == trackedMedia.item.id }
-                                    ?.bestRating
-                                    ?.let { rating -> stringResource(R.string.rating_value, rating) }
-                            },
+                    StatsGroupHeader(title = stringResource(R.string.stats_group_ratings))
+                }
+                item {
+                    StatsSection(title = stringResource(R.string.stats_rating_distribution)) {
+                        RatingDistributionHistogram(
+                            buckets = snapshot.ratingDistribution,
+                            emptyText = stringResource(R.string.stats_empty_ratings),
                         )
                     }
                 }
-            }
-            item {
-                StatsGroupHeader(
-                    title = stringResource(R.string.stats_group_content_mix),
-                    subtitle = stringResource(R.string.stats_content_mix_period_scope),
-                )
-            }
-            item {
-                StatsSection(title = stringResource(R.string.stats_top_genres)) {
-                    GenrePieChart(
-                        stats = snapshot.topGenres,
-                        emptyText = stringResource(R.string.stats_empty_metadata),
-                    )
+                if (hasRatingTrend) {
+                    item {
+                        StatsSection(
+                            title = stringResource(R.string.stats_rating_trend),
+                            subtitle = stringResource(R.string.stats_rating_trend_subtitle),
+                        ) {
+                            RatingTrendChart(points = snapshot.ratingTrend.takeLast(12))
+                        }
+                    }
+                }
+                if (snapshot.bestRatedItems.isNotEmpty()) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_best_rated)) {
+                            StatsMediaStrip(
+                                items = snapshot.bestRatedItems.map { stat -> stat.trackedMedia },
+                                onMediaClick = onMediaClick,
+                                statLabel = { trackedMedia ->
+                                    snapshot.bestRatedItems
+                                        .firstOrNull { stat -> stat.trackedMedia.item.id == trackedMedia.item.id }
+                                        ?.bestRating
+                                        ?.let { rating -> stringResource(R.string.rating_value, rating) }
+                                },
+                            )
+                        }
+                    }
                 }
             }
-            item {
-                StatsSection(title = stringResource(R.string.stats_top_creators)) {
-                    RankedList(
-                        stats = snapshot.topCreators,
-                        accent = OmnilogColors.Tv,
-                        emptyText = stringResource(R.string.stats_empty_metadata),
-                    )
-                }
-            }
-            item {
-                StatsSection(title = stringResource(R.string.stats_languages)) {
-                    LanguageMosaicChart(
-                        buckets = snapshot.languageBreakdown,
-                        emptyText = stringResource(R.string.stats_empty_metadata),
-                    )
-                }
-            }
-            item {
-                StatsGroupHeader(title = stringResource(R.string.stats_group_consumption))
-            }
-            item {
-                StatsSection(title = stringResource(R.string.stats_progress_totals)) {
-                    ProgressTotals(totals = snapshot.progressTotals)
-                }
-            }
-            item {
-                StatsSection(title = stringResource(R.string.stats_revisit_breakdown)) {
-                    RevisitBreakdownChart(stats = snapshot.revisitBreakdown)
-                }
-            }
-            if (snapshot.mostRevisitedItems.isNotEmpty()) {
+            if (hasConsumption || hasRevisits) {
                 item {
-                    StatsSection(title = stringResource(R.string.stats_most_revisited)) {
-                        StatsMediaStrip(
-                            items = snapshot.mostRevisitedItems.map { stat -> stat.trackedMedia },
-                            onMediaClick = onMediaClick,
-                            statLabel = { trackedMedia ->
-                                val revisitCount = snapshot.mostRevisitedItems
-                                    .firstOrNull { stat -> stat.trackedMedia.item.id == trackedMedia.item.id }
-                                    ?.value
-                                    ?: trackedMedia.revisitCount
-                                stringResource(R.string.stats_revisit_value, revisitCount)
-                            },
-                        )
+                    StatsGroupHeader(title = stringResource(R.string.stats_group_consumption))
+                }
+                if (hasConsumption) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_progress_totals)) {
+                            ProgressTotals(totals = snapshot.progressTotals)
+                        }
+                    }
+                }
+                if (hasRevisits) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_revisit_breakdown)) {
+                            RevisitBreakdownChart(stats = snapshot.revisitBreakdown)
+                        }
+                    }
+                }
+                if (snapshot.mostRevisitedItems.isNotEmpty()) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_most_revisited)) {
+                            StatsMediaStrip(
+                                items = snapshot.mostRevisitedItems.map { stat -> stat.trackedMedia },
+                                onMediaClick = onMediaClick,
+                                statLabel = { trackedMedia ->
+                                    val revisitCount = snapshot.mostRevisitedItems
+                                        .firstOrNull { stat -> stat.trackedMedia.item.id == trackedMedia.item.id }
+                                        ?.value
+                                        ?: trackedMedia.revisitCount
+                                    stringResource(R.string.stats_revisit_value, revisitCount)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            if (hasContentMix) {
+                item {
+                    StatsGroupHeader(
+                        title = stringResource(R.string.stats_group_content_mix),
+                        subtitle = stringResource(R.string.stats_content_mix_period_scope),
+                    )
+                }
+                if (snapshot.topGenres.isNotEmpty()) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_top_genres)) {
+                            GenrePieChart(
+                                stats = snapshot.topGenres,
+                                emptyText = stringResource(R.string.stats_empty_metadata),
+                            )
+                        }
+                    }
+                }
+                if (snapshot.topCreators.isNotEmpty()) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_top_creators)) {
+                            RankedList(
+                                stats = snapshot.topCreators,
+                                accent = OmnilogColors.Tv,
+                                emptyText = stringResource(R.string.stats_empty_metadata),
+                            )
+                        }
+                    }
+                }
+                if (snapshot.languageBreakdown.isNotEmpty()) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_languages)) {
+                            LanguageMosaicChart(
+                                buckets = snapshot.languageBreakdown,
+                                emptyText = stringResource(R.string.stats_empty_metadata),
+                            )
+                        }
+                    }
+                }
+            }
+            if (hasCurrentStatus || comparableMediumCount >= 2) {
+                item {
+                    StatsGroupHeader(title = stringResource(R.string.stats_group_overview))
+                }
+                if (hasCurrentStatus) {
+                    item {
+                        StatsSection(
+                            title = stringResource(R.string.stats_status_breakdown),
+                            subtitle = stringResource(R.string.stats_status_breakdown_subtitle),
+                        ) {
+                            StatusBreakdown(buckets = snapshot.statusBreakdown)
+                        }
+                    }
+                }
+                if (comparableMediumCount >= 2) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_medium_averages)) {
+                            MediumStatsGraphs(stats = snapshot.mediumStats)
+                        }
                     }
                 }
             }
@@ -405,8 +441,6 @@ private fun DropdownChip(
 private fun StatsActivityHero(snapshot: StatsSnapshot) {
     val buckets = snapshot.completionSessionsByMonth.takeLast(12)
     val maxValue = buckets.maxOfOrNull { bucket -> bucket.value } ?: 0
-    val busiestMonth = buckets.maxByOrNull { bucket -> bucket.value }
-        ?.takeIf { bucket -> bucket.value > 0 }
     val legendMediaTypes = buckets
         .flatMap { bucket -> bucket.segments.map { segment -> segment.mediaType } }
         .distinct()
@@ -515,6 +549,75 @@ private fun StatsActivityHero(snapshot: StatsSnapshot) {
 }
 
 @Composable
+private fun StatsTopLevelSummary(snapshot: StatsSnapshot) {
+    val consumption = snapshot.topLevelSummary.consumptionHighlight
+    val consumptionValue = consumption?.let { highlight ->
+        highlight.value.compactStatValue()
+    } ?: "—"
+    val consumptionLabel = consumption?.let { highlight ->
+        stringResource(
+            R.string.stats_summary_consumption_medium,
+            compactProgressUnitLabel(highlight.mediaType),
+            highlight.mediaType.label(),
+        )
+    } ?: stringResource(R.string.stats_summary_consumption_empty)
+
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            StatsSummaryMetric(
+                label = stringResource(R.string.stats_summary_unique_titles),
+                value = snapshot.uniqueTitlesCompleted.toString(),
+                accent = OmnilogColors.Completed,
+                modifier = Modifier.weight(1f),
+            )
+            StatsSummaryMetric(
+                label = stringResource(R.string.stats_summary_average_rating),
+                value = snapshot.averageRating?.let { rating -> "${rating.roundedStatValue()}/10" } ?: "—",
+                accent = OmnilogColors.Dashboard,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        HorizontalDivider(color = OmnilogColors.AppLine.copy(alpha = 0.72f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            StatsSummaryMetric(
+                label = stringResource(R.string.stats_summary_revisits),
+                value = snapshot.revisitCount.toString(),
+                accent = OmnilogColors.Books,
+                modifier = Modifier.weight(1f),
+            )
+            StatsSummaryMetric(
+                label = consumptionLabel,
+                value = consumptionValue,
+                accent = consumption?.mediaType?.statsColor() ?: OmnilogColors.AppMuted,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatsObservation.label(): String {
+    return when (this) {
+        is StatsObservation.BusiestMonth -> stringResource(
+            R.string.stats_activity_hero_busiest_month,
+            label,
+            completionSessions,
+        )
+        is StatsObservation.HighestRatedMedium -> stringResource(
+            R.string.stats_observation_highest_rated_medium,
+            mediaType.label(),
+            averageRating,
+        )
+    }
+}
+
+@Composable
 private fun DeltaWithBasis(delta: Int, basisLabel: String) {
     val deltaDescription = when {
         delta > 0 -> stringResource(R.string.stats_delta_more_description, delta, basisLabel)
@@ -562,7 +665,7 @@ private fun ActivityHeroBars(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(142.dp),
+            .heightIn(min = 122.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -592,13 +695,13 @@ private fun ActivityHeroBars(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(116.dp),
+                        .height(96.dp),
                     contentAlignment = Alignment.BottomCenter,
                 ) {
                     val barHeight = if (maxValue == 0 || bucket.value == 0) {
                         2
                     } else {
-                        (116 * bucket.value / maxValue).coerceAtLeast(3)
+                        (96 * bucket.value / maxValue).coerceAtLeast(3)
                     }
                     if (bucket.value > 0 && bucket.segments.isNotEmpty()) {
                         Column(

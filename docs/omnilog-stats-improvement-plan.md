@@ -32,7 +32,7 @@ These foundations should be preserved. The work below is a refinement, not a red
 | Order | ID | Summary | Priority | Status |
 |---:|---|---|---|---|
 | 1 | STATS-01 | Make definitions, periods, and comparisons trustworthy | High | `[x]` |
-| 2 | STATS-02 | Create a concise, useful top-level summary | High | `[ ]` |
+| 2 | STATS-02 | Create a concise, useful top-level summary | High | `[x]` |
 | 3 | STATS-03 | Replace misleading or unclear chart forms | High | `[ ]` |
 | 4 | STATS-04 | Add focused chart inspection and drill-down | Medium | `[ ]` |
 | 5 | STATS-05 | Adapt the page to filters, sparse data, and accessibility | Medium | `[ ]` |
@@ -71,7 +71,7 @@ Stats lose their value quickly when two nearby numbers appear to disagree. Consi
 
 **Implementation note (2026-07-17):** The calculator, models, labels, filtered badges, and focused boundary tests satisfy the criteria above. The focused stats suite, full debug unit-test suite, and debug APK build pass. Device startup QA found no crash. Visual verification at default and 200% font scale was not completed because the attached physical device was locked behind System UI and no emulator was configured; the item was marked complete at the user's direction with that limitation recorded.
 
-## [ ] STATS-02 — Create a concise, useful top-level summary
+## [x] STATS-02 — Create a concise, useful top-level summary
 
 ### Problem
 
@@ -94,6 +94,8 @@ A strong first viewport gives users the reward of opening Stats immediately. Sel
 - The first viewport communicates the period's main result, rating, revisits, and one useful observation.
 - A user can understand the period without scrolling through the full page.
 - Lower sections remain available without competing visually with the summary.
+
+**Implementation note (2026-07-17):** Monthly activity remains the hero, with a compact in-panel grid for unique completed titles, personal average rating, revisits, and a unit-preserving consumption highlight. The highlight is chosen by comparable completion-session relevance rather than by comparing unlike consumption magnitudes. A filtered busiest-month observation is preferred, with a uniquely highest-rated medium used only when dated monthly activity is unavailable. Empty or uninformative lower groups are omitted, single-point rating trends and one-medium comparison modules are hidden, and current-library state is placed after the selected-period analysis. Focused calculator tests cover empty, sparse, dense, every period, every individual medium, and Cinema/TV filtering; the full debug unit suite and debug APK build pass. The rebuilt APK was visually verified on a connected device at 100% and 200% font scale, including the first viewport and enlarged chart labels; the device was restored to 100% afterward.
 
 ## [ ] STATS-03 — Replace misleading or unclear chart forms
 

@@ -1073,6 +1073,230 @@ class StatsCalculatorTest {
         assertEquals(ComparisonBasis.FullYear(2024), snapshot.deltas.basis)
     }
 
+    @Test
+    fun topLevelSummaryDegradesGracefullyForEmptyData() {
+        val snapshot = calculator.calculate(
+            items = emptyList(),
+            filters = StatsFilters(
+                period = StatsPeriod.ThisYear,
+                mediaTypes = MediaType.entries.toSet(),
+            ),
+        )
+
+        assertEquals(0, snapshot.uniqueTitlesCompleted)
+        assertNull(snapshot.averageRating)
+        assertEquals(0, snapshot.revisitCount)
+        assertNull(snapshot.topLevelSummary.consumptionHighlight)
+        assertNull(snapshot.topLevelSummary.observation)
+    }
+
+    @Test
+    fun sparseSummaryKeepsActivityWithoutInventingRatingOrConsumption() {
+        val snapshot = calculator.calculate(
+            items = listOf(
+                trackedMedia(
+                    id = 1,
+                    type = MediaType.Book,
+                    sessions = listOf(
+                        session(
+                            id = 1,
+                            mediaItemId = 1,
+                            status = TrackingStatus.Completed,
+                            finishedAt = LocalDate.of(2026, 6, 1),
+                        ),
+                    ),
+                ),
+            ),
+            filters = StatsFilters(
+                period = StatsPeriod.ThisYear,
+                mediaTypes = setOf(MediaType.Book),
+            ),
+        )
+
+        assertEquals(1, snapshot.uniqueTitlesCompleted)
+        assertNull(snapshot.averageRating)
+        assertEquals(0, snapshot.revisitCount)
+        assertNull(snapshot.topLevelSummary.consumptionHighlight)
+        val observation = snapshot.topLevelSummary.observation as StatsObservation.BusiestMonth
+        assertEquals("2026-06", observation.key)
+        assertEquals(1, observation.completionSessions)
+    }
+
+    @Test
+    fun denseSummaryChoosesConsumptionByComparableSessionCountNotUnitMagnitude() {
+        val snapshot = calculator.calculate(
+            items = listOf(
+                trackedMedia(
+                    id = 1,
+                    type = MediaType.Book,
+                    progressTotal = 2_000,
+                    sessions = listOf(
+                        session(
+                            id = 1,
+                            mediaItemId = 1,
+                            status = TrackingStatus.Completed,
+                            progressCurrent = 2_000,
+                            rating = 9,
+                            finishedAt = LocalDate.of(2026, 5, 1),
+                        ),
+                    ),
+                ),
+                trackedMedia(
+                    id = 2,
+                    type = MediaType.Game,
+                    progressTotal = 2,
+                    sessions = listOf(
+                        session(
+                            id = 2,
+                            mediaItemId = 2,
+                            status = TrackingStatus.Completed,
+                            progressCurrent = 2,
+                            rating = 7,
+                            finishedAt = LocalDate.of(2026, 5, 2),
+                        ),
+                        session(
+                            id = 3,
+                            mediaItemId = 2,
+                            sessionNumber = 2,
+                            status = TrackingStatus.Completed,
+                            progressCurrent = 2,
+                            rating = 8,
+                            finishedAt = LocalDate.of(2026, 6, 2),
+                        ),
+                    ),
+                ),
+            ),
+            filters = StatsFilters(
+                period = StatsPeriod.ThisYear,
+                mediaTypes = MediaType.entries.toSet(),
+            ),
+        )
+
+        val highlight = snapshot.topLevelSummary.consumptionHighlight
+        assertEquals(MediaType.Game, highlight?.mediaType)
+        assertEquals(4, highlight?.value)
+        assertEquals(2, snapshot.uniqueTitlesCompleted)
+        assertEquals(8.0, snapshot.averageRating ?: 0.0, 0.001)
+        assertEquals(1, snapshot.revisitCount)
+    }
+
+    @Test
+    fun summaryRespondsToEveryPeriodAndMediaFilter() {
+        val items = MediaType.entries.mapIndexed { index, mediaType ->
+            val id = (index + 1).toLong()
+            trackedMedia(
+                id = id,
+                type = mediaType,
+                progressTotal = (index + 1) * 10,
+                sessions = listOf(
+                    session(
+                        id = id * 10,
+                        mediaItemId = id,
+                        status = TrackingStatus.Completed,
+                        progressCurrent = (index + 1) * 10,
+                        rating = 8,
+                        finishedAt = LocalDate.of(2026, 6, 1),
+                    ),
+                    session(
+                        id = id * 10 + 1,
+                        mediaItemId = id,
+                        sessionNumber = 2,
+                        status = TrackingStatus.Completed,
+                        progressCurrent = (index + 1) * 10,
+                        rating = 6,
+                        finishedAt = LocalDate.of(2025, 6, 1),
+                    ),
+                ),
+            )
+        }
+        val mediaFilters = listOf(
+            MediaType.entries.toSet(),
+            setOf(MediaType.Anime),
+            setOf(MediaType.Book),
+            setOf(MediaType.Movie),
+            setOf(MediaType.TvShow),
+            setOf(MediaType.Game),
+            setOf(MediaType.Movie, MediaType.TvShow),
+        )
+        val periods = listOf(
+            StatsPeriod.AllTime,
+            StatsPeriod.ThisYear,
+            StatsPeriod.Last12Months,
+            StatsPeriod.Year(2025),
+        )
+
+        periods.forEach { period ->
+            mediaFilters.forEach { mediaTypes ->
+                val snapshot = calculator.calculate(
+                    items = items,
+                    filters = StatsFilters(period = period, mediaTypes = mediaTypes),
+                )
+                val includesBothYears = period == StatsPeriod.AllTime
+                val isPreviousYear = period == StatsPeriod.Year(2025)
+                val expectedAverage = when {
+                    includesBothYears -> 7.0
+                    isPreviousYear -> 6.0
+                    else -> 8.0
+                }
+                val expectedRevisits = if (includesBothYears || isPreviousYear) mediaTypes.size else 0
+                val expectedHighlightType = mediaTypes.minBy { mediaType -> mediaType.ordinal }
+                val perSessionValue = (expectedHighlightType.ordinal + 1) * 10
+                val expectedHighlightValue = perSessionValue * if (includesBothYears) 2 else 1
+                val expectedObservationYear = if (isPreviousYear) 2025 else 2026
+
+                assertEquals(mediaTypes.size, snapshot.uniqueTitlesCompleted)
+                assertEquals(expectedAverage, snapshot.averageRating ?: 0.0, 0.001)
+                assertEquals(expectedRevisits, snapshot.revisitCount)
+                assertEquals(expectedHighlightType, snapshot.topLevelSummary.consumptionHighlight?.mediaType)
+                assertEquals(expectedHighlightValue, snapshot.topLevelSummary.consumptionHighlight?.value)
+                val observation = snapshot.topLevelSummary.observation as StatsObservation.BusiestMonth
+                assertEquals("$expectedObservationYear-06", observation.key)
+                assertEquals(mediaTypes.size, observation.completionSessions)
+            }
+        }
+    }
+
+    @Test
+    fun highestRatedMediumIsUsedOnlyAsMeaningfulFallbackObservation() {
+        val snapshot = calculator.calculate(
+            items = listOf(
+                trackedMedia(
+                    id = 1,
+                    type = MediaType.Book,
+                    sessions = listOf(
+                        session(
+                            id = 1,
+                            mediaItemId = 1,
+                            status = TrackingStatus.Completed,
+                            rating = 9,
+                        ),
+                    ),
+                ),
+                trackedMedia(
+                    id = 2,
+                    type = MediaType.Game,
+                    sessions = listOf(
+                        session(
+                            id = 2,
+                            mediaItemId = 2,
+                            status = TrackingStatus.Completed,
+                            rating = 7,
+                        ),
+                    ),
+                ),
+            ),
+            filters = StatsFilters(
+                period = StatsPeriod.AllTime,
+                mediaTypes = MediaType.entries.toSet(),
+            ),
+        )
+
+        val observation = snapshot.topLevelSummary.observation as StatsObservation.HighestRatedMedium
+        assertEquals(MediaType.Book, observation.mediaType)
+        assertEquals(9.0, observation.averageRating, 0.001)
+        assertNull(snapshot.topLevelSummary.consumptionHighlight)
+    }
+
     private fun trackedMedia(
         id: Long,
         type: MediaType,

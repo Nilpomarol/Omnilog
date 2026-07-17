@@ -48,6 +48,16 @@ class StatsCalculator(
             .mapNotNull { (_, session) -> session.rating }
             .takeIf { ratings -> ratings.isNotEmpty() }
             ?.average()
+        val completionSessionsByMonth = completionSessionsByMonth(
+            completedSessions = completedSessions,
+            period = filters.period,
+        )
+        val mediumStats = mediumStats(
+            mediaTypes = filters.mediaTypes,
+            completedSessions = completedSessions,
+            ratedSessions = ratedSessions,
+        )
+        val progressTotals = progressTotals(completedSessions)
 
         return StatsSnapshot(
             filters = filters,
@@ -61,22 +71,15 @@ class StatsCalculator(
             plannedNow = plannedNow,
             averageRating = averageRating,
             revisitCount = revisitSessions.size,
-            completionSessionsByMonth = completionSessionsByMonth(
-                completedSessions = completedSessions,
-                period = filters.period,
-            ),
-            mediumStats = mediumStats(
-                mediaTypes = filters.mediaTypes,
-                completedSessions = completedSessions,
-                ratedSessions = ratedSessions,
-            ),
+            completionSessionsByMonth = completionSessionsByMonth,
+            mediumStats = mediumStats,
             ratingTrend = ratingTrend(
                 ratedSessions = ratedSessions,
                 period = filters.period,
             ),
             ratingDistribution = ratingDistribution(ratedSessions),
             statusBreakdown = statusBreakdown(filteredItems),
-            progressTotals = progressTotals(completedSessions),
+            progressTotals = progressTotals,
             revisitBreakdown = revisitBreakdown(
                 mediaTypes = filters.mediaTypes,
                 revisitSessions = revisitSessions,
@@ -86,7 +89,72 @@ class StatsCalculator(
             languageBreakdown = languageBreakdown(completedItems),
             bestRatedItems = bestRatedItems(ratedSessions),
             mostRevisitedItems = mostRevisitedItems(revisitSessions),
+            topLevelSummary = topLevelSummary(
+                visibleMonthlyActivity = completionSessionsByMonth.takeLast(12),
+                mediumStats = mediumStats,
+                progressTotals = progressTotals,
+            ),
             deltas = calculateDelta(items = items, filters = filters),
+        )
+    }
+
+    private fun topLevelSummary(
+        visibleMonthlyActivity: List<StatsBucket>,
+        mediumStats: List<MediumStats>,
+        progressTotals: List<ProgressTotalStats>,
+    ): StatsTopLevelSummary {
+        val completionCountByMedium = mediumStats.associate { stat ->
+            stat.mediaType to stat.completionSessionCount
+        }
+        val consumptionHighlight = progressTotals
+            .asSequence()
+            .filter { total -> total.value > 0 }
+            // Relevance is decided using comparable completion-session counts.
+            // Consumption magnitudes themselves retain their unit and are never
+            // compared across pages, episodes, minutes, and hours.
+            .sortedWith(
+                compareByDescending<ProgressTotalStats> { total ->
+                    completionCountByMedium[total.mediaType] ?: 0
+                }.thenBy { total -> total.mediaType.ordinal },
+            )
+            .firstOrNull()
+            ?.let { total ->
+                ConsumptionHighlight(mediaType = total.mediaType, value = total.value)
+            }
+
+        val busiestMonth = visibleMonthlyActivity
+            .asSequence()
+            .filter { bucket -> bucket.value > 0 }
+            .maxWithOrNull(
+                compareBy<StatsBucket> { bucket -> bucket.value }
+                    .thenBy { bucket -> bucket.key },
+            )
+        val observation = busiestMonth?.let { bucket ->
+            StatsObservation.BusiestMonth(
+                key = bucket.key,
+                label = bucket.label,
+                completionSessions = bucket.value,
+            )
+        } ?: highestRatedMediumObservation(mediumStats)
+
+        return StatsTopLevelSummary(
+            consumptionHighlight = consumptionHighlight,
+            observation = observation,
+        )
+    }
+
+    private fun highestRatedMediumObservation(
+        mediumStats: List<MediumStats>,
+    ): StatsObservation.HighestRatedMedium? {
+        val ratedStats = mediumStats.filter { stat -> stat.averageRating != null }
+        if (ratedStats.size < 2) return null
+
+        val bestAverage = ratedStats.maxOf { stat -> stat.averageRating ?: 0.0 }
+        val leaders = ratedStats.filter { stat -> stat.averageRating == bestAverage }
+        val leader = leaders.singleOrNull() ?: return null
+        return StatsObservation.HighestRatedMedium(
+            mediaType = leader.mediaType,
+            averageRating = bestAverage,
         )
     }
 

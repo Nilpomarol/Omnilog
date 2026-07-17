@@ -37,8 +37,34 @@ data class StatsSnapshot(
     val languageBreakdown: List<StatsBucket>,
     val bestRatedItems: List<RatedMediaStat>,
     val mostRevisitedItems: List<RevisitedMediaStat>,
+    val topLevelSummary: StatsTopLevelSummary,
     val deltas: PeriodDelta = PeriodDelta(),
 )
+
+data class StatsTopLevelSummary(
+    val consumptionHighlight: ConsumptionHighlight? = null,
+    val observation: StatsObservation? = null,
+)
+
+/** A consumption value kept together with the medium that defines its unit. */
+data class ConsumptionHighlight(
+    val mediaType: MediaType,
+    val value: Int,
+)
+
+/** Pure, locally generated observations that the UI can render with localized copy. */
+sealed interface StatsObservation {
+    data class BusiestMonth(
+        val key: String,
+        val label: String,
+        val completionSessions: Int,
+    ) : StatsObservation
+
+    data class HighestRatedMedium(
+        val mediaType: MediaType,
+        val averageRating: Double,
+    ) : StatsObservation
+}
 
 data class StatsBucket(
     val key: String,
