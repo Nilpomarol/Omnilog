@@ -544,6 +544,8 @@
     <string name="quick_progress_decrease">Resta</string>
     <string name="quick_progress_increase">Suma</string>
     <string name="quick_progress_of_total">de %1$d %2$s</string>
-    <string name="quick_progress_complete">Completa</string>
+    <string name="quick_progress_complete">Marca com a completat</string>
     <string name="quick_progress_completed_message">S\'ha completat.</string>
+    <string name="quick_progress_started_message">S\'ha començat.</string>
+    <string name="quick_progress_resumed_message">S\'ha reprès.</string>
   </resources>

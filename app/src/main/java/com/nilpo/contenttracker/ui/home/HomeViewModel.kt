@@ -445,6 +445,10 @@ class HomeViewModel(
      * paused session was started at some point in the past; stamping today would both misreport
      * the history and, because StatsCalculator buckets an unfinished session by its start date,
      * file a months-old title into the current period. If it has no start date, it keeps none.
+     *
+     * The tile is a single unguarded tap and the card leaves its section the moment it lands, so
+     * this raises an undo snackbar rather than a confirmation: an accidental tap costs one tap to
+     * reverse, and a deliberate one keeps its no-friction path.
      */
     fun quickStart(media: TrackedMedia) {
         val session = media.currentSession ?: return
@@ -463,6 +467,7 @@ class HomeViewModel(
                 startedAt = startedAt,
                 finishedAt = session.finishedAt,
             )
+            mutableEvents.emit(HomeUiEvent.SessionStartedReversible(session))
         }
     }
 
@@ -835,6 +840,9 @@ sealed interface HomeUiEvent {
     data class PastSessionDeletionAvailable(val deletionToken: Long, val sessionNumber: Int) : HomeUiEvent
     data class ProgressUpdateDeletionAvailable(val deletionToken: Long) : HomeUiEvent
     data class SessionCompletedReversible(val previous: TrackingSession) : HomeUiEvent
+
+    /** [previous] carries the pre-start status, which decides the started/resumed wording. */
+    data class SessionStartedReversible(val previous: TrackingSession) : HomeUiEvent
     data object MetadataRefreshSucceeded : HomeUiEvent
     data object MetadataRefreshUnavailable : HomeUiEvent
     data object MetadataRefreshFailed : HomeUiEvent

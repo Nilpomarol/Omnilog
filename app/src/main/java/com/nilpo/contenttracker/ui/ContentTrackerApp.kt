@@ -79,6 +79,7 @@ import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
 import com.nilpo.contenttracker.core.repository.MetadataRefreshField
@@ -691,6 +692,21 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 is HomeUiEvent.SessionCompletedReversible -> {
                     val result = snackbarHostState.showSnackbar(
                         message = context.getString(R.string.quick_progress_completed_message),
+                        actionLabel = deletionUndoAction,
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.undoQuickProgress(event.previous)
+                    }
+                }
+                is HomeUiEvent.SessionStartedReversible -> {
+                    val message = if (event.previous.status == TrackingStatus.Paused) {
+                        R.string.quick_progress_resumed_message
+                    } else {
+                        R.string.quick_progress_started_message
+                    }
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(message),
                         actionLabel = deletionUndoAction,
                         duration = SnackbarDuration.Long,
                     )

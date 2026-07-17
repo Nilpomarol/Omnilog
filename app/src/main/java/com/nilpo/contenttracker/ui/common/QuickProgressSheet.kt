@@ -57,9 +57,11 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
  * The "Ara mateix" tiles stay uncluttered: a single tap opens this sheet, which
  * keeps all the density (stepper / direct entry / complete) off the tile. The
  * concrete control depends on the media type:
- *  - Anime / TV: a −/+ episode stepper (each tap commits immediately).
- *  - Book / Game: a direct numeric entry with a Desa button.
- *  - Movie: no progress control, only Completa.
+ *  - Anime / TV: a −/+ episode stepper (each tap commits immediately, and the sheet
+ *    stays open so consecutive taps land on the same control).
+ *  - Book / Game: a direct numeric entry whose Desa button commits and closes — the
+ *    sheet looks identical after a save, so closing is the only confirmation there is.
+ *  - Movie: no progress control, only the complete button.
  *
  * [onSetProgress] receives an absolute target value; the caller (ViewModel) clamps,
  * promotes a Planned/Paused session to In progress, and auto-completes when the
@@ -144,8 +146,9 @@ fun QuickProgressSheet(
                     mediaType = item.type,
                     accent = accent,
                     onSetProgress = onSetProgress,
+                    onSaved = onDismiss,
                 )
-                // Movie: watch-once, no progress control — only Completa below.
+                // Movie: watch-once, no progress control — only the complete button below.
             }
 
             Button(
@@ -254,6 +257,7 @@ private fun QuickDirectEntry(
     mediaType: MediaType,
     accent: Color,
     onSetProgress: (Int) -> Unit,
+    onSaved: () -> Unit,
 ) {
     var text by remember(current) { mutableStateOf(current.toString()) }
     val parsed = text.toIntOrNull()
@@ -302,7 +306,10 @@ private fun QuickDirectEntry(
             }
         }
         Button(
-            onClick = { parsed?.let { onSetProgress(it.coerceIn(0, maximum)) } },
+            onClick = {
+                parsed?.let { onSetProgress(it.coerceIn(0, maximum)) }
+                onSaved()
+            },
             enabled = parsed != null && parsed != current,
             colors = ButtonDefaults.buttonColors(
                 containerColor = accent,
