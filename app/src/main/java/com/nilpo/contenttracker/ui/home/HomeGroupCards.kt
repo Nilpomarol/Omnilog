@@ -51,6 +51,7 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -104,9 +105,9 @@ internal fun SimpleGroupHeader(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
-        contentColor = OmnilogColors.AppInk,
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+        contentColor = OmnilogTheme.colors.appInk,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -137,7 +138,7 @@ internal fun SimpleGroupHeader(
                 Text(
                     text = stringResource(R.string.collection_item_count, group.items.size),
                     style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                 )
             }
@@ -206,9 +207,9 @@ private fun AuthorGroupCard(
             if (group.title.isBlank()) onClick() else onAuthorClick(group.title)
         },
         shape = RoundedCornerShape(10.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
-        contentColor = OmnilogColors.AppInk,
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+        contentColor = OmnilogTheme.colors.appInk,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
@@ -257,7 +258,7 @@ private fun AuthorGroupCard(
                                 MaterialTheme.typography.titleSmall
                             },
                             fontWeight = FontWeight.Bold,
-                            color = if (isCollapsed) OmnilogColors.AppInk else accent,
+                            color = if (isCollapsed) OmnilogTheme.colors.appInk else accent,
                             maxLines = if (isCollapsed) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -269,7 +270,7 @@ private fun AuthorGroupCard(
                             Text(
                                 text = metaLine,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -283,7 +284,7 @@ private fun AuthorGroupCard(
                         Text(
                             text = stringResource(R.string.collection_item_count, group.items.size),
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                         )
                     }
@@ -325,7 +326,7 @@ private fun AuthorGroupCard(
                                     text = stringResource(R.string.group_progress_prefix, summary.label),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = OmnilogColors.AppMuted,
+                                    color = OmnilogTheme.colors.appMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -333,7 +334,7 @@ private fun AuthorGroupCard(
                                     Text(
                                         text = stringResource(R.string.group_top_rated, title),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = OmnilogColors.AppMuted,
+                                        color = OmnilogTheme.colors.appMuted,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -358,7 +359,7 @@ private fun AuthorGroupCard(
                             Text(
                                 text = stringResource(R.string.session_updated_at, date),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -424,9 +425,9 @@ private fun CollectionGroupCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = { group.collection?.let(onCollectionClick) },
         shape = RoundedCornerShape(10.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
-        contentColor = OmnilogColors.AppInk,
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+        contentColor = OmnilogTheme.colors.appInk,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
@@ -472,7 +473,7 @@ private fun CollectionGroupCard(
                                 MaterialTheme.typography.titleSmall
                             },
                             fontWeight = FontWeight.Bold,
-                            color = if (isCollapsed) OmnilogColors.AppInk else accent,
+                            color = if (isCollapsed) OmnilogTheme.colors.appInk else accent,
                             maxLines = if (isCollapsed) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -484,7 +485,7 @@ private fun CollectionGroupCard(
                             Text(
                                 text = metaLine,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -498,7 +499,7 @@ private fun CollectionGroupCard(
                         Text(
                             text = stringResource(R.string.collection_item_count, group.items.size),
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                         )
                     }
@@ -536,7 +537,7 @@ private fun CollectionGroupCard(
                                 text = stringResource(R.string.group_progress_prefix, summary.label),
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
@@ -560,7 +561,7 @@ private fun CollectionGroupCard(
                             Text(
                                 text = stringResource(R.string.session_updated_at, date),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -609,7 +610,7 @@ internal fun GroupProgressBar(
             .fillMaxWidth()
             .height(7.dp)
             .clip(RoundedCornerShape(999.dp))
-            .background(OmnilogColors.AppLine),
+            .background(OmnilogTheme.colors.appLine),
     ) {
         Box(
             modifier = Modifier

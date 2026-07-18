@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,11 @@ import com.nilpo.contenttracker.ui.common.rememberDashboardPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenDashboardSections
 import com.nilpo.contenttracker.ui.common.writeHiddenDashboardSections
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.ThemePreference
+import com.nilpo.contenttracker.ui.theme.rememberThemePreference
+import com.nilpo.contenttracker.ui.theme.rememberThemePreferences
+import com.nilpo.contenttracker.ui.theme.writeThemePreference
 
 @Composable
 fun SettingsScreen(
@@ -73,10 +79,12 @@ fun SettingsScreen(
 ) {
     val dashboardPreferences = rememberDashboardPreferences()
     val hiddenSections by rememberHiddenDashboardSections(dashboardPreferences)
+    val themePreferences = rememberThemePreferences()
+    val themePreference by rememberThemePreference(themePreferences)
 
     Surface(
         modifier = modifier,
-        color = OmnilogColors.AppBackground,
+        color = OmnilogTheme.colors.appBackground,
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -101,6 +109,11 @@ fun SettingsScreen(
                     description = "Decideix què et pregunta Omnilog i què mostra a l'inici.",
                     accent = OmnilogColors.Books,
                 ) {
+                    SettingsThemeRow(
+                        selected = themePreference,
+                        onSelect = { themePreferences.writeThemePreference(it) },
+                    )
+                    SettingsDivider()
                     SettingsSwitchRow(
                         icon = Icons.Filled.Star,
                         accent = OmnilogColors.Books,
@@ -232,12 +245,12 @@ private fun SettingsHero() {
                     text = "Configuració",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = "Fes que Omnilog s'adapti a la teva manera de fer seguiment.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }
@@ -255,7 +268,7 @@ private fun SettingsHero() {
                 text = stringResource(R.string.settings_local_storage_notice),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
     }
@@ -287,16 +300,16 @@ private fun SettingsGroup(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }
-        HorizontalDivider(color = OmnilogColors.AppLine)
+        HorizontalDivider(color = OmnilogTheme.colors.appLine)
         content()
     }
 }
@@ -305,7 +318,7 @@ private fun SettingsGroup(
 private fun SettingsDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(start = 50.dp),
-        color = OmnilogColors.AppLine,
+        color = OmnilogTheme.colors.appLine,
     )
 }
 
@@ -320,7 +333,7 @@ private fun AutoBackupCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = OmnilogColors.AppPanel),
+        colors = CardDefaults.cardColors(containerColor = OmnilogTheme.colors.appPanel),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column {
@@ -335,16 +348,16 @@ private fun AutoBackupCard(
                         text = "Còpia automàtica",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                     )
                     Text(
                         text = if (isAutoBackupEnabled) "Activada" else "Tria una carpeta per activar-la",
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OmnilogColors.AppLine)
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OmnilogTheme.colors.appLine)
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -354,7 +367,7 @@ private fun AutoBackupCard(
                     modifier = Modifier.padding(end = 8.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Row(
                     modifier = Modifier
@@ -374,12 +387,12 @@ private fun AutoBackupCard(
                                 .padding(horizontal = 5.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (frequency == selectedFrequency) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            color = if (frequency == selectedFrequency) OmnilogColors.Dashboard else OmnilogColors.AppMuted,
+                            color = if (frequency == selectedFrequency) OmnilogColors.Dashboard else OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OmnilogColors.AppLine)
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OmnilogTheme.colors.appLine)
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -463,12 +476,12 @@ private fun SettingsChipsRow(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }
@@ -478,6 +491,81 @@ private fun SettingsChipsRow(
         }
     }
 }
+
+/** Theme selector (Sistema / Clar / Fosc) laid out like the other under-label control rows. */
+@Composable
+private fun SettingsThemeRow(
+    selected: ThemePreference,
+    onSelect: (ThemePreference) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingsLeadingIcon(icon = Icons.Filled.Settings, accent = OmnilogColors.Tv)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_theme_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.colors.appInk,
+                )
+                Text(
+                    text = stringResource(R.string.settings_theme_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.padding(start = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ThemePreference.entries.forEach { option ->
+                val isSelected = option == selected
+                Surface(
+                    modifier = Modifier.selectable(
+                        selected = isSelected,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(option) },
+                    ),
+                    shape = RoundedCornerShape(999.dp),
+                    color = if (isSelected) OmnilogColors.Tv.copy(alpha = 0.16f) else Color.Transparent,
+                    border = BorderStroke(
+                        1.dp,
+                        if (isSelected) OmnilogColors.Tv.copy(alpha = 0.42f) else OmnilogTheme.colors.appLine,
+                    ),
+                ) {
+                    Text(
+                        text = option.themeOptionLabel(),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        color = if (isSelected) OmnilogColors.Tv else OmnilogTheme.colors.appMuted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemePreference.themeOptionLabel(): String = stringResource(
+    when (this) {
+        ThemePreference.System -> R.string.theme_option_system
+        ThemePreference.Light -> R.string.theme_option_light
+        ThemePreference.Dark -> R.string.theme_option_dark
+    },
+)
 
 @Composable
 private fun SettingsSwitchRow(
@@ -509,24 +597,24 @@ private fun SettingsSwitchRow(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
         Switch(
             checked = checked,
             onCheckedChange = null,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = OmnilogColors.AppInk,
+                checkedThumbColor = OmnilogTheme.colors.appInk,
                 checkedTrackColor = accent,
                 checkedBorderColor = accent,
-                uncheckedThumbColor = OmnilogColors.AppMuted,
-                uncheckedTrackColor = OmnilogColors.AppBackground,
-                uncheckedBorderColor = OmnilogColors.AppLine,
+                uncheckedThumbColor = OmnilogTheme.colors.appMuted,
+                uncheckedTrackColor = OmnilogTheme.colors.appBackground,
+                uncheckedBorderColor = OmnilogTheme.colors.appLine,
             ),
         )
     }
@@ -559,12 +647,12 @@ private fun SettingsActionRow(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = if (enabled) OmnilogColors.AppInk else OmnilogColors.AppMuted,
+                color = if (enabled) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
         if (enabled) {
@@ -581,13 +669,13 @@ private fun SettingsActionRow(
 @Composable
 private fun SettingsAboutFooter() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HorizontalDivider(color = OmnilogColors.AppLine)
+        HorizontalDivider(color = OmnilogTheme.colors.appLine)
         Row(
             modifier = Modifier.padding(horizontal = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SettingsLeadingIcon(icon = Icons.Filled.Info, accent = OmnilogColors.AppMuted)
+            SettingsLeadingIcon(icon = Icons.Filled.Info, accent = OmnilogTheme.colors.appMuted)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -596,12 +684,12 @@ private fun SettingsAboutFooter() {
                     text = "Omnilog 1.0",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = stringResource(R.string.settings_local_storage_footer),
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }

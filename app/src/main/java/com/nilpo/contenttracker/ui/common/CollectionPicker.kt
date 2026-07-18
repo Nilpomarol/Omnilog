@@ -53,7 +53,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 data class CollectionMemberPreview(
     val title: String,
@@ -110,10 +110,10 @@ fun CollectionEntryChip(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = if (hasSelection) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
+        color = if (hasSelection) accent.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
         border = BorderStroke(
             width = if (hasSelection) 1.5.dp else 1.dp,
-            color = if (hasSelection) accent.copy(alpha = 0.7f) else OmnilogColors.AppLine,
+            color = if (hasSelection) accent.copy(alpha = 0.7f) else OmnilogTheme.colors.appLine,
         ),
     ) {
         Row(
@@ -146,14 +146,14 @@ fun CollectionEntryChip(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (hasSelection) accent else OmnilogColors.AppInk,
+                color = if (hasSelection) accent else OmnilogTheme.colors.appInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = "›",
                 style = MaterialTheme.typography.titleMedium,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
     }
@@ -235,7 +235,7 @@ fun CollectionPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = OmnilogColors.AppPanel,
+        containerColor = OmnilogTheme.colors.appPanel,
     ) {
         Column(
             modifier = Modifier
@@ -336,12 +336,12 @@ private fun StepOneContent(
         text = stringResource(R.string.collection_sheet_title),
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.ExtraBold,
-        color = OmnilogColors.AppInk,
+        color = OmnilogTheme.colors.appInk,
     )
     Text(
         text = stringResource(R.string.collection_sheet_adding, itemTitle),
         style = MaterialTheme.typography.bodySmall,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -414,7 +414,7 @@ private fun StepOneContent(
 
     if (hasInitialSelection) {
         TextButton(onClick = onClearClick, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.clear_collection), color = OmnilogColors.AppMuted)
+            Text(stringResource(R.string.clear_collection), color = OmnilogTheme.colors.appMuted)
         }
     }
 
@@ -456,13 +456,13 @@ private fun StepTwoContent(
         Surface(
             onClick = onBack,
             shape = RoundedCornerShape(9.dp),
-            color = OmnilogColors.AppPanel,
-            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            color = OmnilogTheme.colors.appPanel,
+            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                 contentDescription = stringResource(R.string.back),
-                tint = OmnilogColors.AppMuted,
+                tint = OmnilogTheme.colors.appMuted,
                 modifier = Modifier.padding(4.dp).size(22.dp),
             )
         }
@@ -471,14 +471,14 @@ private fun StepTwoContent(
                 text = target.collection.name,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = stringResource(R.string.collection_sheet_adding, itemTitle),
                 style = MaterialTheme.typography.bodySmall,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -514,7 +514,7 @@ private fun StepTwoContent(
                 Text(
                     text = stringResource(R.string.collection_sheet_next_slot),
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }
@@ -533,7 +533,7 @@ private fun StepTwoContent(
         Text(
             text = stringResource(R.string.collection_sheet_unordered),
             style = MaterialTheme.typography.bodySmall,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
         )
     }
 
@@ -575,8 +575,8 @@ private fun PositionPreview(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = OmnilogColors.AppBackground,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appBackground,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(modifier = Modifier.padding(vertical = 4.dp)) {
             rows.forEach { row ->
@@ -608,14 +608,14 @@ private fun PositionPreview(
                             text = row.order?.let(::formatCollectionOrder) ?: "–",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (row.isNew) accent else OmnilogColors.AppMuted,
+                            color = if (row.isNew) accent else OmnilogTheme.colors.appMuted,
                             modifier = Modifier.width(24.dp),
                         )
                         Text(
                             text = row.title,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = if (row.isNew) FontWeight.Bold else FontWeight.Normal,
-                            color = if (row.isNew) OmnilogColors.AppInk else OmnilogColors.AppMuted,
+                            color = if (row.isNew) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
@@ -655,7 +655,7 @@ private fun SectionLabel(text: String) {
         text = text,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.Bold,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
     )
 }
 
@@ -673,10 +673,10 @@ private fun CollectionRow(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
+        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
         border = BorderStroke(
             width = if (selected) 1.5.dp else 1.dp,
-            color = if (selected) accent.copy(alpha = 0.7f) else OmnilogColors.AppLine,
+            color = if (selected) accent.copy(alpha = 0.7f) else OmnilogTheme.colors.appLine,
         ),
     ) {
         Row(
@@ -714,7 +714,7 @@ private fun CollectionRow(
                     text = title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                    color = if (selected) accent else OmnilogColors.AppInk,
+                    color = if (selected) accent else OmnilogTheme.colors.appInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -723,7 +723,7 @@ private fun CollectionRow(
                         text = it,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

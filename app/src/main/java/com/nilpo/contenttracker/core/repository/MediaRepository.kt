@@ -47,6 +47,11 @@ sealed interface DeletionRecovery {
     data class PastSession(
         val session: TrackingSessionEntity,
         val progressUpdates: List<ProgressUpdateEntity>,
+        /**
+         * Which time through the title the deleted session was, captured before deletion. Not the
+         * same as its [TrackingSessionEntity.sessionNumber], which can be sparse.
+         */
+        val visitNumber: Int,
     ) : DeletionRecovery
 
     data class ProgressUpdate(

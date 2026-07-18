@@ -53,7 +53,7 @@ import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 
 @Composable
@@ -244,6 +244,7 @@ fun DetailScreen(
                 items(pastSessions) { session ->
                     PastSessionSection(
                         session = session,
+                        visitNumber = trackedMedia.visitNumber(session),
                         progressTotal = trackedMedia.item.effectiveProgressTotal(),
                         mediaType = trackedMedia.item.type,
                         accent = accent,
@@ -432,8 +433,8 @@ private fun ExternalScoreTile(
     Surface(
         modifier = modifier.height(112.dp),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
@@ -443,7 +444,7 @@ private fun ExternalScoreTile(
                 text = rating.source.displayName(),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -463,7 +464,7 @@ private fun ExternalScoreTile(
                     text = stringResource(R.string.metadata_users) + " " + formatCompactCount(voteCount.toDouble()),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

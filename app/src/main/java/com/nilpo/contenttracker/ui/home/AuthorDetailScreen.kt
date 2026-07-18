@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.TrackedMedia
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun AuthorDetailScreen(
@@ -48,7 +48,7 @@ fun AuthorDetailScreen(
             .thenBy { it.item.title.lowercase() },
     )
 
-    Surface(modifier = modifier, color = OmnilogColors.AppBackground) {
+    Surface(modifier = modifier, color = OmnilogTheme.colors.appBackground) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
@@ -60,7 +60,7 @@ fun AuthorDetailScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
-                        tint = OmnilogColors.AppInk,
+                        tint = OmnilogTheme.colors.appInk,
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
@@ -68,14 +68,14 @@ fun AuthorDetailScreen(
                         text = author,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = stringResource(creatorLabelResId),
                         style = MaterialTheme.typography.labelMedium,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -91,11 +91,11 @@ fun AuthorDetailScreen(
                     Text(
                         text = stringResource(R.string.collection_item_count, items.size),
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
             }
-            HorizontalDivider(color = OmnilogColors.AppLine)
+            HorizontalDivider(color = OmnilogTheme.colors.appLine)
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),

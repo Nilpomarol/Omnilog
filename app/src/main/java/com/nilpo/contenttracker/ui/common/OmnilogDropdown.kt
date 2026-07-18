@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 /**
  * Themed replacement for [DropdownMenu] that matches the Omnilog dark surface
@@ -37,8 +37,8 @@ fun OmnilogDropdownMenu(
         modifier = modifier,
         offset = offset,
         shape = RoundedCornerShape(14.dp),
-        containerColor = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        containerColor = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         tonalElevation = 0.dp,
         shadowElevation = 12.dp,
         content = content,
@@ -55,8 +55,8 @@ fun OmnilogDropdownItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
-    accent: Color = OmnilogColors.AppInk,
-    labelColor: Color = OmnilogColors.AppInk,
+    accent: Color = OmnilogTheme.colors.appInk,
+    labelColor: Color = OmnilogTheme.colors.appInk,
     leadingIcon: (@Composable () -> Unit)? = null,
 ) {
     DropdownMenuItem(
@@ -83,8 +83,8 @@ fun OmnilogDropdownItem(
             null
         },
         colors = MenuDefaults.itemColors(
-            textColor = OmnilogColors.AppInk,
-            leadingIconColor = OmnilogColors.AppMuted,
+            textColor = OmnilogTheme.colors.appInk,
+            leadingIconColor = OmnilogTheme.colors.appMuted,
             trailingIconColor = accent,
         ),
     )

@@ -42,6 +42,7 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -50,6 +51,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SessionDetail(
     session: TrackingSession,
+    visitNumber: Int,
     progressTotal: Int?,
     mediaType: MediaType,
     accent: Color,
@@ -64,7 +66,7 @@ fun SessionDetail(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = OmnilogColors.AppPanel,
+        color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, visualState.color.copy(alpha = 0.30f)),
         tonalElevation = 0.dp,
     ) {
@@ -79,8 +81,8 @@ fun SessionDetail(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
-                        text = session.visitLabel(),
-                        color = OmnilogColors.AppInk,
+                        text = visitLabel(visitNumber),
+                        color = OmnilogTheme.colors.appInk,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.ExtraBold,
                     )
@@ -128,7 +130,7 @@ fun SessionDetail(
             session.platform?.let { platform ->
                 Text(
                     text = stringResource(R.string.platform_label, platform.name),
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -137,7 +139,7 @@ fun SessionDetail(
             session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
                 Text(
                     text = notes,
-                    color = OmnilogColors.AppInk.copy(alpha = 0.70f),
+                    color = OmnilogTheme.colors.appInk.copy(alpha = 0.70f),
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -150,7 +152,7 @@ fun SessionDetail(
         OmnilogAlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
             title = stringResource(R.string.delete_session_title),
-            text = { Text(text = stringResource(R.string.delete_session_message, session.sessionNumber)) },
+            text = { Text(text = stringResource(R.string.delete_session_message, visitNumber)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -171,10 +173,10 @@ fun SessionDetail(
 }
 
 @Composable
-private fun TrackingSession.visitLabel(): String =
+private fun visitLabel(visitNumber: Int): String =
     when {
-        sessionNumber == 1 -> stringResource(R.string.session_first_time)
-        else -> stringResource(R.string.session_number, sessionNumber)
+        visitNumber <= 1 -> stringResource(R.string.session_first_time)
+        else -> stringResource(R.string.session_number, visitNumber)
     }
 
 @Composable
@@ -220,7 +222,7 @@ private fun SessionProgress(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = progressText,
-            color = OmnilogColors.AppInk.copy(alpha = 0.82f),
+            color = OmnilogTheme.colors.appInk.copy(alpha = 0.82f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
         )
@@ -230,7 +232,7 @@ private fun SessionProgress(
                     .fillMaxWidth()
                     .height(5.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(OmnilogColors.AppLine.copy(alpha = 0.78f)),
+                    .background(OmnilogTheme.colors.appLine.copy(alpha = 0.78f)),
             ) {
                 Box(
                     modifier = Modifier
@@ -268,7 +270,7 @@ private fun SessionRating(rating: Int?, color: Color) {
                 tint = if (index < rating.coerceIn(0, 10)) {
                     color
                 } else {
-                    OmnilogColors.AppMuted.copy(alpha = 0.22f)
+                    OmnilogTheme.colors.appMuted.copy(alpha = 0.22f)
                 },
             )
         }
@@ -305,7 +307,7 @@ private fun SessionMetaRow(session: TrackingSession, mediaType: MediaType) {
         values.take(3).forEach { value ->
             Text(
                 text = value,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,

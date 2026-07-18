@@ -68,6 +68,7 @@ import com.nilpo.contenttracker.ui.common.objectiveDisplayTitle
 import com.nilpo.contenttracker.ui.common.objectivePresentation
 import com.nilpo.contenttracker.ui.common.objectiveUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -131,7 +132,7 @@ fun ProfileObjectivesSection(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             TextButton(onClick = { editorObjective = null; showEditor = true }) {
                 Icon(Icons.Filled.Add, contentDescription = null)
@@ -150,14 +151,14 @@ fun ProfileObjectivesSection(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                color = OmnilogColors.AppPanel,
-                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                color = OmnilogTheme.colors.appPanel,
+                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
             ) {
                 Text(
                     text = "Defineix un objectiu per fer seguiment del que vols aconseguir.",
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         } else {
@@ -229,16 +230,16 @@ private fun ObjectiveCelebrationBanner(
                     text = if (names.size == 1) "Objectiu assolit!" else "Objectius assolits!",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = names.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Filled.Close, contentDescription = "Tanca", tint = OmnilogColors.AppMuted)
+                Icon(Icons.Filled.Close, contentDescription = "Tanca", tint = OmnilogTheme.colors.appMuted)
             }
         }
     }
@@ -263,12 +264,12 @@ private fun PastObjectivesHeader(
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
         )
         Icon(
             imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
             contentDescription = if (expanded) "Amaga" else "Mostra",
-            tint = OmnilogColors.AppMuted,
+            tint = OmnilogTheme.colors.appMuted,
         )
     }
 }
@@ -303,7 +304,7 @@ private fun ObjectiveEditorDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = OmnilogColors.AppPanel,
+        containerColor = OmnilogTheme.colors.appPanel,
     ) {
         Column(
             modifier = Modifier
@@ -317,7 +318,7 @@ private fun ObjectiveEditorDialog(
                 text = if (initial == null) "Afegir objectiu" else "Editar objectiu",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             EditorDropdown(
                 label = "Què vols mesurar",
@@ -377,7 +378,7 @@ private fun ObjectiveEditorDialog(
                 Text(
                     text = "Previsualització: ${objectiveDisplayTitle(metric, mediaType, targetValue, unit ?: ObjectiveUnit.Titles)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
             Row(
@@ -446,7 +447,7 @@ private fun <T> EditorDropdown(
         targetValue = if (expanded) 180f else 0f,
         label = "objectiveDropdownChevron",
     )
-    val borderColor = if (expanded) OmnilogColors.Dashboard else OmnilogColors.AppLine
+    val borderColor = if (expanded) OmnilogColors.Dashboard else OmnilogTheme.colors.appLine
 
     Box(
         modifier = Modifier
@@ -456,7 +457,7 @@ private fun <T> EditorDropdown(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            color = OmnilogColors.AppBackground,
+            color = OmnilogTheme.colors.appBackground,
             border = BorderStroke(1.dp, borderColor),
         ) {
             Row(
@@ -470,18 +471,18 @@ private fun <T> EditorDropdown(
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     Text(
                         text = optionLabel(selected),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                     )
                 }
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowDown,
                     contentDescription = null,
-                    tint = if (expanded) OmnilogColors.Dashboard else OmnilogColors.AppMuted,
+                    tint = if (expanded) OmnilogColors.Dashboard else OmnilogTheme.colors.appMuted,
                     modifier = Modifier.rotate(chevronRotation),
                 )
             }
@@ -497,8 +498,8 @@ private fun <T> EditorDropdown(
                 Surface(
                     modifier = Modifier.width(with(density) { triggerSize.width.toDp() }),
                     shape = RoundedCornerShape(12.dp),
-                    color = OmnilogColors.AppPanel,
-                    border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                    color = OmnilogTheme.colors.appPanel,
+                    border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
                     shadowElevation = 10.dp,
                 ) {
                     Column {
@@ -523,7 +524,7 @@ private fun <T> EditorDropdown(
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) OmnilogColors.Dashboard else OmnilogColors.AppInk,
+                                    color = if (isSelected) OmnilogColors.Dashboard else OmnilogTheme.colors.appInk,
                                 )
                                 if (isSelected) {
                                     Icon(
@@ -599,8 +600,8 @@ private fun DateField(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = OmnilogColors.AppBackground,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appBackground,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
@@ -614,11 +615,11 @@ private fun DateField(
                 modifier = Modifier.size(16.dp),
             )
             Column {
-                Text(label, style = MaterialTheme.typography.labelSmall, color = OmnilogColors.AppMuted)
+                Text(label, style = MaterialTheme.typography.labelSmall, color = OmnilogTheme.colors.appMuted)
                 Text(
                     date.format(objectiveDateFormatter),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
             }
         }

@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 /**
  * Snackbar styled to match the Omnilog aesthetic: a warm dark panel with a
@@ -33,9 +34,9 @@ fun OmnilogSnackbar(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = OmnilogColors.AppPanelTranslucent,
-        contentColor = OmnilogColors.AppInk,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanelTranslucent,
+        contentColor = OmnilogTheme.colors.appInk,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         tonalElevation = 0.dp,
         shadowElevation = 8.dp,
     ) {
@@ -52,7 +53,7 @@ fun OmnilogSnackbar(
             Text(
                 text = snackbarData.visuals.message,
                 modifier = Modifier.weight(1f),
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (actionLabel != null) {

@@ -28,14 +28,14 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 11 | UX-11 | 17 | Replace the ten-small-stars rating control | High | `[x]` |
 | 12 | UX-12 | 18 | Clarify status, ownership, and rating indicators | Medium | `[x]` |
 | 13 | UX-13 | 1 | Add quick progress actions to daily-use surfaces | High | `[x]` |
-| 14 | UX-14 | 2 | Make the add and metadata-search flow explicit | High | `[-]` |
+| 14 | UX-14 | 2 | Make the add and metadata-search flow explicit | High | `[x]` |
 | 15 | UX-15 | 9 | Separate saved and external search results | Medium | `[x]` |
 | 16 | UX-16 | 3 | Turn empty states into useful starting points | High | `[x]` |
 | 17 | UX-17 | 12 | Rebalance the Home information hierarchy | Medium | `[x]` |
 | 18 | UX-18 | 13 | Replace the games-only Home preference | Medium | `[x]` |
 | 19 | UX-19 | 20 | Add actionable loading and error recovery | Medium | `[x]` |
 | 20 | UX-20 | 21 | Make statistics comparisons interpretable | Medium | `[x]` |
-| 21 | UX-21 | 22 | Support system, light, and dark themes | Medium | `[ ]` |
+| 21 | UX-21 | 22 | Support system, light, and dark themes | Medium | `[-]` |
 
 ## Phase 1: Correctness, Trust, and Product Language
 
@@ -163,7 +163,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** A typical progress update can be completed from Home or a library in one or two intentional actions with immediate feedback.
 
-### [-] UX-14 — Make the add and metadata-search flow explicit
+### [x] UX-14 — Make the add and metadata-search flow explicit
 
 - **Original finding:** 2
 - **Issue:** The add screen has no task-specific title or visible search action, and search submission is effectively hidden in the keyboard.
@@ -172,7 +172,8 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Priority:** High
 - **Done when:** The flow is understandable without relying on keyboard conventions and preserves a clear back/cancel path.
 - **Implementation note:** The metadata-search step now shows a media-type-specific title (`Afegeix un llibre` / `una pel·lícula` / `una sèrie` / `un anime` / `un joc`) with a subtitle explaining search-vs-manual, a leading magnifier plus an inline search button and a clear (✕) control in the pill (loading spinner replaces the search button while a query runs), and the keyboard is dismissed when results arrive and on explicit submit. Manual entry was promoted from a low-emphasis text button to an outlined button; Cancel remains the back path. Debounced auto-search is retained as additive behaviour.
-- **Verification note:** Debug APK build and `:app:testDebugUnitTest` pass. Device/emulator QA (default and 200% font scale, keyboard-dismissal behaviour) is pending because no Android target is currently connected.
+- **Fixed after the fact — the screen opened with the wrong media type:** the add screen was titled from an arbitrary library item rather than the section it was opened from, so `Llibres` → `+` produced `Afegeix una pel·lícula` with the movie accent, defeating this item's own "title the screen for the current media type" requirement. `selectedCollectionItems` (`ContentTrackerApp.kt`) filtered `it.collection?.id == selectedCollectionId`; outside a collection that id is null, and `null == null` matches every collection-less item, so `firstOrNull()` returned an arbitrary item and `initialAddType` never fell through to `selectedSection.defaultType`. The list is now empty when no collection is selected, which restores the fallback and leaves the collection-add path (where the id is genuinely set) computing the same value as before. Pre-existing since `f03ceac`; surfaced by UX-19, which noted it mis-coloured the retry buttons it had just added.
+- **Verification note:** Debug APK build and `:app:testDebugUnitTest` pass. The media-type fix is verified on device (`61070DLCQ000KB`, 2026-07-17) against the real library: `Llibres` → `+` gives `Afegeix un llibre` in the book accent, `Jocs` → `+` gives `Afegeix un joc` in the Jocs accent, and adding into the `Trono de Cristal` collection still gives `Afegeix un llibre` — the path the old code was written for, confirming no regression. **Not verified on hardware:** 200% font scale and the keyboard-dismissal behaviour, which were the original QA gaps and remain untested.
 
 ### [x] UX-15 — Separate saved and external search results
 
@@ -268,7 +269,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
   - **Progress indicators** were added only where nothing else showed one — the season picker, edition picker, link dialog, and the review hero's `Carregant detalls...`. The add search step deliberately keeps its panel text-only: UX-14 already spins the search pill, and a second indicator reads as two separate waits.
 - **Not done — deliberately:** the add screen's save button still has no in-flight guard (`enabled = title.isNotBlank() && !isLoadingDetails`) and `addTrackedMedia` is fire-and-forget. The call site sets `isAdding = false` synchronously so the sheet leaves composition on the first tap, making a real double-insert unlikely; a write path is not a loading or error state, so it stays out of scope.
 - **Verification note:** verified on device (`61070DLCQ000KB`, 2026-07-17) by forcing failures with the radios off. Search error → `Torna-ho a provar` → offline retry re-attempts cleanly → online retry returns 20 results. Partial failure fired naturally (Google Books down, Open Library up) and rendered `Google Books no ha respost, així que hi pot faltar algun resultat.` with correct singular agreement. Details error now renders non-blockingly over the review form, and its retry loads the details and advances to the edition picker. `:app:testDebugUnitTest` passes, including 5 new `PartialSearchFailureTest` cases covering the provider enumeration. **Not verified:** 200% font scaling, and the Catalan plural for 2+ failed providers (only the one-provider case occurred naturally).
-- **Deferred follow-up:** the add screen opens with the wrong media type — in `Llibres` it is titled `Afegeix una pel·lícula` with the movie accent. `selectedCollectionItems` (`ContentTrackerApp.kt`) filters `it.collection?.id == selectedCollectionId`, which with a null id matches every collection-less item, so `initialAddType` comes from an arbitrary library item instead of `selectedSection.defaultType`. Pre-existing (commit `f03ceac`), out of scope here, but it mis-colors this item's new retry buttons.
+- **Deferred follow-up — now resolved under UX-14:** the add screen opened with the wrong media type (in `Llibres` it was titled `Afegeix una pel·lícula` with the movie accent), which mis-coloured this item's new retry buttons. Pre-existing (commit `f03ceac`) and correctly out of scope here; fixed and device-verified under UX-14, where the "title the screen for the current media type" requirement lives.
 
 ### [x] UX-20 — Make statistics comparisons interpretable
 
@@ -287,7 +288,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
   - **Tests:** `StatsCalculatorTest` gained coverage for the year-to-date window boundary (inclusive same-day cutoff, late-previous-year exclusions) and the basis mapping for all four periods.
   - **Device-verified** (Pixel, real library): `Aquest any` / `Tot` / `2025` periods, bar and trend selection round-trips, sticky bar deep in the page, and the hero at 200% font scale.
 
-### [ ] UX-21 — Support system, light, and dark themes
+### [-] UX-21 — Support system, light, and dark themes
 
 - **Original finding:** 22
 - **Issue:** Omnilog is dark-only and does not follow the device theme preference.
@@ -295,6 +296,10 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Add `Sistema`, `Clar`, and `Fosc` options after the shared color and contrast foundations are stable.
 - **Priority:** Medium
 - **Done when:** All core screens, dialogs, charts, states, and section accents have verified light and dark treatments.
+- **Progress:**
+  - *Palette refactor (done).* Split the static `OmnilogColors` object: the neutral surface/text tones (`appBackground`, `appPanel`, `appPanelTranslucent`, `appLine`, `appInk`, `appMuted`) moved into an `OmnilogPalette` read through a `LocalOmnilogPalette` CompositionLocal (`OmnilogTheme.colors`), migrated at ~523 call sites. Media/status accents stay in `OmnilogColors` because they are baked into enums (`MediaSection.accent`) and read from non-composable helpers (`statsColor()`, draw scopes). Non-composable neutral readers were threaded a resolved color parameter (`ObjectiveProgressCard`) or hoisted above their `Canvas` (`StatsScreen`).
+  - *Neutral light theme + switch (done).* Added `LightPalette` (warm-paper surfaces) and a `lightColorScheme`, a `Sistema`/`Clar`/`Fosc` preference (`ThemePreference`, stored like `DashboardSectionPreferences`), a Settings selector, root wiring in `MainActivity`, and runtime status/navigation-bar icon inversion via `WindowCompat`.
+  - *Deferred — light-tuned accents.* The media/status accents are still their dark-tuned values on light surfaces (gold/pink read low-contrast on paper). Making them theme-aware touches ~167 `OmnilogColors.<accent>` + ~44 `.accent` sites plus non-composable helpers, and needs approved light hex values; tracked as the next increment. Cover-image scrim gradients (`0xFF17110D`) intentionally stay dark in both themes.
 
 ## Suggested Working Method
 

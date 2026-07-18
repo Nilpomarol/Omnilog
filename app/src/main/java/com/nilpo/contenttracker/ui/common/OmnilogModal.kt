@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun OmnilogModal(
@@ -33,9 +33,9 @@ fun OmnilogModal(
                 .padding(horizontal = 18.dp)
                 .widthIn(max = 520.dp),
             shape = RoundedCornerShape(16.dp),
-            color = OmnilogColors.AppPanel,
-            contentColor = OmnilogColors.AppInk,
-            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            color = OmnilogTheme.colors.appPanel,
+            contentColor = OmnilogTheme.colors.appInk,
+            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
             tonalElevation = 0.dp,
             shadowElevation = 10.dp,
             content = content,
@@ -56,7 +56,7 @@ fun OmnilogAlertDialog(
         title = {
             Text(
                 text = title,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.ExtraBold,
             )
@@ -65,9 +65,9 @@ fun OmnilogAlertDialog(
         confirmButton = confirmButton,
         dismissButton = dismissButton,
         shape = RoundedCornerShape(16.dp),
-        containerColor = OmnilogColors.AppPanel,
-        titleContentColor = OmnilogColors.AppInk,
-        textContentColor = OmnilogColors.AppMuted,
+        containerColor = OmnilogTheme.colors.appPanel,
+        titleContentColor = OmnilogTheme.colors.appInk,
+        textContentColor = OmnilogTheme.colors.appMuted,
         tonalElevation = 0.dp,
     )
 }
@@ -77,8 +77,8 @@ fun omnilogModalTextFieldColors(accent: androidx.compose.ui.graphics.Color) =
     androidx.compose.material3.OutlinedTextFieldDefaults.colors(
         focusedBorderColor = accent,
         cursorColor = accent,
-        unfocusedBorderColor = OmnilogColors.AppLine,
+        unfocusedBorderColor = OmnilogTheme.colors.appLine,
         focusedLabelColor = accent,
-        focusedPlaceholderColor = OmnilogColors.AppMuted,
-        unfocusedPlaceholderColor = OmnilogColors.AppMuted,
+        focusedPlaceholderColor = OmnilogTheme.colors.appMuted,
+        unfocusedPlaceholderColor = OmnilogTheme.colors.appMuted,
     )

@@ -366,15 +366,17 @@ class StatsChartFormsTest {
         ).languageBreakdown
 
         // Legacy variants collapse into one normalized bucket.
-        assertEquals(3, breakdown.single { it.code == "en" }.value)
-        assertEquals(1, breakdown.single { it.code == "ca" }.value)
+        assertEquals(3, breakdown.stats.single { it.code == "en" }.value)
+        assertEquals(1, breakdown.stats.single { it.code == "ca" }.value)
         // Custom values survive as their own bucket.
-        assertEquals(1, breakdown.single { it.code == "Klingon" }.value)
-        // Missing and blank values group under the null unknown bucket.
-        assertEquals(2, breakdown.single { it.code == null }.value)
-        assertTrue(breakdown.none { it.code == "english" || it.code == "ENG" })
-        // Largest first; on equal counts, named languages precede unknown.
-        assertEquals(listOf("en", null, "ca", "Klingon"), breakdown.map { it.code })
+        assertEquals(1, breakdown.stats.single { it.code == "Klingon" }.value)
+        assertTrue(breakdown.stats.none { it.code == "english" || it.code == "ENG" })
+        // Missing and blank values get no block: they are the denominator, not a language.
+        assertTrue(breakdown.stats.none { it.code == null })
+        assertEquals(5, breakdown.recordedTitles)
+        assertEquals(7, breakdown.totalTitles)
+        // Largest first, then alphabetical.
+        assertEquals(listOf("en", "ca", "Klingon"), breakdown.stats.map { it.code })
     }
 
     @Test
@@ -384,7 +386,9 @@ class StatsChartFormsTest {
             filters = StatsFilters(period = StatsPeriod.ThisYear, mediaTypes = MediaType.entries.toSet()),
         ).languageBreakdown
 
-        assertTrue(breakdown.isEmpty())
+        assertTrue(breakdown.stats.isEmpty())
+        assertTrue(breakdown.includedMediaTypes.isEmpty())
+        assertTrue(breakdown.excludedMediaTypes.isEmpty())
     }
 
     // --- Dense data keeps every guarantee at once ---
@@ -419,7 +423,10 @@ class StatsChartFormsTest {
         assertEquals(10, snapshot.ratingDistribution.size)
         assertEquals(MediaType.entries.size, snapshot.progressTotals.size)
         assertEquals(MediaType.entries.size, snapshot.topGenres.first { it.label == "Shared" }.value)
-        assertEquals(2, snapshot.languageBreakdown.size)
+        // One title per medium, so no medium can clear the language coverage floor however
+        // faithfully each one is tagged.
+        assertEquals(MediaType.entries.size, snapshot.languageBreakdown.excludedMediaTypes.size)
+        assertTrue(snapshot.languageBreakdown.stats.isEmpty())
         // Ratings land in months 1..5, so every adjacent pair connects and
         // the unrated remaining months stay disconnected.
         assertEquals(
@@ -467,4 +474,175 @@ class StatsChartFormsTest {
             finishedAt = finishedAt,
         )
     }
+
+    @Test
+    fun pictogramKeepsEveryRowInAReadableBand() {
+        // Totals spanning four orders of magnitude must all stay drawable.
+        listOf(1, 7, 41, 96, 1_482, 12_500, 480_000).forEach { value ->
+            val scale = pictogramScale(value)
+            assertTrue(
+                "value=$value produced ${scale.totalBlocks} blocks",
+                scale.totalBlocks in 1..17,
+            )
+        }
+    }
+
+    @Test
+    fun pictogramBlocksAccountForTheWholeTotal() {
+        listOf(1, 7, 41, 96, 1_482, 12_500).forEach { value ->
+            val scale = pictogramScale(value)
+            val covered = scale.fullBlocks * scale.blockUnit
+            assertTrue("value=$value overcounted", covered <= value)
+            // The partial block exists exactly when full blocks fall short.
+            assertEquals(value != covered, scale.hasPartialBlock)
+        }
+    }
+
+    @Test
+    fun pictogramPicksRoundBlockSizes() {
+        assertEquals(100, pictogramScale(1_482).blockUnit)
+        assertEquals(14, pictogramScale(1_482).fullBlocks)
+        assertTrue(pictogramScale(1_482).hasPartialBlock)
+        // Small totals stay one block per unit rather than collapsing to nothing.
+        assertEquals(1, pictogramScale(7).blockUnit)
+        assertEquals(7, pictogramScale(7).fullBlocks)
+    }
+
+    @Test
+    fun pictogramFillsMostOfTheRowForRealisticTotals() {
+        // The ladder exists so rows do not render half empty. Anything above a
+        // handful of units should reach most of the way across the row.
+        listOf(41, 68, 96, 350, 1_240, 1_482, 12_500).forEach { value ->
+            val scale = pictogramScale(value)
+            assertTrue(
+                "value=$value filled only ${scale.totalBlocks} blocks",
+                scale.totalBlocks >= 12,
+            )
+        }
+    }
+
+    @Test
+    fun pictogramHandlesEmptyTotals() {
+        val scale = pictogramScale(0)
+        assertEquals(0, scale.totalBlocks)
+        assertEquals(false, scale.hasPartialBlock)
+    }
+
+
+    @Test
+    fun waffleSquaresAlwaysSumToTheGridTotal() {
+        // Rounding each medium on its own would let the grid claim more or fewer hours than
+        // the section reports. Largest-remainder allocation must keep the sum exact.
+        val cases = listOf(
+            listOf(1_852.5, 2_112.0, 2_050.0, 1_240.0, 4_080.0),
+            listOf(10.0, 10.0, 10.0),
+            listOf(59.0, 1.0),
+            listOf(100_000.0, 3.0),
+            listOf(7.0),
+        )
+        cases.forEach { minutes ->
+            val stats = minutes.mapIndexed { index, value ->
+                EstimatedTimeStat(mediaType = MediaType.entries[index % MediaType.entries.size], minutes = value)
+            }
+            val waffle = estimatedTimeWaffle(stats)
+            val expected = Math.round(minutes.sum() / waffle.minutesPerSquare).toInt().coerceAtLeast(1)
+            assertEquals("minutes=$minutes", expected, waffle.totalSquares)
+        }
+    }
+
+    @Test
+    fun waffleStaysWithinItsSquareBudget() {
+        listOf(60.0, 6_000.0, 600_000.0, 6_000_000.0).forEach { total ->
+            val waffle = estimatedTimeWaffle(
+                listOf(EstimatedTimeStat(mediaType = MediaType.Book, minutes = total)),
+            )
+            assertTrue("total=$total gave ${waffle.totalSquares}", waffle.totalSquares in 1..150)
+        }
+    }
+
+    @Test
+    fun waffleSquareStaysWithinFiftyHoursForRealisticTotals() {
+        // A square has to stay a quantity a reader can hold. Fifty hours is the ceiling, and it
+        // holds across every total this app plausibly reaches in a period.
+        listOf(10, 100, 500, 1_000, 2_000, 3_000, 4_800, 7_500).forEach { hours ->
+            val waffle = estimatedTimeWaffle(
+                listOf(EstimatedTimeStat(mediaType = MediaType.Game, minutes = hours * 60.0)),
+            )
+            assertTrue(
+                "$hours h gave a ${waffle.minutesPerSquare / 60.0} h square",
+                waffle.minutesPerSquare <= 3_000.0,
+            )
+        }
+    }
+
+    @Test
+    fun waffleOrdersSegmentsLargestFirst() {
+        val waffle = estimatedTimeWaffle(
+            listOf(
+                EstimatedTimeStat(mediaType = MediaType.Book, minutes = 600.0),
+                EstimatedTimeStat(mediaType = MediaType.Game, minutes = 4_000.0),
+                EstimatedTimeStat(mediaType = MediaType.Movie, minutes = 1_800.0),
+            ),
+        )
+        assertEquals(
+            listOf(MediaType.Game, MediaType.Movie, MediaType.Book),
+            waffle.segments.map { segment -> segment.mediaType },
+        )
+    }
+
+    @Test
+    fun waffleIsEmptyWithoutTime() {
+        val waffle = estimatedTimeWaffle(emptyList())
+        assertEquals(0, waffle.totalSquares)
+        assertTrue(waffle.segments.isEmpty())
+    }
+
+
+    @Test
+    fun waffleGridGrowsWithTheTotal() {
+        // The grid used to look near-identical for wildly different totals, and could even draw
+        // fewer squares for more time. Bigger totals must now read as visibly bigger grids.
+        fun squares(hours: Double): Int = estimatedTimeWaffle(
+            listOf(EstimatedTimeStat(mediaType = MediaType.Game, minutes = hours * 60.0)),
+        ).totalSquares
+
+        val small = squares(200.0)
+        val large = squares(4_600.0)
+        assertTrue("200 h drew $small, 4600 h drew $large", large - small >= 10)
+
+        assertTrue(squares(20.0) < squares(200.0))
+        assertTrue(squares(200.0) < squares(2_000.0))
+        assertTrue(squares(5.0) < squares(50.0))
+    }
+
+    @Test
+    fun waffleGridNeverShrinksMeaningfullyAsTimeGrows() {
+        // Snapping the square size to a readable increment leaves a small wobble; a bounded grid
+        // cannot avoid it entirely. What matters is that it stays proportionally small, so the
+        // tolerance is a share of the grid rather than a flat count — losing four squares from
+        // thirty is visible, losing four from ninety is not.
+        var previous = 0
+        var worstDrop = 0.0
+        var worstAt = 0
+        (1..20_000).forEach { hours ->
+            val squares = estimatedTimeWaffle(
+                listOf(EstimatedTimeStat(mediaType = MediaType.Game, minutes = hours * 60.0)),
+            ).totalSquares
+            // A single square is allowed to move regardless: at the floor of eight squares one
+            // tile is already an eighth of the grid, and that is not a lurch worth failing on.
+            if (squares < previous - 1) {
+                val drop = (previous - squares).toDouble() / previous
+                if (drop > worstDrop) {
+                    worstDrop = drop
+                    worstAt = hours
+                }
+            }
+            previous = squares
+        }
+        assertTrue(
+            "worst drop was ${(worstDrop * 100).toInt()}% at $worstAt h",
+            worstDrop <= 0.10,
+        )
+    }
+
 }

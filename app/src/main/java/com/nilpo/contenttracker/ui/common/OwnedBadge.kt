@@ -13,14 +13,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun OwnedBadge(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppPanel.copy(alpha = 0.92f),
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         contentColor = OmnilogColors.Dashboard,
     ) {
         Icon(

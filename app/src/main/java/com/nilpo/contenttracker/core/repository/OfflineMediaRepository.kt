@@ -524,12 +524,18 @@ class OfflineMediaRepository(
         if (sessions.size <= 1 || session.sessionNumber == latestSessionNumber) {
             return null
         }
+        // Captured before the row goes away: the survivors are deliberately not renumbered, so
+        // afterwards there is no way to recover which visit this was.
+        val visitNumber = sessions
+            .sortedBy { it.sessionNumber }
+            .indexOfFirst { it.id == sessionId } + 1
         val progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId)
         mediaDao.deleteProgressUpdatesForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
         return DeletionRecovery.PastSession(
             session = session,
             progressUpdates = progressUpdates,
+            visitNumber = visitNumber,
         )
     }
 

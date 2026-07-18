@@ -29,6 +29,7 @@ import com.nilpo.contenttracker.core.model.ObjectiveStatus
 import com.nilpo.contenttracker.ui.common.ObjectiveSummaryRow
 import com.nilpo.contenttracker.ui.common.paceStatus
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 private const val VisibleObjectiveRows = 3
 
@@ -55,8 +56,8 @@ fun DashboardObjectivesPreview(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(13.dp),
@@ -71,14 +72,14 @@ fun DashboardObjectivesPreview(
                     text = stringResource(R.string.home_objectives_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = objectives.statusSummary(),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

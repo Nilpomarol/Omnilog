@@ -20,6 +20,7 @@ import java.time.LocalDate
 @Composable
 fun PastSessionSection(
     session: TrackingSession,
+    visitNumber: Int,
     progressTotal: Int?,
     mediaType: MediaType,
     accent: Color,
@@ -32,6 +33,7 @@ fun PastSessionSection(
 
     SessionDetail(
         session = session,
+        visitNumber = visitNumber,
         progressTotal = progressTotal,
         mediaType = mediaType,
         accent = accent,

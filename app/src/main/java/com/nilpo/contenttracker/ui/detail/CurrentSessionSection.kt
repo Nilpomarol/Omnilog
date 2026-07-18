@@ -73,6 +73,8 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.common.TrackingDateRange
 import com.nilpo.contenttracker.ui.common.TrackingNotesField
 import com.nilpo.contenttracker.ui.common.TrackingProgressField
@@ -391,7 +393,7 @@ private fun EditSectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
     )
 }
@@ -534,7 +536,7 @@ private fun ProgressEditorRow(
                     Text(
                         text = "de $progressTotal ${progressUnitLabel(mediaType, progressTotal)}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
             }
@@ -732,7 +734,7 @@ private fun PlannedSummary(session: TrackingSession, mediaType: MediaType, color
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.session_planned_prompt),
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             style = MaterialTheme.typography.bodyMedium,
         )
         QuickHintRow(
@@ -790,7 +792,7 @@ private fun ProgressSummary(
         session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
             Text(
                 text = notes,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -811,7 +813,7 @@ private fun CompletedSummary(
         }
         Text(
             text = progressText(session, progressTotal, mediaType),
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             style = MaterialTheme.typography.bodyMedium,
         )
         SessionDates(session = session, mediaType = mediaType)
@@ -832,7 +834,7 @@ private fun DroppedSummary(
         } else {
             Text(
                 text = progressText(session, progressTotal, mediaType),
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
@@ -844,7 +846,7 @@ private fun DroppedSummary(
         if (session.rating != null) {
             Text(
                 text = progressText(session, progressTotal, mediaType),
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -891,7 +893,7 @@ private fun RatingDisplay(rating: Int?, color: Color) {
             Text(
                 text = stringResource(R.string.field_rating),
                 color = if (rating != null) color
-                else OmnilogColors.AppMuted,
+                else OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
@@ -902,7 +904,7 @@ private fun RatingDisplay(rating: Int?, color: Color) {
                     stringResource(R.string.rating_empty)
                 },
                 color = if (rating != null) color
-                else OmnilogColors.AppMuted,
+                else OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
             )
@@ -1035,7 +1037,7 @@ private fun SessionDates(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1158,33 +1160,6 @@ private fun progressText(
         "${session.progressCurrent} $unit"
     }
 }
-
-@Composable
-private fun progressUnitLabel(mediaType: MediaType, value: Int): String =
-    when (mediaType) {
-        MediaType.Anime,
-        MediaType.TvShow,
-            -> if (value == 1) {
-            stringResource(R.string.progress_unit_episode_one)
-        } else {
-            stringResource(R.string.progress_unit_episode_many)
-        }
-        MediaType.Book -> if (value == 1) {
-            stringResource(R.string.progress_unit_page_one)
-        } else {
-            stringResource(R.string.progress_unit_page_many)
-        }
-        MediaType.Movie -> if (value == 1) {
-            stringResource(R.string.progress_unit_minute_one)
-        } else {
-            stringResource(R.string.progress_unit_minute_many)
-        }
-        MediaType.Game -> if (value == 1) {
-            stringResource(R.string.progress_unit_hour_one)
-        } else {
-            stringResource(R.string.progress_unit_hour_many)
-        }
-    }
 
 private fun TrackingSession.progressFraction(progressTotal: Int?): Float {
     if (progressTotal == null || progressTotal <= 0) return 0f

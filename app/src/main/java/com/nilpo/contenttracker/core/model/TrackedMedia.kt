@@ -8,9 +8,34 @@ data class TrackedMedia(
     val credits: List<MediaCredit> = emptyList(),
     val externalRatings: List<ExternalRating> = emptyList(),
 ) {
+    /**
+     * Sessions in the order they were lived through. Deleting a past session leaves the
+     * survivors' [TrackingSession.sessionNumber] untouched, so the numbers can be sparse and
+     * need not start at 1 — position here is the only trustworthy ordering.
+     */
+    val orderedSessions: List<TrackingSession> by lazy {
+        sessions.sortedBy { it.sessionNumber }
+    }
+
     val currentSession: TrackingSession?
-        get() = sessions.maxByOrNull { it.sessionNumber }
+        get() = orderedSessions.lastOrNull()
+
+    private val revisitSessionIds: Set<Long> by lazy {
+        orderedSessions.drop(1).map { it.id }.toSet()
+    }
 
     val revisitCount: Int
-        get() = sessions.count { it.isRevisit }
+        get() = revisitSessionIds.size
+
+    /**
+     * Which time through this title [session] was, counting from 1. Derived from position rather
+     * than from the stored number so that deleting a mistaken first session demotes the survivor
+     * back to a first visit instead of stranding it at "2a vegada".
+     */
+    fun visitNumber(session: TrackingSession): Int {
+        val index = orderedSessions.indexOfFirst { it.id == session.id }
+        return if (index < 0) session.sessionNumber else index + 1
+    }
+
+    fun isRevisit(session: TrackingSession): Boolean = session.id in revisitSessionIds
 }

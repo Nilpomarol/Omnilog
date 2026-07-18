@@ -43,7 +43,9 @@ import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
+import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -80,8 +82,8 @@ fun MediaCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
             modifier = Modifier
@@ -117,7 +119,7 @@ fun MediaCard(
                             text = displayMediaTitle(item.title),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = OmnilogColors.AppInk,
+                            color = OmnilogTheme.colors.appInk,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -135,7 +137,7 @@ fun MediaCard(
                             Text(
                                 text = creator,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -200,8 +202,8 @@ private fun GenreChips(
 private fun GenreChip(text: String) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppLine,
-        contentColor = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appLine,
+        contentColor = OmnilogTheme.colors.appMuted,
     ) {
         Text(
             text = text,
@@ -240,7 +242,7 @@ private fun CardProgressFooter(
                     MaterialTheme.typography.bodySmall
                 },
                 fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
-                color = if (isGame) accent else OmnilogColors.AppMuted,
+                color = if (isGame) accent else OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -310,14 +312,14 @@ private fun CardRatings(
                 Icon(
                     painter = painterResource(R.drawable.ic_external_rating),
                     contentDescription = null,
-                    tint = OmnilogColors.AppMuted,
+                    tint = OmnilogTheme.colors.appMuted,
                     modifier = Modifier.size(12.dp),
                 )
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }
@@ -362,7 +364,7 @@ private fun CardProgressBar(fraction: Float, color: Color) {
             .fillMaxWidth()
             .height(4.dp)
             .clip(RoundedCornerShape(999.dp))
-            .background(OmnilogColors.AppLine),
+            .background(OmnilogTheme.colors.appLine),
     ) {
         Box(
             modifier = Modifier
@@ -384,7 +386,7 @@ private fun CardDates(session: TrackingSession?) {
     Text(
         text = parts.joinToString(" · "),
         style = MaterialTheme.typography.labelSmall,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -423,18 +425,5 @@ private fun TrackingSession?.progressFraction(progressTotal: Int?): Float {
     return current.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
 }
 
-private fun TrackingSession?.progressLabel(progressTotal: Int?, mediaType: MediaType): String {
-    val current = this?.progressCurrent ?: 0
-    val unit = mediaType.progressUnit()
-    return if (progressTotal != null) "$current/$progressTotal $unit" else "$current $unit"
-}
-
 private fun LocalDate.formatDate(): String =
     format(DateTimeFormatter.ofPattern("dd/MM/yy"))
-
-private fun MediaType.progressUnit(): String = when (this) {
-    MediaType.Anime, MediaType.TvShow -> "episodis"
-    MediaType.Book -> "pagines"
-    MediaType.Movie -> "min"
-    MediaType.Game -> "h"
-}

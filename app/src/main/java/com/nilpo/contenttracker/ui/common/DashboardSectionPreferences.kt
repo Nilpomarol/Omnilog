@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.ui.home.MediaSection
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 private const val DashboardPreferencesName = "omnilog_dashboard_preferences"
 
@@ -125,7 +125,7 @@ fun DashboardSectionChips(
                 color = if (isVisible) accent.copy(alpha = 0.16f) else Color.Transparent,
                 border = BorderStroke(
                     1.dp,
-                    if (isVisible) accent.copy(alpha = 0.42f) else OmnilogColors.AppLine.copy(alpha = 0.70f),
+                    if (isVisible) accent.copy(alpha = 0.42f) else OmnilogTheme.colors.appLine.copy(alpha = 0.70f),
                 ),
             ) {
                 Text(
@@ -133,7 +133,7 @@ fun DashboardSectionChips(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isVisible) accent else OmnilogColors.AppMuted.copy(alpha = 0.70f),
+                    color = if (isVisible) accent else OmnilogTheme.colors.appMuted.copy(alpha = 0.70f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

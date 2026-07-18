@@ -18,7 +18,7 @@ import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.ui.common.MediaMetadataSecondary
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun ItemDetailsSection(
@@ -35,10 +35,10 @@ fun ItemDetailsSection(
                 text = stringResource(R.string.detail_item_details),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
         }
-        HorizontalDivider(color = OmnilogColors.AppLine)
+        HorizontalDivider(color = OmnilogTheme.colors.appLine)
 
         ItemDetailsSummary(
             item = item,

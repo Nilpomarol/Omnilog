@@ -49,7 +49,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 /**
  * Compact dialog for the UX-13 quick progress actions.
@@ -92,7 +92,7 @@ fun QuickProgressSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = OmnilogColors.AppPanel,
+        containerColor = OmnilogTheme.colors.appPanel,
     ) {
         Column(
             modifier = Modifier
@@ -119,13 +119,13 @@ fun QuickProgressSheet(
                         text = stringResource(R.string.quick_progress_title),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     Text(
                         text = displayMediaTitle(item.title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -208,7 +208,7 @@ private fun QuickStepper(
             Text(
                 text = progressUnitLabel(mediaType, total ?: current),
                 style = MaterialTheme.typography.labelMedium,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
         StepButton(
@@ -301,7 +301,7 @@ private fun QuickDirectEntry(
                         progressUnitLabel(mediaType, total),
                     ),
                     style = MaterialTheme.typography.labelMedium,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }
@@ -320,33 +320,6 @@ private fun QuickDirectEntry(
         }
     }
 }
-
-@Composable
-private fun progressUnitLabel(mediaType: MediaType, value: Int): String =
-    when (mediaType) {
-        MediaType.Anime,
-        MediaType.TvShow,
-            -> if (value == 1) {
-            stringResource(R.string.progress_unit_episode_one)
-        } else {
-            stringResource(R.string.progress_unit_episode_many)
-        }
-        MediaType.Book -> if (value == 1) {
-            stringResource(R.string.progress_unit_page_one)
-        } else {
-            stringResource(R.string.progress_unit_page_many)
-        }
-        MediaType.Movie -> if (value == 1) {
-            stringResource(R.string.progress_unit_minute_one)
-        } else {
-            stringResource(R.string.progress_unit_minute_many)
-        }
-        MediaType.Game -> if (value == 1) {
-            stringResource(R.string.progress_unit_hour_one)
-        } else {
-            stringResource(R.string.progress_unit_hour_many)
-        }
-    }
 
 /** Episodic media where a single +1 tap is the canonical daily update. */
 fun MediaType.usesEpisodeStepper(): Boolean =

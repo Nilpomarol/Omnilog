@@ -66,6 +66,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -124,7 +125,7 @@ fun TrackingStatusSelector(
             onDismissRequest = { isExpanded = false },
             modifier = if (triggerWidthPx == 0) Modifier.fillMaxWidth() else Modifier.width(triggerWidth),
             shape = RoundedCornerShape(14.dp),
-            containerColor = OmnilogColors.AppPanel,
+            containerColor = OmnilogTheme.colors.appPanel,
             tonalElevation = 0.dp,
             shadowElevation = 10.dp,
             border = BorderStroke(1.dp, selectedColor.copy(alpha = 0.35f)),
@@ -156,7 +157,7 @@ fun TrackingStatusSelector(
                                 text = stringResource(status.labelResId()),
                                 modifier = Modifier.weight(1f),
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) statusColor else OmnilogColors.AppInk,
+                                color = if (isSelected) statusColor else OmnilogTheme.colors.appInk,
                             )
                             if (isSelected) {
                                 Icon(
@@ -207,7 +208,7 @@ private fun LegacyTrackingProgressField(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Text(text = label, style = MaterialTheme.typography.labelMedium, color = OmnilogColors.AppMuted)
+                Text(text = label, style = MaterialTheme.typography.labelMedium, color = OmnilogTheme.colors.appMuted)
                 OutlinedTextField(
                     value = value,
                     onValueChange = { input ->
@@ -222,7 +223,7 @@ private fun LegacyTrackingProgressField(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 progressTotal?.takeIf { it > 0 }?.let { total ->
-                    Text(text = "de $total ${progressUnitLabel(mediaType, total)}", style = MaterialTheme.typography.labelMedium, color = OmnilogColors.AppMuted)
+                    Text(text = "de $total ${progressUnitLabel(mediaType, total)}", style = MaterialTheme.typography.labelMedium, color = OmnilogTheme.colors.appMuted)
                 }
             }
             FilledTonalIconButton(
@@ -278,13 +279,13 @@ fun TrackingProgressField(
                         Text(
                             text = "$current / $progressTotal ${progressUnitLabel(mediaType, progressTotal)} • $percentage%",
                             style = MaterialTheme.typography.bodySmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                     } else {
                         Text(
                             text = "$current ${progressUnitLabel(mediaType, current)}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
@@ -465,7 +466,7 @@ private fun TrackingDateRangeItem(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -546,14 +547,6 @@ private fun statusColor(status: TrackingStatus): Color = when (status) {
     TrackingStatus.Completed -> OmnilogColors.Completed
     TrackingStatus.Paused -> OmnilogColors.Paused
     TrackingStatus.Dropped -> OmnilogColors.Dropped
-}
-@Composable
-private fun progressUnitLabel(mediaType: MediaType, value: Int): String = when (mediaType) {
-    MediaType.Anime,
-    MediaType.TvShow -> if (value == 1) "episodi" else "episodis"
-    MediaType.Book -> if (value == 1) "pàgina" else "pàgines"
-    MediaType.Movie -> if (value == 1) "minut" else "minuts"
-    MediaType.Game -> if (value == 1) "hora" else "hores"
 }
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching { LocalDate.parse(this) }.getOrNull()
 @Composable

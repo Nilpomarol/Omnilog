@@ -87,6 +87,7 @@ import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
+import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.common.SynopsisText
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OptionSelector
@@ -109,6 +110,7 @@ import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.coroutines.delay
 import java.text.Normalizer
 import java.time.Instant
@@ -551,7 +553,7 @@ private fun MetadataSearchStep(
                     Icon(
                         imageVector = Icons.Filled.Close,
                         contentDescription = stringResource(R.string.clear_search),
-                        tint = OmnilogColors.AppMuted,
+                        tint = OmnilogTheme.colors.appMuted,
                     )
                 }
             }
@@ -748,8 +750,8 @@ private fun SeasonSuggestionRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
@@ -769,7 +771,7 @@ private fun SeasonSuggestionRow(
                     text = season.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -778,7 +780,7 @@ private fun SeasonSuggestionRow(
                         text = detailParts.joinToString(" | "),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -787,7 +789,7 @@ private fun SeasonSuggestionRow(
                     SynopsisText(
                         body = synopsis,
                         style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -907,10 +909,10 @@ private fun EditionLanguageFilterChip(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) accent.copy(alpha = 0.18f) else OmnilogColors.AppPanel,
+        color = if (selected) accent.copy(alpha = 0.18f) else OmnilogTheme.colors.appPanel,
         border = BorderStroke(
             1.dp,
-            if (selected) accent.copy(alpha = 0.70f) else OmnilogColors.AppLine,
+            if (selected) accent.copy(alpha = 0.70f) else OmnilogTheme.colors.appLine,
         ),
     ) {
         Text(
@@ -918,7 +920,7 @@ private fun EditionLanguageFilterChip(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
-            color = if (selected) accent else OmnilogColors.AppMuted,
+            color = if (selected) accent else OmnilogTheme.colors.appMuted,
         )
     }
 }
@@ -943,8 +945,8 @@ private fun BookEditionSuggestionRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -965,7 +967,7 @@ private fun BookEditionSuggestionRow(
                         text = displayMediaTitle(title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -975,7 +977,7 @@ private fun BookEditionSuggestionRow(
                         text = details.joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1143,13 +1145,13 @@ private fun ReviewMetadataSection(
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             fontWeight = FontWeight.SemiBold,
         )
         SynopsisText(
             body = body,
             style = MaterialTheme.typography.bodyMedium,
-            color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+            color = OmnilogTheme.colors.appInk.copy(alpha = 0.84f),
             maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1352,7 +1354,7 @@ private fun FormSectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
         modifier = Modifier.padding(top = 10.dp, bottom = 8.dp),
     )
 }
@@ -1361,7 +1363,7 @@ private fun FormSectionHeader(title: String) {
 private fun FormDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 8.dp),
-        color = OmnilogColors.AppLine.copy(alpha = 0.70f),
+        color = OmnilogTheme.colors.appLine.copy(alpha = 0.70f),
     )
 }
 
@@ -1406,7 +1408,7 @@ private fun ReviewProgressField(
                 Text(
                     text = stringResource(labelResId),
                     style = MaterialTheme.typography.labelMedium,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
                 OutlinedTextField(
                     value = value,
@@ -1430,7 +1432,7 @@ private fun ReviewProgressField(
                     Text(
                         text = "de $total ${progressUnitLabel(mediaType, total)}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
             }
@@ -1466,10 +1468,10 @@ private fun ReviewRatingSelector(
                     onClick = { onRatingSelected(if (isSelected) null else rating) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isActive) accent.copy(alpha = 0.20f) else OmnilogColors.AppPanel,
+                    color = if (isActive) accent.copy(alpha = 0.20f) else OmnilogTheme.colors.appPanel,
                     border = BorderStroke(
                         width = if (isSelected) 1.5.dp else 1.dp,
-                        color = if (isActive) accent.copy(alpha = 0.74f) else OmnilogColors.AppLine,
+                        color = if (isActive) accent.copy(alpha = 0.74f) else OmnilogTheme.colors.appLine,
                     ),
                 ) {
                     Text(
@@ -1480,7 +1482,7 @@ private fun ReviewRatingSelector(
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        color = if (isActive) accent else OmnilogColors.AppMuted,
+                        color = if (isActive) accent else OmnilogTheme.colors.appMuted,
                     )
                 }
             }
@@ -1599,7 +1601,7 @@ private fun ReviewNotesField(
 @Composable
 private fun reviewTextFieldColors(accent: Color) = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = accent,
-    unfocusedBorderColor = OmnilogColors.AppLine,
+    unfocusedBorderColor = OmnilogTheme.colors.appLine,
     cursorColor = accent,
     focusedLabelColor = accent,
 )
@@ -1650,7 +1652,7 @@ private fun ManualAddStep(
         text = stringResource(R.string.add_manual),
         style = MaterialTheme.typography.headlineLarge,
         fontWeight = FontWeight.ExtraBold,
-        color = OmnilogColors.AppInk,
+        color = OmnilogTheme.colors.appInk,
     )
 
     TrackingSetupForm(
@@ -1939,14 +1941,14 @@ private fun AddScreenHeader(
             text = title,
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
         )
         subtitle?.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
         content?.invoke()
@@ -1968,10 +1970,10 @@ internal fun DashboardStyleSearchBar(
             .fillMaxWidth()
             .height(54.dp),
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppPanel,
+        color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(
             1.dp,
-            if (query.isNotBlank()) accent.copy(alpha = 0.58f) else OmnilogColors.AppLine,
+            if (query.isNotBlank()) accent.copy(alpha = 0.58f) else OmnilogTheme.colors.appLine,
         ),
     ) {
         Row(
@@ -1983,7 +1985,7 @@ internal fun DashboardStyleSearchBar(
                 Icon(
                     imageVector = leadingIcon,
                     contentDescription = null,
-                    tint = if (query.isNotBlank()) accent else OmnilogColors.AppMuted,
+                    tint = if (query.isNotBlank()) accent else OmnilogTheme.colors.appMuted,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -1995,7 +1997,7 @@ internal fun DashboardStyleSearchBar(
                 keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearchSubmitted() }),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     fontWeight = FontWeight.SemiBold,
                 ),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(accent),
@@ -2006,7 +2008,7 @@ internal fun DashboardStyleSearchBar(
                                 text = stringResource(R.string.metadata_search_label),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                             )
                         }
                         innerTextField()
@@ -2024,7 +2026,7 @@ internal fun MetadataSuggestionRow(
     accent: Color,
     duplicateState: MetadataDuplicateState,
     showSourceChip: Boolean = true,
-    borderColor: Color = OmnilogColors.AppLine,
+    borderColor: Color = OmnilogTheme.colors.appLine,
     onClick: () -> Unit,
 ) {
     Surface(
@@ -2032,7 +2034,7 @@ internal fun MetadataSuggestionRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
+        color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, borderColor),
     ) {
         Box {
@@ -2054,7 +2056,7 @@ internal fun MetadataSuggestionRow(
                         text = displayMediaTitle(suggestion.title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -2079,7 +2081,7 @@ internal fun MetadataSuggestionRow(
                             text = creator,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -2156,8 +2158,8 @@ internal fun ResultChip(
     accent: Color? = null,
     modifier: Modifier = Modifier,
 ) {
-    val chipColor = accent?.copy(alpha = 0.18f) ?: OmnilogColors.AppLine.copy(alpha = 0.46f)
-    val textColor = accent ?: OmnilogColors.AppMuted
+    val chipColor = accent?.copy(alpha = 0.18f) ?: OmnilogTheme.colors.appLine.copy(alpha = 0.46f)
+    val textColor = accent ?: OmnilogTheme.colors.appMuted
     Box(
         modifier = modifier
             .background(
@@ -2260,34 +2262,6 @@ private val TrackingStatus.stateColor: Color
         TrackingStatus.Paused -> OmnilogColors.Paused
         TrackingStatus.Dropped -> OmnilogColors.Dropped
     }
-
-@Composable
-private fun progressUnitLabel(mediaType: MediaType, value: Int): String {
-    return when (mediaType) {
-        MediaType.Anime,
-        MediaType.TvShow,
-            -> if (value == 1) {
-            stringResource(R.string.progress_unit_episode_one)
-        } else {
-            stringResource(R.string.progress_unit_episode_many)
-        }
-        MediaType.Book -> if (value == 1) {
-            stringResource(R.string.progress_unit_page_one)
-        } else {
-            stringResource(R.string.progress_unit_page_many)
-        }
-        MediaType.Movie -> if (value == 1) {
-            stringResource(R.string.progress_unit_minute_one)
-        } else {
-            stringResource(R.string.progress_unit_minute_many)
-        }
-        MediaType.Game -> if (value == 1) {
-            stringResource(R.string.progress_unit_hour_one)
-        } else {
-            stringResource(R.string.progress_unit_hour_many)
-        }
-    }
-}
 
 private fun String.toLocalDateOrNull(): LocalDate? {
     return trim().takeIf { it.isNotBlank() }?.let { value ->

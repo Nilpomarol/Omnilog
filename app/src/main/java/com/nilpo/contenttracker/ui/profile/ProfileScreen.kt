@@ -64,6 +64,7 @@ import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -235,7 +236,7 @@ fun ProfileScreen(
 
     Surface(
         modifier = modifier,
-        color = OmnilogColors.AppBackground,
+        color = OmnilogTheme.colors.appBackground,
     ) {
         LazyColumn(
             modifier = Modifier
@@ -341,7 +342,7 @@ private fun ProfileHero(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = OmnilogColors.AppPanel,
+        color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, avatarColor.copy(alpha = 0.48f)),
     ) {
         Row(
@@ -363,14 +364,14 @@ private fun ProfileHero(
                     text = displayName,
                     style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = bio,
                     style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -386,7 +387,7 @@ private fun ProfileHero(
                     .size(34.dp)
                     .clickable(onClick = onEdit),
                 shape = CircleShape,
-                color = OmnilogColors.AppBackground,
+                color = OmnilogTheme.colors.appBackground,
                 border = BorderStroke(1.dp, avatarColor.copy(alpha = 0.45f)),
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -425,8 +426,8 @@ private fun ProfileEditor(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -436,7 +437,7 @@ private fun ProfileEditor(
                 text = "Personalitza el perfil",
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             OutlinedTextField(
                 value = displayName,
@@ -463,12 +464,12 @@ private fun ProfileEditor(
                         text = "Foto de perfil",
                         style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     Text(
                         text = if (hasProfileImage) "Foto personalitzada activa" else "Fes que el perfil sigui teu",
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
                 OutlinedButton(onClick = onChoosePhoto) {
@@ -477,7 +478,7 @@ private fun ProfileEditor(
                 }
                 if (hasProfileImage) {
                     IconButtonSurface(
-                        icon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = OmnilogColors.AppMuted) },
+                        icon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = OmnilogTheme.colors.appMuted) },
                         label = "Treu",
                         onClick = onRemovePhoto,
                     )
@@ -510,7 +511,7 @@ private fun ProfileEditor(
                 text = "Color de l'avatar",
                 style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 profileAccentColors.forEachIndexed { index, color ->
@@ -531,7 +532,7 @@ private fun ProfileEditor(
                     onClick = onSave,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = OmnilogColors.Dashboard,
-                        contentColor = OmnilogColors.AppBackground,
+                        contentColor = OmnilogTheme.colors.appBackground,
                     ),
                 ) { Text("Desa") }
             }
@@ -553,7 +554,7 @@ private fun AvatarColorOption(
             .clickable(onClick = onClick),
         shape = CircleShape,
         color = color,
-        border = if (selected) BorderStroke(3.dp, OmnilogColors.AppInk) else null,
+        border = if (selected) BorderStroke(3.dp, OmnilogTheme.colors.appInk) else null,
     ) {}
 }
 
@@ -585,7 +586,7 @@ private fun ProfileAvatar(
                     text = displayName.profileInitials(),
                     style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppBackground,
+                    color = OmnilogTheme.colors.appBackground,
                 )
             }
         }
@@ -604,14 +605,14 @@ private fun ProfileStatsCard(
             text = "La teva biblioteca",
             style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
         )
     
     Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            color = OmnilogColors.AppPanel,
-            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            color = OmnilogTheme.colors.appPanel,
+            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         ) {
             Row(
                 modifier = Modifier.padding(vertical = 16.dp),
@@ -641,7 +642,7 @@ private fun ProfileMetric(value: String, label: String) {
         Text(
             text = label,
             style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
         )
     }
 }
@@ -659,14 +660,14 @@ private fun ProfileActivityCard(
             text = "Ara mateix",
             style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
         )
     
     Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            color = OmnilogColors.AppPanel,
-            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            color = OmnilogTheme.colors.appPanel,
+            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -708,7 +709,7 @@ private fun ProfileActivityCard(
                     Text(
                         text = "Quan tinguis algun títol en curs o planificat, el veuràs aquí.",
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
             }
@@ -742,7 +743,7 @@ private fun ProfileActivityMetric(
             Text(
                 text = label,
                 style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
     }
@@ -759,7 +760,7 @@ private fun ProfileActivityList(
             text = title,
             style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
         )
         items.forEach { trackedMedia ->
             ProfileMediaRow(
@@ -781,7 +782,7 @@ private fun ProfileMediaRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = OmnilogColors.AppBackground,
+        color = OmnilogTheme.colors.appBackground,
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
@@ -801,20 +802,20 @@ private fun ProfileMediaRow(
                     text = displayMediaTitle(trackedMedia.item.title),
                     style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = trackedMedia.profileProgressLabel(),
                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = OmnilogColors.AppMuted,
+                tint = OmnilogTheme.colors.appMuted,
             )
         }
     }
@@ -830,14 +831,14 @@ private fun ProfileLibraryMixCard(
             text = "La teva col·lecció",
             style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
         )
     
     Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
-            color = OmnilogColors.AppPanel,
-            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            color = OmnilogTheme.colors.appPanel,
+            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -847,7 +848,7 @@ private fun ProfileLibraryMixCard(
                     Text(
                         text = "Encara no hi ha cap títol a la biblioteca.",
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 } else {
                     mediaTypeCounts.forEach { (type, count) ->
@@ -866,7 +867,7 @@ private fun ProfileLibraryMixCard(
                                 text = type.profileLabel(),
                                 modifier = Modifier.weight(1f),
                                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                                color = OmnilogColors.AppInk,
+                                color = OmnilogTheme.colors.appInk,
                             )
                             Text(
                                 text = count.toString(),
@@ -882,13 +883,13 @@ private fun ProfileLibraryMixCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(OmnilogColors.AppLine),
+                            .background(OmnilogTheme.colors.appLine),
                     )
                     Text(
                         text = "Gèneres que més repeteixes",
                         style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -973,14 +974,14 @@ private fun IconButtonSurface(
                 .size(42.dp)
                 .clickable(onClick = onClick),
             shape = CircleShape,
-            color = OmnilogColors.AppBackground,
+            color = OmnilogTheme.colors.appBackground,
         ) {
             Box(contentAlignment = Alignment.Center) { icon() }
         }
         Text(
             text = label,
             style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
         )
     }
 }

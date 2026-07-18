@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.core.stats
 
 import com.nilpo.contenttracker.core.model.ItemLanguage
+import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
@@ -24,15 +25,21 @@ class StatsCalculator(
                 .filter { session -> filters.period.contains(session.finishedAt, today) }
                 .map { session -> trackedMedia to session }
         }
+        // Ratings are dated by finishedAt, exactly like completions, so the rating charts can
+        // never disagree with the completion count for the same period. A rating on a session
+        // with no finish date has no honest position on a time axis and is therefore scoped to
+        // AllTime only, rather than being placed by startedAt or by the row's last-modified
+        // timestamp — the latter would move a rating between periods when unrelated fields
+        // are edited.
         val ratedSessions = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
                 .filter { session -> session.rating != null }
-                .filter { session -> filters.period.contains(session.statsDate(), today) }
+                .filter { session -> filters.period.contains(session.finishedAt, today) }
                 .map { session -> trackedMedia to session }
         }
         val revisitSessions = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
-                .filter { session -> session.isRevisit }
+                .filter { session -> trackedMedia.isRevisit(session) }
                 .filter { session -> filters.period.contains(session.statsDate(), today) }
                 .map { session -> trackedMedia to session }
         }
@@ -59,6 +66,14 @@ class StatsCalculator(
             ratedSessions = ratedSessions,
         )
         val progressTotals = progressTotals(completedSessions)
+        // Repeats measured against completions, so "N of M titles" compares like with like. A
+        // repeat session still under way has not finished in this period and is not counted here,
+        // though it still shows in the looser revisitCount tally.
+        val revisitedCompletions = completedSessions
+            .filter { (trackedMedia, session) -> trackedMedia.isRevisit(session) }
+        val revisitedTitleIds = revisitedCompletions
+            .map { (trackedMedia, _) -> trackedMedia.item.id }
+            .distinct()
 
         return StatsSnapshot(
             filters = filters,
@@ -85,6 +100,8 @@ class StatsCalculator(
                 mediaTypes = filters.mediaTypes,
                 revisitSessions = revisitSessions,
             ),
+            revisitedTitles = revisitedTitleIds.size,
+            revisitedTitleBreakdown = revisitedTitleBreakdown(revisitedCompletions),
             // Genres stay unlimited so the pie's Altres slice can aggregate
             // every remaining mention instead of only a truncated tail.
             topGenres = rankedStrings(
@@ -92,8 +109,10 @@ class StatsCalculator(
                 limit = Int.MAX_VALUE,
             ),
             topCreators = rankedStrings(completedItems.flatMap { trackedMedia -> trackedMedia.item.creators }),
+            creatorStats = creatorStats(completedItems = completedItems, ratedSessions = ratedSessions),
             languageBreakdown = languageBreakdown(completedItems),
             bestRatedItems = bestRatedItems(ratedSessions),
+            bestRatedCollections = bestRatedCollections(ratedSessions),
             mostRevisitedItems = mostRevisitedItems(revisitSessions),
             topLevelSummary = topLevelSummary(
                 visibleMonthlyActivity = completionSessionsByMonth.takeLast(12),
@@ -217,12 +236,12 @@ class StatsCalculator(
         val ratings = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
                 .filter { session -> session.rating != null }
-                .filter { session -> inScope(session.statsDate()) }
+                .filter { session -> inScope(session.finishedAt) }
                 .mapNotNull { session -> session.rating }
         }
         val revisits = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
-                .filter { session -> session.isRevisit }
+                .filter { session -> trackedMedia.isRevisit(session) }
                 .filter { session -> inScope(session.statsDate()) }
         }
             .size
@@ -377,7 +396,9 @@ class StatsCalculator(
         val ratingsByMonth = ratedSessions
             .mapNotNull { (_, session) ->
                 val rating = session.rating?.takeIf { value -> value in 1..10 } ?: return@mapNotNull null
-                val date = session.statsDate() ?: return@mapNotNull null
+                // Same date as the period filter uses, so a rating cannot be filtered into the
+                // period by one date and then bucketed into a month by another.
+                val date = session.finishedAt ?: return@mapNotNull null
                 YearMonth.from(date) to rating
             }
             .groupBy(
@@ -411,12 +432,13 @@ class StatsCalculator(
                 val ratings = ratedSessions
                     .filter { (trackedMedia, _) -> trackedMedia.item.type == mediaType }
                     .mapNotNull { (_, session) -> session.rating }
-                val lengths = completions.mapNotNull { (trackedMedia, session) ->
-                    trackedMedia.item.progressTotal
+                val measuredTitles = completions.mapNotNull { (trackedMedia, session) ->
+                    val length = trackedMedia.item.progressTotal
                         ?.takeIf { total -> total > 0 }
                         ?: session.progressCurrent.takeIf { progress -> progress > 0 }
+                    length?.let { value -> LengthSample(length = value, title = trackedMedia.item.title) }
                 }
-                val hasStats = completions.isNotEmpty() || ratings.isNotEmpty() || lengths.isNotEmpty()
+                val hasStats = completions.isNotEmpty() || ratings.isNotEmpty() || measuredTitles.isNotEmpty()
                 if (!hasStats) {
                     null
                 } else {
@@ -424,8 +446,12 @@ class StatsCalculator(
                         mediaType = mediaType,
                         completionSessionCount = completions.size,
                         averageRating = ratings.takeIf { values -> values.isNotEmpty() }?.average(),
-                        averageLength = lengths.takeIf { values -> values.isNotEmpty() }?.average(),
-                        totalLength = lengths.sum(),
+                        // Title breaks ties, so which of two equally long titles gets named at the
+                        // end of the strip stays the same between recompositions.
+                        measuredTitles = measuredTitles.sortedWith(
+                            compareBy({ sample -> sample.length }, { sample -> sample.title.lowercase() }),
+                        ),
+                        totalLength = measuredTitles.sumOf { sample -> sample.length },
                     )
                 }
             }
@@ -462,6 +488,22 @@ class StatsCalculator(
             .sortedBy { total -> total.mediaType.ordinal }
     }
 
+    /**
+     * Repeated titles per medium, counting each title once however many times it was finished
+     * again, so the parts sum to the whole the headline states.
+     */
+    private fun revisitedTitleBreakdown(
+        revisitedCompletions: List<Pair<TrackedMedia, TrackingSession>>,
+    ): List<RevisitStats> {
+        return revisitedCompletions
+            .distinctBy { (trackedMedia, _) -> trackedMedia.item.id }
+            .groupingBy { (trackedMedia, _) -> trackedMedia.item.type }
+            .eachCount()
+            .entries
+            .sortedByDescending { entry -> entry.value }
+            .map { entry -> RevisitStats(mediaType = entry.key, value = entry.value) }
+    }
+
     private fun revisitBreakdown(
         mediaTypes: Set<MediaType>,
         revisitSessions: List<Pair<TrackedMedia, TrackingSession>>,
@@ -495,19 +537,180 @@ class StatsCalculator(
             .map { entry -> RankedStat(entry.key, entry.value) }
     }
 
-    private fun languageBreakdown(items: List<TrackedMedia>): List<LanguageStat> {
-        return items
-            .map { trackedMedia -> ItemLanguage.normalize(trackedMedia.item.language) }
+    /**
+     * Creators whose work you finished in the period, ranked by how many of their titles you
+     * completed. Ranking stays on the count even though the card shows a rating, so the order
+     * always matches the section's question — who you followed most, not who scored best.
+     */
+    private fun creatorStats(
+        completedItems: List<TrackedMedia>,
+        ratedSessions: List<Pair<TrackedMedia, TrackingSession>>,
+        limit: Int = 12,
+    ): List<CreatorStat> {
+        // One rating per title: a title rated on several passes must not outweigh several titles.
+        val ratingByItemId = ratedSessions
+            .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
+            .mapValues { (_, sessions) ->
+                sessions.mapNotNull { (_, session) -> session.rating }.average()
+            }
+
+        return completedItems
+            .flatMap { trackedMedia ->
+                trackedMedia.item.creators
+                    .map { creator -> creator.trim() }
+                    .filter { creator -> creator.isNotBlank() }
+                    .distinct()
+                    .map { creator -> creator to trackedMedia }
+            }
+            .groupBy({ (creator, _) -> creator }, { (_, trackedMedia) -> trackedMedia })
+            .map { (creator, titles) ->
+                val ratings = titles.mapNotNull { trackedMedia -> ratingByItemId[trackedMedia.item.id] }
+                CreatorStat(
+                    name = creator,
+                    completedTitles = titles.size,
+                    ratedTitles = ratings.size,
+                    averageRating = ratings
+                        .takeIf { values -> values.size >= MinRatedTitlesForCreatorAverage }
+                        ?.average(),
+                    // The accent only tints the card, so the medium they appear in most wins.
+                    mediaType = titles
+                        .groupingBy { trackedMedia -> trackedMedia.item.type }
+                        .eachCount()
+                        .entries
+                        .sortedWith(
+                            compareByDescending<Map.Entry<MediaType, Int>> { entry -> entry.value }
+                                .thenBy { entry -> entry.key.ordinal },
+                        )
+                        .first()
+                        .key,
+                    coverUrls = titles
+                        .sortedWith(
+                            compareByDescending<TrackedMedia> { trackedMedia ->
+                                ratingByItemId[trackedMedia.item.id] ?: -1.0
+                            }.thenBy { trackedMedia -> trackedMedia.item.title.lowercase() },
+                        )
+                        .mapNotNull { trackedMedia -> trackedMedia.item.coverUrl }
+                        .filter { url -> url.isNotBlank() }
+                        .take(3),
+                )
+            }
+            .sortedWith(
+                compareByDescending<CreatorStat> { stat -> stat.completedTitles }
+                    .thenBy { stat -> stat.name.lowercase() },
+            )
+            .take(limit)
+    }
+
+    /**
+     * The language split over the media that record a language often enough to have one.
+     *
+     * A medium is judged on its own titles rather than against the library as a whole, so nothing
+     * here hardcodes which medium that turns out to be: a medium starts appearing as soon as you
+     * tag enough of it, and drops out if you stop.
+     */
+    private fun languageBreakdown(items: List<TrackedMedia>): LanguageCoverage {
+        val included = mutableListOf<MediaType>()
+        val excluded = mutableListOf<MediaType>()
+        items
+            .groupBy { trackedMedia -> trackedMedia.item.type }
+            .forEach { (mediaType, mediaItems) ->
+                val recorded = mediaItems
+                    .count { trackedMedia -> ItemLanguage.normalize(trackedMedia.item.language) != null }
+                val qualifies = recorded >= MinLanguageRecordedTitles &&
+                    recorded.toDouble() / mediaItems.size >= MinLanguageCoverageShare
+                if (qualifies) included += mediaType else excluded += mediaType
+            }
+
+        val includedItems = items.filter { trackedMedia -> trackedMedia.item.type in included }
+        val recordedCodes = includedItems
+            .mapNotNull { trackedMedia -> ItemLanguage.normalize(trackedMedia.item.language) }
+        val stats = recordedCodes
             .groupingBy { code -> code }
             .eachCount()
             .entries
             .sortedWith(
-                compareByDescending<Map.Entry<String?, Int>> { entry -> entry.value }
-                    .thenBy { entry -> entry.key == null }
-                    .thenBy { entry -> entry.key?.lowercase() },
+                compareByDescending<Map.Entry<String, Int>> { entry -> entry.value }
+                    .thenBy { entry -> entry.key.lowercase() },
             )
             .take(8)
             .map { entry -> LanguageStat(code = entry.key, value = entry.value) }
+
+        return LanguageCoverage(
+            stats = stats,
+            includedMediaTypes = included.sortedBy { mediaType -> mediaType.ordinal },
+            excludedMediaTypes = excluded.sortedBy { mediaType -> mediaType.ordinal },
+            // The full tally, not the truncated one: the caption states how much of the medium
+            // carries a language, which stays true whether or not a long tail got cut from the
+            // blocks.
+            recordedTitles = recordedCodes.size,
+            totalTitles = includedItems.size,
+        )
+    }
+
+    /**
+     * Collections ranked by the average of the ratings you gave the titles inside them.
+     *
+     * Ranking by a rating, rather than showing one alongside a count as [creatorStats] does, is
+     * only honest above a floor: collections under [MinRatedTitlesForCollectionAverage] rated
+     * titles are dropped rather than ranked, since one score would otherwise take the top spot on
+     * no evidence. Ties break towards the collection with more rated titles, so the better-attested
+     * average wins.
+     */
+    private fun bestRatedCollections(
+        ratedSessions: List<Pair<TrackedMedia, TrackingSession>>,
+        limit: Int = 12,
+    ): List<CollectionRatingStat> {
+        // One value per title, so a title rated on several passes cannot stand in for several
+        // titles and clear the threshold on its own.
+        val ratingByItem = ratedSessions
+            .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
+            .mapNotNull { (_, sessions) ->
+                val trackedMedia = sessions.firstOrNull()?.first ?: return@mapNotNull null
+                val ratings = sessions.mapNotNull { (_, session) -> session.rating }
+                if (ratings.isEmpty()) null else trackedMedia to ratings.average()
+            }
+
+        return ratingByItem
+            .mapNotNull { (trackedMedia, rating) ->
+                trackedMedia.collection?.let { collection -> Triple(collection, trackedMedia, rating) }
+            }
+            .groupBy { (collection, _, _) -> collection.id }
+            .mapNotNull { (_, entries) ->
+                if (entries.size < MinRatedTitlesForCollectionAverage) return@mapNotNull null
+                val collection = entries.first().first
+                CollectionRatingStat(
+                    id = collection.id,
+                    name = collection.name,
+                    ratedTitles = entries.size,
+                    averageRating = entries.map { (_, _, rating) -> rating }.average(),
+                    // The accent only tints the card, so the medium the collection mostly sits in
+                    // wins, matching how a creator card picks its colour.
+                    mediaType = entries
+                        .groupingBy { (_, trackedMedia, _) -> trackedMedia.item.type }
+                        .eachCount()
+                        .entries
+                        .sortedWith(
+                            compareByDescending<Map.Entry<MediaType, Int>> { entry -> entry.value }
+                                .thenBy { entry -> entry.key.ordinal },
+                        )
+                        .first()
+                        .key,
+                    coverUrls = entries
+                        .sortedWith(
+                            compareByDescending<Triple<MediaCollection, TrackedMedia, Double>> { (_, _, rating) -> rating }
+                                .thenBy { (_, trackedMedia, _) -> trackedMedia.item.title.lowercase() },
+                        )
+                        .mapNotNull { (_, trackedMedia, _) -> trackedMedia.item.coverUrl }
+                        .filter { url -> url.isNotBlank() }
+                        .take(3),
+                )
+            }
+            .sortedWith(
+                compareByDescending<CollectionRatingStat> { stat -> stat.averageRating }
+                    .thenByDescending { stat -> stat.ratedTitles }
+                    .thenBy { stat -> stat.name.lowercase() },
+            )
+            .take(limit)
     }
 
     private fun bestRatedItems(

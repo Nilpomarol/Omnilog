@@ -111,6 +111,7 @@ import com.nilpo.contenttracker.ui.profile.ProfilePreferences
 import com.nilpo.contenttracker.ui.settings.SettingsScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -190,9 +191,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val selectedCollection = uiState.allTrackedItems
         .mapNotNull { it.collection }
         .firstOrNull { it.id == selectedCollectionId }
-    val selectedCollectionItems = uiState.allTrackedItems
-        .filter { it.collection?.id == selectedCollectionId }
-        .sortedWith(collectionItemComparator())
+    val selectedCollectionItems = selectedCollectionId?.let { collectionId ->
+        uiState.allTrackedItems
+            .filter { it.collection?.id == collectionId }
+            .sortedWith(collectionItemComparator())
+    }.orEmpty()
     val selectedAuthorItems = selectedAuthor?.let { author ->
         uiState.allTrackedItems.filter { trackedMedia ->
             trackedMedia.item.type in uiState.selectedSection.types &&
@@ -267,6 +270,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 selectedCollectionId = null
                 selectedMediaId = returnTarget.mediaItemId
             }
+            CollectionReturnTarget.Stats -> {
+                selectedCollectionId = null
+                selectedDestination = AppDestination.Stats
+            }
             CollectionReturnTarget.Section -> {
                 selectedCollectionId = null
             }
@@ -278,6 +285,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             is AuthorReturnTarget.Detail -> {
                 selectedAuthor = null
                 selectedMediaId = returnTarget.mediaItemId
+            }
+            AuthorReturnTarget.Stats -> {
+                selectedAuthor = null
+                selectedDestination = AppDestination.Stats
             }
             AuthorReturnTarget.Section -> selectedAuthor = null
         }
@@ -681,7 +692,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         deletionToken = event.deletionToken,
                         message = context.getString(
                             R.string.deletion_undo_session_message,
-                            event.sessionNumber,
+                            event.visitNumber,
                         ),
                     )
                 }
@@ -1038,6 +1049,30 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         } else if (selectedDestination == AppDestination.Stats) {
             StatsScreen(
                 items = uiState.allTrackedItems,
+                onCreatorClick = { creator, mediaType ->
+                    detailHistory = emptyList()
+                    // AuthorDetailScreen draws from the selected section, so point the section at
+                    // the medium this creator mostly appears in before opening it.
+                    viewModel.selectSection(mediaType.homeSection())
+                    selectedDestination = AppDestination.Section
+                    selectedCollectionId = null
+                    collectionReturnTarget = CollectionReturnTarget.Section
+                    selectedMediaId = null
+                    selectedAuthor = creator
+                    authorReturnTarget = AuthorReturnTarget.Stats
+                },
+                onCollectionClick = { collectionId, mediaType ->
+                    detailHistory = emptyList()
+                    // The collection branch sits after the Stats one, so staying on Stats would
+                    // keep this screen showing. The section also supplies CollectionDetailScreen's
+                    // accent, so point it at the medium the collection mostly sits in.
+                    viewModel.selectSection(mediaType.homeSection())
+                    selectedDestination = AppDestination.Section
+                    selectedMediaId = null
+                    selectedAuthor = null
+                    selectedCollectionId = collectionId
+                    collectionReturnTarget = CollectionReturnTarget.Stats
+                },
                 onMediaClick = { trackedMedia ->
                     val section = trackedMedia.item.type.homeSection()
                     detailHistory = emptyList()
@@ -1635,8 +1670,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     .fillMaxSize()
                     .padding(14.dp),
                 shape = RoundedCornerShape(14.dp),
-                color = OmnilogColors.AppBackground,
-                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                color = OmnilogTheme.colors.appBackground,
+                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
             ) {
                 Column(
                     modifier = Modifier
@@ -1648,11 +1683,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         text = stringResource(R.string.metadata_link_title, providerName),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
-                        color = HeaderInk,
+                        color = OmnilogTheme.colors.appInk,
                     )
                     Text(
                         text = stringResource(R.string.metadata_link_message, displayMediaTitle(target.item.title)),
-                        color = HeaderMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1825,8 +1860,8 @@ private fun MetadataRefreshConfirmationDialog(
                 .fillMaxSize()
                 .padding(14.dp),
             shape = RoundedCornerShape(14.dp),
-            color = OmnilogColors.AppBackground,
-            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+            color = OmnilogTheme.colors.appBackground,
+            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         ) {
             Column(
                 modifier = Modifier
@@ -1838,11 +1873,11 @@ private fun MetadataRefreshConfirmationDialog(
                     text = stringResource(R.string.metadata_refresh_confirm_title),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = HeaderInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = stringResource(R.string.metadata_refresh_confirm_message),
-                    color = HeaderMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -1852,8 +1887,8 @@ private fun MetadataRefreshConfirmationDialog(
                         val isSelected = change.field in selectedFields
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = OmnilogColors.AppPanel,
-                            border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                            color = OmnilogTheme.colors.appPanel,
+                            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -1884,7 +1919,7 @@ private fun MetadataRefreshConfirmationDialog(
                                         text = stringResource(change.field.labelResId()),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = HeaderInk,
+                                        color = OmnilogTheme.colors.appInk,
                                     )
                                     if (change.isLocallyOverridden) {
                                         Text(
@@ -1937,7 +1972,7 @@ private fun MetadataChangeValue(label: String, value: String) {
             append(value)
         },
         style = MaterialTheme.typography.bodyMedium,
-        color = HeaderMuted,
+        color = OmnilogTheme.colors.appMuted,
     )
 }
 
@@ -2041,11 +2076,13 @@ internal fun List<DetailHistoryEntry>.popDetail(): DetailHistoryPop {
 
 private sealed interface CollectionReturnTarget {
     data object Section : CollectionReturnTarget
+    data object Stats : CollectionReturnTarget
     data class Detail(val mediaItemId: Long) : CollectionReturnTarget
 }
 
 private sealed interface AuthorReturnTarget {
     data object Section : AuthorReturnTarget
+    data object Stats : AuthorReturnTarget
     data class Detail(val mediaItemId: Long) : AuthorReturnTarget
 }
 
@@ -2130,16 +2167,16 @@ private fun OmnilogBottomBar(
     onSectionClick: (MediaSection) -> Unit,
 ) {
     Surface(
-        color = HeaderBackground,
-        contentColor = HeaderInk,
+        color = OmnilogTheme.colors.appBackground,
+        contentColor = OmnilogTheme.colors.appInk,
         shadowElevation = 12.dp,
     ) {
         Column {
-            HorizontalDivider(color = HeaderLine.copy(alpha = 0.72f))
+            HorizontalDivider(color = OmnilogTheme.colors.appLine.copy(alpha = 0.72f))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(HeaderPanel.copy(alpha = 0.74f))
+                    .background(OmnilogTheme.colors.appPanel.copy(alpha = 0.74f))
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -2176,7 +2213,7 @@ private fun OmnilogNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val contentColor = if (selected) accent else HeaderMuted
+    val contentColor = if (selected) accent else OmnilogTheme.colors.appMuted
     val containerColor = if (selected) accent.copy(alpha = 0.15f) else Color.Transparent
     val borderColor = if (selected) accent.copy(alpha = 0.36f) else Color.Transparent
 
@@ -2202,7 +2239,7 @@ private fun OmnilogNavItem(
             )
             Text(
                 text = stringResource(labelResId),
-                color = if (selected) HeaderInk else HeaderMuted,
+                color = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
                 maxLines = 1,
@@ -2228,10 +2265,10 @@ private fun OmnilogTopBar(
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = HeaderBackground,
-            titleContentColor = HeaderInk,
-            navigationIconContentColor = HeaderInk,
-            actionIconContentColor = HeaderInk,
+            containerColor = OmnilogTheme.colors.appBackground,
+            titleContentColor = OmnilogTheme.colors.appInk,
+            navigationIconContentColor = OmnilogTheme.colors.appInk,
+            actionIconContentColor = OmnilogTheme.colors.appInk,
         ),
         navigationIcon = {
             if (showBackNavigation) {
@@ -2239,7 +2276,7 @@ private fun OmnilogTopBar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
-                        tint = HeaderInk,
+                        tint = OmnilogTheme.colors.appInk,
                     )
                     Text(
                         text = "‹",
@@ -2256,7 +2293,7 @@ private fun OmnilogTopBar(
                     withStyle(SpanStyle(color = accent, fontWeight = FontWeight.ExtraBold)) {
                         append("Omni")
                     }
-                    withStyle(SpanStyle(color = HeaderInk, fontWeight = FontWeight.ExtraBold)) {
+                    withStyle(SpanStyle(color = OmnilogTheme.colors.appInk, fontWeight = FontWeight.ExtraBold)) {
                         append("log")
                     }
                 },
@@ -2270,7 +2307,7 @@ private fun OmnilogTopBar(
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
                             contentDescription = null,
-                            tint = HeaderMuted,
+                            tint = OmnilogTheme.colors.appMuted,
                         )
                         Text(
                             text = "⋮",
@@ -2283,7 +2320,7 @@ private fun OmnilogTopBar(
                         expanded = detailActions.isMenuExpanded,
                         onDismissRequest = { detailActions.isMenuExpanded = false },
                         shape = RoundedCornerShape(10.dp),
-                        containerColor = HeaderPanel,
+                        containerColor = OmnilogTheme.colors.appPanel,
                         tonalElevation = 0.dp,
                         shadowElevation = 8.dp,
                     ) {
@@ -2346,7 +2383,7 @@ private fun OmnilogTopBar(
                     Icon(
                         imageVector = Icons.Filled.Settings,
                         contentDescription = "Configuració",
-                        tint = HeaderMuted,
+                        tint = OmnilogTheme.colors.appMuted,
                     )
                 }
             } else if (showProfileAction) {
@@ -2364,7 +2401,7 @@ private fun OmnilogTopBar(
                         Icon(
                             imageVector = Icons.Filled.AccountCircle,
                             contentDescription = stringResource(R.string.profile_menu),
-                            tint = HeaderMuted,
+                            tint = OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
@@ -2381,15 +2418,15 @@ private fun HeaderMenuItem(
     onClick: () -> Unit,
 ) {
     val textColor = when {
-        !enabled -> HeaderMuted.copy(alpha = 0.62f)
+        !enabled -> OmnilogTheme.colors.appMuted.copy(alpha = 0.62f)
         destructive -> MaterialTheme.colorScheme.error
-        else -> HeaderInk
+        else -> OmnilogTheme.colors.appInk
     }
 
     Row(
         modifier = Modifier
             .widthIn(min = 148.dp)
-            .background(HeaderPanel)
+            .background(OmnilogTheme.colors.appPanel)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
@@ -2408,8 +2445,3 @@ private fun collectionItemComparator(): Comparator<TrackedMedia> =
         .thenBy { it.item.title.lowercase() }
 
 
-private val HeaderBackground = OmnilogColors.AppBackground
-private val HeaderPanel = OmnilogColors.AppPanel
-private val HeaderLine = OmnilogColors.AppLine
-private val HeaderInk = OmnilogColors.AppInk
-private val HeaderMuted = OmnilogColors.AppMuted

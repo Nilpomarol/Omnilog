@@ -44,6 +44,7 @@ import com.nilpo.contenttracker.core.model.ObjectiveUnit
 import com.nilpo.contenttracker.core.model.canonicalUnit
 import com.nilpo.contenttracker.core.model.pace
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -72,12 +73,12 @@ fun ObjectiveProgressCard(
     val accent = objective.mediaType.objectiveAccent()
     val fillColor = when (pace.status) {
         ObjectiveStatus.Completed -> OmnilogColors.Completed
-        ObjectiveStatus.Missed -> OmnilogColors.AppLine
+        ObjectiveStatus.Missed -> OmnilogTheme.colors.appLine
         else -> accent
     }
     val borderColor = when (pace.status) {
         ObjectiveStatus.Completed -> OmnilogColors.Completed.copy(alpha = 0.45f)
-        else -> OmnilogColors.AppLine
+        else -> OmnilogTheme.colors.appLine
     }
     val isActive = pace.status == ObjectiveStatus.Ahead ||
         pace.status == ObjectiveStatus.OnTrack ||
@@ -90,7 +91,7 @@ fun ObjectiveProgressCard(
     Surface(
         modifier = cardModifier,
         shape = RoundedCornerShape(14.dp),
-        color = OmnilogColors.AppPanel,
+        color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, borderColor),
     ) {
         Column(
@@ -107,14 +108,14 @@ fun ObjectiveProgressCard(
                         text = objectiveProgressLabel(progress),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                     Text(
                         text = objective.cardSubtitle(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
@@ -130,7 +131,7 @@ fun ObjectiveProgressCard(
                     text = "Objectiu: ${objectiveTargetLabel(objective)}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogColors.AppInk,
+                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = "${(progress.percentage * 100).roundToInt()}%",
@@ -138,7 +139,7 @@ fun ObjectiveProgressCard(
                         .weight(1f)
                         .padding(bottom = 1.dp),
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogColors.AppMuted,
+                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogTheme.colors.appMuted,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 )
             }
@@ -158,13 +159,13 @@ fun ObjectiveProgressCard(
                     Text(
                         text = pace.daysRemainingLabel(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     Text(
                         text = pace.deltaText(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Medium,
-                        color = pace.status.paceColor(),
+                        color = pace.status.paceColor(OmnilogTheme.colors.appMuted),
                     )
                 }
             }
@@ -191,7 +192,7 @@ fun ObjectiveSummaryRow(
     val accent = objective.mediaType.objectiveAccent()
     val fillColor = when (pace.status) {
         ObjectiveStatus.Completed -> OmnilogColors.Completed
-        ObjectiveStatus.Missed -> OmnilogColors.AppLine
+        ObjectiveStatus.Missed -> OmnilogTheme.colors.appLine
         else -> accent
     }
     val isActive = pace.status == ObjectiveStatus.Ahead ||
@@ -213,7 +214,7 @@ fun ObjectiveSummaryRow(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
@@ -221,7 +222,10 @@ fun ObjectiveSummaryRow(
                 text = "${(progress.percentage * 100).roundToInt()}%",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.ExtraBold,
-                color = pace.status.summaryPercentColor(),
+                color = pace.status.summaryPercentColor(
+                    muted = OmnilogTheme.colors.appMuted,
+                    ink = OmnilogTheme.colors.appInk,
+                ),
             )
         }
         ObjectiveProgressBar(
@@ -266,7 +270,7 @@ private fun AccentBadge(mediaType: MediaType?, accent: Color, size: androidx.com
 
 @Composable
 private fun StatusChip(status: ObjectiveStatus) {
-    val (label, color, solid) = status.chipStyle()
+    val (label, color, solid) = status.chipStyle(OmnilogTheme.colors.appMuted)
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = if (solid) color else color.copy(alpha = 0.16f),
@@ -276,7 +280,7 @@ private fun StatusChip(status: ObjectiveStatus) {
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
-            color = if (solid) OmnilogColors.AppBackground else color,
+            color = if (solid) OmnilogTheme.colors.appBackground else color,
         )
     }
 }
@@ -289,7 +293,7 @@ private fun ObjectiveOverflowMenu(onEdit: (() -> Unit)?, onDelete: (() -> Unit)?
             Icon(
                 Icons.Filled.MoreVert,
                 contentDescription = "Més opcions",
-                tint = OmnilogColors.AppMuted,
+                tint = OmnilogTheme.colors.appMuted,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -317,7 +321,7 @@ private fun ObjectiveProgressBar(
             .fillMaxWidth()
             .height(height)
             .clip(RoundedCornerShape(5.dp))
-            .background(OmnilogColors.AppBackground),
+            .background(OmnilogTheme.colors.appBackground),
     ) {
         Box(
             modifier = Modifier
@@ -333,7 +337,7 @@ private fun ObjectiveProgressBar(
                         .align(Alignment.CenterEnd)
                         .width(2.dp)
                         .fillMaxHeight()
-                        .background(OmnilogColors.AppInk),
+                        .background(OmnilogTheme.colors.appInk),
                 )
             }
         }
@@ -358,31 +362,33 @@ private fun com.nilpo.contenttracker.core.model.ObjectivePace.deltaText(): Strin
  * full-contrast ink otherwise — this is the row's headline number, so the muted treatment
  * `paceColor` uses for supporting hints would under-serve it (UX-10).
  */
-private fun ObjectiveStatus.summaryPercentColor(): Color = when (this) {
+// The neutral tones are theme-aware, so callers resolve them from OmnilogTheme and pass them in;
+// these mappings stay non-composable so they remain usable from any context.
+private fun ObjectiveStatus.summaryPercentColor(muted: Color, ink: Color): Color = when (this) {
     ObjectiveStatus.Completed, ObjectiveStatus.Ahead -> OmnilogColors.Completed
     ObjectiveStatus.Behind -> OmnilogColors.Dashboard
-    ObjectiveStatus.Missed -> OmnilogColors.AppMuted
-    ObjectiveStatus.OnTrack -> OmnilogColors.AppInk
+    ObjectiveStatus.Missed -> muted
+    ObjectiveStatus.OnTrack -> ink
 }
 
-private fun ObjectiveStatus.paceColor(): Color = when (this) {
+private fun ObjectiveStatus.paceColor(muted: Color): Color = when (this) {
     ObjectiveStatus.Behind -> OmnilogColors.Dashboard
     ObjectiveStatus.Ahead -> OmnilogColors.Completed
-    else -> OmnilogColors.AppMuted
+    else -> muted
 }
 
-private fun com.nilpo.contenttracker.core.model.ObjectivePace.hintColor(): Color = when (status) {
+private fun com.nilpo.contenttracker.core.model.ObjectivePace.hintColor(muted: Color): Color = when (status) {
     ObjectiveStatus.Completed -> OmnilogColors.Completed
-    ObjectiveStatus.Missed -> OmnilogColors.AppMuted
-    else -> status.paceColor()
+    ObjectiveStatus.Missed -> muted
+    else -> status.paceColor(muted)
 }
 
-private fun ObjectiveStatus.chipStyle(): Triple<String, Color, Boolean> = when (this) {
+private fun ObjectiveStatus.chipStyle(muted: Color): Triple<String, Color, Boolean> = when (this) {
     ObjectiveStatus.Completed -> Triple("Completat", OmnilogColors.Completed, true)
     ObjectiveStatus.Ahead -> Triple("Avançat", OmnilogColors.Completed, false)
     ObjectiveStatus.OnTrack -> Triple("Al dia", OmnilogColors.Completed, false)
     ObjectiveStatus.Behind -> Triple("Endarrerit", OmnilogColors.Dashboard, false)
-    ObjectiveStatus.Missed -> Triple("No assolit", OmnilogColors.AppMuted, false)
+    ObjectiveStatus.Missed -> Triple("No assolit", muted, false)
 }
 
 private fun Objective.cardSubtitle(): String {

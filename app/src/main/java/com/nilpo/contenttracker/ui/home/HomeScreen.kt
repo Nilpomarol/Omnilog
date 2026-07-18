@@ -88,6 +88,7 @@ import com.nilpo.contenttracker.ui.common.OmnilogEmptyState
 import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.coroutines.delay
 
 @Composable
@@ -147,7 +148,7 @@ fun HomeScreen(
 
     Surface(
         modifier = modifier,
-        color = OmnilogColors.AppBackground,
+        color = OmnilogTheme.colors.appBackground,
     ) {
         LazyColumn(
             modifier = Modifier
@@ -399,14 +400,14 @@ private fun SearchSectionHeader(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             if (count != null) {
                 Text(
                     text = count.toString(),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
         }
@@ -414,7 +415,7 @@ private fun SearchSectionHeader(
             Text(
                 text = hint,
                 style = MaterialTheme.typography.labelMedium,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
     }
@@ -433,7 +434,7 @@ private fun ListItemCounter(
         Text(
             text = stringResource(R.string.list_item_count, visibleCount, totalCount),
             style = MaterialTheme.typography.labelMedium,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             maxLines = 1,
         )
     }
@@ -556,8 +557,8 @@ private fun GroupModeSegmented(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -582,7 +583,7 @@ private fun GroupModeSegmented(
                 modes.forEach { mode ->
                     val selected = mode == selectedMode
                     val contentColor by animateColorAsState(
-                        targetValue = if (selected) OmnilogColors.AppInk else OmnilogColors.AppMuted,
+                        targetValue = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
                         animationSpec = tween(durationMillis = 220),
                         label = "segmentContentColor",
                     )
@@ -637,7 +638,7 @@ private fun SortChip(
         shape = RoundedCornerShape(999.dp),
         color = accent.copy(alpha = 0.16f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.50f)),
-        contentColor = OmnilogColors.AppInk,
+        contentColor = OmnilogTheme.colors.appInk,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
@@ -705,9 +706,9 @@ private fun AdvancedFiltersButton(
             onClick = onClick,
             modifier = Modifier.size(34.dp),
             shape = RoundedCornerShape(999.dp),
-            color = if (activeCount > 0) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
-            border = BorderStroke(1.dp, if (activeCount > 0) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
-            contentColor = if (activeCount > 0) OmnilogColors.AppInk else OmnilogColors.AppMuted,
+            color = if (activeCount > 0) color.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
+            border = BorderStroke(1.dp, if (activeCount > 0) color.copy(alpha = 0.50f) else OmnilogTheme.colors.appLine),
+            contentColor = if (activeCount > 0) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
@@ -774,7 +775,7 @@ private fun AdvancedFiltersSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = OmnilogColors.AppPanel,
+        containerColor = OmnilogTheme.colors.appPanel,
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -929,8 +930,8 @@ private fun SearchableFilterDropdown(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                color = OmnilogColors.AppPanel.copy(alpha = 0.55f),
-                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                color = OmnilogTheme.colors.appPanel.copy(alpha = 0.55f),
+                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
             ) {
                 Column(
                     modifier = Modifier
@@ -953,7 +954,7 @@ private fun SearchableFilterDropdown(
                         Text(
                             text = stringResource(R.string.filter_no_matches),
                             modifier = Modifier.padding(12.dp),
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
@@ -973,8 +974,8 @@ private fun FilterSectionHeader(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = OmnilogColors.AppPanel.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel.copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
             modifier = Modifier
@@ -1014,7 +1015,7 @@ private fun FilterChoiceRow(
     Surface(
         onClick = onClick,
         color = Color.Transparent,
-        contentColor = OmnilogColors.AppInk,
+        contentColor = OmnilogTheme.colors.appInk,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1023,7 +1024,7 @@ private fun FilterChoiceRow(
             Checkbox(checked = selected, onCheckedChange = { onClick() })
             Text(
                 text = label,
-                color = if (selected) accent else OmnilogColors.AppInk,
+                color = if (selected) accent else OmnilogTheme.colors.appInk,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             )
         }
@@ -1053,7 +1054,7 @@ private fun RatingFilterSection(
                     label = { Text(stringResource(R.string.filter_rating_at_least, minimum)) },
                     colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                         selectedContainerColor = accent.copy(alpha = 0.20f),
-                        selectedLabelColor = OmnilogColors.AppInk,
+                        selectedLabelColor = OmnilogTheme.colors.appInk,
                     ),
                 )
             }
@@ -1076,9 +1077,9 @@ private fun DropdownChip(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
-        contentColor = if (selected) OmnilogColors.AppInk else OmnilogColors.AppMuted,
+        color = if (selected) color.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogTheme.colors.appLine),
+        contentColor = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
     ) {
         Row(
             modifier = Modifier

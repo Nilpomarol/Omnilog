@@ -63,7 +63,7 @@ import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.toCollectionPickerOptions
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun DetailQuickActionsSection(
@@ -171,7 +171,7 @@ private fun QuickActionButton(
     val containerColor = if (selected) {
         accent.copy(alpha = 0.18f)
     } else {
-        OmnilogColors.AppPanel
+        OmnilogTheme.colors.appPanel
     }
     val borderColor = if (selected) {
         accent.copy(alpha = 0.78f)
@@ -179,9 +179,9 @@ private fun QuickActionButton(
         MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
     }
     val contentColor = if (selected) {
-        OmnilogColors.AppInk
+        OmnilogTheme.colors.appInk
     } else {
-        OmnilogColors.AppMuted
+        OmnilogTheme.colors.appMuted
     }
 
     Surface(
@@ -249,14 +249,14 @@ fun ExternalRatingsPage(
                         text = title,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = stringResource(R.string.detail_external_scores),
                         style = MaterialTheme.typography.labelMedium,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
                 IconButton(onClick = { showAddForm = !showAddForm }) {
@@ -267,13 +267,13 @@ fun ExternalRatingsPage(
                     )
                 }
             }
-            HorizontalDivider(color = OmnilogColors.AppLine)
+            HorizontalDivider(color = OmnilogTheme.colors.appLine)
 
             if (showAddForm) Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
-                color = OmnilogColors.AppPanel,
-                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                color = OmnilogTheme.colors.appPanel,
+                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
             ) {
                 Column(
                     modifier = Modifier.padding(8.dp),
@@ -301,7 +301,7 @@ fun ExternalRatingsPage(
                         Text(
                             text = "/",
                             modifier = Modifier.padding(top = 18.dp),
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         OutlinedTextField(
@@ -332,7 +332,7 @@ fun ExternalRatingsPage(
                             Checkbox(checked = makePrimary, onCheckedChange = { makePrimary = it })
                             Text(
                                 text = stringResource(R.string.make_primary_external_rating),
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 style = MaterialTheme.typography.labelMedium,
                             )
                         }
@@ -407,8 +407,8 @@ private fun ExternalRatingManageRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, if (isPrimary) accent else OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, if (isPrimary) accent else OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -423,7 +423,7 @@ private fun ExternalRatingManageRow(
                         text = rating.source.displayName(),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         modifier = Modifier.weight(1f),
                     )
                     if (isPrimary) {
@@ -438,7 +438,7 @@ private fun ExternalRatingManageRow(
                         Icon(
                             imageVector = Icons.Filled.Edit,
                             contentDescription = stringResource(R.string.edit),
-                            tint = OmnilogColors.AppMuted,
+                            tint = OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
@@ -450,14 +450,14 @@ private fun ExternalRatingManageRow(
                         text = "${rating.score.cleanDecimal()}/${rating.maxScore.cleanDecimal()}",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
                         text = rating.voteCount?.let { "${it} ${stringResource(R.string.field_external_rating_users).lowercase()}" }.orEmpty(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     if (!isPrimary) {
                         IconButton(onClick = { onSetPrimary(rating.id) }) {
@@ -490,7 +490,7 @@ private fun ExternalRatingManageRow(
                 Text(
                     text = "/${maxScore.cleanDecimal()}",
                     modifier = Modifier.padding(top = 18.dp),
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 OutlinedTextField(
@@ -718,12 +718,12 @@ fun GoodreadsRatingPrompt(
                 text = "Add Goodreads rating",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             Text(
                 text = "This book has no Goodreads score yet.",
                 style = MaterialTheme.typography.bodySmall,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
             OutlinedTextField(
                 value = score,

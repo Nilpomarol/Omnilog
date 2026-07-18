@@ -1,12 +1,20 @@
 package com.nilpo.contenttracker
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import com.nilpo.contenttracker.ui.ContentTrackerApp
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.theme.ContentTrackerTheme
+import com.nilpo.contenttracker.ui.theme.rememberThemePreference
+import com.nilpo.contenttracker.ui.theme.rememberThemePreferences
+import com.nilpo.contenttracker.ui.theme.resolveDarkTheme
 
 class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels {
@@ -20,7 +28,21 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ContentTrackerTheme {
+            val themePreferences = rememberThemePreferences()
+            val themePreference by rememberThemePreference(themePreferences)
+            val darkTheme = themePreference.resolveDarkTheme()
+
+            val view = LocalView.current
+            LaunchedEffect(darkTheme) {
+                val window = (view.context as Activity).window
+                WindowCompat.getInsetsController(window, view).apply {
+                    // Dark surfaces need light (white) system-bar icons, and vice versa.
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
+                }
+            }
+
+            ContentTrackerTheme(darkTheme = darkTheme) {
                 ContentTrackerApp(
                     viewModel = homeViewModel,
                 )

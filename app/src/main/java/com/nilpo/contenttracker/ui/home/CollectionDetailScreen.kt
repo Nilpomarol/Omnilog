@@ -69,7 +69,7 @@ import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.OmnilogModal
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun CollectionDetailScreen(
@@ -149,7 +149,7 @@ fun CollectionDetailScreen(
 
     Surface(
         modifier = modifier,
-        color = OmnilogColors.AppBackground,
+        color = OmnilogTheme.colors.appBackground,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
@@ -203,13 +203,13 @@ fun CollectionDetailScreen(
                         text = stringResource(R.string.collection_items_section),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                     HorizontalDivider(
                         modifier = Modifier
                             .weight(1f)
                             .padding(start = 10.dp),
-                        color = OmnilogColors.AppLine,
+                        color = OmnilogTheme.colors.appLine,
                     )
                 }
 
@@ -225,7 +225,7 @@ fun CollectionDetailScreen(
                         Text(
                             text = stringResource(R.string.collection_empty),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                             modifier = Modifier.padding(top = 8.dp),
                         )
                     }
@@ -487,7 +487,7 @@ private fun CollectionHeroHeader(
                                 Icon(
                                     imageVector = Icons.Filled.MoreVert,
                                     contentDescription = stringResource(R.string.collection_menu),
-                                    tint = OmnilogColors.AppMuted,
+                                    tint = OmnilogTheme.colors.appMuted,
                                 )
                             }
                             DropdownMenu(
@@ -529,7 +529,7 @@ private fun CollectionHeroHeader(
                     text = collection.name,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -568,7 +568,7 @@ private fun CollectionHeroHeader(
                             text = progressSummary.label,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -638,12 +638,12 @@ private fun HeroStatChip(
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = if (emphasized) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
+        color = if (emphasized) accent.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
         border = BorderStroke(
             1.dp,
-            if (emphasized) accent.copy(alpha = 0.44f) else OmnilogColors.AppLine,
+            if (emphasized) accent.copy(alpha = 0.44f) else OmnilogTheme.colors.appLine,
         ),
-        contentColor = if (emphasized) accent else OmnilogColors.AppMuted,
+        contentColor = if (emphasized) accent else OmnilogTheme.colors.appMuted,
     ) {
         Text(
             text = text,
@@ -690,7 +690,7 @@ private fun ReorderHeaderBar(
                     text = collectionName,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -729,7 +729,7 @@ private fun MoveCollectionDialog(
                 text = stringResource(R.string.collection_move_item_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             OutlinedTextField(
                 value = query,
@@ -749,13 +749,13 @@ private fun MoveCollectionDialog(
                     text = stringResource(R.string.collection_move_item_empty),
                     modifier = Modifier.padding(vertical = 8.dp),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
                 visibleCollections.isEmpty() -> Text(
                     text = stringResource(R.string.collection_move_item_no_matches),
                     modifier = Modifier.padding(vertical = 8.dp),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
                 else -> LazyColumn(
                     modifier = Modifier
@@ -813,9 +813,9 @@ private fun CollectionMoveOptionRow(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, if (selected) accent.copy(alpha = 0.58f) else OmnilogColors.AppLine),
-        contentColor = if (selected) accent else OmnilogColors.AppInk,
+        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, if (selected) accent.copy(alpha = 0.58f) else OmnilogTheme.colors.appLine),
+        contentColor = if (selected) accent else OmnilogTheme.colors.appInk,
     ) {
         Text(
             text = collection.name,
@@ -851,7 +851,7 @@ private fun CollectionItemCard(
                     Icon(
                         imageVector = Icons.Filled.MoreVert,
                         contentDescription = stringResource(R.string.collection_item_menu),
-                        tint = OmnilogColors.AppMuted,
+                        tint = OmnilogTheme.colors.appMuted,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -898,8 +898,8 @@ private fun ReorderItemRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-        color = OmnilogColors.AppPanel,
-        border = androidx.compose.foundation.BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = androidx.compose.foundation.BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
@@ -935,7 +935,7 @@ private fun ReorderItemRow(
                     text = displayMediaTitle(trackedMedia.item.title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -943,7 +943,7 @@ private fun ReorderItemRow(
                     Text(
                         text = creator,
                         style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -970,7 +970,7 @@ private fun ReorderMetadataLine(trackedMedia: TrackedMedia) {
         text = parts.joinToString(" · "),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.SemiBold,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -1036,8 +1036,8 @@ private fun CompactArrowButton(
         enabled = enabled,
         modifier = Modifier.size(38.dp),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppLine.copy(alpha = if (enabled) 0.92f else 0.4f),
-        contentColor = if (enabled) accent else OmnilogColors.AppMuted.copy(alpha = 0.36f),
+        color = OmnilogTheme.colors.appLine.copy(alpha = if (enabled) 0.92f else 0.4f),
+        contentColor = if (enabled) accent else OmnilogTheme.colors.appMuted.copy(alpha = 0.36f),
     ) {
         Box(contentAlignment = Alignment.Center) {
             content()

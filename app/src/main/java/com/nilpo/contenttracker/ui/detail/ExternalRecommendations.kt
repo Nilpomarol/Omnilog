@@ -37,7 +37,7 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.displayName
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 internal fun ExternalRecommendationsSection(
@@ -56,7 +56,7 @@ internal fun ExternalRecommendationsSection(
             Text(
                 text = stringResource(R.string.detail_external_recommendation_loading),
                 style = MaterialTheme.typography.bodySmall,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
 
@@ -70,7 +70,7 @@ internal fun ExternalRecommendationsSection(
                     text = stringResource(R.string.detail_external_recommendation_error),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                 )
                 Button(onClick = onRefresh) {
                     Text(text = stringResource(R.string.detail_external_recommendation_retry))
@@ -114,8 +114,8 @@ private fun ExternalRecommendationCard(
             .height(224.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             MetadataCoverImage(
@@ -141,15 +141,15 @@ private fun ExternalRecommendationCard(
                     .align(Alignment.TopEnd)
                     .padding(9.dp),
                 shape = RoundedCornerShape(999.dp),
-                color = OmnilogColors.AppPanel,
-                border = BorderStroke(1.dp, OmnilogColors.AppLine),
+                color = OmnilogTheme.colors.appPanel,
+                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
             ) {
                 Text(
                     text = suggestion.source.displayName(),
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
             }
             Column(
@@ -163,7 +163,7 @@ private fun ExternalRecommendationCard(
                     text = displayMediaTitle(suggestion.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -171,7 +171,7 @@ private fun ExternalRecommendationCard(
                     Text(
                         text = year.toString(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                     )
                 }
                 Surface(
@@ -184,7 +184,7 @@ private fun ExternalRecommendationCard(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.AppBackground,
+                        color = OmnilogTheme.colors.appBackground,
                     )
                 }
             }

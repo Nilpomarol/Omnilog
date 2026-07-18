@@ -8,7 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun DetailSectionTitle(text: String) {
@@ -17,8 +17,8 @@ fun DetailSectionTitle(text: String) {
             text = text,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
         )
-        HorizontalDivider(color = OmnilogColors.AppLine)
+        HorizontalDivider(color = OmnilogTheme.colors.appLine)
     }
 }

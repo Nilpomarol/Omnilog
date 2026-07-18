@@ -56,6 +56,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,16 +72,26 @@ import com.nilpo.contenttracker.core.stats.StatsCalculator
 import com.nilpo.contenttracker.core.stats.StatsBucket
 import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
-import com.nilpo.contenttracker.core.stats.ProgressTotalStats
+import com.nilpo.contenttracker.core.stats.ComparisonBasis
+import com.nilpo.contenttracker.core.stats.StatsSnapshot
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
+import com.nilpo.contenttracker.ui.stats.MetricBand
+import com.nilpo.contenttracker.ui.stats.MetricBandLead
+import com.nilpo.contenttracker.ui.stats.MetricBandSupporting
+import com.nilpo.contenttracker.ui.stats.comparisonBasisLabel
+import com.nilpo.contenttracker.ui.stats.comparisonBasisLabelShort
+import com.nilpo.contenttracker.ui.stats.intMetricDelta
+import com.nilpo.contenttracker.ui.stats.ratingMetricDelta
+import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.common.rememberDashboardPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenDashboardSections
 import com.nilpo.contenttracker.ui.common.writeHiddenDashboardSections
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.util.Locale
@@ -150,7 +162,7 @@ fun HomeLandingScreen(
 
     Surface(
         modifier = modifier,
-        color = OmnilogColors.AppBackground,
+        color = OmnilogTheme.colors.appBackground,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
@@ -310,16 +322,16 @@ private fun DashboardAnalyticsPreview(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -327,10 +339,23 @@ private fun DashboardAnalyticsPreview(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // Condensed here so it shares the title's line instead of costing the card a row.
+                // Each metric still announces the basis in full to screen readers.
+                snapshot.deltas.basis?.let { basis ->
+                    Text(
+                        text = comparisonBasisLabelShort(basis),
+                        modifier = Modifier.clearAndSetSemantics { },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogTheme.colors.appMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = stringResource(R.string.home_analytics_preview_open),
@@ -338,100 +363,66 @@ private fun DashboardAnalyticsPreview(
                     tint = OmnilogColors.Dashboard,
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                KpiStat(
-                    value = snapshot.completionSessions.toString(),
-                    label = stringResource(R.string.home_analytics_preview_completed),
-                    valueColor = OmnilogColors.Completed,
-                    modifier = Modifier.weight(1f),
-                )
-                snapshot.averageRating?.let { average ->
-                    KpiStat(
-                        value = ratingFormat.format(average),
-                        label = stringResource(R.string.home_analytics_average_rating),
-                        valueColor = OmnilogColors.AppInk,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            VolumeChips(totals = snapshot.progressTotals)
+            DashboardPeriodMetrics(snapshot = snapshot)
             MonthlyActivityPreview(buckets = snapshot.completionSessionsByMonth)
         }
     }
 }
 
 /**
- * A headline figure over its own label. Stacked rather than side-by-side so the label is free to
- * wrap at large font scales instead of fighting the value for one line.
- */
-@Composable
-private fun KpiStat(
-    value: String,
-    label: String,
-    valueColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = valueColor,
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = OmnilogColors.AppMuted,
-        )
-    }
-}
-
-/**
- * What the year actually consisted of, in each medium's own unit — `1.482 pàgines · 96 episodis`.
+ * The year's KPIs in one band: completion sessions as the lead figure, with the average rating and
+ * revisit count as supporting values behind a rule. Each carries its change against the same period
+ * of last year, and the basis is named once beneath the band rather than on every chip.
  *
- * One chip per medium rather than a single headline figure: the values are different units, so a
- * "biggest" number would be meaningless (pages always dwarf episodes) and a sum would be nonsense.
+ * Consumption totals deliberately do not appear here — they are per-medium values in units that
+ * cannot be compared, and the statistics page shows them where that context exists.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun VolumeChips(
-    totals: List<ProgressTotalStats>,
+private fun DashboardPeriodMetrics(
+    snapshot: StatsSnapshot,
     modifier: Modifier = Modifier,
 ) {
-    val visible = totals.filter { it.value > 0 }
-    if (visible.isEmpty()) return
+    val basisLabel = snapshot.deltas.basis?.let { basis -> comparisonBasisLabel(basis) }
 
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        visible.forEach { total ->
-            val accent = total.mediaType.sectionAccent()
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = accent.copy(alpha = 0.14f),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.34f)),
-            ) {
-                Text(
-                    text = "${volumeFormat.format(total.value)} ${total.mediaType.progressUnit()}",
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = accent,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
+    MetricBand(
+        modifier = modifier,
+        lead = {
+            MetricBandLead(
+                value = snapshot.completionSessions.toString(),
+                label = stringResource(R.string.home_analytics_preview_completed),
+                accent = OmnilogColors.Completed,
+                delta = intMetricDelta(snapshot.deltas.completionSessions),
+                basisLabel = basisLabel,
+                leadValueStyle = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.weight(1.1f),
+            )
+        },
+        supporting = {
+            MetricBandSupporting(
+                label = stringResource(R.string.home_analytics_average_rating_short),
+                accessibleLabel = stringResource(R.string.home_analytics_average_rating),
+                value = snapshot.averageRating?.let { average -> ratingFormat.format(average) } ?: "—",
+                accent = OmnilogTheme.colors.appInk,
+                delta = ratingMetricDelta(snapshot.deltas.averageRating),
+                basisLabel = basisLabel,
+                valueStyle = MaterialTheme.typography.titleMedium,
+            )
+            MetricBandSupporting(
+                label = stringResource(R.string.home_analytics_revisits_short),
+                accessibleLabel = stringResource(R.string.stats_summary_revisits),
+                value = snapshot.revisitCount.toString(),
+                accent = OmnilogColors.Books,
+                delta = intMetricDelta(snapshot.deltas.revisits),
+                basisLabel = basisLabel,
+                valueStyle = MaterialTheme.typography.titleMedium,
+            )
+        },
+    )
 }
+
+
+
+
 
 @Composable
 private fun MonthlyActivityPreview(
@@ -446,7 +437,7 @@ private fun MonthlyActivityPreview(
             .fillMaxWidth()
             // Min, not fixed: the month labels scale with the system font and a hard height
             // clips them at large scales (UX-09). The bars keep their own fixed height.
-            .heightIn(min = 86.dp),
+            .heightIn(min = 92.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -459,11 +450,11 @@ private fun MonthlyActivityPreview(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(62.dp),
+                        .height(70.dp),
                     contentAlignment = Alignment.BottomCenter,
                 ) {
                     val barHeight = if (bucket.value == 0) 2 else {
-                        (62 * bucket.value / maxValue).coerceAtLeast(4)
+                        (70 * bucket.value / maxValue).coerceAtLeast(4)
                     }
                     if (bucket.segments.isNotEmpty()) {
                         Column(
@@ -488,7 +479,7 @@ private fun MonthlyActivityPreview(
                                 .fillMaxWidth()
                                 .height(barHeight.dp)
                                 .background(
-                                    if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogColors.AppLine.copy(alpha = 0.58f),
+                                    if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogTheme.colors.appLine.copy(alpha = 0.58f),
                                     RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp),
                                 ),
                         )
@@ -497,7 +488,7 @@ private fun MonthlyActivityPreview(
                 Text(
                     text = bucket.label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                 )
             }
@@ -517,8 +508,8 @@ private fun DashboardSearch(
             .fillMaxWidth()
             .height(52.dp),
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp),
@@ -528,7 +519,7 @@ private fun DashboardSearch(
             Icon(
                 imageVector = Icons.Filled.Search,
                 contentDescription = null,
-                tint = if (query.isNotBlank()) OmnilogColors.Dashboard else OmnilogColors.AppMuted,
+                tint = if (query.isNotBlank()) OmnilogColors.Dashboard else OmnilogTheme.colors.appMuted,
             )
             BasicTextField(
                 value = query,
@@ -542,7 +533,7 @@ private fun DashboardSearch(
                     },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     fontWeight = FontWeight.SemiBold,
                 ),
                 cursorBrush = SolidColor(OmnilogColors.Dashboard),
@@ -553,7 +544,7 @@ private fun DashboardSearch(
                                 text = stringResource(R.string.search_label),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                             )
                         }
                         innerTextField()
@@ -574,7 +565,7 @@ private fun DashboardSearch(
                     Icon(
                         imageVector = Icons.Filled.Close,
                         contentDescription = stringResource(R.string.cancel),
-                        tint = OmnilogColors.AppMuted,
+                        tint = OmnilogTheme.colors.appMuted,
                     )
                 }
             }
@@ -595,8 +586,8 @@ private fun DashboardSearchOverlay(
             .fillMaxWidth()
             .heightIn(max = 336.dp),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel.copy(alpha = 0.98f),
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel.copy(alpha = 0.98f),
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         shadowElevation = 10.dp,
     ) {
         LazyColumn(
@@ -610,7 +601,7 @@ private fun DashboardSearchOverlay(
                             onClick = { onMediaClick(trackedMedia) },
                         )
                         if (trackedMedia != matches.last()) {
-                            HorizontalDivider(color = OmnilogColors.AppLine.copy(alpha = 0.58f))
+                            HorizontalDivider(color = OmnilogTheme.colors.appLine.copy(alpha = 0.58f))
                         }
                     }
                 }
@@ -623,7 +614,7 @@ private fun DashboardSearchOverlay(
                             onClick = { onSectionSearch(section) },
                         )
                         if (section != MediaSection.entries.last()) {
-                            HorizontalDivider(color = OmnilogColors.AppLine.copy(alpha = 0.58f))
+                            HorizontalDivider(color = OmnilogTheme.colors.appLine.copy(alpha = 0.58f))
                         }
                     }
                 }
@@ -672,7 +663,7 @@ private fun DashboardSearchResultRow(
                 text = displayMediaTitle(trackedMedia.item.title),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -681,7 +672,7 @@ private fun DashboardSearchResultRow(
                     text = secondary,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -733,7 +724,7 @@ private fun DashboardSectionSearchRow(
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -813,15 +804,15 @@ private fun EmptyCarouselState(text: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel.copy(alpha = 0.64f),
-        border = BorderStroke(1.dp, OmnilogColors.AppLine.copy(alpha = 0.74f)),
+        color = OmnilogTheme.colors.appPanel.copy(alpha = 0.64f),
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine.copy(alpha = 0.74f)),
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
         )
     }
 }
@@ -837,13 +828,13 @@ private fun DashboardSectionTitle(title: String) {
             text = title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
         )
         Box(
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(OmnilogColors.AppLine),
+                .background(OmnilogTheme.colors.appLine),
         )
     }
 }
@@ -871,7 +862,7 @@ private fun DashboardFilterNotice(
             text = stringResource(R.string.home_hidden_sections_notice, names),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
         )
         Text(
             text = stringResource(R.string.home_hidden_sections_show_all),
@@ -913,8 +904,8 @@ private fun HomeMediaTile(
             .height(246.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             MetadataCoverImage(
@@ -991,7 +982,7 @@ private fun HomeMediaTile(
                             text = displayMediaTitle(trackedMedia.item.title),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = OmnilogColors.AppInk,
+                            color = OmnilogTheme.colors.appInk,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -1007,7 +998,7 @@ private fun HomeMediaTile(
                                 MaterialTheme.typography.labelSmall
                             },
                             fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            color = if (isGame) accent else OmnilogColors.AppInk,
+                            color = if (isGame) accent else OmnilogTheme.colors.appInk,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -1053,7 +1044,7 @@ private fun TileQuickActionButton(
         onClick = onClick,
         modifier = modifier.size(32.dp),
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppBackground.copy(alpha = 0.82f),
+        color = OmnilogTheme.colors.appBackground.copy(alpha = 0.82f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.60f)),
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -1156,8 +1147,8 @@ private fun EmptyHomeState(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1167,12 +1158,12 @@ private fun EmptyHomeState(
                 text = stringResource(R.string.home_empty_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             Text(
                 text = stringResource(R.string.home_empty_state),
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
             FlowRow(
                 modifier = Modifier.padding(top = 2.dp),
@@ -1283,21 +1274,6 @@ private fun TrackingSession?.progressFraction(progressTotal: Int?): Float {
     return current.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
 }
 
-private fun TrackingSession?.progressLabel(progressTotal: Int?, mediaType: MediaType): String {
-    val current = this?.progressCurrent ?: 0
-    val unit = mediaType.progressUnit()
-    return if (progressTotal != null) "$current/$progressTotal $unit" else "$current $unit"
-}
-
-private fun MediaType.progressUnit(): String = when (this) {
-    MediaType.Anime,
-    MediaType.TvShow,
-        -> "episodis"
-    MediaType.Book -> "pàgines"
-    MediaType.Movie -> "min"
-    MediaType.Game -> "h"
-}
-
 private fun TrackedMedia.latestActivityMillis(): Long =
     sessions.maxOfOrNull { it.updatedAtEpochMillis } ?: 0L
 
@@ -1310,7 +1286,6 @@ private fun TrackedMedia.completionDate(): LocalDate? =
 private val catalan = Locale("ca")
 
 /** Grouped thousands, so a year's reading reads as `1.482` rather than `1482`. */
-private val volumeFormat: NumberFormat = NumberFormat.getIntegerInstance(catalan)
 
 private val ratingFormat: NumberFormat = NumberFormat.getNumberInstance(catalan).apply {
     minimumFractionDigits = 1

@@ -40,7 +40,8 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.ProgressUpdate
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.OmnilogModal
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.progressUnitLabel
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 import java.time.Instant
 import java.time.ZoneId
@@ -109,7 +110,7 @@ private fun ProgressHistoryModal(
             ) {
                 Text(
                     text = stringResource(R.string.progress_history_title),
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                 )
@@ -174,7 +175,7 @@ private fun ProgressHistoryRow(
                 ) {
                     Text(
                         text = dateLabel,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -197,7 +198,7 @@ private fun ProgressHistoryRow(
                 text = stringResource(
                     R.string.progress_history_delta,
                     delta,
-                    progressHistoryUnitLabel(mediaType = mediaType, value = abs(delta)),
+                    progressUnitLabel(mediaType = mediaType, value = abs(delta)),
                     update.progressValue,
                 ),
                 color = accent,
@@ -270,7 +271,7 @@ private fun ProgressHistoryRow(
                         stringResource(
                             R.string.progress_history_delta,
                             delta,
-                            progressHistoryUnitLabel(mediaType = mediaType, value = abs(delta)),
+                            progressUnitLabel(mediaType = mediaType, value = abs(delta)),
                             update.progressValue,
                         ),
                     ),
@@ -294,33 +295,6 @@ private fun ProgressHistoryRow(
         )
     }
 }
-
-@Composable
-private fun progressHistoryUnitLabel(mediaType: MediaType, value: Int): String =
-    when (mediaType) {
-        MediaType.Anime,
-        MediaType.TvShow,
-            -> if (value == 1) {
-            stringResource(R.string.progress_unit_episode_one)
-        } else {
-            stringResource(R.string.progress_unit_episode_many)
-        }
-        MediaType.Book -> if (value == 1) {
-            stringResource(R.string.progress_unit_page_one)
-        } else {
-            stringResource(R.string.progress_unit_page_many)
-        }
-        MediaType.Movie -> if (value == 1) {
-            stringResource(R.string.progress_unit_minute_one)
-        } else {
-            stringResource(R.string.progress_unit_minute_many)
-        }
-        MediaType.Game -> if (value == 1) {
-            stringResource(R.string.progress_unit_hour_one)
-        } else {
-            stringResource(R.string.progress_unit_hour_many)
-        }
-    }
 
 private fun LocalDate.formatDate(): String =
     format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))

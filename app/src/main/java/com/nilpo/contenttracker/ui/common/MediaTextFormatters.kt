@@ -6,10 +6,73 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+
+/**
+ * The unit a medium measures progress in, spelled out and agreeing in number with [value].
+ *
+ * Every surface that writes a progress unit goes through here or through
+ * [compactProgressUnitLabel]. Earlier there were separate hardcoded copies per screen, which
+ * silently drifted — the library rows read `pagines` while the Home card for the same book
+ * read `pàgines`.
+ *
+ * `StatsScreen` deliberately keeps its own chart-axis abbreviations (`ep`, `pag`) and is not
+ * a caller.
+ */
+@Composable
+fun progressUnitLabel(mediaType: MediaType, value: Int): String =
+    when (mediaType) {
+        MediaType.Anime,
+        MediaType.TvShow,
+            -> if (value == 1) {
+            stringResource(R.string.progress_unit_episode_one)
+        } else {
+            stringResource(R.string.progress_unit_episode_many)
+        }
+        MediaType.Book -> if (value == 1) {
+            stringResource(R.string.progress_unit_page_one)
+        } else {
+            stringResource(R.string.progress_unit_page_many)
+        }
+        MediaType.Movie -> if (value == 1) {
+            stringResource(R.string.progress_unit_minute_one)
+        } else {
+            stringResource(R.string.progress_unit_minute_many)
+        }
+        MediaType.Game -> if (value == 1) {
+            stringResource(R.string.progress_unit_hour_one)
+        } else {
+            stringResource(R.string.progress_unit_hour_many)
+        }
+    }
+
+/**
+ * The compact unit vocabulary for dense card and chip surfaces: full words where they are
+ * short enough (`episodis`, `pàgines`), abbreviations where they are not (`min`, `h`).
+ * Editors and sheets spell the unit out via [progressUnitLabel] instead.
+ */
+@Composable
+fun compactProgressUnitLabel(mediaType: MediaType): String =
+    when (mediaType) {
+        MediaType.Anime,
+        MediaType.TvShow,
+            -> stringResource(R.string.progress_unit_episode_many)
+        MediaType.Book -> stringResource(R.string.progress_unit_page_many)
+        MediaType.Movie -> stringResource(R.string.progress_unit_minute_compact)
+        MediaType.Game -> stringResource(R.string.progress_unit_hour_compact)
+    }
+
+/** A session's progress as `450/752 pàgines`, or `450 pàgines` when the total is unknown. */
+@Composable
+fun TrackingSession?.progressLabel(progressTotal: Int?, mediaType: MediaType): String {
+    val current = this?.progressCurrent ?: 0
+    val unit = compactProgressUnitLabel(mediaType)
+    return if (progressTotal != null) "$current/$progressTotal $unit" else "$current $unit"
+}
 
 fun displayMediaTitle(title: String): String {
     val cleanedTitle = title
@@ -95,10 +158,10 @@ private fun formatDecimal(value: Double): String {
 }
 
 @Composable
-fun sessionLabel(session: TrackingSession): String {
+fun sessionLabel(session: TrackingSession, visitNumber: Int): String {
     val visitLabel = when {
-        session.sessionNumber == 1 -> stringResource(R.string.session_first_time)
-        else -> stringResource(R.string.session_number, session.sessionNumber)
+        visitNumber <= 1 -> stringResource(R.string.session_first_time)
+        else -> stringResource(R.string.session_number, visitNumber)
     }
 
     return "$visitLabel - ${session.status.statusDisplayName()}"

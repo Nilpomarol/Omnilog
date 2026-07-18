@@ -45,6 +45,7 @@ import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import coil3.compose.AsyncImage
 
 data class MediaMetadataUi(
@@ -95,7 +96,7 @@ fun MediaMetadataHero(
     metadata: MediaMetadataUi,
     modifier: Modifier = Modifier,
     isLoadingDetails: Boolean = false,
-    loadingAccent: Color = OmnilogColors.AppMuted,
+    loadingAccent: Color = OmnilogTheme.colors.appMuted,
     onCollectionClick: (() -> Unit)? = null,
     onCreatorClick: ((String) -> Unit)? = null,
 ) {
@@ -142,7 +143,7 @@ fun MediaMetadataHero(
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -151,7 +152,7 @@ fun MediaMetadataHero(
                     text = metadata.displayTitle(),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -159,7 +160,7 @@ fun MediaMetadataHero(
             Text(
                 text = originalTitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                 )
@@ -168,7 +169,7 @@ fun MediaMetadataHero(
                     Text(
                         text = stringResource(R.string.metadata_language_value, languageLabel(language)),
                         style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppMuted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -182,7 +183,7 @@ fun MediaMetadataHero(
                                     Modifier.clickable { onCreatorClick(creator) }
                                 } else Modifier,
                                 style = MaterialTheme.typography.titleSmall,
-                                color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+                                color = OmnilogTheme.colors.appInk.copy(alpha = 0.84f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -194,12 +195,12 @@ fun MediaMetadataHero(
                         Text(
                             text = stringResource(R.string.metadata_details_loading),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth(),
                             color = loadingAccent,
-                            trackColor = OmnilogColors.AppLine,
+                            trackColor = OmnilogTheme.colors.appLine,
                         )
                     }
                 }
@@ -218,8 +219,8 @@ private fun CoverBadge(
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppPanel.copy(alpha = 0.92f),
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
         contentColor = tint,
     ) {
         Icon(
@@ -295,9 +296,9 @@ private fun GenreRow(
         genres.forEach { genre ->
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = OmnilogColors.AppPanel,
-                border = BorderStroke(1.dp, OmnilogColors.AppLine),
-                contentColor = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appPanel,
+                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+                contentColor = OmnilogTheme.colors.appMuted,
             ) {
                 Text(
                     text = genre,
@@ -342,14 +343,14 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
                 HeroMetric(
                     label = stringResource(metadata.totalUnitLabelRes()),
                     value = length?.toString() ?: "-",
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     modifier = Modifier.weight(1f),
                 )
             }
             HeroMetric(
                 label = stringResource(R.string.metadata_users),
                 value = users?.let(::formatCompactCount) ?: "-",
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -357,7 +358,7 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
         if (supportingStats.isNotEmpty()) {
             Text(
                 text = supportingStats.joinToString("  |  "),
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
@@ -380,7 +381,7 @@ private fun HeroMetric(
     ) {
         Text(
             text = label,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -407,7 +408,7 @@ fun MetadataCoverImage(
         modifier = modifier,
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         coverUrl?.let { url ->
             AsyncImage(
@@ -530,14 +531,14 @@ private fun MetadataSection(
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             fontWeight = FontWeight.SemiBold,
         )
         if (renderAsSynopsis) {
             SynopsisText(
                 body = body,
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+                color = OmnilogTheme.colors.appInk.copy(alpha = 0.84f),
                 maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -545,7 +546,7 @@ private fun MetadataSection(
             Text(
                 text = body,
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmnilogColors.AppInk.copy(alpha = 0.84f),
+                color = OmnilogTheme.colors.appInk.copy(alpha = 0.84f),
                 maxLines = if (shouldCollapse && !isExpanded) 5 else Int.MAX_VALUE,
                 overflow = TextOverflow.Ellipsis,
             )

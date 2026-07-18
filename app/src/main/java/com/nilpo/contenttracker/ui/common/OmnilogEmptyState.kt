@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 /**
  * Panel for a state with no content to show: a reason, and a way out of it.
@@ -45,8 +45,8 @@ fun OmnilogEmptyState(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -64,12 +64,12 @@ fun OmnilogEmptyState(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
             )
             Text(
                 text = body,
                 style = MaterialTheme.typography.bodyMedium,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
             )
             if (primaryAction != null || secondaryAction != null) {
                 FlowRow(
@@ -82,7 +82,7 @@ fun OmnilogEmptyState(
                             onClick = primaryAction.onClick,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = accent,
-                                contentColor = OmnilogColors.AppBackground,
+                                contentColor = OmnilogTheme.colors.appBackground,
                             ),
                         ) {
                             Text(text = primaryAction.label, fontWeight = FontWeight.SemiBold)

@@ -37,6 +37,7 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.text.Normalizer
 
 internal data class RelatedMediaMatch(
@@ -149,8 +150,8 @@ private fun RelatedMediaCard(
             .height(224.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             MetadataCoverImage(
@@ -196,7 +197,7 @@ private fun RelatedMediaCard(
                     text = displayMediaTitle(item.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -224,7 +225,7 @@ private fun RowLabel(
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = OmnilogColors.AppBackground,
+            color = OmnilogTheme.colors.appBackground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -266,15 +267,15 @@ private fun YearMarker(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
         )
     }
 }

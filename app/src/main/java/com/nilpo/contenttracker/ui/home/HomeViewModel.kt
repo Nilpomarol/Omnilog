@@ -745,7 +745,7 @@ class HomeViewModel(
                 HomeUiEvent.MediaItemDeletionAvailable(token, recovery.item.title),
             )
             is DeletionRecovery.PastSession -> mutableEvents.emit(
-                HomeUiEvent.PastSessionDeletionAvailable(token, recovery.session.sessionNumber),
+                HomeUiEvent.PastSessionDeletionAvailable(token, recovery.visitNumber),
             )
             is DeletionRecovery.ProgressUpdate -> mutableEvents.emit(
                 HomeUiEvent.ProgressUpdateDeletionAvailable(token),
@@ -851,7 +851,7 @@ private const val MAX_RECOMMENDATION_CACHE_ENTRIES = 20
 sealed interface HomeUiEvent {
     data class MediaItemCreated(val mediaItemId: Long) : HomeUiEvent
     data class MediaItemDeletionAvailable(val deletionToken: Long, val title: String) : HomeUiEvent
-    data class PastSessionDeletionAvailable(val deletionToken: Long, val sessionNumber: Int) : HomeUiEvent
+    data class PastSessionDeletionAvailable(val deletionToken: Long, val visitNumber: Int) : HomeUiEvent
     data class ProgressUpdateDeletionAvailable(val deletionToken: Long) : HomeUiEvent
     data class SessionCompletedReversible(val previous: TrackingSession) : HomeUiEvent
 

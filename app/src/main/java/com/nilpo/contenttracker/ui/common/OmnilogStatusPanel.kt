@@ -17,7 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 /**
  * Panel for a transient loading or error state: what is happening, and where the state is
@@ -33,7 +33,7 @@ fun OmnilogStatusPanel(
     text: String,
     accent: Color,
     modifier: Modifier = Modifier,
-    textColor: Color = OmnilogColors.AppMuted,
+    textColor: Color = OmnilogTheme.colors.appMuted,
     showProgressIndicator: Boolean = false,
     action: EmptyStateAction? = null,
     actionEnabled: Boolean = true,
@@ -41,8 +41,8 @@ fun OmnilogStatusPanel(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -52,7 +52,7 @@ fun OmnilogStatusPanel(
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
                     color = accent,
-                    trackColor = OmnilogColors.AppLine,
+                    trackColor = OmnilogTheme.colors.appLine,
                 )
             }
             Text(
@@ -67,7 +67,7 @@ fun OmnilogStatusPanel(
                     enabled = actionEnabled,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = accent,
-                        contentColor = OmnilogColors.AppBackground,
+                        contentColor = OmnilogTheme.colors.appBackground,
                     ),
                 ) {
                     Text(text = action.label, fontWeight = FontWeight.SemiBold)

@@ -62,6 +62,9 @@ Important files:
 - `app/src/main/res/values/strings.xml`: Catalan UI strings.
 - `docs/omnilog-ui-design-v1.md`: UI/product design direction.
 - `docs/omnilog-stats-system-plan.md`: proposed stats system/page plan.
+- `docs/omnilog-product-ux-backlog.md`: current ordered product and UX implementation backlog.
+- `docs/omnilog-stats-improvement-plan.md`: post-backlog stats refinement plan.
+- `docs/omnilog-content-consumption-timeline-plan.md`: post-stats content consumption timeline plan.
 
 Core tables/entities:
 
@@ -82,6 +85,17 @@ External metadata/data providers:
 - RAWG for Games
 
 ## Roadmap
+
+### Current Execution Priority
+
+The active implementation order is:
+
+1. Complete the remaining in-progress and todo items in `docs/omnilog-product-ux-backlog.md`.
+2. Next, implement `docs/omnilog-stats-improvement-plan.md` in its documented order.
+3. Then, implement `docs/omnilog-content-consumption-timeline-plan.md`.
+4. Resume the remaining roadmap work below unless priorities are explicitly changed.
+
+The stats MVP already exists. Its next phase is refinement: trustworthy definitions, a stronger information hierarchy, valid chart comparisons, focused interaction, and visual/accessibility polish. It should not be expanded with optional statistics until the core refinement plan is complete.
 
 ### 1. Device And Regression QA
 
@@ -158,38 +172,113 @@ Exit criteria:
 
 - Linking and refresh both give the user control over provider overwrites.
 
-### 5. Stats System MVP
+### 5. Stats Feature Refinement
 
-Goal: add a StoryGraph-inspired, Omnilog-native stats page.
+Status: the StoryGraph-inspired, Omnilog-native stats MVP is implemented as a Home drill-in. This refinement is the next workstream after the product and UX backlog is complete.
+
+Goal: make the existing stats page trustworthy, selective, interactive, polished, and memorable without turning it into a primary or overly complex app surface.
 
 Reference:
 
-- See `docs/omnilog-stats-system-plan.md`.
+- See `docs/omnilog-stats-improvement-plan.md` for the ordered implementation plan.
+- Keep `docs/omnilog-stats-system-plan.md` as the original MVP and data-definition reference.
 
-Planned direction:
+Required direction:
 
-- Stats should first be a Home drill-in, not a sixth bottom navigation item.
-- The first implementation should calculate stats in pure Kotlin from existing `TrackedMedia` domain data.
-- Avoid a Room schema change for the MVP.
-- Avoid a chart dependency for the MVP; use simple Compose-built charts.
+- Keep Stats as a Home drill-in, not a sixth bottom-navigation item.
+- Reconcile title, session, period, and comparison definitions before adding new statistics.
+- Build a concise top-level summary from the strongest existing metrics.
+- Remove visual comparisons between incompatible units such as pages, episodes, minutes, and hours.
+- Make key charts inspectable and connect useful selections to their contributing titles.
+- Adapt sections to single-medium filters and sparse data instead of rendering redundant one-category charts.
+- Preserve the existing local-first calculator design and avoid a new chart dependency unless interaction requirements clearly justify one.
 
-MVP tasks:
+Implementation order:
 
-- Add stats domain models and a pure Kotlin calculator.
-- Add tests for completion counts, rating distribution, progress totals, and progress-update delta handling.
-- Add a Home stats CTA/module.
-- Add a full stats screen as a Home drill-in.
-- Add period filtering: all time, this year, last 12 months.
-- Add media filtering: all, anime, books, TV/movies, games.
-- Add overview KPIs, monthly completion/activity, rating distribution, status breakdown, progress totals, top genres, top creators, language breakdown, best-rated items, and most-revisited items.
+- `STATS-01`: trustworthy definitions, periods, and comparisons.
+- `STATS-02`: concise top-level summary and hierarchy.
+- `STATS-03`: valid and clearer chart forms.
+- `STATS-04`: focused inspection and drill-down interactions.
+- `STATS-05`: filter-aware, sparse-data, and accessibility polish.
 
-Open questions:
+Exit criteria:
 
-- How should multiple sessions per item affect rating averages?
-- How should incomplete metadata be surfaced?
-- How should progress corrections be handled in progress-over-time charts?
+- Every number and chart has an interpretable unit, population, period, and comparison basis.
+- The first viewport provides a useful summary without requiring a long scroll.
+- No chart implies a comparison between incompatible units.
+- Key chart values and contributing titles can be inspected accessibly.
+- Single-medium, sparse, dense, and 200% font-scale states are verified on a device or emulator.
 
-### 6. Import And Metadata Test Coverage
+### 6. Content Consumption Timeline
+
+Status: planned as the next feature workstream after Stats Feature Refinement.
+
+Goal: make the user's local consumption history readable as a chronological feed of progress, starts, revisits, and completions without treating arbitrary item edits as activity.
+
+Reference:
+
+- See `docs/omnilog-content-consumption-timeline-plan.md` for the product, data, UI, and implementation plan.
+
+Required direction:
+
+- Add a compact recent-activity feed to Home after analytics, with a drill-in to the full timeline.
+- Keep Timeline as a Home destination rather than adding a sixth bottom-navigation item.
+- Derive timeline entries from existing `TrackedMedia`, `TrackingSession`, and `ProgressUpdate` models in pure Kotlin for the first version.
+- Calculate progress deltas within each session and handle first, corrected, imported, and unknown-date updates conservatively.
+- Merge same-day final progress and completion into one meaningful entry.
+- Preserve timeline filters and scroll position when opening an item and returning from detail.
+- Avoid a Room migration, new event table, or paging dependency unless measured performance or audit-history requirements justify one.
+
+Implementation order:
+
+- Define and test timeline presentation models and event derivation.
+- Build reusable timeline rows, day groups, filters, and screen states.
+- Add the full Timeline Home drill-in and detail return behavior.
+- Add the compact Home preview after analytics.
+- Complete Catalan copy, accessibility, large-history, and 200% font-scale QA.
+
+Exit criteria:
+
+- Entries reflect trustworthy consumption dates rather than generic session update timestamps.
+- Progress, start, revisit, and completion events are concise, correctly ordered, and not duplicated.
+- Empty, filtered, unknown-date, sparse, and large histories are handled clearly.
+- Home gains useful recent context without duplicating its cover carousels or disrupting the resume/plan hierarchy.
+- The full timeline opens item detail and returns with its context intact.
+
+### 7. Goals Redesign
+
+Status: planned after the current Stats and Timeline workstreams.
+
+Goal: make personal goals easier to create, understand, maintain, and act on while keeping them secondary to the resume-and-plan flow on Home.
+
+Required direction:
+
+- Reframe the Profile experience around clear goal definitions: metric, medium, period, target, and current progress.
+- Offer sensible presets for common goals while retaining a custom option for users who need a different period or unit.
+- Make active, achieved, expired, and paused goals distinct, with explicit actions to edit, pause, archive, or delete them.
+- Show current value, target, remaining amount, and over-target progress together; never rely on a percentage alone.
+- Make goal progress auditable by showing the titles or progress contributing to the current value where practical.
+- Keep the Home presentation as a compact summary and let the full goals view handle management and detail.
+- Align goal date and counting rules with Stats so the same completion and progress data does not produce conflicting totals.
+- Preserve existing objective data during any migration and avoid introducing a new dependency for the first redesign pass.
+
+Implementation order:
+
+- Define goal states, metrics, periods, and counting rules.
+- Prototype the Profile list and guided create/edit flow.
+- Add goal detail with progress explanation and contributing titles.
+- Refresh the compact Home summary and empty/expired states.
+- Add migration, edge-case tests, Catalan copy, accessibility, and 200% font-scale QA.
+
+Exit criteria:
+
+- A user can create a useful goal without understanding the underlying data model.
+- Every goal clearly communicates what is counted, for which medium, over what period, and against which target.
+- Active and historical goals are easy to distinguish and manage.
+- Goal progress matches the corresponding Stats definitions for the same period.
+- Home remains compact while Profile provides the complete goals experience.
+
+### 8. Import And Metadata Test Coverage
 
 Goal: reduce regressions in the highest-risk local-first flows.
 
@@ -206,7 +295,7 @@ Exit criteria:
 - Core import/link/refresh behavior is covered by automated tests.
 - Regression risk is lower before future metadata/provider changes.
 
-### 7. MAL API Follow-Up
+### 9. MAL API Follow-Up
 
 Goal: make official MAL integration behavior clearer and safer.
 
@@ -222,7 +311,7 @@ Exit criteria:
 - MAL enrichment behavior is documented and predictable.
 - The app still works without `MAL_CLIENT_ID`.
 
-### 8. UI System Evolution
+### 10. UI System Evolution
 
 Goal: continue the visual direction from `docs/omnilog-ui-design-v1.md` in small, reversible slices.
 
@@ -244,7 +333,7 @@ Design guardrails:
 - user tracking state kept visually distinct from provider metadata
 - no heavy nested card stacks
 
-### 9. Workspace And Release Hygiene
+### 11. Workspace And Release Hygiene
 
 Goal: keep local setup and repository state safe.
 
