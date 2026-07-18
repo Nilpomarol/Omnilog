@@ -222,39 +222,6 @@ internal fun LanguageBlock(
 }
 
 @Composable
-internal fun HorizontalBarChart(
-    buckets: List<StatsBucket>,
-    accent: Color,
-    emptyText: String,
-) {
-    val visibleBuckets = buckets.filter { bucket -> bucket.value > 0 }
-    val maxValue = visibleBuckets.maxOfOrNull { bucket -> bucket.value } ?: 0
-    val legendMediaTypes = visibleBuckets
-        .flatMap { bucket -> bucket.segments.map { segment -> segment.mediaType } }
-        .distinct()
-        .sortedBy { mediaType -> mediaType.ordinal }
-
-    StatsPanel {
-        if (visibleBuckets.isEmpty()) {
-            EmptyStatsText(text = emptyText)
-        } else {
-            visibleBuckets.forEach { bucket ->
-                StatsBarRow(
-                    label = bucket.label,
-                    value = bucket.value,
-                    maxValue = maxValue,
-                    accent = accent,
-                    segments = bucket.segments,
-                )
-            }
-            if (legendMediaTypes.isNotEmpty()) {
-                MonthlyLegend(mediaTypes = legendMediaTypes)
-            }
-        }
-    }
-}
-
-@Composable
 internal fun RatingDistributionHistogram(
     buckets: List<StatsBucket>,
     emptyText: String,

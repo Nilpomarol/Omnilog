@@ -319,64 +319,6 @@ internal fun deltaChipColor(delta: Number): Color {
 }
 
 @Composable
-internal fun KpiGroupCaption(text: String) {
-    Text(
-        text = text,
-        modifier = Modifier.padding(start = 2.dp),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = OmnilogTheme.colors.appMuted,
-        maxLines = 1,
-    )
-}
-
-@Composable
-internal fun StatsKpiTile(
-    label: String,
-    value: String,
-    accent: Color,
-    modifier: Modifier = Modifier,
-    chipText: String? = null,
-    chipColor: Color? = null,
-) {
-    Surface(
-        modifier = modifier.height(72.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = accent,
-                    maxLines = 1,
-                )
-                if (chipText != null && chipColor != null) {
-                    DeltaChip(text = chipText, color = chipColor)
-                }
-            }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = OmnilogTheme.colors.appMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
 internal fun DeltaChip(text: String, color: Color) {
     Surface(
         shape = RoundedCornerShape(999.dp),
