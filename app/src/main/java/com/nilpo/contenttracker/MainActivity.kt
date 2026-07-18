@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
             mediaRepository = (application as ContentTrackerApplication).mediaRepository,
             metadataRepository = (application as ContentTrackerApplication).metadataRepository,
             recommendationRepository = (application as ContentTrackerApplication).recommendationRepository,
+            coverRepository = (application as ContentTrackerApplication).coverRepository,
         )
     }
 

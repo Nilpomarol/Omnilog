@@ -30,11 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.nilpo.contenttracker.ContentTrackerApplication
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCredit
@@ -47,6 +49,8 @@ import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 
 data class MediaMetadataUi(
     val mediaType: MediaType,
@@ -404,15 +408,30 @@ fun MetadataCoverImage(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(10.dp),
 ) {
+    val context = LocalContext.current
+    val application = context.applicationContext as? ContentTrackerApplication
+    val coverModel = remember(application, coverUrl) {
+        application?.coverRepository?.displayModel(coverUrl) ?: coverUrl
+    }
+    val imageRequest = remember(context, coverModel) {
+        coverModel?.let { model ->
+            ImageRequest.Builder(context)
+                .data(model)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .networkCachePolicy(CachePolicy.ENABLED)
+                .build()
+        }
+    }
     Surface(
         modifier = modifier,
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
-        coverUrl?.let { url ->
+        imageRequest?.let { request ->
             AsyncImage(
-                model = url,
+                model = request,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

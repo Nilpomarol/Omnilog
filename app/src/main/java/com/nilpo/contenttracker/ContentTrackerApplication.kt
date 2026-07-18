@@ -12,6 +12,8 @@ import coil3.memory.MemoryCache
 import okio.Path.Companion.toOkioPath
 import com.nilpo.contenttracker.BuildConfig
 import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
+import com.nilpo.contenttracker.core.cover.CoverRepository
+import com.nilpo.contenttracker.core.cover.CoverSyncScheduler
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
 import com.nilpo.contenttracker.core.repository.BookRecommendationRepository
@@ -29,25 +31,34 @@ import com.nilpo.contenttracker.core.repository.RawgRecommendationRepository
 import com.nilpo.contenttracker.core.repository.TmdbRecommendationRepository
 
 class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
-    override fun onCreate() {
-        super.onCreate()
-        AutoBackupScheduler.ensureScheduled(this)
-    }
-
-    override fun newImageLoader(context: Context): ImageLoader {
-        return ImageLoader.Builder(context)
+    private val sharedImageLoader: ImageLoader by lazy {
+        ImageLoader.Builder(applicationContext)
             .memoryCache {
                 MemoryCache.Builder()
-                    .maxSizePercent(context, 0.25)
+                    .maxSizePercent(applicationContext, 0.25)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
-                    .directory(context.cacheDir.toOkioPath().resolve("cover_cache"))
+                    .directory(applicationContext.cacheDir.toOkioPath().resolve("cover_cache"))
                     .maxSizeBytes(COVER_DISK_CACHE_SIZE_BYTES)
                     .build()
             }
             .build()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        AutoBackupScheduler.ensureScheduled(this)
+        CoverSyncScheduler.enqueue(this)
+    }
+
+    override fun newImageLoader(context: Context): ImageLoader {
+        return sharedImageLoader
+    }
+
+    val coverRepository: CoverRepository by lazy {
+        CoverRepository(applicationContext, sharedImageLoader)
     }
 
     val database: ContentTrackerDatabase by lazy {
@@ -136,7 +147,7 @@ private val MIGRATION_15_16 = object : Migration(15, 16) {
     }
 }
 
-private const val COVER_DISK_CACHE_SIZE_BYTES = 200L * 1024L * 1024L
+private const val COVER_DISK_CACHE_SIZE_BYTES = 512L * 1024L * 1024L
 
 private val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {

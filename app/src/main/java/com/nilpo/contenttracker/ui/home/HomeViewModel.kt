@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.nilpo.contenttracker.core.cover.CoverRepository
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRecommendation
@@ -34,6 +35,7 @@ import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
@@ -48,6 +50,7 @@ class HomeViewModel(
     private val mediaRepository: MediaRepository,
     private val metadataRepository: MetadataRepository,
     private val recommendationRepository: RecommendationRepository,
+    private val coverRepository: CoverRepository,
 ) : ViewModel() {
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
@@ -134,6 +137,7 @@ class HomeViewModel(
 
     suspend fun importBackupJson(json: String) {
         mediaRepository.importBackupJson(json)
+        synchronizeLibraryCoversInBackground()
     }
 
     suspend fun previewImdbCsv(csv: String): ImdbCsvPreview {
@@ -141,7 +145,9 @@ class HomeViewModel(
     }
 
     suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
-        return mediaRepository.importImdbCsv(csv)
+        return mediaRepository.importImdbCsv(csv).also {
+            synchronizeLibraryCoversInBackground()
+        }
     }
 
     suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview {
@@ -149,7 +155,9 @@ class HomeViewModel(
     }
 
     suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
-        return mediaRepository.importStoryGraphCsv(csv)
+        return mediaRepository.importStoryGraphCsv(csv).also {
+            synchronizeLibraryCoversInBackground()
+        }
     }
 
     suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview {
@@ -157,7 +165,9 @@ class HomeViewModel(
     }
 
     suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
-        return mediaRepository.importMyAnimeListXml(xml)
+        return mediaRepository.importMyAnimeListXml(xml).also {
+            synchronizeLibraryCoversInBackground()
+        }
     }
 
     fun selectSection(section: MediaSection) {
@@ -202,6 +212,7 @@ class HomeViewModel(
         val request = MetadataSearchRequest(query = query, mediaTypes = section.types)
         val cacheKey = MetadataSearchCacheKey(request)
         cachedMetadataSearch(cacheKey)?.let { cached ->
+            prefetchCovers(cached.suggestions.map { it.coverUrl })
             metadataSearchState.value = metadataSearchState.value.copy(
                 suggestions = cached.suggestions,
                 isLoading = false,
@@ -228,6 +239,7 @@ class HomeViewModel(
             val searchResult = result.getOrNull()
             val hasProviderFailure = searchResult?.failedSources?.isNotEmpty() == true
             val hasResults = searchResult?.suggestions?.isNotEmpty() == true
+            prefetchCovers(searchResult?.suggestions.orEmpty().map { it.coverUrl })
             metadataSearchState.value = metadataSearchState.value.copy(
                 suggestions = searchResult?.suggestions.orEmpty(),
                 selectedSuggestion = null,
@@ -269,6 +281,7 @@ class HomeViewModel(
 
         if (!forceRefresh) {
             cachedRecommendations(cacheKey)?.let { cached ->
+                prefetchCovers(cached.recommendations.map { it.suggestion.coverUrl })
                 recommendationState.value = RecommendationUiState(
                     mediaItemId = current.item.id,
                     recommendations = cached.recommendations,
@@ -294,6 +307,7 @@ class HomeViewModel(
             }
 
             val recommendations = result.getOrDefault(emptyList())
+            prefetchCovers(recommendations.map { it.suggestion.coverUrl })
             recommendationState.value = RecommendationUiState(
                 mediaItemId = current.item.id,
                 recommendations = recommendations,
@@ -327,6 +341,7 @@ class HomeViewModel(
                 return@launch
             }
             val detailedSuggestion = result.getOrDefault(suggestion)
+            prefetchCovers(listOf(detailedSuggestion.coverUrl))
             metadataSearchState.value = metadataSearchState.value.copy(
                 suggestions = metadataSearchState.value.suggestions.map { existingSuggestion ->
                     if (existingSuggestion.isSameSuggestionAs(detailedSuggestion)) {
@@ -385,6 +400,7 @@ class HomeViewModel(
         viewModelScope.launch {
             val mediaItemId = mediaRepository.addTrackedMedia(request)
             mutableEvents.emit(HomeUiEvent.MediaItemCreated(mediaItemId))
+            persistCover(request.coverUrl)
         }
     }
 
@@ -551,10 +567,16 @@ class HomeViewModel(
     suspend fun restoreDeletion(token: Long): Result<Boolean> {
         val recovery = deletionRecoveryStore.take(token) ?: return Result.success(false)
         return runCatching { mediaRepository.restoreDeletion(recovery) }
+            .onSuccess { restored ->
+                if (restored && recovery is DeletionRecovery.MediaItem) {
+                    persistCoverInBackground(recovery.item.coverUrl)
+                }
+            }
     }
 
     fun expireDeletion(token: Long) {
         deletionRecoveryStore.discard(token)
+        synchronizeLibraryCoversInBackground()
     }
 
     fun addExternalRating(
@@ -665,6 +687,7 @@ class HomeViewModel(
                 synopsis = synopsis,
                 sourceUrl = sourceUrl,
             )
+            persistCover(coverUrl)
         }
     }
 
@@ -677,6 +700,10 @@ class HomeViewModel(
                 mediaRepository.refreshMediaItemMetadata(mediaItemId, metadataRepository)
             }
             refreshingMetadataItemId.value = null
+
+            if (result.getOrDefault(false)) {
+                synchronizeLibraryCoversInBackground()
+            }
 
             mutableEvents.emit(
                 when {
@@ -708,6 +735,9 @@ class HomeViewModel(
             mediaRepository.applyMediaItemMetadataRefresh(preview, selectedFields)
         }
         refreshingMetadataItemId.value = null
+        if (result.getOrDefault(false) && MetadataRefreshField.Cover in selectedFields) {
+            persistCoverInBackground(preview.refreshed.coverUrl)
+        }
         return result
     }
 
@@ -720,14 +750,42 @@ class HomeViewModel(
                 query = title,
                 mediaTypes = setOf(type),
             ),
-        ).take(8)
+        ).take(8).also { suggestions ->
+            prefetchCovers(suggestions.map { it.coverUrl })
+        }
     }
 
     suspend fun linkMediaItemMetadata(
         mediaItemId: Long,
         suggestion: MetadataSuggestion,
     ): Boolean {
-        return mediaRepository.linkMediaItemMetadata(mediaItemId, suggestion, metadataRepository)
+        return mediaRepository.linkMediaItemMetadata(mediaItemId, suggestion, metadataRepository).also { linked ->
+            if (linked) persistCoverInBackground(suggestion.coverUrl)
+        }
+    }
+
+    private fun prefetchCovers(coverUrls: Iterable<String?>) {
+        coverRepository.prefetch(coverUrls)
+    }
+
+    private suspend fun persistCover(coverUrl: String?) {
+        coverUrl?.let { coverRepository.persist(it) }
+    }
+
+    private fun persistCoverInBackground(coverUrl: String?) {
+        if (coverUrl.isNullOrBlank()) return
+        viewModelScope.launch { persistCover(coverUrl) }
+    }
+
+    private fun synchronizeLibraryCoversInBackground() {
+        viewModelScope.launch {
+            val coverUrls = mediaRepository
+                .observeTrackedMedia(MediaType.entries.toSet())
+                .first()
+                .map { it.item.coverUrl }
+            coverRepository.persistAll(coverUrls)
+            coverRepository.removeOrphans(coverUrls)
+        }
     }
 
     private fun cancelMetadataSearch() {
@@ -805,6 +863,7 @@ class HomeViewModel(
         private val mediaRepository: MediaRepository,
         private val metadataRepository: MetadataRepository,
         private val recommendationRepository: RecommendationRepository,
+        private val coverRepository: CoverRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -812,6 +871,7 @@ class HomeViewModel(
                 mediaRepository = mediaRepository,
                 metadataRepository = metadataRepository,
                 recommendationRepository = recommendationRepository,
+                coverRepository = coverRepository,
             ) as T
         }
     }
