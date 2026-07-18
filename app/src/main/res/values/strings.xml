@@ -61,7 +61,6 @@
     <string name="stats_activity_bars_caption">Sessions completades per mes</string>
     <string name="stats_activity_bars_caption_all_time">Sessions completades amb data per mes · últims 12 mesos</string>
     <string name="stats_activity_selected_month">%1$s · %2$d sessions completades</string>
-    <string name="stats_medium_averages">Mitjanes per tipus</string>
     <string name="stats_completion_sessions">Sessions completades</string>
     <string name="stats_unique_titles_completed_value">%1$d títols únics completats</string>
     <string name="stats_summary_unique_titles">Títols únics completats</string>
@@ -70,6 +69,9 @@
     <string name="stats_summary_consumption_medium">Consum · %1$s · %2$s</string>
     <string name="stats_summary_consumption_empty">Consum sense dades</string>
     <string name="stats_completion_sessions_by_medium">Sessions completades per tipus</string>
+    <string name="stats_completion_share_subtitle">Repartiment de totes les sessions completades del període</string>
+    <string name="stats_units_not_comparable">Cada tipus es mesura en la seva pròpia unitat · les xifres no són comparables entre tipus</string>
+    <string name="stats_language_unknown">Desconegut</string>
     <string name="stats_delta_basis_same_period">vs. mateix període de %1$d</string>
     <string name="stats_delta_basis_year">vs. %1$d</string>
     <string name="stats_delta_basis_previous_12_months">vs. els 12 mesos anteriors</string>
@@ -78,16 +80,22 @@
     <string name="stats_delta_same_description">Sense canvis (%1$s)</string>
     <string name="stats_average_rating_by_medium">Nota mitjana per tipus</string>
     <string name="stats_average_length_by_medium">Durada mitjana per tipus</string>
-    <string name="stats_rating_distribution">Distribució de notes de sessió</string>
+    <string name="stats_rating_distribution">Distribució de les teves notes</string>
     <string name="stats_rating_trend">Tendència de notes</string>
-    <string name="stats_rating_trend_subtitle">Mitjana mensual de les notes de sessió · toca un punt per veure\'n el valor</string>
+    <string name="stats_rating_trend_subtitle">Mitjana mensual de les teves notes · (n) = nombre de notes del mes · els mesos sense notes trenquen la línia</string>
     <string name="stats_rating_trend_latest">%1$s: %2$.1f de mitjana (%3$d notes)</string>
     <string name="stats_status_breakdown">Estat actual</string>
     <string name="stats_status_breakdown_subtitle">Biblioteca actual, independent del període</string>
     <string name="stats_content_mix_period_scope">Basat en títols amb una sessió completada en el període</string>
     <string name="stats_progress_totals">Consum total</string>
+    <string name="stats_estimated_time_title">Temps estimat per tipus</string>
+    <string name="stats_estimated_time_subtitle">Estimació aproximada: 1 pàg ≈ 1,25 min · episodi d\'anime ≈ 22 min · episodi de sèrie ≈ 50 min</string>
+    <string name="stats_estimated_time_value">≈ %1$s</string>
+    <string name="stats_estimated_time_total">Total ≈ %1$s</string>
     <string name="stats_revisit_breakdown">Sessions de revisió per tipus</string>
     <string name="stats_top_genres">Gèneres principals</string>
+    <string name="stats_genre_others">Altres</string>
+    <string name="stats_top_genres_subtitle">Mencions de gènere en títols completats · un títol pot comptar en més d\'un gènere</string>
     <string name="stats_top_genres_short">gèneres</string>
     <string name="stats_top_creators">Autors principals</string>
     <string name="stats_languages">Idiomes</string>

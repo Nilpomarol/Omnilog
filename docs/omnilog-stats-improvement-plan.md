@@ -26,6 +26,7 @@ These foundations should be preserved. The work below is a refinement, not a red
 - `[-]` In progress
 - `[x]` Complete
 - `[~]` Deferred
+- `[c]` Cancelled
 
 ## Recommended Implementation Order
 
@@ -33,9 +34,9 @@ These foundations should be preserved. The work below is a refinement, not a red
 |---:|---|---|---|---|
 | 1 | STATS-01 | Make definitions, periods, and comparisons trustworthy | High | `[x]` |
 | 2 | STATS-02 | Create a concise, useful top-level summary | High | `[x]` |
-| 3 | STATS-03 | Replace misleading or unclear chart forms | High | `[ ]` |
-| 4 | STATS-04 | Add focused chart inspection and drill-down | Medium | `[ ]` |
-| 5 | STATS-05 | Adapt the page to filters, sparse data, and accessibility | Medium | `[ ]` |
+| 3 | STATS-03 | Replace misleading or unclear chart forms | High | `[x]` |
+| 4 | STATS-04 | Add focused chart inspection and drill-down | Medium | `[c]` |
+| 5 | STATS-05 | Adapt the page to filters, sparse data, and accessibility | Medium | `[c]` |
 
 ## [x] STATS-01 — Make definitions, periods, and comparisons trustworthy
 
@@ -97,7 +98,7 @@ A strong first viewport gives users the reward of opening Stats immediately. Sel
 
 **Implementation note (2026-07-17):** Monthly activity remains the hero, with a compact in-panel grid for unique completed titles, personal average rating, revisits, and a unit-preserving consumption highlight. The highlight is chosen by comparable completion-session relevance rather than by comparing unlike consumption magnitudes. A filtered busiest-month observation is preferred, with a uniquely highest-rated medium used only when dated monthly activity is unavailable. Empty or uninformative lower groups are omitted, single-point rating trends and one-medium comparison modules are hidden, and current-library state is placed after the selected-period analysis. Focused calculator tests cover empty, sparse, dense, every period, every individual medium, and Cinema/TV filtering; the full debug unit suite and debug APK build pass. The rebuilt APK was visually verified on a connected device at 100% and 200% font scale, including the first viewport and enlarged chart labels; the device was restored to 100% afterward.
 
-## [ ] STATS-03 — Replace misleading or unclear chart forms
+## [x] STATS-03 — Replace misleading or unclear chart forms
 
 ### Problem
 
@@ -128,7 +129,11 @@ The current variety is visually appealing, but decorative size differences shoul
 - Rating and language charts preserve their expected scales and human-readable labels.
 - Empty periods cannot appear as continuous measured trends.
 
-## [ ] STATS-04 — Add focused chart inspection and drill-down
+> **Theme coordination (UX-21).** New chart forms must take their surface, grid, and text colors from `OmnilogTheme.colors` (the theme-aware palette) and their series colors from the accent tokens, not hardcoded values, so light/dark is inherited automatically. This keeps UX-21's light treatment from being invalidated by this rewrite, and vice versa.
+
+**Implementation note (2026-07-17):** Consumption totals and average lengths render as equal-size accent bubbles labelled with each medium's own unit, under a shared `Cada tipus es mesura en la seva pròpia unitat` subtitle; the color keeps the chart feel while no size scale compares pages, episodes, minutes, and hours. The genre pie was kept per user preference in the plan's sanctioned top-five-plus-`Altres` form (`genrePieData`, backed by an untruncated ranked genre list) with an explicit overlapping-mentions subtitle. The average-rating dot plot dropped its 0/10 axis markers, and `notes de sessió` copy was renamed to `les teves notes`. At the user's request, a `Temps estimat per tipus` module additionally converts native units onto one approximate time axis (`EstimatedTimeFactors`: 1 pàg ≈ 1,25 min · ep anime ≈ 22 min · ep sèrie ≈ 50 min · pel·lícules en minuts reals · jocs en hores reals) with comparable bars, an `≈` on every value, the assumptions in the subtitle, and a total; it renders only with two or more consuming media, and the native-unit totals remain the source of truth. This does not reintroduce the cross-unit problem because the converted values share one unit and are labelled as estimates. The rating distribution always renders every 1–10 position, including zero-value scores. The rating trend connects only adjacent rated months (`connectedRatingTrendSegments`), keeps real monthly positions, and shows each populated point's rating count statically as `(n)` under the month axis. The completion-share pie moved out of `Mitjanes per tipus` into its own titled section (`Sessions completades per tipus`, a valid part-to-whole of same-unit exclusive sessions) and renders only when at least two media types have completion sessions; the average-rating dot plot and average-length values likewise require two comparable media types. `languageBreakdown` now groups by `ItemLanguage.normalize` codes (`LanguageStat`), merging legacy variants, and the UI resolves friendly names via the shared `languageLabel` mapping with a `Desconegut` bucket for missing values. All new forms reuse `OmnilogTheme.colors` and existing accent tokens. Focused tests (`StatsChartFormsTest`) cover every rating bucket including missing scores, gap months and trend segments, one/multiple media types, mixed units, overlapping genres, known/legacy/custom/unknown languages, and empty/sparse/dense datasets; the stats suite, full debug unit suite, and debug APK build pass. STATS-04 interactions were not added; on-device visual verification at font scales was not repeated in this session (the layout reuses the existing panel/tile primitives verified under STATS-02).
+
+## [c] STATS-04 — Add focused chart inspection and drill-down
 
 ### Problem
 
@@ -152,7 +157,9 @@ Inspection and drill-down make the feature feel exploratory without requiring ad
 - At least monthly activity, ratings, and content-mix categories can reveal their contributing titles.
 - Every interaction has an accessible label and does not depend on color alone.
 
-## [ ] STATS-05 — Adapt to filters, sparse data, and accessibility
+**Cancellation note (2026-07-18):** The cheap half of this task already shipped alongside STATS-02/03: monthly activity bars are tappable (selection dims the other bars and shows the month's exact value), rating trend points are tappable with value and sample size, both interactions carry accessibility semantics, and the sticky filter bar landed under UX-20. The remaining scope — making seven category types selectable with contributing-title strips or filtered-library navigation — would require the calculator to retain per-bucket item identities and add substantial UI and navigation plumbing, for questions the library filters and the best-rated/most-revisited cover strips already answer. Cancelled as not worth the cost for a secondary drill-in page; per-category drill-down joins the yearly recap under Optional Later Additions if the need ever becomes real.
+
+## [c] STATS-05 — Adapt to filters, sparse data, and accessibility
 
 ### Problem
 
@@ -176,12 +183,15 @@ The page should feel intentionally composed for the selected data, not like a fi
 - Sparse-data screens remain compact and encouraging.
 - Dense data remains legible, and essential content is not clipped at 200% font scale.
 
+**Cancellation note (2026-07-18):** Most of this task was absorbed by STATS-02/03: comparison modules render only with at least two comparable media types, single-point trends and empty groups are omitted entirely (so single-medium mode already contains no one-category comparisons and repeated empty states no longer exist), and 100%/200% font-scale verification was performed on-device under STATS-02. The one novel idea left — replacing hidden cross-medium modules with per-medium substitutes — would restate numbers the filtered hero, ratings, and consumption sections already show, adding modules for their own sake. Cancelled; any residual concern is covered by an informal QA pass across media filters and periods rather than a feature task.
+
 ## Optional Later Additions
 
 These are not part of the baseline refinement and should be considered only after the five items above are verified:
 
 - **Yearly recap card:** a polished, optionally shareable summary of completed titles, busiest month, favorite genre, average rating, and most-revisited item.
 - **Activity calendar:** a tappable annual heatmap, but only when dated completion or progress data is dense enough to produce a meaningful pattern.
+- **Per-category drill-down:** the cancelled STATS-04 remainder — selectable months, ratings, genres, creators, languages, statuses, and media types revealing their contributing titles — only if exploration ever feels limited in practice.
 
 Avoid adding streaks, provider statistics, or more distributions merely to increase the number of modules. Any later addition should reveal a genuinely new aspect of the user's history.
 
@@ -195,4 +205,3 @@ For each item:
 4. Test empty, sparse, dense, and multiple-session libraries.
 5. Test default and 200% font scale on a device or emulator.
 6. Confirm that chart meaning remains understandable without color or gesture alone.
-

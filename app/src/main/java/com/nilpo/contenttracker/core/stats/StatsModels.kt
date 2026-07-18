@@ -34,7 +34,7 @@ data class StatsSnapshot(
     val revisitBreakdown: List<RevisitStats>,
     val topGenres: List<RankedStat>,
     val topCreators: List<RankedStat>,
-    val languageBreakdown: List<StatsBucket>,
+    val languageBreakdown: List<LanguageStat>,
     val bestRatedItems: List<RatedMediaStat>,
     val mostRevisitedItems: List<RevisitedMediaStat>,
     val topLevelSummary: StatsTopLevelSummary,
@@ -122,6 +122,89 @@ data class RankedStat(
     val label: String,
     val value: Int,
 )
+
+/**
+ * Completed-title count per normalized language code (`ItemLanguage.normalize`);
+ * a null [code] groups titles without a usable stored language. The UI resolves
+ * codes to display labels so legacy stored variants share one friendly bucket.
+ */
+data class LanguageStat(
+    val code: String?,
+    val value: Int,
+)
+
+/**
+ * Estimated consumption time per medium, in minutes. Fixed approximate
+ * factors convert each medium's native unit onto one time axis so consumption
+ * becomes comparable across media. These are estimates by design and must be
+ * presented as such; the native-unit totals remain the source of truth.
+ */
+data class EstimatedTimeStat(
+    val mediaType: MediaType,
+    val minutes: Double,
+)
+
+/** Approximate conversion factors, kept in one place so they are easy to tune. */
+object EstimatedTimeFactors {
+    const val MinutesPerPage = 1.25
+    const val MinutesPerAnimeEpisode = 22.0
+    const val MinutesPerTvEpisode = 50.0
+    const val MinutesPerMovieMinute = 1.0
+    const val MinutesPerGameHour = 60.0
+}
+
+fun estimatedTimeByMedium(totals: List<ProgressTotalStats>): List<EstimatedTimeStat> {
+    return totals
+        .filter { total -> total.value > 0 }
+        .map { total ->
+            EstimatedTimeStat(
+                mediaType = total.mediaType,
+                minutes = total.value * total.mediaType.estimatedMinutesPerUnit(),
+            )
+        }
+}
+
+private fun MediaType.estimatedMinutesPerUnit(): Double {
+    return when (this) {
+        MediaType.Book -> EstimatedTimeFactors.MinutesPerPage
+        MediaType.Anime -> EstimatedTimeFactors.MinutesPerAnimeEpisode
+        MediaType.TvShow -> EstimatedTimeFactors.MinutesPerTvEpisode
+        MediaType.Movie -> EstimatedTimeFactors.MinutesPerMovieMinute
+        MediaType.Game -> EstimatedTimeFactors.MinutesPerGameHour
+    }
+}
+
+/**
+ * The genre pie's slices: the strongest genre mentions plus one aggregated
+ * remainder. Slices are mention counts, not exclusive title shares — a title
+ * with several genres contributes to several slices.
+ */
+data class GenrePieData(
+    val top: List<RankedStat>,
+    val othersMentions: Int,
+)
+
+fun genrePieData(stats: List<RankedStat>, topCount: Int = 5): GenrePieData {
+    val ranked = stats.filter { stat -> stat.value > 0 }
+    val top = ranked.take(topCount)
+    return GenrePieData(
+        top = top,
+        othersMentions = ranked.drop(topCount).sumOf { stat -> stat.value },
+    )
+}
+
+/**
+ * Index pairs of [points] whose trend segment may be drawn. Only adjacent
+ * months that both have ratings connect, so months without ratings render as
+ * a break in the line instead of a fabricated continuous trend.
+ */
+fun connectedRatingTrendSegments(points: List<RatingTrendPoint>): List<Pair<Int, Int>> {
+    return (0 until points.size - 1)
+        .filter { index ->
+            points[index].averageRating != null && points[index + 1].averageRating != null
+        }
+        .map { index -> index to index + 1 }
+}
 
 /**
  * The window a [PeriodDelta] is measured against, so the UI can name the

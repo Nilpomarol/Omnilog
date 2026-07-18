@@ -75,7 +75,7 @@ class StatsCalculatorTest {
         assertEquals(300.0, bookStats.averageLength ?: 0.0, 0.001)
         assertEquals(1, snapshot.topGenres.first { it.label == "Sci-Fi" }.value)
         assertEquals(1, snapshot.topCreators.first { it.label == "Author One" }.value)
-        assertEquals(1, snapshot.languageBreakdown.first { it.label == "ca" }.value)
+        assertEquals(1, snapshot.languageBreakdown.first { it.code == "ca" }.value)
     }
 
     @Test
@@ -549,7 +549,7 @@ class StatsCalculatorTest {
         // instead of silently falling back to the whole library.
         assertTrue(snapshot.topGenres.none { it.label == "Sci-Fi" })
         assertTrue(snapshot.topCreators.none { it.label == "Author One" })
-        assertTrue(snapshot.languageBreakdown.none { it.label == "ca" })
+        assertTrue(snapshot.languageBreakdown.none { it.code == "ca" })
     }
 
     @Test
@@ -839,8 +839,8 @@ class StatsCalculatorTest {
         assertTrue(snapshot.topGenres.none { it.label == "Fantasy" })
         assertEquals(1, snapshot.topCreators.single { it.label == "Author One" }.value)
         assertTrue(snapshot.topCreators.none { it.label == "Author Two" })
-        assertEquals(1, snapshot.languageBreakdown.single { it.label == "ca" }.value)
-        assertTrue(snapshot.languageBreakdown.none { it.label == "en" })
+        assertEquals(1, snapshot.languageBreakdown.single { it.code == "ca" }.value)
+        assertTrue(snapshot.languageBreakdown.none { it.code == "en" })
     }
 
     @Test

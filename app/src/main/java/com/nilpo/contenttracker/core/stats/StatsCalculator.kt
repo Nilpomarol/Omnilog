@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.core.stats
 
+import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
@@ -84,7 +85,12 @@ class StatsCalculator(
                 mediaTypes = filters.mediaTypes,
                 revisitSessions = revisitSessions,
             ),
-            topGenres = rankedStrings(completedItems.flatMap { trackedMedia -> trackedMedia.item.genres }),
+            // Genres stay unlimited so the pie's Altres slice can aggregate
+            // every remaining mention instead of only a truncated tail.
+            topGenres = rankedStrings(
+                values = completedItems.flatMap { trackedMedia -> trackedMedia.item.genres },
+                limit = Int.MAX_VALUE,
+            ),
             topCreators = rankedStrings(completedItems.flatMap { trackedMedia -> trackedMedia.item.creators }),
             languageBreakdown = languageBreakdown(completedItems),
             bestRatedItems = bestRatedItems(ratedSessions),
@@ -474,7 +480,7 @@ class StatsCalculator(
             }
     }
 
-    private fun rankedStrings(values: List<String>): List<RankedStat> {
+    private fun rankedStrings(values: List<String>, limit: Int = 8): List<RankedStat> {
         return values
             .map { value -> value.trim() }
             .filter { value -> value.isNotBlank() }
@@ -485,28 +491,23 @@ class StatsCalculator(
                 compareByDescending<Map.Entry<String, Int>> { entry -> entry.value }
                     .thenBy { entry -> entry.key.lowercase() },
             )
-            .take(8)
+            .take(limit)
             .map { entry -> RankedStat(entry.key, entry.value) }
     }
 
-    private fun languageBreakdown(items: List<TrackedMedia>): List<StatsBucket> {
+    private fun languageBreakdown(items: List<TrackedMedia>): List<LanguageStat> {
         return items
-            .map { trackedMedia -> trackedMedia.item.language?.trim().takeUnless { it.isNullOrBlank() } ?: "Desconegut" }
-            .groupingBy { language -> language }
+            .map { trackedMedia -> ItemLanguage.normalize(trackedMedia.item.language) }
+            .groupingBy { code -> code }
             .eachCount()
             .entries
             .sortedWith(
-                compareByDescending<Map.Entry<String, Int>> { entry -> entry.value }
-                    .thenBy { entry -> entry.key.lowercase() },
+                compareByDescending<Map.Entry<String?, Int>> { entry -> entry.value }
+                    .thenBy { entry -> entry.key == null }
+                    .thenBy { entry -> entry.key?.lowercase() },
             )
             .take(8)
-            .map { entry ->
-                StatsBucket(
-                    key = entry.key,
-                    label = entry.key,
-                    value = entry.value,
-                )
-            }
+            .map { entry -> LanguageStat(code = entry.key, value = entry.value) }
     }
 
     private fun bestRatedItems(

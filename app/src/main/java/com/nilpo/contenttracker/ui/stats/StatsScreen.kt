@@ -58,9 +58,14 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.stats.ComparisonBasis
+import com.nilpo.contenttracker.core.stats.EstimatedTimeStat
+import com.nilpo.contenttracker.core.stats.LanguageStat
 import com.nilpo.contenttracker.core.stats.MediumStats
 import com.nilpo.contenttracker.core.stats.ProgressTotalStats
 import com.nilpo.contenttracker.core.stats.RankedStat
+import com.nilpo.contenttracker.core.stats.connectedRatingTrendSegments
+import com.nilpo.contenttracker.core.stats.estimatedTimeByMedium
+import com.nilpo.contenttracker.core.stats.genrePieData
 import com.nilpo.contenttracker.core.stats.RatingTrendPoint
 import com.nilpo.contenttracker.core.stats.RevisitStats
 import com.nilpo.contenttracker.core.stats.StatsBucket
@@ -75,8 +80,10 @@ import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.compactProgressUnitLabel
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -112,14 +119,18 @@ fun StatsScreen(
     val hasRevisits = snapshot.revisitCount > 0
     val hasContentMix = snapshot.topGenres.isNotEmpty() ||
         snapshot.topCreators.isNotEmpty() || snapshot.languageBreakdown.isNotEmpty()
-    val comparableMediumCount = snapshot.mediumStats.count { stat ->
-        stat.completionSessionCount > 0 || stat.averageRating != null || stat.averageLength != null
-    }
+    // Cross-medium modules render only when at least two media types can
+    // actually be compared on that module's own scale.
+    val completionShareMediumCount = snapshot.mediumStats.count { stat -> stat.completionSessionCount > 0 }
+    val ratedMediumCount = snapshot.mediumStats.count { stat -> stat.averageRating != null }
+    val lengthMediumCount = snapshot.mediumStats.count { stat -> stat.averageLength != null }
+    val hasMediumComparisons = completionShareMediumCount >= 2 ||
+        ratedMediumCount >= 2 || lengthMediumCount >= 2
     val hasCurrentStatus = snapshot.statusBreakdown.any { bucket -> bucket.value > 0 }
 
     Surface(
         modifier = modifier,
-        color = OmnilogColors.AppBackground,
+        color = OmnilogTheme.colors.appBackground,
     ) {
         LazyColumn(
             modifier = Modifier
@@ -131,7 +142,7 @@ fun StatsScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(OmnilogColors.AppBackground)
+                        .background(OmnilogTheme.colors.appBackground)
                         .padding(bottom = 4.dp),
                 ) {
                     StatsFilterBar(
@@ -191,8 +202,22 @@ fun StatsScreen(
                 }
                 if (hasConsumption) {
                     item {
-                        StatsSection(title = stringResource(R.string.stats_progress_totals)) {
+                        StatsSection(
+                            title = stringResource(R.string.stats_progress_totals),
+                            subtitle = stringResource(R.string.stats_units_not_comparable),
+                        ) {
                             ProgressTotals(totals = snapshot.progressTotals)
+                        }
+                    }
+                }
+                val estimatedTimes = estimatedTimeByMedium(snapshot.progressTotals)
+                if (estimatedTimes.size >= 2) {
+                    item {
+                        StatsSection(
+                            title = stringResource(R.string.stats_estimated_time_title),
+                            subtitle = stringResource(R.string.stats_estimated_time_subtitle),
+                        ) {
+                            EstimatedTimeBars(stats = estimatedTimes)
                         }
                     }
                 }
@@ -230,7 +255,10 @@ fun StatsScreen(
                 }
                 if (snapshot.topGenres.isNotEmpty()) {
                     item {
-                        StatsSection(title = stringResource(R.string.stats_top_genres)) {
+                        StatsSection(
+                            title = stringResource(R.string.stats_top_genres),
+                            subtitle = stringResource(R.string.stats_top_genres_subtitle),
+                        ) {
                             GenrePieChart(
                                 stats = snapshot.topGenres,
                                 emptyText = stringResource(R.string.stats_empty_metadata),
@@ -253,14 +281,14 @@ fun StatsScreen(
                     item {
                         StatsSection(title = stringResource(R.string.stats_languages)) {
                             LanguageMosaicChart(
-                                buckets = snapshot.languageBreakdown,
+                                stats = snapshot.languageBreakdown,
                                 emptyText = stringResource(R.string.stats_empty_metadata),
                             )
                         }
                     }
                 }
             }
-            if (hasCurrentStatus || comparableMediumCount >= 2) {
+            if (hasCurrentStatus || hasMediumComparisons) {
                 item {
                     StatsGroupHeader(title = stringResource(R.string.stats_group_overview))
                 }
@@ -274,10 +302,30 @@ fun StatsScreen(
                         }
                     }
                 }
-                if (comparableMediumCount >= 2) {
+                if (completionShareMediumCount >= 2) {
                     item {
-                        StatsSection(title = stringResource(R.string.stats_medium_averages)) {
-                            MediumStatsGraphs(stats = snapshot.mediumStats)
+                        StatsSection(
+                            title = stringResource(R.string.stats_completion_sessions_by_medium),
+                            subtitle = stringResource(R.string.stats_completion_share_subtitle),
+                        ) {
+                            CompletionSharePie(stats = snapshot.mediumStats)
+                        }
+                    }
+                }
+                if (ratedMediumCount >= 2) {
+                    item {
+                        StatsSection(title = stringResource(R.string.stats_average_rating_by_medium)) {
+                            AverageRatingDotPlot(stats = snapshot.mediumStats)
+                        }
+                    }
+                }
+                if (lengthMediumCount >= 2) {
+                    item {
+                        StatsSection(
+                            title = stringResource(R.string.stats_average_length_by_medium),
+                            subtitle = stringResource(R.string.stats_units_not_comparable),
+                        ) {
+                            AverageLengthValues(stats = snapshot.mediumStats)
                         }
                     }
                 }
@@ -301,7 +349,7 @@ private fun StatsGroupHeader(
             text = title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -310,7 +358,7 @@ private fun StatsGroupHeader(
                 text = text,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -410,9 +458,9 @@ private fun DropdownChip(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) color.copy(alpha = 0.16f) else OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogColors.AppLine),
-        contentColor = if (selected) OmnilogColors.AppInk else OmnilogColors.AppMuted,
+        color = if (selected) color.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogTheme.colors.appLine),
+        contentColor = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
     ) {
         Row(
             modifier = Modifier
@@ -451,12 +499,12 @@ private fun StatsActivityHero(snapshot: StatsSnapshot) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = OmnilogColors.AppPanel,
+        color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogColors.Dashboard.copy(alpha = 0.42f)),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -467,7 +515,7 @@ private fun StatsActivityHero(snapshot: StatsSnapshot) {
                     text = stringResource(R.string.stats_activity_hero_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = snapshot.filters.period.label(),
@@ -477,50 +525,42 @@ private fun StatsActivityHero(snapshot: StatsSnapshot) {
                     maxLines = 1,
                 )
             }
+            StatsTopLevelSummary(snapshot = snapshot)
+            Text(
+                text = selectedBucket?.let { bucket ->
+                    stringResource(R.string.stats_activity_selected_month, bucket.label, bucket.value)
+                } ?: snapshot.topLevelSummary.observation?.label()
+                ?: stringResource(R.string.stats_activity_hero_empty),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selectedBucket != null) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            HorizontalDivider(color = OmnilogTheme.colors.appLine)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Text(
                     text = snapshot.completionSessions.toString(),
-                    style = MaterialTheme.typography.displayLarge,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = OmnilogColors.Completed,
                 )
                 Text(
                     text = stringResource(R.string.stats_completion_sessions),
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    modifier = Modifier.padding(bottom = 2.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
-            Text(
-                text = stringResource(
-                    R.string.stats_unique_titles_completed_value,
-                    snapshot.uniqueTitlesCompleted,
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppMuted,
-            )
             val delta = snapshot.deltas.completionSessions
             val basis = snapshot.deltas.basis
             if (delta != null && basis != null) {
                 DeltaWithBasis(delta = delta, basisLabel = basis.label())
             }
-            Text(
-                text = selectedBucket?.let { bucket ->
-                    stringResource(R.string.stats_activity_selected_month, bucket.label, bucket.value)
-                } ?: busiestMonth?.let { bucket ->
-                    stringResource(R.string.stats_activity_hero_busiest_month, bucket.label, bucket.value)
-                } ?: stringResource(R.string.stats_activity_hero_empty),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = if (selectedBucket != null) OmnilogColors.AppInk else OmnilogColors.AppMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
             Text(
                 text = if (snapshot.filters.period == StatsPeriod.AllTime) {
                     stringResource(R.string.stats_activity_bars_caption_all_time)
@@ -529,7 +569,7 @@ private fun StatsActivityHero(snapshot: StatsSnapshot) {
                 },
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -580,7 +620,7 @@ private fun StatsTopLevelSummary(snapshot: StatsSnapshot) {
                 modifier = Modifier.weight(1f),
             )
         }
-        HorizontalDivider(color = OmnilogColors.AppLine.copy(alpha = 0.72f))
+        HorizontalDivider(color = OmnilogTheme.colors.appLine.copy(alpha = 0.72f))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -594,7 +634,7 @@ private fun StatsTopLevelSummary(snapshot: StatsSnapshot) {
             StatsSummaryMetric(
                 label = consumptionLabel,
                 value = consumptionValue,
-                accent = consumption?.mediaType?.statsColor() ?: OmnilogColors.AppMuted,
+                accent = consumption?.mediaType?.statsColor() ?: OmnilogTheme.colors.appMuted,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -639,7 +679,7 @@ private fun DeltaWithBasis(delta: Int, basisLabel: String) {
             text = basisLabel,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -726,7 +766,7 @@ private fun ActivityHeroBars(
                                 .fillMaxWidth()
                                 .height(barHeight.dp)
                                 .background(
-                                    color = if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogColors.AppLine.copy(alpha = 0.58f),
+                                    color = if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogTheme.colors.appLine.copy(alpha = 0.58f),
                                     shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp),
                                 ),
                         )
@@ -735,7 +775,7 @@ private fun ActivityHeroBars(
                 Text(
                     text = bucket.label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                 )
             }
@@ -775,8 +815,8 @@ private fun StatsSummaryMetric(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppMuted,
-            maxLines = 1,
+            color = OmnilogTheme.colors.appMuted,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }
@@ -804,7 +844,7 @@ private fun deltaChipColor(delta: Number): Color {
     return when {
         value > 0.0 -> OmnilogColors.Completed
         value < 0.0 -> OmnilogColors.Dropped
-        else -> OmnilogColors.AppMuted
+        else -> OmnilogTheme.colors.appMuted
     }
 }
 
@@ -815,7 +855,7 @@ private fun KpiGroupCaption(text: String) {
         modifier = Modifier.padding(start = 2.dp),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.SemiBold,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
         maxLines = 1,
     )
 }
@@ -832,8 +872,8 @@ private fun StatsKpiTile(
     Surface(
         modifier = modifier.height(72.dp),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -858,7 +898,7 @@ private fun StatsKpiTile(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppMuted,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -877,7 +917,7 @@ private fun DeltaChip(text: String, color: Color) {
             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
+            color = OmnilogTheme.colors.appInk,
             maxLines = 1,
         )
     }
@@ -900,11 +940,11 @@ private fun StatsSection(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                 )
                 HorizontalDivider(
                     modifier = Modifier.weight(1f),
-                    color = OmnilogColors.AppLine,
+                    color = OmnilogTheme.colors.appLine,
                 )
             }
             subtitle?.let { text ->
@@ -912,7 +952,7 @@ private fun StatsSection(
                     text = text,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -934,8 +974,8 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier
@@ -963,7 +1003,7 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
                                 text = maxValue.toString(),
                                 modifier = Modifier.align(Alignment.TopEnd),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                             )
                             if (midpoint > 0 && midpoint != maxValue) {
@@ -971,7 +1011,7 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
                                     text = midpoint.toString(),
                                     modifier = Modifier.align(Alignment.CenterEnd),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = OmnilogColors.AppMuted,
+                                    color = OmnilogTheme.colors.appMuted,
                                     maxLines = 1,
                                 )
                             }
@@ -979,7 +1019,7 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
                                 text = "0",
                                 modifier = Modifier.align(Alignment.BottomEnd),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = OmnilogColors.AppMuted,
+                                color = OmnilogTheme.colors.appMuted,
                                 maxLines = 1,
                             )
                         }
@@ -1029,7 +1069,7 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
                                             color = if (bucket.value > 0) {
                                                 OmnilogColors.Dashboard
                                             } else {
-                                                OmnilogColors.AppLine.copy(alpha = 0.58f)
+                                                OmnilogTheme.colors.appLine.copy(alpha = 0.58f)
                                             },
                                             shape = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp),
                                         ),
@@ -1040,7 +1080,7 @@ private fun MonthlyBarChart(buckets: List<StatsBucket>) {
                             text = bucket.label,
                             modifier = Modifier.height(18.dp),
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                         )
                     }
@@ -1074,7 +1114,7 @@ private fun MonthlyLegend(mediaTypes: List<MediaType>) {
                     text = mediaType.label(),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                 )
             }
@@ -1083,94 +1123,72 @@ private fun MonthlyLegend(mediaTypes: List<MediaType>) {
 }
 
 @Composable
-private fun MediumStatsGraphs(stats: List<MediumStats>) {
-    val visibleStats = stats.filter { stat ->
-        stat.completionSessionCount > 0 || stat.averageRating != null || stat.averageLength != null
-    }
-
-    StatsPanel {
-        if (visibleStats.isEmpty()) {
-            EmptyStatsText(text = stringResource(R.string.stats_empty_activity))
-        } else {
-            CompletedSharePie(stats = visibleStats)
-            AverageRatingDotPlot(stats = visibleStats)
-            AverageLengthVerticalBars(stats = visibleStats)
-        }
-    }
-}
-
-@Composable
-private fun CompletedSharePie(stats: List<MediumStats>) {
+private fun CompletionSharePie(stats: List<MediumStats>) {
     val completedStats = stats.filter { stat -> stat.completionSessionCount > 0 }
     val total = completedStats.sumOf { stat -> stat.completionSessionCount }
 
     if (total == 0) return
 
-    Text(
-        text = stringResource(R.string.stats_completion_sessions_by_medium),
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.ExtraBold,
-        color = OmnilogColors.AppInk,
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(176.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
+    StatsPanel {
+        Row(
             modifier = Modifier
-                .weight(1.45f)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .height(176.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Canvas(modifier = Modifier.size(168.dp)) {
-                var startAngle = -90f
-                completedStats.forEach { stat ->
-                    val sweep = 360f * stat.completionSessionCount.toFloat() / total.toFloat()
-                    drawArc(
-                        color = stat.mediaType.statsColor(),
-                        startAngle = startAngle,
-                        sweepAngle = sweep,
-                        useCenter = true,
-                    )
-                    startAngle += sweep
+            Box(
+                modifier = Modifier
+                    .weight(1.45f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Canvas(modifier = Modifier.size(168.dp)) {
+                    var startAngle = -90f
+                    completedStats.forEach { stat ->
+                        val sweep = 360f * stat.completionSessionCount.toFloat() / total.toFloat()
+                        drawArc(
+                            color = stat.mediaType.statsColor(),
+                            startAngle = startAngle,
+                            sweepAngle = sweep,
+                            useCenter = true,
+                        )
+                        startAngle += sweep
+                    }
                 }
             }
-        }
-        Column(
-            modifier = Modifier.weight(0.85f),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            completedStats.forEach { stat ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .background(stat.mediaType.statsColor(), RoundedCornerShape(2.dp)),
-                    )
-                    Text(
-                        text = stat.mediaType.label(),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppInk,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = stat.completionSessionCount.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = stat.mediaType.statsColor(),
-                        maxLines = 1,
-                    )
+            Column(
+                modifier = Modifier.weight(0.85f),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                completedStats.forEach { stat ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .background(stat.mediaType.statsColor(), RoundedCornerShape(2.dp)),
+                        )
+                        Text(
+                            text = stat.mediaType.label(),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogTheme.colors.appInk,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = stat.completionSessionCount.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = stat.mediaType.statsColor(),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
@@ -1183,13 +1201,7 @@ private fun AverageRatingDotPlot(stats: List<MediumStats>) {
 
     if (ratedStats.isEmpty()) return
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.stats_average_rating_by_medium),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
-        )
+    StatsPanel {
         ratedStats.forEach { stat ->
             val averageRating = stat.averageRating ?: return@forEach
             Row(
@@ -1202,10 +1214,11 @@ private fun AverageRatingDotPlot(stats: List<MediumStats>) {
                     modifier = Modifier.width(58.dp),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = OmnilogColors.AppMuted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                val trackColor = OmnilogTheme.colors.appLine
                 Canvas(
                     modifier = Modifier
                         .weight(1f)
@@ -1213,7 +1226,7 @@ private fun AverageRatingDotPlot(stats: List<MediumStats>) {
                 ) {
                     val y = size.height / 2f
                     drawLine(
-                        color = OmnilogColors.AppLine.copy(alpha = 0.72f),
+                        color = trackColor.copy(alpha = 0.72f),
                         start = Offset(0f, y),
                         end = Offset(size.width, y),
                         strokeWidth = 3.dp.toPx(),
@@ -1235,95 +1248,162 @@ private fun AverageRatingDotPlot(stats: List<MediumStats>) {
                 )
             }
         }
+    }
+}
+
+/**
+ * Average length per medium as labelled values in each medium's own unit.
+ * Deliberately no shared bar or bubble scale: pages, episodes, minutes, and
+ * hours are not comparable magnitudes.
+ */
+@Composable
+private fun AverageLengthValues(stats: List<MediumStats>) {
+    val lengthStats = stats.filter { stat -> stat.averageLength != null }
+
+    if (lengthStats.isEmpty()) return
+
+    StatsPanel {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 68.dp, end = 34.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            Text(
-                text = "0",
-                style = MaterialTheme.typography.labelSmall,
-                color = OmnilogColors.AppMuted,
-            )
-            Text(
-                text = "10",
-                style = MaterialTheme.typography.labelSmall,
-                color = OmnilogColors.AppMuted,
-            )
+            lengthStats.forEach { stat ->
+                val averageLength = stat.averageLength ?: return@forEach
+                UnitValueBubble(
+                    value = averageLength.roundedStatValue(),
+                    mediaType = stat.mediaType,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
 
+/**
+ * Consumption converted to one approximate time axis, so media types become
+ * genuinely comparable. Every value is marked as an estimate and the section
+ * subtitle states the conversion assumptions; the native-unit bubbles above
+ * remain the exact source of truth.
+ */
 @Composable
-private fun AverageLengthVerticalBars(stats: List<MediumStats>) {
-    val lengthStats = stats.filter { stat -> stat.averageLength != null }
-    val maxLength = lengthStats.maxOfOrNull { stat -> stat.averageLength ?: 0.0 } ?: 0.0
+private fun EstimatedTimeBars(stats: List<EstimatedTimeStat>) {
+    val maxMinutes = stats.maxOfOrNull { stat -> stat.minutes } ?: 0.0
 
-    if (lengthStats.isEmpty() || maxLength <= 0.0) return
+    if (maxMinutes <= 0.0) return
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.stats_average_length_by_medium),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.AppInk,
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(132.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            lengthStats.forEach { stat ->
-                val averageLength = stat.averageLength ?: return@forEach
-                val barHeight = (82 * averageLength / maxLength).toInt().coerceAtLeast(3)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
+    StatsPanel {
+        stats.forEach { stat ->
+            val accent = stat.mediaType.statsColor()
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = averageLength.roundedStatValue(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = stat.mediaType.statsColor(),
-                        maxLines = 1,
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(82.dp),
-                        contentAlignment = Alignment.BottomCenter,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(barHeight.dp)
-                                .background(
-                                    color = stat.mediaType.statsColor(),
-                                    shape = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp),
-                                ),
-                        )
-                    }
-                    Text(
-                        text = stat.mediaType.progressUnit(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.AppMuted,
-                        maxLines = 1,
-                    )
-                    Text(
                         text = stat.mediaType.label(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = OmnilogColors.AppMuted,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.stats_estimated_time_value,
+                            estimatedTimeLabel(stat.minutes),
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accent,
+                        maxLines = 1,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp)
+                        .background(accent.copy(alpha = 0.14f), RoundedCornerShape(5.dp)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((stat.minutes / maxMinutes).toFloat().coerceIn(0f, 1f))
+                            .height(18.dp)
+                            .background(accent.copy(alpha = 0.92f), RoundedCornerShape(5.dp)),
                     )
                 }
             }
         }
+        Text(
+            text = stringResource(
+                R.string.stats_estimated_time_total,
+                estimatedTimeLabel(stats.sumOf { stat -> stat.minutes }),
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = OmnilogTheme.colors.appMuted,
+            maxLines = 1,
+        )
+    }
+}
+
+private fun estimatedTimeLabel(minutes: Double): String {
+    return if (minutes < 60.0) {
+        "%.0f min".format(minutes)
+    } else {
+        "${(minutes / 60.0).roundedStatValue()} h"
+    }
+}
+
+/**
+ * A value in its own unit inside an accent-colored bubble, with the unit and
+ * medium label beneath. Every bubble is the same size on purpose: the color
+ * keeps the chart feel while no size scale compares unlike units.
+ */
+@Composable
+private fun UnitValueBubble(
+    value: String,
+    mediaType: MediaType,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .background(
+                    color = mediaType.statsColor().copy(alpha = 0.92f),
+                    shape = RoundedCornerShape(999.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogTheme.colors.appBackground,
+                maxLines = 1,
+            )
+        }
+        Text(
+            text = mediaType.progressUnit(),
+            style = MaterialTheme.typography.labelSmall,
+            color = OmnilogTheme.colors.appMuted,
+            maxLines = 1,
+        )
+        Text(
+            text = mediaType.label(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = OmnilogTheme.colors.appMuted,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -1339,9 +1419,7 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
             EmptyStatsText(text = stringResource(R.string.stats_empty_ratings))
         } else {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(158.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(
@@ -1361,19 +1439,21 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
                         Text(
                             text = "10",
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                         Text(
                             text = "5",
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                         Text(
                             text = "0",
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                     }
+                    val gridLineColor = OmnilogTheme.colors.appLine
+                    val pointCoreColor = OmnilogTheme.colors.appPanel
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1387,20 +1467,25 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
                                 x = step * index.toFloat(),
                                 y = chartHeight - (rating.toFloat() / 10f).coerceIn(0f, 1f) * chartHeight,
                             )
-                            val positionedPoints = points.mapIndexedNotNull { index, point ->
+                            val offsetsByIndex = points.mapIndexed { index, point ->
                                 point.averageRating?.let { rating -> pointOffset(index, rating) }
                             }
 
                             listOf(0f, 0.5f, 1f).forEach { fraction ->
                                 val y = chartHeight * fraction
                                 drawLine(
-                                    color = OmnilogColors.AppLine.copy(alpha = 0.42f),
+                                    color = gridLineColor.copy(alpha = 0.42f),
                                     start = Offset(0f, y),
                                     end = Offset(size.width, y),
                                     strokeWidth = 1.dp.toPx(),
                                 )
                             }
-                            positionedPoints.zipWithNext().forEach { (start, end) ->
+                            // Only adjacent rated months connect; a month
+                            // without ratings breaks the line instead of being
+                            // bridged as if it were measured.
+                            connectedRatingTrendSegments(points).forEach { (startIndex, endIndex) ->
+                                val start = offsetsByIndex[startIndex] ?: return@forEach
+                                val end = offsetsByIndex[endIndex] ?: return@forEach
                                 drawLine(
                                     color = OmnilogColors.Books,
                                     start = start,
@@ -1408,14 +1493,14 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
                                     strokeWidth = 3.dp.toPx(),
                                 )
                             }
-                            positionedPoints.forEach { point ->
+                            offsetsByIndex.filterNotNull().forEach { point ->
                                 drawCircle(
                                     color = OmnilogColors.Books,
                                     radius = 4.5.dp.toPx(),
                                     center = point,
                                 )
                                 drawCircle(
-                                    color = OmnilogColors.AppPanel,
+                                    color = pointCoreColor,
                                     radius = 2.dp.toPx(),
                                     center = point,
                                 )
@@ -1475,7 +1560,22 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
                         Text(
                             text = if (showLabel) point.label else "",
                             style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogColors.AppMuted,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 34.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    points.forEach { point ->
+                        Text(
+                            text = if (point.averageRating != null) "(${point.ratingCount})" else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                         )
                     }
@@ -1491,7 +1591,7 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
                     ),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (selectedPointKey != null) OmnilogColors.AppInk else OmnilogColors.AppMuted,
+                    color = if (selectedPointKey != null) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
                 )
             }
         }
@@ -1500,51 +1600,53 @@ private fun RatingTrendChart(points: List<RatingTrendPoint>) {
 
 @Composable
 private fun LanguageMosaicChart(
-    buckets: List<StatsBucket>,
+    stats: List<LanguageStat>,
     emptyText: String,
 ) {
-    val visibleBuckets = buckets.filter { bucket -> bucket.value > 0 }
-    val topBuckets = visibleBuckets.take(2)
-    val remainingBuckets = visibleBuckets.drop(2)
+    val visibleStats = stats.filter { stat -> stat.value > 0 }
+    val topStats = visibleStats.take(2)
+    val remainingStats = visibleStats.drop(2)
 
     StatsPanel {
-        if (visibleBuckets.isEmpty()) {
+        if (visibleStats.isEmpty()) {
             EmptyStatsText(text = emptyText)
         } else {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (remainingBuckets.isEmpty()) 116.dp else 150.dp),
+                    .height(if (remainingStats.isEmpty()) 116.dp else 150.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (remainingBuckets.isEmpty()) 116.dp else 88.dp),
+                        .height(if (remainingStats.isEmpty()) 116.dp else 88.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    topBuckets.forEachIndexed { index, bucket ->
+                    topStats.forEachIndexed { index, stat ->
                         LanguageBlock(
-                            bucket = bucket,
+                            label = languageStatLabel(stat),
+                            value = stat.value,
                             color = languageChartColor(index),
                             prominent = true,
-                            modifier = Modifier.weight(bucket.value.toFloat()),
+                            modifier = Modifier.weight(stat.value.toFloat()),
                         )
                     }
                 }
-                if (remainingBuckets.isNotEmpty()) {
+                if (remainingStats.isNotEmpty()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        remainingBuckets.forEachIndexed { index, bucket ->
+                        remainingStats.forEachIndexed { index, stat ->
                             LanguageBlock(
-                                bucket = bucket,
-                                color = languageChartColor(index + topBuckets.size),
+                                label = languageStatLabel(stat),
+                                value = stat.value,
+                                color = languageChartColor(index + topStats.size),
                                 prominent = false,
-                                modifier = Modifier.weight(bucket.value.toFloat()),
+                                modifier = Modifier.weight(stat.value.toFloat()),
                             )
                         }
                     }
@@ -1554,9 +1656,17 @@ private fun LanguageMosaicChart(
     }
 }
 
+/** Friendly display name from the shared language mapping, never a raw code. */
+@Composable
+private fun languageStatLabel(stat: LanguageStat): String {
+    val code = stat.code ?: return stringResource(R.string.stats_language_unknown)
+    return languageLabel(code).ifBlank { code }
+}
+
 @Composable
 private fun LanguageBlock(
-    bucket: StatsBucket,
+    label: String,
+    value: Int,
     color: Color,
     prominent: Boolean,
     modifier: Modifier = Modifier,
@@ -1573,18 +1683,18 @@ private fun LanguageBlock(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = bucket.label,
+                text = label,
                 style = if (prominent) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppBackground,
+                color = OmnilogTheme.colors.appBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = bucket.value.toString(),
+                text = value.toString(),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = OmnilogColors.AppBackground,
+                color = OmnilogTheme.colors.appBackground,
                 maxLines = 1,
             )
         }
@@ -1629,18 +1739,19 @@ private fun RatingDistributionHistogram(
     buckets: List<StatsBucket>,
     emptyText: String,
 ) {
-    val visibleBuckets = buckets.filter { bucket -> bucket.value > 0 }
-    val maxValue = visibleBuckets.maxOfOrNull { bucket -> bucket.value } ?: 0
-    val legendMediaTypes = visibleBuckets
+    val maxValue = buckets.maxOfOrNull { bucket -> bucket.value } ?: 0
+    val legendMediaTypes = buckets
         .flatMap { bucket -> bucket.segments.map { segment -> segment.mediaType } }
         .distinct()
         .sortedBy { mediaType -> mediaType.ordinal }
 
     StatsPanel {
-        if (visibleBuckets.isEmpty()) {
+        if (maxValue == 0) {
             EmptyStatsText(text = emptyText)
         } else {
-            visibleBuckets.forEach { bucket ->
+            // Every position of the fixed 1-10 scale stays visible, including
+            // scores nobody has used, so the shape of the scale is honest.
+            buckets.forEach { bucket ->
                 RatingDistributionRow(
                     bucket = bucket,
                     maxValue = maxValue,
@@ -1674,14 +1785,14 @@ private fun RatingDistributionRow(
                 modifier = Modifier.width(18.dp),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 maxLines = 1,
             )
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .height(18.dp)
-                    .background(OmnilogColors.AppLine.copy(alpha = 0.36f), RoundedCornerShape(5.dp)),
+                    .background(OmnilogTheme.colors.appLine.copy(alpha = 0.36f), RoundedCornerShape(5.dp)),
             ) {
                 if (bucket.segments.isNotEmpty()) {
                     Row(
@@ -1713,7 +1824,7 @@ private fun RatingDistributionRow(
                 modifier = Modifier.width(32.dp),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 maxLines = 1,
             )
         }
@@ -1792,96 +1903,39 @@ private fun StatusMiniBar(
             text = bucket.status.label(),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
+/**
+ * Consumption totals as labelled values in each medium's own unit. No shared
+ * visual scale across media types, because the units are not comparable.
+ */
 @Composable
 private fun ProgressTotals(totals: List<ProgressTotalStats>) {
     val visibleTotals = totals.filter { total -> total.value > 0 }
-    val maxValue = visibleTotals.maxOfOrNull { total -> total.value } ?: 0
 
     StatsPanel {
         if (visibleTotals.isEmpty()) {
             EmptyStatsText(text = stringResource(R.string.stats_empty_activity))
         } else {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(132.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
                 visibleTotals.forEach { total ->
-                    ConsumptionTotalBubble(
-                        total = total,
-                        maxValue = maxValue,
+                    UnitValueBubble(
+                        value = total.value.compactStatValue(),
+                        mediaType = total.mediaType,
                         modifier = Modifier.weight(1f),
                     )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ConsumptionTotalBubble(
-    total: ProgressTotalStats,
-    maxValue: Int,
-    modifier: Modifier = Modifier,
-) {
-    val bubbleSize = if (maxValue > 0) {
-        (44 + 38 * sqrt(total.value.toFloat() / maxValue.toFloat())).toInt().coerceIn(44, 82)
-    } else {
-        0
-    }
-
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(82.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(bubbleSize.dp)
-                    .background(
-                        color = total.mediaType.statsColor().copy(alpha = 0.92f),
-                        shape = RoundedCornerShape(999.dp),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = total.value.compactStatValue(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.AppBackground,
-                    maxLines = 1,
-                )
-            }
-        }
-        Text(
-            text = total.mediaType.progressUnit(),
-            style = MaterialTheme.typography.labelSmall,
-            color = OmnilogColors.AppMuted,
-            maxLines = 1,
-        )
-        Text(
-            text = total.mediaType.label(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppMuted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -1957,23 +2011,31 @@ private fun RevisitTypeBar(
             text = stat.mediaType.label(),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = OmnilogColors.AppMuted,
+            color = OmnilogTheme.colors.appMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
+/**
+ * Genre-mention share as a pie of the five strongest genres plus an `Altres`
+ * remainder. The section subtitle states that slices are overlapping genre
+ * mentions, not an exclusive split of titles.
+ */
 @Composable
 private fun GenrePieChart(
     stats: List<RankedStat>,
     emptyText: String,
 ) {
-    val visibleStats = stats.filter { stat -> stat.value > 0 }
-    val total = visibleStats.sumOf { stat -> stat.value }
+    val pieData = genrePieData(stats)
+    val othersLabel = stringResource(R.string.stats_genre_others)
+    val slices = pieData.top.map { stat -> stat.label to stat.value } +
+        if (pieData.othersMentions > 0) listOf(othersLabel to pieData.othersMentions) else emptyList()
+    val total = slices.sumOf { (_, value) -> value }
 
     StatsPanel {
-        if (visibleStats.isEmpty() || total == 0) {
+        if (slices.isEmpty() || total == 0) {
             EmptyStatsText(text = emptyText)
         } else {
             Row(
@@ -1991,8 +2053,8 @@ private fun GenrePieChart(
                 ) {
                     Canvas(modifier = Modifier.size(168.dp)) {
                         var startAngle = -90f
-                        visibleStats.forEachIndexed { index, stat ->
-                            val sweep = 360f * stat.value.toFloat() / total.toFloat()
+                        slices.forEachIndexed { index, (_, value) ->
+                            val sweep = 360f * value.toFloat() / total.toFloat()
                             drawArc(
                                 color = genreChartColor(index),
                                 startAngle = startAngle,
@@ -2007,7 +2069,7 @@ private fun GenrePieChart(
                     modifier = Modifier.weight(0.85f),
                     verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    visibleStats.forEachIndexed { index, stat ->
+                    slices.forEachIndexed { index, (label, value) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -2019,16 +2081,16 @@ private fun GenrePieChart(
                                     .background(genreChartColor(index), RoundedCornerShape(2.dp)),
                             )
                             Text(
-                                text = stat.label,
+                                text = label,
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = OmnilogColors.AppInk,
+                                color = OmnilogTheme.colors.appInk,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = stat.value.toString(),
+                                text = value.toString(),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = genreChartColor(index),
@@ -2094,7 +2156,7 @@ private fun RankedAuthorBar(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -2127,8 +2189,8 @@ private fun StatsPanel(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -2157,7 +2219,7 @@ private fun StatsBarRow(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogColors.AppInk,
+                color = OmnilogTheme.colors.appInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -2173,7 +2235,7 @@ private fun StatsBarRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .background(OmnilogColors.AppLine.copy(alpha = 0.46f), RoundedCornerShape(999.dp)),
+                .background(OmnilogTheme.colors.appLine.copy(alpha = 0.46f), RoundedCornerShape(999.dp)),
         ) {
             val fillFraction = if (maxValue > 0) value.toFloat() / maxValue.toFloat() else 0f
             if (segments.isNotEmpty()) {
@@ -2211,7 +2273,7 @@ private fun EmptyStatsText(text: String) {
         modifier = Modifier.padding(vertical = 2.dp),
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.SemiBold,
-        color = OmnilogColors.AppMuted,
+        color = OmnilogTheme.colors.appMuted,
     )
 }
 
@@ -2249,8 +2311,8 @@ private fun StatsMediaTile(
             .height(246.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogColors.AppPanel,
-        border = BorderStroke(1.dp, OmnilogColors.AppLine),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             MetadataCoverImage(
@@ -2285,7 +2347,7 @@ private fun StatsMediaTile(
                         Surface(
                             shape = RoundedCornerShape(999.dp),
                             color = accent,
-                            contentColor = OmnilogColors.AppBackground,
+                            contentColor = OmnilogTheme.colors.appBackground,
                         ) {
                             Text(
                                 text = label,
@@ -2308,7 +2370,7 @@ private fun StatsMediaTile(
                     text = displayMediaTitle(item.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.AppInk,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -2324,7 +2386,7 @@ private fun StatsMediaTile(
                     Text(
                         text = creator,
                         style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogColors.AppInk,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -2334,8 +2396,8 @@ private fun StatsMediaTile(
                         genres.forEach { genre ->
                             Surface(
                                 shape = RoundedCornerShape(999.dp),
-                                color = OmnilogColors.AppPanel.copy(alpha = 0.92f),
-                                contentColor = OmnilogColors.AppInk,
+                                color = OmnilogTheme.colors.appPanel.copy(alpha = 0.92f),
+                                contentColor = OmnilogTheme.colors.appInk,
                             ) {
                                 Text(
                                     text = genre,
@@ -2446,9 +2508,7 @@ private fun genreChartColor(index: Int): Color {
         OmnilogColors.Tv,
         OmnilogColors.Games,
         OmnilogColors.Dashboard,
-        OmnilogColors.Completed,
         OmnilogColors.Paused,
-        OmnilogColors.Dropped,
     )
     return colors[index % colors.size]
 }
