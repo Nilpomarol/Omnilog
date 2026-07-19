@@ -247,7 +247,82 @@ Exit criteria:
 
 ### 7. Goals Redesign
 
-Status: planned after the current Stats and Timeline workstreams.
+Status: delivered. The four surfaces named below — goal form, Profile goals, Home summary, and the
+Profile page around them — were redesigned and verified on device.
+
+What shipped, in the order it was built:
+
+- **Goal form as a sentence.** The editor reads `Vull llegir [40] [llibres] durant [el 2026]`, with
+  each underlined slot opening a picker. The grammar and formatting live in `ObjectiveSentence.kt`,
+  which is plain Kotlin and therefore unit-tested (`ObjectiveSentenceTest`). `episodis` is ambiguous
+  between anime and series, so the unit picker splits *format* from *what is counted* rather than
+  validating an invalid combination after the fact — an unrepresentable state instead of a rejected
+  one. Panel and sentence carry `heightIn(min=)` floors so the sheet does not jump as slots change.
+- **Profile goals** keep the card-and-bar form, with an expected-progress tick on the bar.
+- **Home summary** is a strip of at most four rings, worst pace first, with a notch marking where
+  progress should be today. Rings on Home and bars on Profile deliberately keep the two surfaces
+  from being copies of each other: Home is a glance, Profile is where goals are managed.
+- **Profile page.** Five stacked cards became a seamless page header plus two panels. See the
+  section below.
+
+Deliberately not done: goal detail with contributing titles, and pause/archive states. Both remain
+open from the direction list.
+
+#### Profile page
+
+The page was five cards that restated each other: a hero, `La teva biblioteca`, `La teva
+col·lecció`, the goals, and `Ara mateix`. `Títols` was by definition the sum of the per-type counts
+one card below it, and `Ara mateix` repeated the Home dashboard.
+
+It is now a header and two panels:
+
+- The header is seamless — a full-bleed collage of the reader's own cover art, dimmed and scrimmed,
+  with the avatar and name riding up onto it. No card, so the first actual card on screen is data.
+- Totals and the per-type breakdown share one panel, because they are the same fact at two
+  resolutions.
+- `Ara mateix` was removed.
+
+Editing happens in place on the header. Name and bio become fields styled exactly like the text they
+replace, marked only by a rule beneath; the avatar takes a badge; the accent swatches sit below; the
+top bar swaps to `Cancel·la` / `Desa`. There is no preview to build because the thing being edited is
+the thing on screen — the previous form sat below the fold, so tapping edit left an unchanged page.
+
+The profile picture can be any cover in the library. The sheet draws the most recent twelve and
+searches the rest; gallery, URL, and remove sit beneath. The URL field and its errors moved here out
+of the page body.
+
+**Known inconsistency:** the photo is written as soon as it is chosen, while name, bio, and accent
+are drafts committed on `Desa`. `Cancel·la` therefore does not restore a replaced photo.
+
+#### Media-type icons and colours
+
+Films and series had shared `ic_nav_movies_tv` and were told apart by accent colour alone, which
+fails wherever they sit side by side. They now have their own glyphs (`ic_media_movie`,
+`ic_media_series`) used everywhere a single media type is named — Profile collection, goal rings,
+goal cards. `Cinema i TV` is one navigation section covering both, and its tab uses the film mark
+alone; a composite of the two glyphs was built, tried on device, and rejected as busy. The old film
+strip has no remaining references and was deleted.
+
+Colours are now tokens: `OmnilogColors.Movie` (the section's own teal) and `OmnilogColors.Series`.
+The series colour had been a bare `0xFF5E8FC4` in `StatsUiUtils`, byte-identical to
+`OmnilogColors.InProgress` — a series bar and an in-progress bar were the same colour by accident.
+
+The navigation bar no longer draws a tinted pill behind the selected tab; the accent on the icon,
+plus `appInk` and a heavier weight on the label, carry selection on their own.
+
+#### Fixed along the way
+
+- **A replaced profile photo did not appear.** Every image was written to `filesDir/profile/avatar`,
+  so the stored path never changed: Compose saw no state change and Coil served the previous bitmap
+  from its path-keyed cache. Images now get a unique filename and stale ones are cleaned up. This
+  affected the gallery and URL paths too, not just the new cover picker.
+- **The cover grid dragged the sheet.** Overscroll at either end of the grid was handed to the
+  bottom sheet and started closing it. A `NestedScrollConnection` now consumes what the grid does
+  not use, in `onPostScroll`/`onPostFling` so the grid still scrolls normally.
+
+Still open: a drag starting on a cover may still fire its tap, selecting a cover during a scroll.
+Observed once on device and not reproduced deliberately; if confirmed, the fix is a gesture detector
+that respects drag slop instead of `Modifier.clickable`.
 
 Goal: make personal goals easier to create, understand, maintain, and act on while keeping them secondary to the resume-and-plan flow on Home.
 

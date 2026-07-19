@@ -53,7 +53,10 @@ internal val MediaSection.navIconResId: Int
     get() = when (this) {
         MediaSection.Anime -> R.drawable.ic_nav_anime
         MediaSection.Books -> R.drawable.ic_nav_books
-        MediaSection.Movies -> R.drawable.ic_nav_movies_tv
+        // The camera stands for the whole "Cinema i TV" section. It is the film half of a section
+        // that also holds series, but a single confident mark beats a composite, and this one at
+        // least matches the glyph the rest of the app now uses for films.
+        MediaSection.Movies -> R.drawable.ic_media_movie
         MediaSection.Games -> R.drawable.ic_nav_games
     }
 

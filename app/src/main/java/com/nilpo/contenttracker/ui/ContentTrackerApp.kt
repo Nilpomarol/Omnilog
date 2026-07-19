@@ -2023,37 +2023,31 @@ private fun OmnilogNavItem(
     modifier: Modifier = Modifier,
 ) {
     val contentColor = if (selected) accent else OmnilogTheme.colors.appMuted
-    val containerColor = if (selected) accent.copy(alpha = 0.15f) else Color.Transparent
-    val borderColor = if (selected) accent.copy(alpha = 0.36f) else Color.Transparent
 
-    Surface(
+    // No pill behind the selected tab: the accent on the icon carries the selection on its own, and
+    // a tinted rounded square around it was a second, louder signal saying the same thing. The
+    // clickable still covers the full cell, so the target is unchanged by the box going away.
+    Column(
         modifier = modifier
             .heightIn(min = 58.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        color = containerColor,
-        border = BorderStroke(1.dp, borderColor),
-        contentColor = contentColor,
+            .clickable(onClick = onClick)
+            .padding(start = 4.dp, top = 7.dp, end = 4.dp, bottom = 11.dp),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(start = 4.dp, top = 7.dp, end = 4.dp, bottom = 11.dp),
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(
-                painter = painterResource(iconResId),
-                contentDescription = null,
-                modifier = Modifier.size(if (selected) 28.dp else 26.dp),
-                tint = contentColor,
-            )
-            Text(
-                text = stringResource(labelResId),
-                color = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                maxLines = 1,
-            )
-        }
+        Icon(
+            painter = painterResource(iconResId),
+            contentDescription = null,
+            modifier = Modifier.size(if (selected) 28.dp else 26.dp),
+            tint = contentColor,
+        )
+        Text(
+            text = stringResource(labelResId),
+            color = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+            maxLines = 1,
+        )
     }
 }
 

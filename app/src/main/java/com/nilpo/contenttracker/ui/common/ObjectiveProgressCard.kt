@@ -188,8 +188,8 @@ fun ObjectiveProgress.paceStatus(today: LocalDate = LocalDate.now()): ObjectiveS
  * was not for the letter — a vector does not grow with the system font scale, so it cannot clip
  * itself the way the text badge did (UX-09).
  *
- * Films and series share `ic_nav_movies_tv`, as they do in the navigation bar; the accent colour
- * and the title beside it are what tell them apart.
+ * Films and series each have their own glyph, since an objective names one media type and not the
+ * pair the "Cinema i TV" section covers.
  */
 @Composable
 fun ObjectiveMediaIcon(mediaType: MediaType?, accent: Color, size: androidx.compose.ui.unit.Dp = 32.dp) {

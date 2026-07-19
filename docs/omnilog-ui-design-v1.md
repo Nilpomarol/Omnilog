@@ -67,7 +67,15 @@ Bottom navigation has five items:
 
 `Inici` is the landing page.
 
-Each media section item should include a label and icon. The selected item should be highlighted with the relevant section accent.
+Each media section item should include a label and icon. The selected item is marked by the section
+accent on its icon plus a heavier, brighter label — not by a filled or outlined container behind it.
+A tinted pill was tried and removed: it repeated what the accent already said, and it muted the
+accent colours by surrounding them with a wash of the same hue.
+
+`Cinema i TV` covers two media types but takes a single mark (the film glyph). Films and series have
+distinct icons everywhere a single media type is named — goals, the Profile collection — but the tab
+is the one place they are deliberately one thing, and a composite of both glyphs read as busier than
+every other tab.
 
 Android back behavior should remain predictable:
 
@@ -213,6 +221,12 @@ Data entry should be easy, seamless, and visually simple.
 
 - Prefer modals for add/edit forms.
 - Forms should generally not live directly on the page.
+- **Exception — editing your own identity.** The Profile header edits in place: the name and bio
+  become fields styled exactly like the text they replace, and the top bar carries `Cancel·la` and
+  `Desa`. The rule above exists so a page is not half chrome; here the page *is* the thing being
+  edited, and a modal or an on-page form would both need a live preview of the header sitting right
+  behind them. Editing the real thing removes the preview instead of building it. This applies where
+  a surface renders exactly what is being edited — not to add/edit forms generally.
 - Modals should be centered when appropriate.
 - If a form is too long for a centered modal, consider a larger modal or full-screen modal treatment.
 - Prefer dropdowns/segmented controls/toggles over text inputs where the value set is known.

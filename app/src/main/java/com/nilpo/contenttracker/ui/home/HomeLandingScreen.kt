@@ -1255,7 +1255,7 @@ private val MediaSection.iconResId: Int
     get() = when (this) {
         MediaSection.Anime -> R.drawable.ic_nav_anime
         MediaSection.Books -> R.drawable.ic_nav_books
-        MediaSection.Movies -> R.drawable.ic_nav_movies_tv
+        MediaSection.Movies -> R.drawable.ic_media_movie
         MediaSection.Games -> R.drawable.ic_nav_games
     }
 
