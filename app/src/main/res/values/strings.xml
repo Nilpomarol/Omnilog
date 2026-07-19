@@ -31,7 +31,6 @@
     <string name="home_analytics_revisits_short">Repeticions</string>
     <string name="home_objectives_title">Objectius personals</string>
     <string name="home_objectives_open">Obre els objectius</string>
-    <string name="home_objectives_more">+%1$d més</string>
     <string name="home_redesign_placeholder">Aquest espai serà el resum visual d\'Omnilog: lectures, visionats, partides, estadístiques i activitat recent.</string>
     <string name="dashboard_search_in_section">Busca \"%1$s\" a %2$s</string>
     <string name="stats_title">Estadístiques</string>

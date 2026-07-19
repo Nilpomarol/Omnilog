@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.common
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -7,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -33,8 +34,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.Objective
@@ -102,7 +105,7 @@ fun ObjectiveProgressCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
             ) {
-                AccentBadge(objective.mediaType, accent)
+                ObjectiveMediaIcon(objective.mediaType, accent)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = objectiveProgressLabel(progress),
@@ -173,99 +176,50 @@ fun ObjectiveProgressCard(
     }
 }
 
-/**
- * One objective rendered as a chrome-less row for the dashboard's single objectives card (UX-17).
- *
- * Unlike [ObjectiveProgressCard] this draws no Surface of its own — the parent card provides the
- * panel — so several objectives stack without turning into a wall of cards. The ahead/behind text
- * hint is dropped here because the parent's header carries a status roll-up; pace survives as the
- * expected-progress tick on the bar and the status-coloured percentage.
- */
-@Composable
-fun ObjectiveSummaryRow(
-    progress: ObjectiveProgress,
-    modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
-) {
-    val objective = progress.objective
-    val pace = remember(progress, today) { progress.pace(today) }
-    val accent = objective.mediaType.objectiveAccent()
-    val fillColor = when (pace.status) {
-        ObjectiveStatus.Completed -> OmnilogColors.Completed
-        ObjectiveStatus.Missed -> OmnilogTheme.colors.appLine
-        else -> accent
-    }
-    val isActive = pace.status == ObjectiveStatus.Ahead ||
-        pace.status == ObjectiveStatus.OnTrack ||
-        pace.status == ObjectiveStatus.Behind
-
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            AccentBadge(objective.mediaType, accent, size = 24.dp)
-            Text(
-                // UX-01/UX-02: value and target together — never a bare percentage.
-                text = objectiveProgressLabel(progress),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "${(progress.percentage * 100).roundToInt()}%",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = pace.status.summaryPercentColor(
-                    muted = OmnilogTheme.colors.appMuted,
-                    ink = OmnilogTheme.colors.appInk,
-                ),
-            )
-        }
-        ObjectiveProgressBar(
-            fraction = progress.percentage,
-            expectedFraction = pace.expectedFraction,
-            fillColor = fillColor,
-            showMarker = isActive,
-            height = 5.dp,
-        )
-    }
-}
-
 /** Pace status for this snapshot, for callers that need the status without the full pace object. */
 fun ObjectiveProgress.paceStatus(today: LocalDate = LocalDate.now()): ObjectiveStatus =
     pace(today).status
 
 /**
- * [size] is a floor, not a fixed box: the letter scales with the system font, so a hard `size()`
- * clips it to a sliver at large scales (UX-09). Padding lets the badge grow to fit instead.
+ * The objective's format, drawn as the same icon the bottom navigation uses for that media.
+ *
+ * Bare rather than boxed: the tinted rounded square the letter used to sit in was chrome the icon
+ * does not need, and the accent now lives in the icon itself. A fixed [size] is safe here where it
+ * was not for the letter — a vector does not grow with the system font scale, so it cannot clip
+ * itself the way the text badge did (UX-09).
+ *
+ * Films and series share `ic_nav_movies_tv`, as they do in the navigation bar; the accent colour
+ * and the title beside it are what tell them apart.
  */
 @Composable
-private fun AccentBadge(mediaType: MediaType?, accent: Color, size: androidx.compose.ui.unit.Dp = 34.dp) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = accent.copy(alpha = 0.16f),
-    ) {
-        Box(
-            modifier = Modifier
-                .defaultMinSize(minWidth = size, minHeight = size)
-                .padding(horizontal = 5.dp, vertical = 2.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = mediaType.badgeLetter(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = accent,
-            )
-        }
+fun ObjectiveMediaIcon(mediaType: MediaType?, accent: Color, size: androidx.compose.ui.unit.Dp = 32.dp) {
+    val description = objectiveMediaLabelFor(mediaType)
+    val iconRes = mediaType.navIconRes()
+    if (iconRes == null) {
+        Icon(
+            imageVector = Icons.Filled.Star,
+            contentDescription = description,
+            tint = accent,
+            modifier = Modifier.size(size),
+        )
+    } else {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = description,
+            tint = accent,
+            modifier = Modifier.size(size),
+        )
     }
+}
+
+/** Null means "every format", which has no navigation icon — callers draw a star instead. */
+@DrawableRes
+private fun MediaType?.navIconRes(): Int? = when (this) {
+    MediaType.Anime -> R.drawable.ic_nav_anime
+    MediaType.Book -> R.drawable.ic_nav_books
+    MediaType.Movie, MediaType.TvShow -> R.drawable.ic_nav_movies_tv
+    MediaType.Game -> R.drawable.ic_nav_games
+    null -> null
 }
 
 @Composable
@@ -357,20 +311,6 @@ private fun com.nilpo.contenttracker.core.model.ObjectivePace.deltaText(): Strin
     else -> "Just al previst"
 }
 
-/**
- * Percentage colour for [ObjectiveSummaryRow]. Signals only the states worth signalling and keeps
- * full-contrast ink otherwise — this is the row's headline number, so the muted treatment
- * `paceColor` uses for supporting hints would under-serve it (UX-10).
- */
-// The neutral tones are theme-aware, so callers resolve them from OmnilogTheme and pass them in;
-// these mappings stay non-composable so they remain usable from any context.
-private fun ObjectiveStatus.summaryPercentColor(muted: Color, ink: Color): Color = when (this) {
-    ObjectiveStatus.Completed, ObjectiveStatus.Ahead -> OmnilogColors.Completed
-    ObjectiveStatus.Behind -> OmnilogColors.Dashboard
-    ObjectiveStatus.Missed -> muted
-    ObjectiveStatus.OnTrack -> ink
-}
-
 private fun ObjectiveStatus.paceColor(muted: Color): Color = when (this) {
     ObjectiveStatus.Behind -> OmnilogColors.Dashboard
     ObjectiveStatus.Ahead -> OmnilogColors.Completed
@@ -416,17 +356,8 @@ private val shortDate: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", 
 private val shortDateYear: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", catalan)
 
 
-private fun MediaType?.badgeLetter(): String = when (this) {
-    MediaType.Anime -> "A"
-    MediaType.Book -> "L"
-    MediaType.Movie -> "P"
-    MediaType.TvShow -> "S"
-    MediaType.Game -> "J"
-    null -> "★"
-}
-
-
-private fun MediaType?.objectiveAccent(): Color = when (this) {
+/** The media accent an objective is drawn in, shared by the profile card and the dashboard rings. */
+fun MediaType?.objectiveAccent(): Color = when (this) {
     MediaType.Anime -> OmnilogColors.Anime
     MediaType.Book -> OmnilogColors.Books
     MediaType.Movie -> OmnilogColors.Dashboard
