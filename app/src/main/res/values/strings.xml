@@ -468,7 +468,7 @@
     <string name="import_imdb_csv">Importa IMDb CSV a Cinema i TV</string>
     <string name="import_storygraph_csv">Importa StoryGraph CSV</string>
     <string name="profile_menu">Obre el perfil</string>
-    <string name="profile_local_storage_notice">Perfil local. Les teves dades es desen al dispositiu.</string>
+    <string name="profile_local_storage_notice">Tot es queda al teu dispositiu</string>
     <string name="settings_local_storage_notice">Les teves dades es desen al dispositiu. Omnilog no t&#233; cap compte ni sincronitzaci&#243; en l&#237;nia.</string>
     <string name="settings_local_storage_footer">Biblioteca personal. Les teves dades es desen al dispositiu. Omnilog no t&#233; cap compte ni sincronitzaci&#243; en l&#237;nia.</string>
     <string name="settings_theme_title">Tema</string>

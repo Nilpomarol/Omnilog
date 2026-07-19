@@ -18,7 +18,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -100,10 +99,10 @@ fun DetailScreen(
         context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
     }.getStringSet("skipped_goodreads_rating_prompt_ids", emptySet()).orEmpty()
     val showGoodreadsPrompt = askForGoodreadsRating &&
-        !dismissGoodreadsPrompt &&
-        trackedMedia.item.type == MediaType.Book &&
-        trackedMedia.externalRatings.none { it.source == ExternalRatingSource.Goodreads } &&
-        trackedMedia.item.id.toString() !in skippedGoodreadsPromptIds
+            !dismissGoodreadsPrompt &&
+            trackedMedia.item.type == MediaType.Book &&
+            trackedMedia.externalRatings.none { it.source == ExternalRatingSource.Goodreads } &&
+            trackedMedia.item.id.toString() !in skippedGoodreadsPromptIds
     val metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
         collectionName = trackedMedia.collection?.name,
         collectionSortOrder = trackedMedia.item.collectionSortOrder,
@@ -118,10 +117,6 @@ fun DetailScreen(
         )
     }
     val detailListState = rememberLazyListState()
-    LaunchedEffect(trackedMedia.item.id) {
-        detailListState.scrollToItem(0)
-    }
-
     val collectionSectionTitle = trackedMedia.collection?.name?.let { collectionName ->
         stringResource(R.string.detail_related_collection_title, collectionName)
     } ?: stringResource(R.string.detail_related_collection_fallback)
@@ -158,7 +153,14 @@ fun DetailScreen(
             primaryRatingId = trackedMedia.item.primaryExternalRatingId,
             accent = accent,
             onAddExternalRating = { source, score, maxScore, voteCount, makePrimary ->
-                onAddExternalRating(trackedMedia.item.id, source, score, maxScore, voteCount, makePrimary)
+                onAddExternalRating(
+                    trackedMedia.item.id,
+                    source,
+                    score,
+                    maxScore,
+                    voteCount,
+                    makePrimary
+                )
             },
             onUpdateExternalRating = onUpdateExternalRating,
             onSetPrimary = onSetPrimaryExternalRating,
@@ -325,7 +327,8 @@ fun DetailScreen(
             },
             onDismiss = { dismissGoodreadsPrompt = true },
             onSkipBook = {
-                val preferences = context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
+                val preferences =
+                    context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
                 preferences.edit()
                     .putStringSet(
                         "skipped_goodreads_rating_prompt_ids",
@@ -436,8 +439,8 @@ private fun ExternalScoreTile(
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
@@ -461,7 +464,9 @@ private fun ExternalScoreTile(
             }
             rating.voteCount?.let { voteCount ->
                 Text(
-                    text = stringResource(R.string.metadata_users) + " " + formatCompactCount(voteCount.toDouble()),
+                    text = stringResource(R.string.metadata_users) + " " + formatCompactCount(
+                        voteCount.toDouble()
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = OmnilogTheme.colors.appMuted,

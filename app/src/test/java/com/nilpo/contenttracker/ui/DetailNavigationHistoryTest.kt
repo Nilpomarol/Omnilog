@@ -1,36 +1,64 @@
 package com.nilpo.contenttracker.ui
 
+import androidx.navigation3.runtime.NavKey
 import com.nilpo.contenttracker.ui.home.MediaSection
+import com.nilpo.contenttracker.ui.navigation.AppRoute
+import com.nilpo.contenttracker.ui.navigation.goBack
+import com.nilpo.contenttracker.ui.navigation.push
+import com.nilpo.contenttracker.ui.navigation.selectHome
+import com.nilpo.contenttracker.ui.navigation.selectSection
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DetailNavigationHistoryTest {
     @Test
-    fun popReturnsMostRecentDetailAndPreservesEarlierEntries() {
-        val history = emptyList<DetailHistoryEntry>()
-            .pushDetail(
-                mediaItemId = 101L,
-                section = MediaSection.Anime,
-                returnTarget = DetailReturnTarget.Section,
-            )
-            .pushDetail(
-                mediaItemId = 202L,
-                section = MediaSection.Books,
-                returnTarget = DetailReturnTarget.Section,
-            )
+    fun backPopsTheExactNavigationPath() {
+        val stack = mutableListOf<NavKey>(AppRoute.Home)
+        stack.push(AppRoute.Section(MediaSection.Books))
+        stack.push(AppRoute.CollectionDetail(9L, MediaSection.Books))
+        stack.push(AppRoute.MediaDetail(101L))
+        stack.push(AppRoute.MediaDetail(202L))
 
-        val firstPop = history.popDetail()
-        assertEquals(202L, firstPop.previous?.mediaItemId)
-        assertEquals(MediaSection.Books, firstPop.previous?.section)
-        assertEquals(101L, firstPop.remaining.single().mediaItemId)
+        assertTrue(stack.goBack())
+        assertEquals(AppRoute.MediaDetail(101L), stack.last())
+        assertTrue(stack.goBack())
+        assertEquals(AppRoute.CollectionDetail(9L, MediaSection.Books), stack.last())
+        assertTrue(stack.goBack())
+        assertEquals(AppRoute.Section(MediaSection.Books), stack.last())
+    }
 
-        val secondPop = firstPop.remaining.popDetail()
-        assertEquals(101L, secondPop.previous?.mediaItemId)
-        assertNull(secondPop.remaining.singleOrNull())
+    @Test
+    fun bottomNavigationSelectsARootWithoutLeavingDrillDownHistory() {
+        val stack = mutableListOf<NavKey>(
+            AppRoute.Home,
+            AppRoute.Section(MediaSection.Anime),
+            AppRoute.MediaDetail(101L),
+        )
 
-        val emptyPop = emptyList<DetailHistoryEntry>().popDetail()
-        assertNull(emptyPop.previous)
-        assertEquals(emptyList<DetailHistoryEntry>(), emptyPop.remaining)
+        stack.selectSection(MediaSection.Games)
+        assertEquals(
+            listOf(AppRoute.Home, AppRoute.Section(MediaSection.Games)),
+            stack,
+        )
+
+        stack.selectHome()
+        assertEquals(listOf(AppRoute.Home), stack)
+        assertFalse(stack.goBack())
+    }
+
+    @Test
+    fun selectingTheActiveSectionPopsDrillDownButKeepsItsRootEntry() {
+        val sectionRoute = AppRoute.Section(MediaSection.Anime)
+        val stack = mutableListOf<NavKey>(
+            AppRoute.Home,
+            sectionRoute,
+            AppRoute.MediaDetail(101L),
+        )
+
+        stack.selectSection(MediaSection.Anime)
+
+        assertEquals(listOf(AppRoute.Home, sectionRoute), stack)
     }
 }

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -73,10 +74,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.ui.NavDisplay
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupPreferences
 import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
-import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -108,6 +111,11 @@ import com.nilpo.contenttracker.ui.home.navIconResId
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.profile.ProfileScreen
 import com.nilpo.contenttracker.ui.profile.ProfilePreferences
+import com.nilpo.contenttracker.ui.navigation.AppRoute
+import com.nilpo.contenttracker.ui.navigation.goBack
+import com.nilpo.contenttracker.ui.navigation.push
+import com.nilpo.contenttracker.ui.navigation.selectHome
+import com.nilpo.contenttracker.ui.navigation.selectSection
 import com.nilpo.contenttracker.ui.settings.SettingsScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -142,10 +150,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var autoBackupConfiguration by remember(context) {
         mutableStateOf(AutoBackupPreferences.read(context))
     }
-    var selectedMediaId by remember { mutableStateOf<Long?>(null) }
-    var selectedCollectionId by remember { mutableStateOf<Long?>(null) }
+    val backStack = rememberNavBackStack(AppRoute.Home)
+    val currentRoute = backStack.last() as AppRoute
+    val selectedRootRoute = backStack.lastOrNull { route ->
+        route == AppRoute.Home || route is AppRoute.Section
+    } as? AppRoute ?: AppRoute.Home
     var collectionBackRequest by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var selectedAuthor by remember { mutableStateOf<String?>(null) }
     var showRestoreList by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
@@ -161,23 +171,27 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var pendingMetadataRefreshPreview by remember { mutableStateOf<MetadataRefreshPreview?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
-    var addTargetCollection by remember { mutableStateOf<MediaCollection?>(null) }
-    var addTargetCollectionOrder by remember { mutableStateOf<Double?>(null) }
-    var isAdding by remember { mutableStateOf(false) }
-    var selectedDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
-    val profileImagePath = remember(context, selectedDestination) {
+    val profileImagePath = remember(context, currentRoute) {
         ProfilePreferences.from(context)
             .getString(ProfilePreferences.AVATAR_IMAGE_PATH_KEY, null)
             ?.takeIf { path -> File(path).isFile }
     }
-    var statsReturnDestination by remember { mutableStateOf<AppDestination>(AppDestination.Home) }
-    var detailHistory by remember { mutableStateOf<List<DetailHistoryEntry>>(emptyList()) }
-    var detailReturnTarget by remember { mutableStateOf<DetailReturnTarget>(DetailReturnTarget.Section) }
-    var collectionReturnTarget by remember { mutableStateOf<CollectionReturnTarget>(CollectionReturnTarget.Section) }
-    var authorReturnTarget by remember { mutableStateOf<AuthorReturnTarget>(AuthorReturnTarget.Section) }
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val backupActions = remember { BackupHeaderActions() }
-    val selectedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == selectedMediaId }
+    val profileHeaderActions = remember { ProfileHeaderActions() }
+    val selectedMedia = (currentRoute as? AppRoute.MediaDetail)?.let { route ->
+        uiState.allTrackedItems.firstOrNull { it.item.id == route.mediaItemId }
+    }
+    val currentSection = when (val route = currentRoute) {
+        is AppRoute.Section -> route.section
+        is AppRoute.CollectionDetail -> route.section
+        is AppRoute.AuthorDetail -> route.section
+        is AppRoute.AddMedia -> route.section
+        is AppRoute.MediaDetail -> selectedMedia?.item?.type?.homeSection()
+            ?: uiState.selectedSection
+
+        else -> uiState.selectedSection
+    }
 
     LaunchedEffect(
         selectedMedia?.item?.id,
@@ -188,20 +202,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             viewModel.loadRecommendations(current, uiState.allTrackedItems)
         }
     }
-    val selectedCollection = uiState.allTrackedItems
-        .mapNotNull { it.collection }
-        .firstOrNull { it.id == selectedCollectionId }
-    val selectedCollectionItems = selectedCollectionId?.let { collectionId ->
-        uiState.allTrackedItems
-            .filter { it.collection?.id == collectionId }
-            .sortedWith(collectionItemComparator())
-    }.orEmpty()
-    val selectedAuthorItems = selectedAuthor?.let { author ->
-        uiState.allTrackedItems.filter { trackedMedia ->
-            trackedMedia.item.type in uiState.selectedSection.types &&
-            trackedMedia.item.creators.any { it.trim().equals(author.trim(), ignoreCase = true) }
-        }
-    }.orEmpty()
     val exportSuccessMessage = stringResource(R.string.backup_export_success)
     val exportErrorMessage = stringResource(R.string.backup_export_error)
     val importReadErrorMessage = stringResource(R.string.backup_import_read_error)
@@ -226,140 +226,26 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val deletionUndoProgressMessage = stringResource(R.string.deletion_undo_progress_message)
     val deletionRestoredMessage = stringResource(R.string.deletion_restored)
     val deletionRestoreFailedMessage = stringResource(R.string.deletion_restore_failed)
-    val navigateBackFromDetail = {
-        val poppedDetail = detailHistory.popDetail()
-        val previousDetail = poppedDetail.previous
-        if (previousDetail != null) {
-            detailHistory = poppedDetail.remaining
-            viewModel.selectSection(previousDetail.section)
-            selectedMediaId = previousDetail.mediaItemId
-            selectedCollectionId = null
-            selectedAuthor = null
-            detailReturnTarget = previousDetail.returnTarget
-        } else {
-            when (val returnTarget = detailReturnTarget) {
-                DetailReturnTarget.Home -> {
-                    selectedDestination = AppDestination.Home
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                }
-                DetailReturnTarget.Profile -> {
-                    selectedDestination = AppDestination.Profile
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                }
-                is DetailReturnTarget.Collection -> {
-                    selectedDestination = AppDestination.Section
-                    selectedMediaId = null
-                    selectedCollectionId = returnTarget.collectionId
-                }
-                is DetailReturnTarget.Author -> {
-                    selectedMediaId = null
-                    selectedAuthor = returnTarget.author
-                }
-                DetailReturnTarget.Section -> {
-                    selectedMediaId = null
-                }
-            }
-            detailReturnTarget = DetailReturnTarget.Section
-        }
-    }
-    val navigateBackFromCollection = {
-        when (val returnTarget = collectionReturnTarget) {
-            is CollectionReturnTarget.Detail -> {
-                selectedCollectionId = null
-                selectedMediaId = returnTarget.mediaItemId
-            }
-            CollectionReturnTarget.Stats -> {
-                selectedCollectionId = null
-                selectedDestination = AppDestination.Stats
-            }
-            CollectionReturnTarget.Section -> {
-                selectedCollectionId = null
-            }
-        }
-        collectionReturnTarget = CollectionReturnTarget.Section
-    }
-    val navigateBackFromAuthor = {
-        when (val returnTarget = authorReturnTarget) {
-            is AuthorReturnTarget.Detail -> {
-                selectedAuthor = null
-                selectedMediaId = returnTarget.mediaItemId
-            }
-            AuthorReturnTarget.Stats -> {
-                selectedAuthor = null
-                selectedDestination = AppDestination.Stats
-            }
-            AuthorReturnTarget.Section -> selectedAuthor = null
-        }
-        authorReturnTarget = AuthorReturnTarget.Section
-    }
-    val navigateBackFromStats = {
-        detailHistory = emptyList()
-        selectedDestination = statsReturnDestination
-        selectedMediaId = null
-        selectedCollectionId = null
-        collectionReturnTarget = CollectionReturnTarget.Section
-        detailReturnTarget = DetailReturnTarget.Section
-        isAdding = false
-    }
-    val navigateBackFromProfile = {
-        detailHistory = emptyList()
-        selectedDestination = AppDestination.Home
-        selectedMediaId = null
-        selectedCollectionId = null
-        isAdding = false
-    }
-    val navigateBackFromSettings = {
-        detailHistory = emptyList()
-        selectedDestination = AppDestination.Profile
-        selectedMediaId = null
-        selectedCollectionId = null
-        isAdding = false
+    val navigateBack: () -> Unit = {
+        backStack.goBack()
+        Unit
     }
     val openProfile = {
-        detailHistory = emptyList()
-        selectedDestination = AppDestination.Profile
-        selectedMediaId = null
-        selectedCollectionId = null
-        selectedAuthor = null
-        isAdding = false
+        backStack.push(AppRoute.Profile)
         viewModel.clearMetadataSearch()
     }
     val openSettings = {
-        detailHistory = emptyList()
-        selectedDestination = AppDestination.Settings
-        selectedMediaId = null
-        selectedCollectionId = null
-        selectedAuthor = null
-        isAdding = false
+        backStack.push(AppRoute.Settings)
         viewModel.clearMetadataSearch()
     }
     val openTrackedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
-        detailHistory = emptyList()
-        viewModel.selectSection(trackedMedia.item.type.homeSection())
-        selectedDestination = AppDestination.Section
-        selectedCollectionId = null
-        collectionReturnTarget = CollectionReturnTarget.Section
-        detailReturnTarget = DetailReturnTarget.Section
-        selectedMediaId = trackedMedia.item.id
-        isAdding = false
+        if (backStack.lastOrNull() is AppRoute.AddMedia) backStack.goBack()
+        backStack.push(AppRoute.MediaDetail(trackedMedia.item.id))
     }
     val openRelatedMedia: (TrackedMedia) -> Unit = { trackedMedia ->
         viewModel.clearMetadataSearch()
-        detailHistory = detailHistory.pushDetail(
-            mediaItemId = selectedMediaId,
-            section = uiState.selectedSection,
-            returnTarget = detailReturnTarget,
-        )
-        viewModel.selectSection(trackedMedia.item.type.homeSection())
-        selectedDestination = AppDestination.Section
-        selectedCollectionId = null
-        selectedAuthor = null
-        detailReturnTarget = DetailReturnTarget.Section
-        selectedMediaId = trackedMedia.item.id
-        isAdding = false
+        backStack.push(AppRoute.MediaDetail(trackedMedia.item.id))
     }
     val openExternalRecommendation: (MetadataSuggestion) -> Unit = { suggestion ->
         when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
@@ -371,13 +257,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     requiresAddTransition = true,
                 )
             }
+
             DuplicateMatch.None -> {
                 viewModel.selectMetadataSuggestion(suggestion)
-                isAdding = true
-                addTargetCollection = null
-                addTargetCollectionOrder = null
-                selectedCollectionId = null
-                collectionReturnTarget = CollectionReturnTarget.Section
+                backStack.push(AppRoute.AddMedia(suggestion.mediaType.homeSection()))
             }
         }
     }
@@ -582,10 +465,24 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         importBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
     }
     backupActions.onImportImdbCsvRequested = {
-        importImdbCsvLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "text/*", "*/*"))
+        importImdbCsvLauncher.launch(
+            arrayOf(
+                "text/csv",
+                "text/comma-separated-values",
+                "text/*",
+                "*/*"
+            )
+        )
     }
     backupActions.onImportStoryGraphCsvRequested = {
-        importStoryGraphCsvLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "text/*", "*/*"))
+        importStoryGraphCsvLauncher.launch(
+            arrayOf(
+                "text/csv",
+                "text/comma-separated-values",
+                "text/*",
+                "*/*"
+            )
+        )
     }
     backupActions.onImportMyAnimeListXmlRequested = {
         importMyAnimeListXmlLauncher.launch(arrayOf("text/xml", "application/xml", "text/*", "*/*"))
@@ -638,6 +535,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 preview.changes.any { it.overwritesExistingValue || it.isLocallyOverridden } -> {
                     pendingMetadataRefreshPreview = preview
                 }
+
                 else -> {
                     val applyResult = viewModel.applyMediaItemMetadataRefresh(
                         preview = preview,
@@ -681,12 +579,17 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 is HomeUiEvent.MediaItemCreated -> {
                     pendingCreatedMediaId = event.mediaItemId
                 }
+
                 is HomeUiEvent.MediaItemDeletionAvailable -> {
                     showDeletionRecovery(
                         deletionToken = event.deletionToken,
-                        message = context.getString(R.string.deletion_undo_item_message, event.title),
+                        message = context.getString(
+                            R.string.deletion_undo_item_message,
+                            event.title
+                        ),
                     )
                 }
+
                 is HomeUiEvent.PastSessionDeletionAvailable -> {
                     showDeletionRecovery(
                         deletionToken = event.deletionToken,
@@ -696,12 +599,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         ),
                     )
                 }
+
                 is HomeUiEvent.ProgressUpdateDeletionAvailable -> {
                     showDeletionRecovery(
                         deletionToken = event.deletionToken,
                         message = deletionUndoProgressMessage,
                     )
                 }
+
                 is HomeUiEvent.SessionCompletedReversible -> {
                     val result = snackbarHostState.showSnackbar(
                         message = context.getString(R.string.quick_progress_completed_message),
@@ -712,6 +617,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         viewModel.undoQuickProgress(event.previous)
                     }
                 }
+
                 is HomeUiEvent.SessionStartedReversible -> {
                     val message = if (event.previous.status == TrackingStatus.Paused) {
                         R.string.quick_progress_resumed_message
@@ -727,6 +633,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         viewModel.undoQuickProgress(event.previous)
                     }
                 }
+
                 HomeUiEvent.MetadataRefreshSucceeded,
                 HomeUiEvent.MetadataRefreshUnavailable,
                 HomeUiEvent.MetadataRefreshFailed,
@@ -744,44 +651,27 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
     LaunchedEffect(uiState.allTrackedItems, pendingCreatedMediaId) {
         val mediaItemId = pendingCreatedMediaId ?: return@LaunchedEffect
-        val trackedMedia = uiState.allTrackedItems.firstOrNull { it.item.id == mediaItemId }
-            ?: return@LaunchedEffect
+        uiState.allTrackedItems.firstOrNull { it.item.id == mediaItemId } ?: return@LaunchedEffect
 
-        val targetCollection = addTargetCollection
-        detailHistory = emptyList()
-        viewModel.selectSection(trackedMedia.item.type.homeSection())
-        selectedDestination = AppDestination.Section
-        if (targetCollection != null) {
-            selectedCollectionId = targetCollection.id
-            selectedMediaId = null
-            collectionReturnTarget = CollectionReturnTarget.Section
-        } else {
-            selectedCollectionId = null
-            detailReturnTarget = DetailReturnTarget.Section
-            selectedMediaId = mediaItemId
+        val addRoute = backStack.lastOrNull() as? AppRoute.AddMedia
+        if (addRoute != null) backStack.goBack()
+        if (addRoute?.collectionId == null) {
+            backStack.push(AppRoute.MediaDetail(mediaItemId))
         }
-        isAdding = false
-        addTargetCollection = null
-        addTargetCollectionOrder = null
         pendingCreatedMediaId = null
     }
 
     BackHandler(
         enabled = pendingPossibleDuplicate != null ||
-            metadataLinkTarget != null ||
-            pendingMetadataRefreshPreview != null ||
-            pendingMyAnimeListXmlImport != null ||
-            pendingStoryGraphCsvImport != null ||
-            pendingImdbCsvImport != null ||
-            pendingImportConfirmation != null ||
-            pendingImport != null ||
-            showRestoreList ||
-            detailActions.isManagingExternalRatings ||
-            selectedMediaId != null ||
-            isAdding ||
-            selectedCollectionId != null ||
-            selectedAuthor != null ||
-            selectedDestination != AppDestination.Home,
+                metadataLinkTarget != null ||
+                pendingMetadataRefreshPreview != null ||
+                pendingMyAnimeListXmlImport != null ||
+                pendingStoryGraphCsvImport != null ||
+                pendingImdbCsvImport != null ||
+                pendingImportConfirmation != null ||
+                pendingImport != null ||
+                showRestoreList ||
+                detailActions.isManagingExternalRatings,
     ) {
         when {
             pendingPossibleDuplicate != null -> pendingPossibleDuplicate = null
@@ -794,27 +684,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             pendingImport != null -> pendingImport = null
             showRestoreList -> showRestoreList = false
             detailActions.isManagingExternalRatings -> detailActions.onCloseExternalRatings()
-            selectedMediaId != null && !isAdding -> navigateBackFromDetail()
-            isAdding -> {
-                viewModel.clearMetadataSearch()
-                isAdding = false
-                addTargetCollection = null
-                addTargetCollectionOrder = null
-                selectedCollectionId = null
-                collectionReturnTarget = CollectionReturnTarget.Section
-            }
-            selectedCollectionId != null -> navigateBackFromCollection()
-            selectedAuthor != null -> navigateBackFromAuthor()
-            selectedDestination == AppDestination.Settings -> navigateBackFromSettings()
-            selectedDestination == AppDestination.Profile -> navigateBackFromProfile()
-            selectedDestination != AppDestination.Home -> {
-                selectedDestination = AppDestination.Home
-                selectedCollectionId = null
-                selectedMediaId = null
-                collectionReturnTarget = CollectionReturnTarget.Section
-                isAdding = false
-                viewModel.clearMetadataSearch()
-            }
         }
     }
 
@@ -822,474 +691,453 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         Scaffold(
             topBar = {
                 OmnilogTopBar(
-                    accent = when (selectedDestination) {
-                        AppDestination.Home,
-                        AppDestination.Stats,
-                        AppDestination.Profile,
-                        AppDestination.Settings,
+                    accent = when (currentRoute) {
+                        AppRoute.Home,
+                        AppRoute.Stats,
+                        AppRoute.Profile,
+                        AppRoute.Settings,
                             -> OmnilogColors.Dashboard
-                        AppDestination.Section -> uiState.selectedSection.accent
+
+                        else -> currentSection.accent
                     },
-                    showBackNavigation = selectedMedia != null && !isAdding ||
-                        selectedDestination == AppDestination.Stats ||
-                        selectedDestination == AppDestination.Profile ||
-                        selectedDestination == AppDestination.Settings ||
-                        selectedCollectionId != null && selectedMedia == null,
-                    showDetailActions = selectedMedia != null && !isAdding && !detailActions.isManagingExternalRatings,
-                    showProfileAction = selectedMedia == null &&
-                        !isAdding &&
-                        selectedDestination != AppDestination.Stats &&
-                        selectedDestination != AppDestination.Profile,
-                    showSettingsAction = selectedDestination == AppDestination.Profile &&
-                        selectedMedia == null &&
-                        !isAdding,
+                    showBackNavigation = currentRoute is AppRoute.MediaDetail ||
+                            currentRoute == AppRoute.Stats ||
+                            currentRoute == AppRoute.Profile ||
+                            currentRoute == AppRoute.Settings ||
+                            currentRoute is AppRoute.CollectionDetail,
+                    showDetailActions = currentRoute is AppRoute.MediaDetail &&
+                            !detailActions.isManagingExternalRatings,
+                    showProfileAction = currentRoute !is AppRoute.MediaDetail &&
+                            currentRoute !is AppRoute.AddMedia &&
+                            currentRoute != AppRoute.Stats &&
+                            currentRoute != AppRoute.Profile,
+                    showSettingsAction = currentRoute == AppRoute.Profile,
                     profileImagePath = profileImagePath,
                     detailActions = detailActions,
                     onProfileRequested = openProfile,
+                    onProfileEditRequested = { profileHeaderActions.onEditRequested() },
+                    profileIsEditing = profileHeaderActions.isEditing,
+                    onProfileEditCancelled = { profileHeaderActions.onCancelRequested() },
+                    onProfileEditSaved = { profileHeaderActions.onSaveRequested() },
                     onSettingsRequested = openSettings,
                     onBack = if (detailActions.isManagingExternalRatings) {
                         detailActions.onCloseExternalRatings
-                    } else if (selectedDestination == AppDestination.Stats) {
-                        navigateBackFromStats
-                    } else if (selectedDestination == AppDestination.Settings) {
-                        navigateBackFromSettings
-                    } else if (selectedDestination == AppDestination.Profile) {
-                        navigateBackFromProfile
-                    } else if (selectedCollectionId != null && selectedMedia == null) {
-                        collectionBackRequest ?: navigateBackFromCollection
+                    } else if (currentRoute is AppRoute.CollectionDetail) {
+                        collectionBackRequest ?: navigateBack
                     } else {
-                        navigateBackFromDetail
+                        navigateBack
                     },
                 )
             },
             snackbarHost = {},
             bottomBar = {
                 OmnilogBottomBar(
-                    selectedDestination = selectedDestination,
-                    selectedSection = uiState.selectedSection,
+                    selectedRootRoute = selectedRootRoute,
                     onHomeClick = {
-                        detailHistory = emptyList()
-                        selectedDestination = AppDestination.Home
-                        selectedMediaId = null
-                selectedCollectionId = null
-                collectionReturnTarget = CollectionReturnTarget.Section
-                detailReturnTarget = DetailReturnTarget.Section
-                isAdding = false
-                addTargetCollection = null
-                addTargetCollectionOrder = null
-                viewModel.clearMetadataSearch()
-            },
+                        backStack.selectHome()
+                        viewModel.clearMetadataSearch()
+                    },
                     onSectionClick = { section ->
-                        detailHistory = emptyList()
-                        selectedDestination = AppDestination.Section
-                        selectedMediaId = null
-                        selectedCollectionId = null
-                        collectionReturnTarget = CollectionReturnTarget.Section
-                        detailReturnTarget = DetailReturnTarget.Section
-                        isAdding = false
-                        addTargetCollection = null
-                        addTargetCollectionOrder = null
+                        backStack.selectSection(section)
                         viewModel.selectSection(section)
                         viewModel.clearMetadataSearch()
                     },
                 )
             },
         ) { innerPadding ->
-        if (isAdding) {
-            val targetCollection = addTargetCollection
-            val initialAddType = selectedCollectionItems.firstOrNull()?.item?.type
-                ?: uiState.selectedSection.defaultType
-            AddMediaScreen(
-                initialMediaType = initialAddType,
-                availableMediaTypes = uiState.selectedSection.types.toList(),
-                library = uiState.allTrackedItems,
-                initialCollection = targetCollection,
-                initialCollectionName = targetCollection?.name,
-                initialCollectionOrder = addTargetCollectionOrder?.let { formatCollectionOrder(it) },
-                onSave = { request ->
-                    viewModel.addTrackedMedia(request)
-                    viewModel.clearMetadataSearch()
-                    isAdding = false
-                },
-                metadataUiState = metadataUiState,
-                onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
-                onMetadataSearch = { viewModel.searchMetadataSuggestions() },
-                onMetadataSearchSubmitted = { viewModel.searchMetadataSuggestions(forceShortQuery = true) },
-                onMetadataSuggestionSelected = { suggestion ->
-                    when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
-                        is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
-                        is DuplicateMatch.Possible -> {
-                            pendingPossibleDuplicate = PendingPossibleDuplicate(
-                                suggestion = suggestion,
-                                trackedMedia = duplicate.trackedMedia,
+            NavDisplay(
+                backStack = backStack,
+                onBack = { backStack.goBack() },
+                entryProvider = { key ->
+                    val route = key as AppRoute
+                    NavEntry(key) {
+                        if (route is AppRoute.AddMedia) {
+                            val targetCollection = route.collectionId?.let { collectionId ->
+                                uiState.allTrackedItems
+                                    .mapNotNull { it.collection }
+                                    .firstOrNull { it.id == collectionId }
+                            }
+                            val initialAddType = route.collectionId?.let { collectionId ->
+                                uiState.allTrackedItems.firstOrNull { it.collection?.id == collectionId }?.item?.type
+                            }
+                                ?: route.section.defaultType
+                            AddMediaScreen(
+                                initialMediaType = initialAddType,
+                                availableMediaTypes = route.section.types.toList(),
+                                library = uiState.allTrackedItems,
+                                initialCollection = targetCollection,
+                                initialCollectionName = targetCollection?.name,
+                                initialCollectionOrder = route.collectionOrder?.let {
+                                    formatCollectionOrder(
+                                        it
+                                    )
+                                },
+                                onSave = { request ->
+                                    viewModel.addTrackedMedia(request)
+                                    viewModel.clearMetadataSearch()
+                                },
+                                metadataUiState = metadataUiState,
+                                onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
+                                onMetadataSearch = { viewModel.searchMetadataSuggestions() },
+                                onMetadataSearchSubmitted = {
+                                    viewModel.searchMetadataSuggestions(
+                                        forceShortQuery = true
+                                    )
+                                },
+                                onMetadataSuggestionSelected = { suggestion ->
+                                    when (val duplicate =
+                                        uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                                        is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
+                                        is DuplicateMatch.Possible -> {
+                                            pendingPossibleDuplicate = PendingPossibleDuplicate(
+                                                suggestion = suggestion,
+                                                trackedMedia = duplicate.trackedMedia,
+                                            )
+                                        }
+
+                                        DuplicateMatch.None -> viewModel.selectMetadataSuggestion(
+                                            suggestion
+                                        )
+                                    }
+                                },
+                                onMetadataDetailsRetry = { viewModel.retryMetadataSuggestionDetails() },
+                                duplicateStateForSuggestion = { suggestion ->
+                                    when (uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                                        is DuplicateMatch.Exact -> MetadataDuplicateState.Exact
+                                        is DuplicateMatch.Possible -> MetadataDuplicateState.Possible
+                                        DuplicateMatch.None -> MetadataDuplicateState.None
+                                    }
+                                },
+                                onCancel = {
+                                    viewModel.clearMetadataSearch()
+                                    backStack.goBack()
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
                             )
-                        }
-                        DuplicateMatch.None -> viewModel.selectMetadataSuggestion(suggestion)
-                    }
-                },
-                onMetadataDetailsRetry = { viewModel.retryMetadataSuggestionDetails() },
-                duplicateStateForSuggestion = { suggestion ->
-                    when (uiState.allTrackedItems.findDuplicateFor(suggestion)) {
-                        is DuplicateMatch.Exact -> MetadataDuplicateState.Exact
-                        is DuplicateMatch.Possible -> MetadataDuplicateState.Possible
-                        DuplicateMatch.None -> MetadataDuplicateState.None
-                    }
-                },
-                onCancel = {
-                    viewModel.clearMetadataSearch()
-                    isAdding = false
-                    addTargetCollection = null
-                    addTargetCollectionOrder = null
-                    selectedCollectionId = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else if (selectedDestination == AppDestination.Home) {
-            HomeLandingScreen(
-                uiState = uiState,
-                onMediaClick = { trackedMedia ->
-                    val section = trackedMedia.item.type.homeSection()
-                    detailHistory = emptyList()
-                    viewModel.selectSection(section)
-                    selectedDestination = AppDestination.Section
-                    selectedCollectionId = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    detailReturnTarget = DetailReturnTarget.Home
-                    selectedMediaId = trackedMedia.item.id
-                },
-                onSectionSearch = { section, query ->
-                    viewModel.selectSectionWithSearch(section, query)
-                    detailHistory = emptyList()
-                    selectedDestination = AppDestination.Section
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    isAdding = false
-                },
-                onStatsClick = {
-                    statsReturnDestination = AppDestination.Home
-                    detailHistory = emptyList()
-                    selectedDestination = AppDestination.Stats
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    detailReturnTarget = DetailReturnTarget.Home
-                    isAdding = false
-                },
-                onObjectivesClick = openProfile,
-                onAddToSection = { section ->
-                    viewModel.selectSection(section)
-                    viewModel.clearMetadataSearch()
-                    detailHistory = emptyList()
-                    selectedDestination = AppDestination.Section
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                    addTargetCollection = null
-                    addTargetCollectionOrder = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    isAdding = true
-                },
-                onImportBackup = { backupActions.onImportBackupRequested() },
-                onQuickSetProgress = viewModel::quickSetProgress,
-                onQuickComplete = viewModel::quickComplete,
-                onQuickStart = viewModel::quickStart,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else if (selectedDestination == AppDestination.Profile) {
-            ProfileScreen(
-                items = uiState.allTrackedItems,
-                objectives = uiState.objectives,
-                onOpenMedia = openTrackedMedia,
-                onSaveObjective = viewModel::addObjective,
-                onDeleteObjective = viewModel::deleteObjective,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else if (selectedDestination == AppDestination.Settings) {
-            SettingsScreen(
-                askForGoodreadsRating = askForGoodreadsRating,
-                onAskForGoodreadsRatingChange = { enabled ->
-                    askForGoodreadsRating = enabled
-                    preferences.edit().putBoolean("ask_for_goodreads_rating", enabled).apply()
-                },
-                onExportBackup = { backupActions.onExportBackupRequested() },
-                onImportBackup = { backupActions.onImportBackupRequested() },
-                onRestoreBackup = { backupActions.onRestoreBackupRequested() },
-                onImportMyAnimeListXml = { backupActions.onImportMyAnimeListXmlRequested() },
-                onImportImdbCsv = { backupActions.onImportImdbCsvRequested() },
-                onImportStoryGraphCsv = { backupActions.onImportStoryGraphCsvRequested() },
-                isAutoBackupEnabled = autoBackupConfiguration.directoryUri != null,
-                autoBackupFrequency = autoBackupConfiguration.frequency,
-                onAutoBackupFolderRequested = { autoBackupFolderLauncher.launch(null) },
-                onAutoBackupFrequencyChange = { frequency ->
-                    AutoBackupPreferences.saveFrequency(context, frequency)
-                    autoBackupConfiguration = AutoBackupPreferences.read(context)
-                    if (autoBackupConfiguration.directoryUri != null) {
-                        AutoBackupScheduler.schedule(context, frequency)
-                    }
-                },
-                onAutoBackupDisabled = {
-                    AutoBackupScheduler.cancel(context)
-                    AutoBackupPreferences.clear(context)
-                    autoBackupConfiguration = AutoBackupPreferences.read(context)
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Còpia automàtica desactivada.")
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else if (selectedDestination == AppDestination.Stats) {
-            StatsScreen(
-                items = uiState.allTrackedItems,
-                onCreatorClick = { creator, mediaType ->
-                    detailHistory = emptyList()
-                    // AuthorDetailScreen draws from the selected section, so point the section at
-                    // the medium this creator mostly appears in before opening it.
-                    viewModel.selectSection(mediaType.homeSection())
-                    selectedDestination = AppDestination.Section
-                    selectedCollectionId = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    selectedMediaId = null
-                    selectedAuthor = creator
-                    authorReturnTarget = AuthorReturnTarget.Stats
-                },
-                onCollectionClick = { collectionId, mediaType ->
-                    detailHistory = emptyList()
-                    // The collection branch sits after the Stats one, so staying on Stats would
-                    // keep this screen showing. The section also supplies CollectionDetailScreen's
-                    // accent, so point it at the medium the collection mostly sits in.
-                    viewModel.selectSection(mediaType.homeSection())
-                    selectedDestination = AppDestination.Section
-                    selectedMediaId = null
-                    selectedAuthor = null
-                    selectedCollectionId = collectionId
-                    collectionReturnTarget = CollectionReturnTarget.Stats
-                },
-                onMediaClick = { trackedMedia ->
-                    val section = trackedMedia.item.type.homeSection()
-                    detailHistory = emptyList()
-                    viewModel.selectSection(section)
-                    selectedDestination = AppDestination.Section
-                    selectedCollectionId = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    detailReturnTarget = if (statsReturnDestination == AppDestination.Profile) {
-                        DetailReturnTarget.Profile
-                    } else {
-                        DetailReturnTarget.Home
-                    }
-                    selectedMediaId = trackedMedia.item.id
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else if (selectedAuthor != null && selectedMedia == null) {
-            AuthorDetailScreen(
-                author = selectedAuthor.orEmpty(),
-                creatorLabelResId = uiState.selectedSection.creatorDetailLabelResId,
-                items = selectedAuthorItems,
-                accent = uiState.selectedSection.accent,
-                onBack = navigateBackFromAuthor,
-                onMediaClick = { trackedMedia ->
-                    detailReturnTarget = DetailReturnTarget.Author(selectedAuthor.orEmpty())
-                    selectedAuthor = null
-                    selectedMediaId = trackedMedia.item.id
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else if (selectedCollection != null && selectedMedia == null) {
-            CollectionDetailScreen(
-                collection = selectedCollection,
-                items = selectedCollectionItems,
-                accent = uiState.selectedSection.accent,
-                onBack = navigateBackFromCollection,
-                onRegisterBackRequest = { handler -> collectionBackRequest = handler },
-                onMediaClick = {
-                    detailReturnTarget = DetailReturnTarget.Collection(selectedCollection.id)
-                    selectedMediaId = it.item.id
-                },
-                onAddToCollection = { collection, nextOrder ->
-                    viewModel.clearMetadataSearch()
-                    addTargetCollection = collection
-                    addTargetCollectionOrder = nextOrder
-                    isAdding = true
-                },
-                onRenameCollection = viewModel::updateMediaCollectionName,
-                onDeleteCollection = viewModel::deleteMediaCollection,
-                onUpdateCollectionItemOrder = viewModel::updateCollectionItemOrder,
-                onUpdateMediaItemCollection = { trackedMedia, collectionId, collectionSortOrder ->
-                    viewModel.updateMediaItemDetails(
-                        mediaItemId = trackedMedia.item.id,
-                        title = trackedMedia.item.title,
-                        collectionId = collectionId,
-                        newCollectionName = null,
-                        collectionSortOrder = collectionSortOrder,
-                        progressTotal = trackedMedia.item.progressTotal,
-                        ownershipType = trackedMedia.item.ownership.type,
-                    )
-                },
-                onCollectionActionMessage = { message ->
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(message)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else if (selectedMedia == null) {
-            HomeScreen(
-                uiState = uiState,
-                metadataUiState = metadataUiState,
-                onMediaClick = {
-                    detailHistory = emptyList()
-                    detailReturnTarget = DetailReturnTarget.Section
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    selectedMediaId = it.item.id
-                },
-                onCollectionClick = {
-                    selectedCollectionId = it.id
-                    selectedAuthor = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                    isAdding = false
-                },
-                onAuthorClick = { author ->
-                    selectedAuthor = author
-                    selectedCollectionId = null
-                    authorReturnTarget = AuthorReturnTarget.Section
-                    isAdding = false
-                },
-                onManualAddClick = {
-                    viewModel.clearMetadataSearch()
-                    isAdding = true
-                    addTargetCollection = null
-                    addTargetCollectionOrder = null
-                    selectedCollectionId = null
-                    collectionReturnTarget = CollectionReturnTarget.Section
-                },
-                onImportRequested = when (uiState.selectedSection) {
-                    MediaSection.Anime -> { { backupActions.onImportMyAnimeListXmlRequested() } }
-                    MediaSection.Books -> { { backupActions.onImportStoryGraphCsvRequested() } }
-                    MediaSection.Movies -> { { backupActions.onImportImdbCsvRequested() } }
-                    MediaSection.Games -> null
-                },
-                onSearchQueryChange = viewModel::updateSearchQuery,
-                onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
-                onMetadataSearch = { viewModel.searchMetadataSuggestions() },
-                onMetadataSearchSubmitted = { viewModel.searchMetadataSuggestions(forceShortQuery = true) },
-                onApiSuggestionSelected = { suggestion ->
-                    when (val duplicate = uiState.allTrackedItems.findDuplicateFor(suggestion)) {
-                        is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
-                        is DuplicateMatch.Possible -> {
-                            pendingPossibleDuplicate = PendingPossibleDuplicate(
-                                suggestion = suggestion,
-                                trackedMedia = duplicate.trackedMedia,
-                                requiresAddTransition = true,
+                        } else if (route == AppRoute.Home) {
+                            HomeLandingScreen(
+                                uiState = uiState,
+                                onMediaClick = openTrackedMedia,
+                                onSectionSearch = { section, query ->
+                                    viewModel.selectSectionWithSearch(section, query)
+                                    backStack.selectSection(section)
+                                },
+                                onStatsClick = { backStack.push(AppRoute.Stats) },
+                                onObjectivesClick = openProfile,
+                                onAddToSection = { section ->
+                                    viewModel.selectSection(section)
+                                    viewModel.clearMetadataSearch()
+                                    backStack.push(AppRoute.AddMedia(section))
+                                },
+                                onImportBackup = { backupActions.onImportBackupRequested() },
+                                onQuickSetProgress = viewModel::quickSetProgress,
+                                onQuickComplete = viewModel::quickComplete,
+                                onQuickStart = viewModel::quickStart,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
                             )
-                        }
-                        DuplicateMatch.None -> {
-                            viewModel.selectMetadataSuggestion(suggestion)
-                            isAdding = true
-                            addTargetCollection = null
-                            addTargetCollectionOrder = null
-                            selectedCollectionId = null
-                            collectionReturnTarget = CollectionReturnTarget.Section
+                        } else if (route == AppRoute.Profile) {
+                            ProfileScreen(
+                                items = uiState.allTrackedItems,
+                                objectives = uiState.objectives,
+                                onOpenMedia = openTrackedMedia,
+                                onSaveObjective = viewModel::addObjective,
+                                onDeleteObjective = viewModel::deleteObjective,
+                                headerActions = profileHeaderActions,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route == AppRoute.Settings) {
+                            SettingsScreen(
+                                askForGoodreadsRating = askForGoodreadsRating,
+                                onAskForGoodreadsRatingChange = { enabled ->
+                                    askForGoodreadsRating = enabled
+                                    preferences.edit()
+                                        .putBoolean("ask_for_goodreads_rating", enabled).apply()
+                                },
+                                onExportBackup = { backupActions.onExportBackupRequested() },
+                                onImportBackup = { backupActions.onImportBackupRequested() },
+                                onRestoreBackup = { backupActions.onRestoreBackupRequested() },
+                                onImportMyAnimeListXml = { backupActions.onImportMyAnimeListXmlRequested() },
+                                onImportImdbCsv = { backupActions.onImportImdbCsvRequested() },
+                                onImportStoryGraphCsv = { backupActions.onImportStoryGraphCsvRequested() },
+                                isAutoBackupEnabled = autoBackupConfiguration.directoryUri != null,
+                                autoBackupFrequency = autoBackupConfiguration.frequency,
+                                onAutoBackupFolderRequested = { autoBackupFolderLauncher.launch(null) },
+                                onAutoBackupFrequencyChange = { frequency ->
+                                    AutoBackupPreferences.saveFrequency(context, frequency)
+                                    autoBackupConfiguration = AutoBackupPreferences.read(context)
+                                    if (autoBackupConfiguration.directoryUri != null) {
+                                        AutoBackupScheduler.schedule(context, frequency)
+                                    }
+                                },
+                                onAutoBackupDisabled = {
+                                    AutoBackupScheduler.cancel(context)
+                                    AutoBackupPreferences.clear(context)
+                                    autoBackupConfiguration = AutoBackupPreferences.read(context)
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Còpia automàtica desactivada.")
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route == AppRoute.Stats) {
+                            StatsScreen(
+                                items = uiState.allTrackedItems,
+                                onCreatorClick = { creator, mediaType ->
+                                    backStack.push(
+                                        AppRoute.AuthorDetail(
+                                            creator,
+                                            mediaType.homeSection()
+                                        )
+                                    )
+                                },
+                                onCollectionClick = { collectionId, mediaType ->
+                                    backStack.push(
+                                        AppRoute.CollectionDetail(
+                                            collectionId,
+                                            mediaType.homeSection()
+                                        ),
+                                    )
+                                },
+                                onMediaClick = openTrackedMedia,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route is AppRoute.AuthorDetail) {
+                            AuthorDetailScreen(
+                                author = route.author,
+                                creatorLabelResId = route.section.creatorDetailLabelResId,
+                                items = uiState.allTrackedItems.filter { trackedMedia ->
+                                    trackedMedia.item.type in route.section.types &&
+                                            trackedMedia.item.creators.any {
+                                                it.trim()
+                                                    .equals(route.author.trim(), ignoreCase = true)
+                                            }
+                                },
+                                accent = route.section.accent,
+                                onBack = navigateBack,
+                                onMediaClick = openTrackedMedia,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route is AppRoute.CollectionDetail) {
+                            val routeCollection = uiState.allTrackedItems
+                                .mapNotNull { it.collection }
+                                .firstOrNull { it.id == route.collectionId }
+                            val routeCollectionItems = uiState.allTrackedItems
+                                .filter { it.collection?.id == route.collectionId }
+                                .sortedWith(collectionItemComparator())
+                            if (routeCollection != null) {
+                                CollectionDetailScreen(
+                                    collection = routeCollection,
+                                    items = routeCollectionItems,
+                                    accent = route.section.accent,
+                                    onBack = navigateBack,
+                                    onRegisterBackRequest = { handler ->
+                                        collectionBackRequest = handler
+                                    },
+                                    onMediaClick = openTrackedMedia,
+                                    onAddToCollection = { collection, nextOrder ->
+                                        viewModel.clearMetadataSearch()
+                                        backStack.push(
+                                            AppRoute.AddMedia(
+                                                section = route.section,
+                                                collectionId = collection.id,
+                                                collectionOrder = nextOrder,
+                                            ),
+                                        )
+                                    },
+                                    onRenameCollection = viewModel::updateMediaCollectionName,
+                                    onDeleteCollection = viewModel::deleteMediaCollection,
+                                    onUpdateCollectionItemOrder = viewModel::updateCollectionItemOrder,
+                                    onUpdateMediaItemCollection = { trackedMedia, collectionId, collectionSortOrder ->
+                                        viewModel.updateMediaItemDetails(
+                                            mediaItemId = trackedMedia.item.id,
+                                            title = trackedMedia.item.title,
+                                            collectionId = collectionId,
+                                            newCollectionName = null,
+                                            collectionSortOrder = collectionSortOrder,
+                                            progressTotal = trackedMedia.item.progressTotal,
+                                            ownershipType = trackedMedia.item.ownership.type,
+                                        )
+                                    },
+                                    onCollectionActionMessage = { message ->
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(message)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(innerPadding),
+                                )
+                            }
+                        } else if (route is AppRoute.Section) {
+                            LaunchedEffect(route.section) {
+                                if (uiState.selectedSection != route.section) {
+                                    viewModel.selectSection(route.section)
+                                }
+                            }
+                            HomeScreen(
+                                uiState = uiState,
+                                metadataUiState = metadataUiState,
+                                onMediaClick = openTrackedMedia,
+                                onCollectionClick = {
+                                    backStack.push(AppRoute.CollectionDetail(it.id, route.section))
+                                },
+                                onAuthorClick = { author ->
+                                    backStack.push(AppRoute.AuthorDetail(author, route.section))
+                                },
+                                onManualAddClick = {
+                                    viewModel.clearMetadataSearch()
+                                    backStack.push(AppRoute.AddMedia(route.section))
+                                },
+                                onImportRequested = when (route.section) {
+                                    MediaSection.Anime -> {
+                                        { backupActions.onImportMyAnimeListXmlRequested() }
+                                    }
+
+                                    MediaSection.Books -> {
+                                        { backupActions.onImportStoryGraphCsvRequested() }
+                                    }
+
+                                    MediaSection.Movies -> {
+                                        { backupActions.onImportImdbCsvRequested() }
+                                    }
+
+                                    MediaSection.Games -> null
+                                },
+                                onSearchQueryChange = viewModel::updateSearchQuery,
+                                onMetadataQueryChange = viewModel::updateMetadataSearchQuery,
+                                onMetadataSearch = { viewModel.searchMetadataSuggestions() },
+                                onMetadataSearchSubmitted = {
+                                    viewModel.searchMetadataSuggestions(
+                                        forceShortQuery = true
+                                    )
+                                },
+                                onApiSuggestionSelected = { suggestion ->
+                                    when (val duplicate =
+                                        uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                                        is DuplicateMatch.Exact -> openTrackedMedia(duplicate.trackedMedia)
+                                        is DuplicateMatch.Possible -> {
+                                            pendingPossibleDuplicate = PendingPossibleDuplicate(
+                                                suggestion = suggestion,
+                                                trackedMedia = duplicate.trackedMedia,
+                                                requiresAddTransition = true,
+                                            )
+                                        }
+
+                                        DuplicateMatch.None -> {
+                                            viewModel.selectMetadataSuggestion(suggestion)
+                                            backStack.push(AppRoute.AddMedia(route.section))
+                                        }
+                                    }
+                                },
+                                duplicateStateForSuggestion = { suggestion ->
+                                    when (uiState.allTrackedItems.findDuplicateFor(suggestion)) {
+                                        is DuplicateMatch.Exact -> MetadataDuplicateState.Exact
+                                        is DuplicateMatch.Possible -> MetadataDuplicateState.Possible
+                                        DuplicateMatch.None -> MetadataDuplicateState.None
+                                    }
+                                },
+                                onStatusFilterChange = viewModel::updateStatusFilter,
+                                onBrowseModeChange = viewModel::updateBrowseMode,
+                                onSortModeChange = viewModel::updateSortMode,
+                                onSortDirectionChange = viewModel::updateSortDirection,
+                                onAdvancedFiltersChange = viewModel::updateAdvancedFilters,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route is AppRoute.MediaDetail) {
+                            val routeMedia =
+                                uiState.allTrackedItems.firstOrNull { it.item.id == route.mediaItemId }
+                            if (routeMedia == null) {
+                                LaunchedEffect(route) { backStack.goBack() }
+                            } else {
+                                val actions = remember(routeMedia.item.id) {
+                                    DetailHeaderActions()
+                                }
+                                actions.isRefreshingMetadata =
+                                    uiState.refreshingMetadataItemId == routeMedia.item.id
+                                detailActions = actions
+                                DetailScreen(
+                                    trackedMedia = routeMedia,
+                                    allTrackedMedia = uiState.allTrackedItems,
+                                    accent = routeMedia.item.type.homeSection().accent,
+                                    headerActions = actions,
+                                    onBack = navigateBack,
+                                    onStartNewSession = viewModel::startNewSession,
+                                    onUpdateSessionDetails = viewModel::updateSessionDetails,
+                                    onDeletePastSession = viewModel::deletePastSession,
+                                    onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
+                                    onUpdateProgressUpdateDate = viewModel::updateProgressUpdateDate,
+                                    onAddExternalRating = viewModel::addExternalRating,
+                                    onUpdateExternalRating = viewModel::updateExternalRating,
+                                    onSetPrimaryExternalRating = viewModel::setPrimaryExternalRating,
+                                    onDeleteExternalRating = viewModel::deleteExternalRating,
+                                    onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
+                                    onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
+                                    onRefreshMediaItemMetadata = { startMetadataRefresh(routeMedia) },
+                                    onLinkMediaMetadata = { startMetadataLink(routeMedia) },
+                                    onDeleteMediaItem = { mediaItemId ->
+                                        viewModel.deleteMediaItem(mediaItemId)
+                                        backStack.goBack()
+                                    },
+                                    onCollectionClick = {
+                                        val collectionId =
+                                            routeMedia.collection?.id ?: return@DetailScreen
+                                        backStack.push(
+                                            AppRoute.CollectionDetail(
+                                                collectionId = collectionId,
+                                                section = routeMedia.item.type.homeSection(),
+                                            ),
+                                        )
+                                    },
+                                    onAuthorClick = { author ->
+                                        backStack.push(
+                                            AppRoute.AuthorDetail(
+                                                author = author,
+                                                section = routeMedia.item.type.homeSection(),
+                                            ),
+                                        )
+                                    },
+                                    onRelatedMediaClick = openRelatedMedia,
+                                    externalRecommendations = recommendationUiState
+                                        .takeIf { it.mediaItemId == routeMedia.item.id }
+                                        ?.recommendations
+                                        .orEmpty(),
+                                    isExternalRecommendationsLoading = recommendationUiState.mediaItemId == routeMedia.item.id &&
+                                            recommendationUiState.isLoading,
+                                    hasExternalRecommendationsError = recommendationUiState.mediaItemId == routeMedia.item.id &&
+                                            recommendationUiState.hasError,
+                                    onRefreshExternalRecommendations = {
+                                        viewModel.loadRecommendations(
+                                            current = routeMedia,
+                                            library = uiState.allTrackedItems,
+                                            forceRefresh = true,
+                                        )
+                                    },
+                                    onExternalRecommendationClick = openExternalRecommendation,
+                                    askForGoodreadsRating = askForGoodreadsRating,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(innerPadding),
+                                )
+                            }
                         }
                     }
                 },
-                duplicateStateForSuggestion = { suggestion ->
-                    when (uiState.allTrackedItems.findDuplicateFor(suggestion)) {
-                        is DuplicateMatch.Exact -> MetadataDuplicateState.Exact
-                        is DuplicateMatch.Possible -> MetadataDuplicateState.Possible
-                        DuplicateMatch.None -> MetadataDuplicateState.None
-                    }
-                },
-                onStatusFilterChange = viewModel::updateStatusFilter,
-                onBrowseModeChange = viewModel::updateBrowseMode,
-                onSortModeChange = viewModel::updateSortMode,
-                onSortDirectionChange = viewModel::updateSortDirection,
-                onAdvancedFiltersChange = viewModel::updateAdvancedFilters,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else {
-            val actions = remember(selectedMedia.item.id) {
-                DetailHeaderActions()
-            }
-            actions.isRefreshingMetadata = uiState.refreshingMetadataItemId == selectedMedia.item.id
-            detailActions = actions
-            DetailScreen(
-                trackedMedia = selectedMedia,
-                allTrackedMedia = uiState.allTrackedItems,
-                accent = uiState.selectedSection.accent,
-                headerActions = actions,
-                onBack = navigateBackFromDetail,
-                onStartNewSession = viewModel::startNewSession,
-                onUpdateSessionDetails = viewModel::updateSessionDetails,
-                onDeletePastSession = viewModel::deletePastSession,
-                onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
-                onUpdateProgressUpdateDate = viewModel::updateProgressUpdateDate,
-                onAddExternalRating = viewModel::addExternalRating,
-                onUpdateExternalRating = viewModel::updateExternalRating,
-                onSetPrimaryExternalRating = viewModel::setPrimaryExternalRating,
-                onDeleteExternalRating = viewModel::deleteExternalRating,
-                onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
-                onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
-                onRefreshMediaItemMetadata = { startMetadataRefresh(selectedMedia) },
-                onLinkMediaMetadata = { startMetadataLink(selectedMedia) },
-                onDeleteMediaItem = { mediaItemId ->
-                    viewModel.deleteMediaItem(mediaItemId)
-                    selectedMediaId = null
-                },
-                onCollectionClick = {
-                    val collectionId = selectedMedia.collection?.id ?: return@DetailScreen
-                    selectedDestination = AppDestination.Section
-                    selectedMediaId = null
-                    selectedCollectionId = collectionId
-                    collectionReturnTarget = CollectionReturnTarget.Detail(selectedMedia.item.id)
-                },
-                onAuthorClick = { author ->
-                    selectedDestination = AppDestination.Section
-                    selectedMediaId = null
-                    selectedCollectionId = null
-                    selectedAuthor = author
-                    authorReturnTarget = AuthorReturnTarget.Detail(selectedMedia.item.id)
-                },
-                onRelatedMediaClick = openRelatedMedia,
-                externalRecommendations = recommendationUiState
-                    .takeIf { it.mediaItemId == selectedMedia.item.id }
-                    ?.recommendations
-                    .orEmpty(),
-                isExternalRecommendationsLoading = recommendationUiState.mediaItemId == selectedMedia.item.id &&
-                    recommendationUiState.isLoading,
-                hasExternalRecommendationsError = recommendationUiState.mediaItemId == selectedMedia.item.id &&
-                    recommendationUiState.hasError,
-                onRefreshExternalRecommendations = {
-                    viewModel.loadRecommendations(
-                        current = selectedMedia,
-                        library = uiState.allTrackedItems,
-                        forceRefresh = true,
-                    )
-                },
-                onExternalRecommendationClick = openExternalRecommendation,
-                askForGoodreadsRating = askForGoodreadsRating,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
             )
         }
-    }
 
         SnackbarHost(
             hostState = snackbarHostState,
@@ -1443,9 +1291,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             }
                             pendingImportConfirmation = null
                             if (result.isSuccess) {
-                                selectedMediaId = null
-                                selectedCollectionId = null
-                                isAdding = false
+                                backStack.selectHome()
                                 snackbarHostState.showSnackbar(importSuccessMessage)
                             } else {
                                 val message = when (result.exceptionOrNull()) {
@@ -1686,7 +1532,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         color = OmnilogTheme.colors.appInk,
                     )
                     Text(
-                        text = stringResource(R.string.metadata_link_message, displayMediaTitle(target.item.title)),
+                        text = stringResource(
+                            R.string.metadata_link_message,
+                            displayMediaTitle(target.item.title)
+                        ),
                         color = OmnilogTheme.colors.appMuted,
                     )
                     Row(
@@ -1697,7 +1546,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             value = metadataLinkQuery,
                             onValueChange = { metadataLinkQuery = it },
                             label = {
-                                Text(text = stringResource(R.string.metadata_link_search_label, providerName))
+                                Text(
+                                    text = stringResource(
+                                        R.string.metadata_link_search_label,
+                                        providerName
+                                    )
+                                )
                             },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
@@ -1717,6 +1571,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             accent = linkAccent,
                             showProgressIndicator = true,
                         )
+
                         hasMetadataLinkError -> OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_link_search_error),
                             accent = linkAccent,
@@ -1726,10 +1581,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onClick = { searchMetadataLink(target, metadataLinkQuery) },
                             ),
                         )
+
                         metadataLinkSuggestions.isEmpty() -> OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_link_empty),
                             accent = linkAccent,
                         )
+
                         else -> LazyColumn(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1743,7 +1600,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     onClick = {
                                         coroutineScope.launch {
                                             val result = runCatching {
-                                                viewModel.linkMediaItemMetadata(target.item.id, suggestion)
+                                                viewModel.linkMediaItemMetadata(
+                                                    target.item.id,
+                                                    suggestion
+                                                )
                                             }
                                             metadataLinkTarget = null
                                             snackbarHostState.showSnackbar(
@@ -1803,8 +1663,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         pendingPossibleDuplicate = null
                         viewModel.selectMetadataSuggestion(suggestion)
                         if (needsTransition) {
-                            isAdding = true
-                            selectedCollectionId = null
+                            backStack.push(AppRoute.AddMedia(suggestion.mediaType.homeSection()))
                         }
                     },
                 ) {
@@ -2016,6 +1875,17 @@ class DetailHeaderActions {
     var onLinkMetadataRequested: () -> Unit = {}
 }
 
+/**
+ * Lets the Profile screen publish its edit toggle to the top bar, which owns the button but not the
+ * state behind it. Same shape as [BackupHeaderActions]: the screen assigns, the bar invokes.
+ */
+class ProfileHeaderActions {
+    var isEditing by mutableStateOf(false)
+    var onEditRequested: () -> Unit = {}
+    var onCancelRequested: () -> Unit = {}
+    var onSaveRequested: () -> Unit = {}
+}
+
 class BackupHeaderActions {
     var onExportBackupRequested: () -> Unit = {}
     var onImportBackupRequested: () -> Unit = {}
@@ -2023,67 +1893,6 @@ class BackupHeaderActions {
     var onImportImdbCsvRequested: () -> Unit = {}
     var onImportStoryGraphCsvRequested: () -> Unit = {}
     var onRestoreBackupRequested: () -> Unit = {}
-}
-
-private enum class AppDestination {
-    Home,
-    Stats,
-    Profile,
-    Settings,
-    Section,
-}
-
-internal sealed interface DetailReturnTarget {
-    data object Home : DetailReturnTarget
-    data object Profile : DetailReturnTarget
-    data object Section : DetailReturnTarget
-    data class Collection(val collectionId: Long) : DetailReturnTarget
-    data class Author(val author: String) : DetailReturnTarget
-}
-
-internal data class DetailHistoryEntry(
-    val mediaItemId: Long,
-    val section: MediaSection,
-    val returnTarget: DetailReturnTarget,
-)
-
-internal data class DetailHistoryPop(
-    val remaining: List<DetailHistoryEntry>,
-    val previous: DetailHistoryEntry?,
-)
-
-internal fun List<DetailHistoryEntry>.pushDetail(
-    mediaItemId: Long?,
-    section: MediaSection,
-    returnTarget: DetailReturnTarget,
-): List<DetailHistoryEntry> {
-    return mediaItemId?.let { currentMediaId ->
-        this + DetailHistoryEntry(
-            mediaItemId = currentMediaId,
-            section = section,
-            returnTarget = returnTarget,
-        )
-    } ?: this
-}
-
-internal fun List<DetailHistoryEntry>.popDetail(): DetailHistoryPop {
-    return if (isEmpty()) {
-        DetailHistoryPop(remaining = this, previous = null)
-    } else {
-        DetailHistoryPop(remaining = dropLast(1), previous = last())
-    }
-}
-
-private sealed interface CollectionReturnTarget {
-    data object Section : CollectionReturnTarget
-    data object Stats : CollectionReturnTarget
-    data class Detail(val mediaItemId: Long) : CollectionReturnTarget
-}
-
-private sealed interface AuthorReturnTarget {
-    data object Section : AuthorReturnTarget
-    data object Stats : AuthorReturnTarget
-    data class Detail(val mediaItemId: Long) : AuthorReturnTarget
 }
 
 private sealed interface DuplicateMatch {
@@ -2095,8 +1904,8 @@ private sealed interface DuplicateMatch {
 private fun List<TrackedMedia>.findDuplicateFor(suggestion: MetadataSuggestion): DuplicateMatch {
     val exactMatch = firstOrNull { trackedMedia ->
         trackedMedia.item.type == suggestion.mediaType &&
-            trackedMedia.item.metadataSource == suggestion.source &&
-            trackedMedia.item.metadataExternalId == suggestion.externalId
+                trackedMedia.item.metadataSource == suggestion.source &&
+                trackedMedia.item.metadataExternalId == suggestion.externalId
     }
     if (exactMatch != null) {
         return DuplicateMatch.Exact(exactMatch)
@@ -2104,8 +1913,8 @@ private fun List<TrackedMedia>.findDuplicateFor(suggestion: MetadataSuggestion):
 
     val possibleMatch = firstOrNull { trackedMedia ->
         trackedMedia.item.type == suggestion.mediaType &&
-            trackedMedia.hasCompatibleReleaseYear(suggestion) &&
-            trackedMedia.titleCandidates().intersect(suggestion.titleCandidates()).isNotEmpty()
+                trackedMedia.hasCompatibleReleaseYear(suggestion) &&
+                trackedMedia.titleCandidates().intersect(suggestion.titleCandidates()).isNotEmpty()
     }
 
     return possibleMatch?.let(DuplicateMatch::Possible) ?: DuplicateMatch.None
@@ -2145,6 +1954,7 @@ private fun com.nilpo.contenttracker.core.model.MediaType.homeSection(): MediaSe
         com.nilpo.contenttracker.core.model.MediaType.Movie,
         com.nilpo.contenttracker.core.model.MediaType.TvShow,
             -> MediaSection.Movies
+
         com.nilpo.contenttracker.core.model.MediaType.Game -> MediaSection.Games
     }
 
@@ -2155,14 +1965,14 @@ private fun com.nilpo.contenttracker.core.model.MediaType.metadataLinkProviderNa
         com.nilpo.contenttracker.core.model.MediaType.Movie,
         com.nilpo.contenttracker.core.model.MediaType.TvShow,
             -> "TMDB"
+
         com.nilpo.contenttracker.core.model.MediaType.Game,
             -> ""
     }
 
 @Composable
 private fun OmnilogBottomBar(
-    selectedDestination: AppDestination,
-    selectedSection: MediaSection,
+    selectedRootRoute: AppRoute,
     onHomeClick: () -> Unit,
     onSectionClick: (MediaSection) -> Unit,
 ) {
@@ -2184,8 +1994,7 @@ private fun OmnilogBottomBar(
                     labelResId = R.string.nav_home,
                     iconResId = R.drawable.ic_nav_home,
                     accent = OmnilogColors.Dashboard,
-                    selected = selectedDestination == AppDestination.Home ||
-                        selectedDestination == AppDestination.Stats,
+                    selected = selectedRootRoute == AppRoute.Home,
                     onClick = onHomeClick,
                     modifier = Modifier.weight(1f),
                 )
@@ -2194,7 +2003,7 @@ private fun OmnilogBottomBar(
                         labelResId = section.titleResId,
                         iconResId = section.navIconResId,
                         accent = section.accent,
-                        selected = selectedDestination == AppDestination.Section && selectedSection == section,
+                        selected = (selectedRootRoute as? AppRoute.Section)?.section == section,
                         onClick = { onSectionClick(section) },
                         modifier = Modifier.weight(1f),
                     )
@@ -2260,6 +2069,10 @@ private fun OmnilogTopBar(
     profileImagePath: String?,
     detailActions: DetailHeaderActions,
     onProfileRequested: () -> Unit,
+    onProfileEditRequested: () -> Unit,
+    profileIsEditing: Boolean,
+    onProfileEditCancelled: () -> Unit,
+    onProfileEditSaved: () -> Unit,
     onSettingsRequested: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -2293,13 +2106,18 @@ private fun OmnilogTopBar(
                     withStyle(SpanStyle(color = accent, fontWeight = FontWeight.ExtraBold)) {
                         append("Omni")
                     }
-                    withStyle(SpanStyle(color = OmnilogTheme.colors.appInk, fontWeight = FontWeight.ExtraBold)) {
+                    withStyle(
+                        SpanStyle(
+                            color = OmnilogTheme.colors.appInk,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    ) {
                         append("log")
                     }
                 },
-                    style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp),
-                )
-            },
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp),
+            )
+        },
         actions = {
             if (showDetailActions) {
                 Box {
@@ -2333,7 +2151,8 @@ private fun OmnilogTopBar(
                                 },
                             ),
                             onClick = {
-                                detailActions.isEditingItemDetails = !detailActions.isEditingItemDetails
+                                detailActions.isEditingItemDetails =
+                                    !detailActions.isEditingItemDetails
                                 detailActions.isMenuExpanded = false
                             },
                         )
@@ -2379,12 +2198,40 @@ private fun OmnilogTopBar(
                     }
                 }
             } else if (showSettingsAction) {
-                IconButton(onClick = onSettingsRequested) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "Configuració",
-                        tint = OmnilogTheme.colors.appMuted,
-                    )
+                // While editing, the bar carries the commit controls: the profile edits itself in
+                // place, so there is no form below to hold a Save button.
+                if (profileIsEditing) {
+                    TextButton(onClick = onProfileEditCancelled) {
+                        Text(
+                            text = "Cancel·la",
+                            color = OmnilogTheme.colors.appMuted,
+                        )
+                    }
+                    TextButton(onClick = onProfileEditSaved) {
+                        Text(
+                            text = "Desa",
+                            color = OmnilogColors.Dashboard,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
+                } else {
+                    // Editing lives here rather than floating over the cover collage: the banner's
+                    // corners belong to the artwork, and the bar is where this screen's other
+                    // chrome already is.
+                    IconButton(onClick = onProfileEditRequested) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = "Edita el perfil",
+                            tint = OmnilogTheme.colors.appMuted,
+                        )
+                    }
+                    IconButton(onClick = onSettingsRequested) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Configuració",
+                            tint = OmnilogTheme.colors.appMuted,
+                        )
+                    }
                 }
             } else if (showProfileAction) {
                 IconButton(onClick = onProfileRequested) {

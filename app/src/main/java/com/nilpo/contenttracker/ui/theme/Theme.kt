@@ -31,6 +31,12 @@ object OmnilogColors {
     val Tv = Color(0xFF4FA8A8)
     val Games = Color(0xFFD4B96A)
 
+    // "Cinema i TV" is one navigation section but two media types, and Stats and Profile both show
+    // them apart. Films keep the section's own colour; series get their own so the pair never has
+    // to be told apart by icon alone.
+    val Movie = Tv
+    val Series = Color(0xFF5E8FC4)
+
     val Planned = Color(0xFF9DA7B2)
     val InProgress = Color(0xFF5E8FC4)
     val Completed = Color(0xFF62A87C)

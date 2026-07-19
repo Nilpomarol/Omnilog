@@ -156,8 +156,8 @@ internal fun MediaType.statsColor(): Color {
     return when (this) {
         MediaType.Anime -> MediaSection.Anime.accent
         MediaType.Book -> MediaSection.Books.accent
-        MediaType.Movie -> MediaSection.Movies.accent
-        MediaType.TvShow -> Color(0xFF5E8FC4)
+        MediaType.Movie -> OmnilogColors.Movie
+        MediaType.TvShow -> OmnilogColors.Series
         MediaType.Game -> MediaSection.Games.accent
     }
 }

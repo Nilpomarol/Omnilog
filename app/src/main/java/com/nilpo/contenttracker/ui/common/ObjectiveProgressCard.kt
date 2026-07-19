@@ -217,7 +217,11 @@ fun ObjectiveMediaIcon(mediaType: MediaType?, accent: Color, size: androidx.comp
 private fun MediaType?.navIconRes(): Int? = when (this) {
     MediaType.Anime -> R.drawable.ic_nav_anime
     MediaType.Book -> R.drawable.ic_nav_books
-    MediaType.Movie, MediaType.TvShow -> R.drawable.ic_nav_movies_tv
+    // Not the navigation bar's film strip: that tab covers films and series together, so it cannot
+    // tell them apart. Wherever a single media type is named, the two need their own glyphs — side
+    // by side in the profile they were distinguishable only by colour.
+    MediaType.Movie -> R.drawable.ic_media_movie
+    MediaType.TvShow -> R.drawable.ic_media_series
     MediaType.Game -> R.drawable.ic_nav_games
     null -> null
 }
