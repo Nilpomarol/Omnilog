@@ -50,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -166,7 +167,7 @@ fun HomeScreen(
                         },
                         onSearchSubmitted = onMetadataSearchSubmitted,
                         isLoading = metadataUiState.isLoading,
-                        accent = section.accent,
+                        accent = section.themedAccent(),
                     ) {
                         IconButton(
                             onClick = onManualAddClick,
@@ -175,7 +176,7 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Filled.Add,
                                 contentDescription = stringResource(R.string.add_item),
-                                tint = section.accent,
+                                tint = section.themedAccent(),
                             )
                         }
                     }
@@ -186,7 +187,7 @@ fun HomeScreen(
                         sortMode = uiState.sortMode,
                         sortDirection = uiState.sortDirection,
                         advancedFilters = uiState.advancedFilters,
-                        accent = section.accent,
+                        accent = section.themedAccent(),
                         onStatusFilterChange = onStatusFilterChange,
                         onBrowseModeChange = onBrowseModeChange,
                         onSortModeChange = onSortModeChange,
@@ -198,7 +199,7 @@ fun HomeScreen(
                             currentFilters = uiState.advancedFilters,
                             section = section,
                             availableItems = uiState.allTrackedItems.filter { it.item.type in section.types },
-                            accent = section.accent,
+                            accent = section.themedAccent(),
                             onDismiss = { filtersExpanded = false },
                             onApply = {
                                 onAdvancedFiltersChange(it)
@@ -219,7 +220,7 @@ fun HomeScreen(
                         OmnilogEmptyState(
                             title = stringResource(section.emptyTitleResId),
                             body = stringResource(section.emptyMessageResId),
-                            accent = section.accent,
+                            accent = section.themedAccent(),
                             iconResId = section.navIconResId,
                             primaryAction = EmptyStateAction(
                                 label = stringResource(section.addActionResId),
@@ -243,7 +244,7 @@ fun HomeScreen(
                                 sectionItemCount,
                                 stringResource(section.titleResId),
                             ),
-                            accent = section.accent,
+                            accent = section.themedAccent(),
                             primaryAction = EmptyStateAction(
                                 label = stringResource(R.string.empty_filtered_clear),
                                 onClick = {
@@ -270,7 +271,7 @@ fun HomeScreen(
                             HomeGroupHeader(
                                 group = group,
                                 section = section,
-                                accent = section.accent,
+                                accent = section.themedAccent(),
                                 isCollapsed = isCollapsed,
                                 onClick = {
                                     collapsedGroupKeysState.value = if (isCollapsed) {
@@ -296,7 +297,7 @@ fun HomeScreen(
                                     groupItems.forEach { trackedMedia ->
                                         MediaCard(
                                             trackedMedia = trackedMedia,
-                                            accent = section.accent,
+                                            accent = section.themedAccent(),
                                             onClick = { onMediaClick(trackedMedia) },
                                         )
                                     }
@@ -309,7 +310,7 @@ fun HomeScreen(
                 items(uiState.trackedItems) { trackedMedia ->
                     MediaCard(
                         trackedMedia = trackedMedia,
-                        accent = section.accent,
+                        accent = section.themedAccent(),
                         onClick = { onMediaClick(trackedMedia) },
                     )
                 }
@@ -329,13 +330,13 @@ fun HomeScreen(
                     metadataUiState.isLoading -> item {
                         OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_search_loading),
-                            accent = section.accent,
+                            accent = section.themedAccent(),
                         )
                     }
                     metadataUiState.hasError -> item {
                         OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_search_error),
-                            accent = section.accent,
+                            accent = section.themedAccent(),
                             textColor = MaterialTheme.colorScheme.error,
                             action = EmptyStateAction(
                                 label = stringResource(R.string.retry_action),
@@ -346,7 +347,7 @@ fun HomeScreen(
                     metadataUiState.hasSearched && apiResults.isEmpty() -> item {
                         OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_search_empty),
-                            accent = section.accent,
+                            accent = section.themedAccent(),
                         )
                     }
                     else -> items(apiResults) { suggestion ->
@@ -365,7 +366,7 @@ fun HomeScreen(
                     item {
                         OmnilogStatusPanel(
                             text = partialSearchFailureMessage(metadataUiState.failedSources.toList()),
-                            accent = section.accent,
+                            accent = section.themedAccent(),
                             action = EmptyStateAction(
                                 label = stringResource(R.string.retry_action),
                                 onClick = onMetadataSearchSubmitted,
@@ -1140,17 +1141,21 @@ private fun HomeSortMode.label(): String {
 }
 
 private val TrackingStatus.stateColor: Color
+    @Composable
+    @ReadOnlyComposable
     get() = when (this) {
-        TrackingStatus.Planned -> OmnilogColors.Planned
-        TrackingStatus.InProgress -> OmnilogColors.InProgress
-        TrackingStatus.Completed -> OmnilogColors.Completed
-        TrackingStatus.Paused -> OmnilogColors.Paused
-        TrackingStatus.Dropped -> OmnilogColors.Dropped
+        TrackingStatus.Planned -> OmnilogTheme.accents.Planned
+        TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
+        TrackingStatus.Completed -> OmnilogTheme.accents.Completed
+        TrackingStatus.Paused -> OmnilogTheme.accents.Paused
+        TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
     }
 
+@Composable
+@ReadOnlyComposable
 private fun MediaType.sectionAccent() = when (this) {
-    MediaType.Anime -> MediaSection.Anime.accent
-    MediaType.Book -> MediaSection.Books.accent
-    MediaType.Movie, MediaType.TvShow -> MediaSection.Movies.accent
-    MediaType.Game -> MediaSection.Games.accent
+    MediaType.Anime -> MediaSection.Anime.themedAccent()
+    MediaType.Book -> MediaSection.Books.themedAccent()
+    MediaType.Movie, MediaType.TvShow -> MediaSection.Movies.themedAccent()
+    MediaType.Game -> MediaSection.Games.themedAccent()
 }

@@ -34,10 +34,13 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.ui.common.CoverScrim
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.OnCoverMuted
+import com.nilpo.contenttracker.ui.theme.OnCoverInk
 
 @Composable
 internal fun ExternalRecommendationsSection(
@@ -123,19 +126,7 @@ private fun ExternalRecommendationCard(
                 modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(8.dp),
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0xFF17110D).copy(alpha = 0.12f),
-                                Color(0xFF15110E).copy(alpha = 0.96f),
-                            ),
-                        ),
-                    ),
-            )
+            CoverScrim()
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -149,7 +140,7 @@ private fun ExternalRecommendationCard(
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
+                    color = OnCoverInk,
                 )
             }
             Column(
@@ -163,7 +154,7 @@ private fun ExternalRecommendationCard(
                     text = displayMediaTitle(suggestion.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
+                    color = OnCoverInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -171,7 +162,7 @@ private fun ExternalRecommendationCard(
                     Text(
                         text = year.toString(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogTheme.colors.appMuted,
+                        color = OnCoverMuted,
                     )
                 }
                 Surface(

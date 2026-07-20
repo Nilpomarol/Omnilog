@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.ui.stats
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
@@ -15,6 +16,7 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -117,49 +119,68 @@ internal fun Int.compactStatValue(): String {
     }
 }
 
+@Composable
+@ReadOnlyComposable
 internal fun genreChartColor(index: Int): Color {
     val colors = listOf(
-        OmnilogColors.Anime,
-        OmnilogColors.Books,
-        OmnilogColors.Tv,
-        OmnilogColors.Games,
-        OmnilogColors.Dashboard,
-        OmnilogColors.Paused,
+        OmnilogTheme.accents.Anime,
+        OmnilogTheme.accents.Books,
+        OmnilogTheme.accents.Tv,
+        OmnilogTheme.accents.Games,
+        OmnilogTheme.accents.Dashboard,
+        OmnilogTheme.accents.Paused,
     )
     return colors[index % colors.size]
 }
 
+@Composable
+@ReadOnlyComposable
 internal fun languageChartColor(index: Int): Color {
     val colors = listOf(
-        OmnilogColors.Games,
-        OmnilogColors.Tv,
-        OmnilogColors.Books,
-        Color(0xFF5E8FC4),
-        OmnilogColors.Dashboard,
-        OmnilogColors.Anime,
-        OmnilogColors.Completed,
-        OmnilogColors.Paused,
+        OmnilogTheme.accents.Games,
+        OmnilogTheme.accents.Tv,
+        OmnilogTheme.accents.Books,
+        OmnilogTheme.accents.Series,
+        OmnilogTheme.accents.Dashboard,
+        OmnilogTheme.accents.Anime,
+        OmnilogTheme.accents.Completed,
+        OmnilogTheme.accents.Paused,
     )
     return colors[index % colors.size]
 }
 
 internal val TrackingStatus.stateColor: Color
+    @Composable
+    @ReadOnlyComposable
     get() = when (this) {
-        TrackingStatus.Planned -> OmnilogColors.Planned
-        TrackingStatus.InProgress -> OmnilogColors.InProgress
-        TrackingStatus.Completed -> OmnilogColors.Completed
-        TrackingStatus.Paused -> OmnilogColors.Paused
-        TrackingStatus.Dropped -> OmnilogColors.Dropped
+        TrackingStatus.Planned -> OmnilogTheme.accents.Planned
+        TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
+        TrackingStatus.Completed -> OmnilogTheme.accents.Completed
+        TrackingStatus.Paused -> OmnilogTheme.accents.Paused
+        TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
     }
 
+@Composable
+@ReadOnlyComposable
 internal fun MediaType.statsColor(): Color {
     return when (this) {
-        MediaType.Anime -> MediaSection.Anime.accent
-        MediaType.Book -> MediaSection.Books.accent
-        MediaType.Movie -> OmnilogColors.Movie
-        MediaType.TvShow -> OmnilogColors.Series
-        MediaType.Game -> MediaSection.Games.accent
+        MediaType.Anime -> OmnilogTheme.accents.Anime
+        MediaType.Book -> OmnilogTheme.accents.Books
+        MediaType.Movie -> OmnilogTheme.accents.Movie
+        MediaType.TvShow -> OmnilogTheme.accents.Series
+        MediaType.Game -> OmnilogTheme.accents.Games
     }
+}
+
+/** Theme-resolved counterpart of [StatsMediaFilter.accent]; see `MediaSection.themedAccent`. */
+@Composable
+@ReadOnlyComposable
+internal fun StatsMediaFilter.themedAccent(): Color = when (this) {
+    StatsMediaFilter.All -> OmnilogTheme.accents.Dashboard
+    StatsMediaFilter.Anime -> OmnilogTheme.accents.Anime
+    StatsMediaFilter.Books -> OmnilogTheme.accents.Books
+    StatsMediaFilter.Movies -> OmnilogTheme.accents.Tv
+    StatsMediaFilter.Games -> OmnilogTheme.accents.Games
 }
 
 internal enum class StatsMediaFilter(

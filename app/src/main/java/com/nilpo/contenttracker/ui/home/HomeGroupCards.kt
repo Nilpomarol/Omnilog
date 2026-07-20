@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -702,12 +703,14 @@ private fun MediaType?.collectionItemUnitLabel(): String = when (this) {
 // â”€â”€ TrackingStatus extensions (private to this file) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 private val TrackingStatus.stateColor: Color
+    @Composable
+    @ReadOnlyComposable
     get() = when (this) {
-        TrackingStatus.Planned -> OmnilogColors.Planned
-        TrackingStatus.InProgress -> OmnilogColors.InProgress
-        TrackingStatus.Completed -> OmnilogColors.Completed
-        TrackingStatus.Paused -> OmnilogColors.Paused
-        TrackingStatus.Dropped -> OmnilogColors.Dropped
+        TrackingStatus.Planned -> OmnilogTheme.accents.Planned
+        TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
+        TrackingStatus.Completed -> OmnilogTheme.accents.Completed
+        TrackingStatus.Paused -> OmnilogTheme.accents.Paused
+        TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
     }
 
 private val TrackingStatus.iconResId: Int

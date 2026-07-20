@@ -124,7 +124,7 @@ fun MediaMetadataHero(
                         CoverBadge(
                             iconResId = R.drawable.ic_owned_badge,
                             contentDescription = stringResource(R.string.owned_label),
-                            tint = OmnilogColors.Dashboard,
+                            tint = OmnilogTheme.accents.Dashboard,
                         )
                     }
                 }
@@ -340,7 +340,7 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
                         formatExternalRatingOnTen(score, maxScore)
                     } ?: "${formatDecimal(score)}/10"
                 } ?: "-",
-                color = OmnilogColors.Dashboard,
+                color = OmnilogTheme.accents.Dashboard,
                 modifier = Modifier.weight(1f),
             )
             if (metadata.mediaType != MediaType.Game) {

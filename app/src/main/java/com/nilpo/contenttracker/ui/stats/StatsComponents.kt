@@ -76,6 +76,7 @@ import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.core.stats.StatsSegment
 import com.nilpo.contenttracker.core.stats.StatsSnapshot
 import com.nilpo.contenttracker.core.stats.StatusStatsBucket
+import com.nilpo.contenttracker.ui.common.CoverScrim
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.compactProgressUnitLabel
@@ -84,6 +85,7 @@ import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -160,20 +162,7 @@ internal fun StatsMediaTile(
                 coverUrl = item.coverUrl,
                 modifier = Modifier.fillMaxSize(),
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0xFF17110D).copy(alpha = 0.14f),
-                                Color(0xFF17110D).copy(alpha = 0.62f),
-                                Color(0xFF15110E).copy(alpha = 0.98f),
-                            ),
-                        ),
-                    ),
-            )
+            CoverScrim()
             if (trackedMedia.item.ownership.isOwned || statLabel != null) {
                 Row(
                     modifier = Modifier
@@ -211,7 +200,7 @@ internal fun StatsMediaTile(
                     text = displayMediaTitle(item.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
+                    color = OnCoverInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -227,7 +216,7 @@ internal fun StatsMediaTile(
                     Text(
                         text = creator,
                         style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appInk,
+                        color = OnCoverInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

@@ -108,12 +108,13 @@ internal fun CompletionSharePie(stats: List<MediumStats>) {
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
+                val sliceColors = completedStats.map { it.mediaType.statsColor() }
                 Canvas(modifier = Modifier.size(168.dp)) {
                     var startAngle = -90f
-                    completedStats.forEach { stat ->
+                    completedStats.forEachIndexed { index, stat ->
                         val sweep = 360f * stat.completionSessionCount.toFloat() / total.toFloat()
                         drawArc(
-                            color = stat.mediaType.statsColor(),
+                            color = sliceColors[index],
                             startAngle = startAngle,
                             sweepAngle = sweep,
                             useCenter = true,
@@ -184,6 +185,7 @@ internal fun AverageRatingDotPlot(stats: List<MediumStats>) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 val trackColor = OmnilogTheme.colors.appLine
+                val dotColor = stat.mediaType.statsColor()
                 Canvas(
                     modifier = Modifier
                         .weight(1f)
@@ -198,7 +200,7 @@ internal fun AverageRatingDotPlot(stats: List<MediumStats>) {
                     )
                     val x = (averageRating.toFloat() / 10f).coerceIn(0f, 1f) * size.width
                     drawCircle(
-                        color = stat.mediaType.statsColor(),
+                        color = dotColor,
                         radius = 5.dp.toPx(),
                         center = Offset(x, y),
                     )
@@ -599,6 +601,7 @@ internal fun RatingTrendChart(points: List<RatingTrendPoint>) {
                     }
                     val gridLineColor = OmnilogTheme.colors.appLine
                     val pointCoreColor = OmnilogTheme.colors.appPanel
+                    val trendColor = OmnilogTheme.accents.Books
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -632,7 +635,7 @@ internal fun RatingTrendChart(points: List<RatingTrendPoint>) {
                                 val start = offsetsByIndex[startIndex] ?: return@forEach
                                 val end = offsetsByIndex[endIndex] ?: return@forEach
                                 drawLine(
-                                    color = OmnilogColors.Books,
+                                    color = trendColor,
                                     start = start,
                                     end = end,
                                     strokeWidth = 3.dp.toPx(),
@@ -640,7 +643,7 @@ internal fun RatingTrendChart(points: List<RatingTrendPoint>) {
                             }
                             offsetsByIndex.filterNotNull().forEach { point ->
                                 drawCircle(
-                                    color = OmnilogColors.Books,
+                                    color = trendColor,
                                     radius = 4.5.dp.toPx(),
                                     center = point,
                                 )
@@ -654,7 +657,7 @@ internal fun RatingTrendChart(points: List<RatingTrendPoint>) {
                             val displayedRating = displayedPoint?.averageRating
                             if (displayedIndex >= 0 && displayedRating != null) {
                                 drawCircle(
-                                    color = OmnilogColors.Books,
+                                    color = trendColor,
                                     radius = 8.dp.toPx(),
                                     center = pointOffset(displayedIndex, displayedRating),
                                     style = Stroke(width = 2.dp.toPx()),

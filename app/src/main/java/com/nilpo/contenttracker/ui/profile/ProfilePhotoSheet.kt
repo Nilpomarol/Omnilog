@@ -258,7 +258,7 @@ fun ProfilePhotoSheet(
                     Text(
                         text = "Desant la imatge…",
                         style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogColors.Dashboard,
+                        color = OmnilogTheme.accents.Dashboard,
                     )
                 }
             }

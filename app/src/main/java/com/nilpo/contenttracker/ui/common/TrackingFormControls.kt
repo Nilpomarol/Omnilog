@@ -45,6 +45,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -541,12 +542,14 @@ private fun TrackingStatus.labelResId(): Int = when (this) {
     TrackingStatus.Paused -> R.string.status_paused
     TrackingStatus.Dropped -> R.string.status_dropped
 }
+@Composable
+@ReadOnlyComposable
 private fun statusColor(status: TrackingStatus): Color = when (status) {
-    TrackingStatus.Planned -> OmnilogColors.Planned
-    TrackingStatus.InProgress -> OmnilogColors.InProgress
-    TrackingStatus.Completed -> OmnilogColors.Completed
-    TrackingStatus.Paused -> OmnilogColors.Paused
-    TrackingStatus.Dropped -> OmnilogColors.Dropped
+    TrackingStatus.Planned -> OmnilogTheme.accents.Planned
+    TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
+    TrackingStatus.Completed -> OmnilogTheme.accents.Completed
+    TrackingStatus.Paused -> OmnilogTheme.accents.Paused
+    TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
 }
 private fun String.toLocalDateOrNull(): LocalDate? = runCatching { LocalDate.parse(this) }.getOrNull()
 @Composable

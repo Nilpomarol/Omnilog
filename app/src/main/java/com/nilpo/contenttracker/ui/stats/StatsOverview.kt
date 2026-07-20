@@ -56,7 +56,7 @@ internal fun StatsActivityHero(snapshot: StatsSnapshot) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogColors.Dashboard.copy(alpha = 0.42f)),
+        border = BorderStroke(1.dp, OmnilogTheme.accents.Dashboard.copy(alpha = 0.42f)),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -146,7 +146,7 @@ private fun StatsPeriodMetrics(snapshot: StatsSnapshot) {
             MetricBandLead(
                 value = snapshot.completionSessions.toString(),
                 label = stringResource(R.string.stats_completion_sessions),
-                accent = OmnilogColors.Completed,
+                accent = OmnilogTheme.accents.Completed,
                 delta = intMetricDelta(snapshot.deltas.completionSessions),
                 basisLabel = basisLabel,
                 leadValueStyle = MaterialTheme.typography.headlineMedium,
@@ -160,7 +160,7 @@ private fun StatsPeriodMetrics(snapshot: StatsSnapshot) {
                 value = snapshot.averageRating
                     ?.let { rating -> "${rating.roundedStatValue()}/10" }
                     ?: "—",
-                accent = OmnilogColors.Dashboard,
+                accent = OmnilogTheme.accents.Dashboard,
                 delta = ratingMetricDelta(snapshot.deltas.averageRating),
                 basisLabel = basisLabel,
             )
@@ -168,7 +168,7 @@ private fun StatsPeriodMetrics(snapshot: StatsSnapshot) {
                 label = stringResource(R.string.stats_summary_revisits),
                 accessibleLabel = stringResource(R.string.stats_summary_revisits),
                 value = snapshot.revisitCount.toString(),
-                accent = OmnilogColors.Books,
+                accent = OmnilogTheme.accents.Books,
                 delta = intMetricDelta(snapshot.deltas.revisits),
                 basisLabel = basisLabel,
             )
@@ -275,7 +275,7 @@ internal fun ActivityHeroBars(
                                 .fillMaxWidth()
                                 .height(barHeight.dp)
                                 .background(
-                                    color = if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogTheme.colors.appLine.copy(alpha = 0.58f),
+                                    color = if (bucket.value > 0) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine.copy(alpha = 0.58f),
                                     shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp),
                                 ),
                         )
@@ -312,8 +312,8 @@ internal fun ratingDeltaText(delta: Double): String {
 internal fun deltaChipColor(delta: Number): Color {
     val value = delta.toDouble()
     return when {
-        value > 0.0 -> OmnilogColors.Completed
-        value < 0.0 -> OmnilogColors.Dropped
+        value > 0.0 -> OmnilogTheme.accents.Completed
+        value < 0.0 -> OmnilogTheme.accents.Dropped
         else -> OmnilogTheme.colors.appMuted
     }
 }

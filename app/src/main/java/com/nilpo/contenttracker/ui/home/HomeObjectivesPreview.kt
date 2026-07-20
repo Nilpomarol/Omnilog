@@ -118,7 +118,7 @@ fun DashboardObjectivesPreview(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = stringResource(R.string.home_objectives_open),
                     modifier = Modifier.size(18.dp),
-                    tint = OmnilogColors.Dashboard,
+                    tint = OmnilogTheme.accents.Dashboard,
                 )
             }
 
@@ -161,7 +161,7 @@ private fun ObjectiveRing(
     val inkColor = OmnilogTheme.colors.appInk
     val lineColor = OmnilogTheme.colors.appLine
     val arcColor = when (pace.status) {
-        ObjectiveStatus.Completed -> OmnilogColors.Completed
+        ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed
         ObjectiveStatus.Missed -> lineColor
         else -> accent
     }
@@ -170,7 +170,7 @@ private fun ObjectiveRing(
         pace.status == ObjectiveStatus.Behind
     // A behind objective's notch sits ahead of its arc, so it carries the warning colour — it is
     // the gap between the two that the reader is being asked to notice.
-    val notchColor = if (pace.status == ObjectiveStatus.Behind) OmnilogColors.Dashboard else inkColor
+    val notchColor = if (pace.status == ObjectiveStatus.Behind) OmnilogTheme.accents.Dashboard else inkColor
     val fraction = progress.percentage.coerceIn(0f, 1f)
 
     Column(
@@ -240,7 +240,7 @@ private fun ObjectiveRing(
                     SpanStyle(
                         fontWeight = FontWeight.ExtraBold,
                         color = if (pace.status == ObjectiveStatus.Behind) {
-                            OmnilogColors.Dashboard
+                            OmnilogTheme.accents.Dashboard
                         } else {
                             inkColor
                         },

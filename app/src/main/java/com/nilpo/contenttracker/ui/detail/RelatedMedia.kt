@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -34,10 +35,12 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.common.CoverScrim
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import java.text.Normalizer
 
 internal data class RelatedMediaMatch(
@@ -159,19 +162,7 @@ private fun RelatedMediaCard(
                 modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(8.dp),
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0xFF17110D).copy(alpha = 0.10f),
-                                Color(0xFF15110E).copy(alpha = 0.96f),
-                            ),
-                        ),
-                    ),
-            )
+            CoverScrim()
             RelatedStatusMarker(
                 status = match.trackedMedia.currentSession?.status,
                 modifier = Modifier
@@ -197,7 +188,7 @@ private fun RelatedMediaCard(
                     text = displayMediaTitle(item.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
+                    color = OnCoverInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -290,12 +281,14 @@ private val TrackingStatus.iconResId: Int
     }
 
 private val TrackingStatus.stateColor: Color
+    @Composable
+    @ReadOnlyComposable
     get() = when (this) {
-        TrackingStatus.Planned -> OmnilogColors.Planned
-        TrackingStatus.InProgress -> OmnilogColors.InProgress
-        TrackingStatus.Completed -> OmnilogColors.Completed
-        TrackingStatus.Paused -> OmnilogColors.Paused
-        TrackingStatus.Dropped -> OmnilogColors.Dropped
+        TrackingStatus.Planned -> OmnilogTheme.accents.Planned
+        TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
+        TrackingStatus.Completed -> OmnilogTheme.accents.Completed
+        TrackingStatus.Paused -> OmnilogTheme.accents.Paused
+        TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
     }
 
 @Composable

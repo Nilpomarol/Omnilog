@@ -34,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -131,6 +132,7 @@ fun ProfileScreen(
         mutableStateOf(avatarAccentIndex)
     }
     var isPickingPhoto by rememberSaveable { mutableStateOf(false) }
+    val profileAccentColors = profileAccentColors()
     val draftAvatarColor =
         profileAccentColors[draftAvatarAccentIndex.coerceIn(profileAccentColors.indices)]
 
@@ -498,12 +500,19 @@ private fun copyWithLimit(input: InputStream, output: OutputStream) {
     }
 }
 
-private val profileAccentColors = listOf(
-    OmnilogColors.Dashboard,
-    OmnilogColors.Anime,
-    OmnilogColors.Books,
-    OmnilogColors.Tv,
-    OmnilogColors.Games,
+/**
+ * Resolved once per composition rather than held as a top-level constant: the swatches are theme
+ * accents now, and the save lambda that indexes into this list runs outside composition, so it has
+ * to capture a value rather than read a CompositionLocal.
+ */
+@Composable
+@ReadOnlyComposable
+private fun profileAccentColors(): List<Color> = listOf(
+    OmnilogTheme.accents.Dashboard,
+    OmnilogTheme.accents.Anime,
+    OmnilogTheme.accents.Books,
+    OmnilogTheme.accents.Tv,
+    OmnilogTheme.accents.Games,
 )
 
 private fun String.profileInitials(): String {

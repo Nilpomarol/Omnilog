@@ -107,7 +107,7 @@ fun SettingsScreen(
                 SettingsGroup(
                     title = "Preferències",
                     description = "Decideix què et pregunta Omnilog i què mostra a l'inici.",
-                    accent = OmnilogColors.Books,
+                    accent = OmnilogTheme.accents.Books,
                 ) {
                     SettingsThemeRow(
                         selected = themePreference,
@@ -116,7 +116,7 @@ fun SettingsScreen(
                     SettingsDivider()
                     SettingsSwitchRow(
                         icon = Icons.Filled.Star,
-                        accent = OmnilogColors.Books,
+                        accent = OmnilogTheme.accents.Books,
                         title = "Demanar nota de Goodreads",
                         description = "Pregunta la nota quan deses llibres importats.",
                         checked = askForGoodreadsRating,
@@ -125,7 +125,7 @@ fun SettingsScreen(
                     SettingsDivider()
                     SettingsChipsRow(
                         icon = Icons.Filled.Home,
-                        accent = OmnilogColors.Dashboard,
+                        accent = OmnilogTheme.accents.Dashboard,
                         title = stringResource(R.string.settings_dashboard_sections_title),
                         description = stringResource(R.string.settings_dashboard_sections_description),
                     ) {
@@ -148,7 +148,7 @@ fun SettingsScreen(
                 SettingsGroup(
                     title = "Dades i còpies",
                     description = stringResource(R.string.settings_backup_group_description),
-                    accent = OmnilogColors.Dashboard,
+                    accent = OmnilogTheme.accents.Dashboard,
                 ) {
                     SettingsActionRow(
                         icon = Icons.AutoMirrored.Filled.ArrowForward,
@@ -176,11 +176,11 @@ fun SettingsScreen(
                 SettingsGroup(
                     title = "Importa d'altres serveis",
                     description = "Afegeix el teu historial sense perdre el que ja tens.",
-                    accent = OmnilogColors.Anime,
+                    accent = OmnilogTheme.accents.Anime,
                 ) {
                     SettingsActionRow(
                         icon = Icons.Filled.Star,
-                        accent = OmnilogColors.Anime,
+                        accent = OmnilogTheme.accents.Anime,
                         title = "MyAnimeList XML",
                         description = "Afegeix el teu historial d'anime.",
                         onClick = onImportMyAnimeListXml,
@@ -188,7 +188,7 @@ fun SettingsScreen(
                     SettingsDivider()
                     SettingsActionRow(
                         icon = Icons.Filled.PlayArrow,
-                        accent = OmnilogColors.Tv,
+                        accent = OmnilogTheme.accents.Tv,
                         title = stringResource(R.string.import_imdb_csv),
                         description = stringResource(
                             R.string.import_imdb_description,
@@ -199,7 +199,7 @@ fun SettingsScreen(
                     SettingsDivider()
                     SettingsActionRow(
                         icon = Icons.Filled.Edit,
-                        accent = OmnilogColors.Books,
+                        accent = OmnilogTheme.accents.Books,
                         title = "StoryGraph CSV",
                         description = "Afegeix llibres i lectures.",
                         onClick = onImportStoryGraphCsv,
@@ -226,13 +226,13 @@ private fun SettingsHero() {
             Surface(
                 modifier = Modifier.size(48.dp),
                 shape = RoundedCornerShape(15.dp),
-                color = OmnilogColors.Dashboard.copy(alpha = 0.22f),
+                color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.22f),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Filled.Settings,
                         contentDescription = null,
-                        tint = OmnilogColors.Dashboard,
+                        tint = OmnilogTheme.accents.Dashboard,
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -261,7 +261,7 @@ private fun SettingsHero() {
             Icon(
                 imageVector = Icons.Filled.Lock,
                 contentDescription = null,
-                tint = OmnilogColors.Dashboard,
+                tint = OmnilogTheme.accents.Dashboard,
                 modifier = Modifier.size(15.dp),
             )
             Text(
@@ -342,7 +342,7 @@ private fun AutoBackupCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SettingsLeadingIcon(icon = Icons.Filled.Settings, accent = OmnilogColors.Dashboard)
+                SettingsLeadingIcon(icon = Icons.Filled.Settings, accent = OmnilogTheme.accents.Dashboard)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Còpia automàtica",
@@ -387,7 +387,7 @@ private fun AutoBackupCard(
                                 .padding(horizontal = 5.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (frequency == selectedFrequency) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            color = if (frequency == selectedFrequency) OmnilogColors.Dashboard else OmnilogTheme.colors.appMuted,
+                            color = if (frequency == selectedFrequency) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
@@ -405,7 +405,7 @@ private fun AutoBackupCard(
                         .padding(vertical = 2.dp),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = OmnilogColors.Dashboard,
+                    color = OmnilogTheme.accents.Dashboard,
                 )
                 if (isAutoBackupEnabled) {
                     Text(
@@ -415,7 +415,7 @@ private fun AutoBackupCard(
                             .padding(start = 12.dp, top = 2.dp, bottom = 2.dp),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogColors.Dropped,
+                        color = OmnilogTheme.accents.Dropped,
                     )
                 }
             }
@@ -508,7 +508,7 @@ private fun SettingsThemeRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SettingsLeadingIcon(icon = Icons.Filled.Settings, accent = OmnilogColors.Tv)
+            SettingsLeadingIcon(icon = Icons.Filled.Settings, accent = OmnilogTheme.accents.Tv)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -539,10 +539,10 @@ private fun SettingsThemeRow(
                         onClick = { onSelect(option) },
                     ),
                     shape = RoundedCornerShape(999.dp),
-                    color = if (isSelected) OmnilogColors.Tv.copy(alpha = 0.16f) else Color.Transparent,
+                    color = if (isSelected) OmnilogTheme.accents.Tv.copy(alpha = 0.16f) else Color.Transparent,
                     border = BorderStroke(
                         1.dp,
-                        if (isSelected) OmnilogColors.Tv.copy(alpha = 0.42f) else OmnilogTheme.colors.appLine,
+                        if (isSelected) OmnilogTheme.accents.Tv.copy(alpha = 0.42f) else OmnilogTheme.colors.appLine,
                     ),
                 ) {
                     Text(
@@ -550,7 +550,7 @@ private fun SettingsThemeRow(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        color = if (isSelected) OmnilogColors.Tv else OmnilogTheme.colors.appMuted,
+                        color = if (isSelected) OmnilogTheme.accents.Tv else OmnilogTheme.colors.appMuted,
                     )
                 }
             }
@@ -627,7 +627,7 @@ private fun SettingsActionRow(
     description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    accent: Color = OmnilogColors.Dashboard,
+    accent: Color = OmnilogTheme.accents.Dashboard,
     enabled: Boolean = true,
 ) {
     Row(

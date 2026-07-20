@@ -302,7 +302,7 @@ internal fun RatingDistributionRow(
                         modifier = Modifier
                             .fillMaxWidth(fillFraction)
                             .height(18.dp)
-                            .background(OmnilogColors.Books, RoundedCornerShape(5.dp)),
+                            .background(OmnilogTheme.accents.Books, RoundedCornerShape(5.dp)),
                     )
                 }
             }
@@ -624,7 +624,7 @@ internal fun RevisitShareChart(
                     text = revisitedTitles.toString(),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogColors.Books,
+                    color = OmnilogTheme.accents.Books,
                     maxLines = 1,
                 )
                 Text(
@@ -862,12 +862,13 @@ internal fun GenrePieChart(
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
+                    val sliceColors = slices.indices.map { genreChartColor(it) }
                     Canvas(modifier = Modifier.size(168.dp)) {
                         var startAngle = -90f
                         slices.forEachIndexed { index, (_, value) ->
                             val sweep = 360f * value.toFloat() / total.toFloat()
                             drawArc(
-                                color = genreChartColor(index),
+                                color = sliceColors[index],
                                 startAngle = startAngle,
                                 sweepAngle = sweep,
                                 useCenter = true,

@@ -1119,27 +1119,27 @@ private fun statusVisualState(status: TrackingStatus, accent: Color): SessionVis
         TrackingStatus.Planned -> SessionVisualState(
             label = stringResource(R.string.status_planned),
             icon = Icons.Filled.Star,
-            color = OmnilogColors.Planned,
+            color = OmnilogTheme.accents.Planned,
         )
         TrackingStatus.InProgress -> SessionVisualState(
             label = stringResource(R.string.status_in_progress),
             icon = Icons.Filled.PlayArrow,
-            color = OmnilogColors.InProgress,
+            color = OmnilogTheme.accents.InProgress,
         )
         TrackingStatus.Completed -> SessionVisualState(
             label = stringResource(R.string.status_completed),
             icon = Icons.Filled.CheckCircle,
-            color = OmnilogColors.Completed,
+            color = OmnilogTheme.accents.Completed,
         )
         TrackingStatus.Paused -> SessionVisualState(
             label = stringResource(R.string.status_paused),
             icon = Icons.Filled.Edit,
-            color = OmnilogColors.Paused,
+            color = OmnilogTheme.accents.Paused,
         )
         TrackingStatus.Dropped -> SessionVisualState(
             label = stringResource(R.string.status_dropped),
             icon = Icons.Filled.Close,
-            color = OmnilogColors.Dropped,
+            color = OmnilogTheme.accents.Dropped,
         )
     }
 

@@ -1,9 +1,12 @@
 package com.nilpo.contenttracker.ui.home
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -47,6 +50,23 @@ enum class MediaSection(
         setOf(MediaType.Game),
         MediaType.Game
     ),
+}
+
+/**
+ * The section's accent for the active theme.
+ *
+ * [MediaSection.accent] cannot be theme-aware — it is an enum constructor argument, evaluated once
+ * outside composition — so it keeps the dark value as the section's identity and this resolves it
+ * for display. Use this anywhere the colour is drawn; use the raw property only where a plain
+ * [Color] is genuinely needed outside composition.
+ */
+@Composable
+@ReadOnlyComposable
+internal fun MediaSection.themedAccent(): Color = when (this) {
+    MediaSection.Anime -> OmnilogTheme.accents.Anime
+    MediaSection.Books -> OmnilogTheme.accents.Books
+    MediaSection.Movies -> OmnilogTheme.accents.Tv
+    MediaSection.Games -> OmnilogTheme.accents.Games
 }
 
 internal val MediaSection.navIconResId: Int

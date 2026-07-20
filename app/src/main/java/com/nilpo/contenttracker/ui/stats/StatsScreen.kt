@@ -365,7 +365,7 @@ private fun StatsFilterBar(
                 modifier = Modifier.fillMaxWidth(),
                 label = selectedPeriod.label(),
                 selected = true,
-                color = OmnilogColors.Dashboard,
+                color = OmnilogTheme.accents.Dashboard,
                 onClick = { periodExpanded = true },
             )
             DropdownMenu(
@@ -393,7 +393,7 @@ private fun StatsFilterBar(
                 modifier = Modifier.fillMaxWidth(),
                 label = selectedMediaFilter.label(),
                 selected = selectedMediaFilter != StatsMediaFilter.All,
-                color = selectedMediaFilter.accent,
+                color = selectedMediaFilter.themedAccent(),
                 onClick = { mediaExpanded = true },
             )
             DropdownMenu(
@@ -405,7 +405,7 @@ private fun StatsFilterBar(
                         text = {
                             Text(
                                 text = filter.label(),
-                                color = filter.accent,
+                                color = filter.themedAccent(),
                                 fontWeight = if (selectedMediaFilter == filter) {
                                     FontWeight.SemiBold
                                 } else {

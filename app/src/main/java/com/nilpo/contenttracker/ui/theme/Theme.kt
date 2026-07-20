@@ -20,9 +20,10 @@ import com.nilpo.contenttracker.R
 /**
  * Media and status accents — Omnilog's brand identity, keyed by media type and tracking status.
  *
- * These are theme-invariant today. Light-tuned variants (UX-21) will move into [OmnilogPalette]
- * once the neutral surfaces below are theme-aware, since these values are also baked into enums
- * such as `MediaSection.accent` and flow through the UI as plain [Color] parameters.
+ * These are the **dark-theme** values. Prefer `OmnilogTheme.accents` inside composition, which
+ * resolves to the light-tuned set on paper surfaces. This object remains the source of truth for
+ * the dark values and the fallback for the places that cannot read a CompositionLocal: enum
+ * properties such as `MediaSection.accent`, and plain functions called outside composition.
  */
 object OmnilogColors {
     val Dashboard = Color(0xFFC0693A)
@@ -43,6 +44,64 @@ object OmnilogColors {
     val Paused = Color(0xFFD9A05B)
     val Dropped = Color(0xFFCF6679)
 }
+
+/**
+ * The same accents as [OmnilogColors], resolved for the active theme.
+ *
+ * The dark values are tuned to glow on charcoal, which makes most of them illegible as ink on
+ * paper: measured against the light background, `Games` fell to 1.86:1 and six of the ten were
+ * under 3:1. The light set holds each hue and lowers lightness until it clears 4.5:1 against
+ * [LightPalette]'s background — the darker of the two light surfaces, so one value is safe on both
+ * the page and the cards that sit on it.
+ */
+@Immutable
+data class OmnilogAccents(
+    val Dashboard: Color,
+    val Anime: Color,
+    val Books: Color,
+    val Tv: Color,
+    val Games: Color,
+    val Movie: Color,
+    val Series: Color,
+    val Planned: Color,
+    val InProgress: Color,
+    val Completed: Color,
+    val Paused: Color,
+    val Dropped: Color,
+)
+
+val DarkAccents = OmnilogAccents(
+    Dashboard = OmnilogColors.Dashboard,
+    Anime = OmnilogColors.Anime,
+    Books = OmnilogColors.Books,
+    Tv = OmnilogColors.Tv,
+    Games = OmnilogColors.Games,
+    Movie = OmnilogColors.Movie,
+    Series = OmnilogColors.Series,
+    Planned = OmnilogColors.Planned,
+    InProgress = OmnilogColors.InProgress,
+    Completed = OmnilogColors.Completed,
+    Paused = OmnilogColors.Paused,
+    Dropped = OmnilogColors.Dropped,
+)
+
+val LightAccents = OmnilogAccents(
+    Dashboard = Color(0xFFA15831),
+    Anime = Color(0xFFB83E6B),
+    Books = Color(0xFF794EDC),
+    Tv = Color(0xFF377575),
+    Games = Color(0xFF806925),
+    Movie = Color(0xFF377575),
+    Series = Color(0xFF3C6EA4),
+    Planned = Color(0xFF606D7A),
+    InProgress = Color(0xFF3C6EA4),
+    Completed = Color(0xFF417554),
+    Paused = Color(0xFF9D5A08),
+    Dropped = Color(0xFFBE3C53),
+)
+
+val LocalOmnilogAccents = staticCompositionLocalOf { DarkAccents }
+
 
 /**
  * The neutral surfaces and text tones that flip between light and dark.
@@ -83,6 +142,18 @@ val LightPalette = OmnilogPalette(
     appMuted = Color(0xFF6B6154),
 )
 
+/**
+ * Ink for text drawn on top of a cover-image scrim (`CoverScrim`).
+ *
+ * The scrims stay dark in both themes — they exist to darken artwork, and a pale scrim would not —
+ * so text on them must stay pale in both themes too. Reading `appInk` here inverted the text to
+ * near-black on light while the scrim beneath it stayed dark, which made the covers unreadable.
+ */
+val OnCoverInk = DarkPalette.appInk
+
+/** Secondary text over a cover scrim; see [OnCoverInk]. */
+val OnCoverMuted = DarkPalette.appMuted
+
 val LocalOmnilogPalette = staticCompositionLocalOf { DarkPalette }
 
 /** Composition-scoped access to the active [OmnilogPalette]. */
@@ -91,6 +162,11 @@ object OmnilogTheme {
         @Composable
         @ReadOnlyComposable
         get() = LocalOmnilogPalette.current
+
+    val accents: OmnilogAccents
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalOmnilogAccents.current
 }
 
 private val DarkColors = darkColorScheme(
@@ -114,9 +190,9 @@ private val DarkColors = darkColorScheme(
 )
 
 private val LightColors = lightColorScheme(
-    primary = OmnilogColors.Dashboard,
-    secondary = OmnilogColors.Books,
-    tertiary = OmnilogColors.Games,
+    primary = LightAccents.Dashboard,
+    secondary = LightAccents.Books,
+    tertiary = LightAccents.Games,
     background = LightPalette.appBackground,
     surface = LightPalette.appPanel,
     surfaceVariant = Color(0xFFEDE4D5),
@@ -176,7 +252,11 @@ fun ContentTrackerTheme(
     content: @Composable () -> Unit,
 ) {
     val palette = if (darkTheme) DarkPalette else LightPalette
-    CompositionLocalProvider(LocalOmnilogPalette provides palette) {
+    val accents = if (darkTheme) DarkAccents else LightAccents
+    CompositionLocalProvider(
+        LocalOmnilogPalette provides palette,
+        LocalOmnilogAccents provides accents,
+    ) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,
             typography = OmnilogTypography,

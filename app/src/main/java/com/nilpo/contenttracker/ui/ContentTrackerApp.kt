@@ -108,6 +108,7 @@ import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.home.creatorDetailLabelResId
 import com.nilpo.contenttracker.ui.home.navIconResId
+import com.nilpo.contenttracker.ui.home.themedAccent
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.profile.ProfileScreen
 import com.nilpo.contenttracker.ui.profile.ProfilePreferences
@@ -696,9 +697,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         AppRoute.Stats,
                         AppRoute.Profile,
                         AppRoute.Settings,
-                            -> OmnilogColors.Dashboard
+                            -> OmnilogTheme.accents.Dashboard
 
-                        else -> currentSection.accent
+                        else -> currentSection.themedAccent()
                     },
                     showBackNavigation = currentRoute is AppRoute.MediaDetail ||
                             currentRoute == AppRoute.Stats ||
@@ -922,7 +923,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                                     .equals(route.author.trim(), ignoreCase = true)
                                             }
                                 },
-                                accent = route.section.accent,
+                                accent = route.section.themedAccent(),
                                 onBack = navigateBack,
                                 onMediaClick = openTrackedMedia,
                                 modifier = Modifier
@@ -940,7 +941,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 CollectionDetailScreen(
                                     collection = routeCollection,
                                     items = routeCollectionItems,
-                                    accent = route.section.accent,
+                                    accent = route.section.themedAccent(),
                                     onBack = navigateBack,
                                     onRegisterBackRequest = { handler ->
                                         collectionBackRequest = handler
@@ -1072,7 +1073,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 DetailScreen(
                                     trackedMedia = routeMedia,
                                     allTrackedMedia = uiState.allTrackedItems,
-                                    accent = routeMedia.item.type.homeSection().accent,
+                                    accent = routeMedia.item.type.homeSection().themedAccent(),
                                     headerActions = actions,
                                     onBack = navigateBack,
                                     onStartNewSession = viewModel::startNewSession,
@@ -1564,7 +1565,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         }
                     }
 
-                    val linkAccent = target.item.type.homeSection().accent
+                    val linkAccent = target.item.type.homeSection().themedAccent()
                     when {
                         isMetadataLinkLoading -> OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_link_loading),
@@ -1594,7 +1595,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             items(metadataLinkSuggestions) { suggestion ->
                                 MetadataSuggestionRow(
                                     suggestion = suggestion,
-                                    accent = target.item.type.homeSection().accent,
+                                    accent = target.item.type.homeSection().themedAccent(),
                                     duplicateState = MetadataDuplicateState.None,
                                     showSourceChip = false,
                                     onClick = {
@@ -1993,7 +1994,7 @@ private fun OmnilogBottomBar(
                 OmnilogNavItem(
                     labelResId = R.string.nav_home,
                     iconResId = R.drawable.ic_nav_home,
-                    accent = OmnilogColors.Dashboard,
+                    accent = OmnilogTheme.accents.Dashboard,
                     selected = selectedRootRoute == AppRoute.Home,
                     onClick = onHomeClick,
                     modifier = Modifier.weight(1f),
@@ -2002,7 +2003,7 @@ private fun OmnilogBottomBar(
                     OmnilogNavItem(
                         labelResId = section.titleResId,
                         iconResId = section.navIconResId,
-                        accent = section.accent,
+                        accent = section.themedAccent(),
                         selected = (selectedRootRoute as? AppRoute.Section)?.section == section,
                         onClick = { onSectionClick(section) },
                         modifier = Modifier.weight(1f),
@@ -2204,7 +2205,7 @@ private fun OmnilogTopBar(
                     TextButton(onClick = onProfileEditSaved) {
                         Text(
                             text = "Desa",
-                            color = OmnilogColors.Dashboard,
+                            color = OmnilogTheme.accents.Dashboard,
                             fontWeight = FontWeight.ExtraBold,
                         )
                     }

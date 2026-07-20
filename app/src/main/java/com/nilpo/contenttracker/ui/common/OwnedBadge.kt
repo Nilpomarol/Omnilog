@@ -22,7 +22,7 @@ fun OwnedBadge(modifier: Modifier = Modifier) {
         shape = RoundedCornerShape(999.dp),
         color = OmnilogTheme.colors.appPanel.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-        contentColor = OmnilogColors.Dashboard,
+        contentColor = OmnilogTheme.accents.Dashboard,
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_owned_badge),

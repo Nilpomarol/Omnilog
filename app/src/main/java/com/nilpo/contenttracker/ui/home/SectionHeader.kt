@@ -25,7 +25,7 @@ fun SectionHeader(
         )
         Text(
             text = "+",
-            color = section.accent,
+            color = section.themedAccent(),
             style = MaterialTheme.typography.headlineLarge,
             modifier = Modifier.clickable(onClick = onAddClick),
         )

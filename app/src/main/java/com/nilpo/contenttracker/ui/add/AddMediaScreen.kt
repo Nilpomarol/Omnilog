@@ -50,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -2117,17 +2118,19 @@ internal class DuplicateMarker(
     val contentDescriptionResId: Int,
 )
 
+@Composable
+@ReadOnlyComposable
 internal fun MetadataDuplicateState.marker(): DuplicateMarker? {
     return when (this) {
         MetadataDuplicateState.None -> null
         MetadataDuplicateState.Exact -> DuplicateMarker(
             icon = Icons.Filled.CheckCircle,
-            tint = OmnilogColors.Completed,
+            tint = OmnilogTheme.accents.Completed,
             contentDescriptionResId = R.string.metadata_already_in_library,
         )
         MetadataDuplicateState.Possible -> DuplicateMarker(
             icon = Icons.Filled.Warning,
-            tint = OmnilogColors.Paused,
+            tint = OmnilogTheme.accents.Paused,
             contentDescriptionResId = R.string.metadata_possible_duplicate,
         )
     }
@@ -2179,14 +2182,16 @@ internal fun ResultChip(
     }
 }
 
+@Composable
+@ReadOnlyComposable
 private fun MediaType.sectionAccent(): Color {
     return when (this) {
-        MediaType.Anime -> OmnilogColors.Anime
-        MediaType.Book -> OmnilogColors.Books
+        MediaType.Anime -> OmnilogTheme.accents.Anime
+        MediaType.Book -> OmnilogTheme.accents.Books
         MediaType.Movie,
         MediaType.TvShow,
-            -> OmnilogColors.Tv
-        MediaType.Game -> OmnilogColors.Games
+            -> OmnilogTheme.accents.Tv
+        MediaType.Game -> OmnilogTheme.accents.Games
     }
 }
 
@@ -2255,12 +2260,14 @@ private fun TrackingStatus.label(): String {
 }
 
 private val TrackingStatus.stateColor: Color
+    @Composable
+    @ReadOnlyComposable
     get() = when (this) {
-        TrackingStatus.Planned -> OmnilogColors.Planned
-        TrackingStatus.InProgress -> OmnilogColors.InProgress
-        TrackingStatus.Completed -> OmnilogColors.Completed
-        TrackingStatus.Paused -> OmnilogColors.Paused
-        TrackingStatus.Dropped -> OmnilogColors.Dropped
+        TrackingStatus.Planned -> OmnilogTheme.accents.Planned
+        TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
+        TrackingStatus.Completed -> OmnilogTheme.accents.Completed
+        TrackingStatus.Paused -> OmnilogTheme.accents.Paused
+        TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
     }
 
 private fun String.toLocalDateOrNull(): LocalDate? {

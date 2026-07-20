@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -74,6 +75,7 @@ import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.core.stats.ComparisonBasis
 import com.nilpo.contenttracker.core.stats.StatsSnapshot
+import com.nilpo.contenttracker.ui.common.CoverScrim
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
@@ -92,6 +94,7 @@ import com.nilpo.contenttracker.ui.common.rememberHiddenDashboardSections
 import com.nilpo.contenttracker.ui.common.writeHiddenDashboardSections
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.util.Locale
@@ -360,7 +363,7 @@ private fun DashboardAnalyticsPreview(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = stringResource(R.string.home_analytics_preview_open),
                     modifier = Modifier.size(18.dp),
-                    tint = OmnilogColors.Dashboard,
+                    tint = OmnilogTheme.accents.Dashboard,
                 )
             }
             DashboardPeriodMetrics(snapshot = snapshot)
@@ -390,7 +393,7 @@ private fun DashboardPeriodMetrics(
             MetricBandLead(
                 value = snapshot.completionSessions.toString(),
                 label = stringResource(R.string.home_analytics_preview_completed),
-                accent = OmnilogColors.Completed,
+                accent = OmnilogTheme.accents.Completed,
                 delta = intMetricDelta(snapshot.deltas.completionSessions),
                 basisLabel = basisLabel,
                 leadValueStyle = MaterialTheme.typography.headlineMedium,
@@ -411,7 +414,7 @@ private fun DashboardPeriodMetrics(
                 label = stringResource(R.string.home_analytics_revisits_short),
                 accessibleLabel = stringResource(R.string.stats_summary_revisits),
                 value = snapshot.revisitCount.toString(),
-                accent = OmnilogColors.Books,
+                accent = OmnilogTheme.accents.Books,
                 delta = intMetricDelta(snapshot.deltas.revisits),
                 basisLabel = basisLabel,
                 valueStyle = MaterialTheme.typography.titleMedium,
@@ -479,7 +482,7 @@ private fun MonthlyActivityPreview(
                                 .fillMaxWidth()
                                 .height(barHeight.dp)
                                 .background(
-                                    if (bucket.value > 0) OmnilogColors.Dashboard else OmnilogTheme.colors.appLine.copy(alpha = 0.58f),
+                                    if (bucket.value > 0) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine.copy(alpha = 0.58f),
                                     RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp),
                                 ),
                         )
@@ -519,7 +522,7 @@ private fun DashboardSearch(
             Icon(
                 imageVector = Icons.Filled.Search,
                 contentDescription = null,
-                tint = if (query.isNotBlank()) OmnilogColors.Dashboard else OmnilogTheme.colors.appMuted,
+                tint = if (query.isNotBlank()) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
             )
             BasicTextField(
                 value = query,
@@ -536,7 +539,7 @@ private fun DashboardSearch(
                     color = OmnilogTheme.colors.appInk,
                     fontWeight = FontWeight.SemiBold,
                 ),
-                cursorBrush = SolidColor(OmnilogColors.Dashboard),
+                cursorBrush = SolidColor(OmnilogTheme.accents.Dashboard),
                 decorationBox = { innerTextField ->
                     Box {
                         if (query.isBlank()) {
@@ -713,7 +716,7 @@ private fun DashboardSectionSearchRow(
             painter = painterResource(section.iconResId),
             contentDescription = null,
             modifier = Modifier.size(22.dp),
-            tint = section.accent,
+            tint = section.themedAccent(),
         )
         Text(
             text = stringResource(
@@ -872,7 +875,7 @@ private fun DashboardFilterNotice(
                 .padding(vertical = 4.dp, horizontal = 2.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.Dashboard,
+            color = OmnilogTheme.accents.Dashboard,
         )
     }
 }
@@ -923,20 +926,7 @@ private fun HomeMediaTile(
                 }
                 CardStatusIcon(status = session?.status)
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0xFF17110D).copy(alpha = 0.16f),
-                                Color(0xFF17110D).copy(alpha = 0.62f),
-                                Color(0xFF15110E).copy(alpha = 0.98f),
-                            ),
-                        ),
-                    ),
-            )
+            CoverScrim()
             if (quickActionsEnabled) {
                 TileQuickActionButton(
                     icon = Icons.Filled.Add,
@@ -982,7 +972,7 @@ private fun HomeMediaTile(
                             text = displayMediaTitle(trackedMedia.item.title),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = OmnilogTheme.colors.appInk,
+                            color = OnCoverInk,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -998,7 +988,7 @@ private fun HomeMediaTile(
                                 MaterialTheme.typography.labelSmall
                             },
                             fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
-                            color = if (isGame) accent else OmnilogTheme.colors.appInk,
+                            color = if (isGame) accent else OnCoverInk,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -1173,8 +1163,8 @@ private fun EmptyHomeState(
                 MediaSection.entries.forEach { section ->
                     OutlinedButton(
                         onClick = { onAddToSection(section) },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = section.accent),
-                        border = BorderStroke(1.dp, section.accent.copy(alpha = 0.58f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = section.themedAccent()),
+                        border = BorderStroke(1.dp, section.themedAccent().copy(alpha = 0.58f)),
                     ) {
                         Icon(
                             painter = painterResource(section.navIconResId),
@@ -1196,7 +1186,7 @@ private fun EmptyHomeState(
                 Text(
                     text = stringResource(R.string.home_empty_import_backup),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = OmnilogColors.Dashboard,
+                    color = OmnilogTheme.accents.Dashboard,
                 )
             }
         }
@@ -1213,12 +1203,14 @@ private val TrackingStatus.iconResId: Int
     }
 
 private val TrackingStatus.stateColor: Color
+    @Composable
+    @ReadOnlyComposable
     get() = when (this) {
-        TrackingStatus.Planned -> OmnilogColors.Planned
-        TrackingStatus.InProgress -> OmnilogColors.InProgress
-        TrackingStatus.Completed -> OmnilogColors.Completed
-        TrackingStatus.Paused -> OmnilogColors.Paused
-        TrackingStatus.Dropped -> OmnilogColors.Dropped
+        TrackingStatus.Planned -> OmnilogTheme.accents.Planned
+        TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
+        TrackingStatus.Completed -> OmnilogTheme.accents.Completed
+        TrackingStatus.Paused -> OmnilogTheme.accents.Paused
+        TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
     }
 
 @Composable
@@ -1231,14 +1223,16 @@ private fun TrackingStatus.label(): String =
         TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
     }
 
+@Composable
+@ReadOnlyComposable
 private fun MediaType.sectionAccent(): Color =
     when (this) {
-        MediaType.Anime -> MediaSection.Anime.accent
-        MediaType.Book -> MediaSection.Books.accent
+        MediaType.Anime -> MediaSection.Anime.themedAccent()
+        MediaType.Book -> MediaSection.Books.themedAccent()
         MediaType.Movie,
         MediaType.TvShow,
-            -> MediaSection.Movies.accent
-        MediaType.Game -> MediaSection.Games.accent
+            -> MediaSection.Movies.themedAccent()
+        MediaType.Game -> MediaSection.Games.themedAccent()
     }
 
 private fun MediaType.dashboardSection(): MediaSection =

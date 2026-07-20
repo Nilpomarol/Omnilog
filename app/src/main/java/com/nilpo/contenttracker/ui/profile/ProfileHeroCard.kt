@@ -198,13 +198,13 @@ fun ProfileHeroCard(
                             Icon(
                                 imageVector = Icons.Filled.Lock,
                                 contentDescription = null,
-                                tint = OmnilogColors.Dashboard,
+                                tint = OmnilogTheme.accents.Dashboard,
                                 modifier = Modifier.size(13.dp),
                             )
                             Text(
                                 text = stringResource(R.string.profile_local_storage_notice),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = OmnilogColors.Dashboard,
+                                color = OmnilogTheme.accents.Dashboard,
                             )
                         }
                     }
@@ -369,7 +369,7 @@ private fun HeroMetric(value: String, label: String, modifier: Modifier = Modifi
             text = value,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.ExtraBold,
-            color = OmnilogColors.Dashboard,
+            color = OmnilogTheme.accents.Dashboard,
             maxLines = 1,
         )
         Text(

@@ -223,8 +223,8 @@ private fun ObjectiveCelebrationBanner(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = OmnilogColors.Completed.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, OmnilogColors.Completed.copy(alpha = 0.5f)),
+        color = OmnilogTheme.accents.Completed.copy(alpha = 0.14f),
+        border = BorderStroke(1.dp, OmnilogTheme.accents.Completed.copy(alpha = 0.5f)),
     ) {
         Row(
             modifier = Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
@@ -234,7 +234,7 @@ private fun ObjectiveCelebrationBanner(
             Icon(
                 Icons.Filled.Check,
                 contentDescription = null,
-                tint = OmnilogColors.Completed,
+                tint = OmnilogTheme.accents.Completed,
                 modifier = Modifier.size(22.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -492,14 +492,14 @@ private fun SentenceChip(
     isPlaceholder: Boolean = false,
 ) {
     val background = when {
-        isActive -> OmnilogColors.Dashboard
+        isActive -> OmnilogTheme.accents.Dashboard
         isPlaceholder -> OmnilogTheme.colors.appBackground
-        else -> OmnilogColors.Dashboard.copy(alpha = 0.14f)
+        else -> OmnilogTheme.accents.Dashboard.copy(alpha = 0.14f)
     }
     val contentColor = when {
         isActive -> OmnilogTheme.colors.appBackground
         isPlaceholder -> OmnilogTheme.colors.appMuted
-        else -> OmnilogColors.Dashboard
+        else -> OmnilogTheme.accents.Dashboard
     }
     // The underline is drawn behind the text rather than stacked under it in a Column: a
     // fillMaxWidth child would expand to the row's full width and each chip would become its own
@@ -632,10 +632,10 @@ private fun ChoiceChip(
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = if (isSelected) OmnilogColors.Dashboard.copy(alpha = 0.16f) else Color.Transparent,
+        color = if (isSelected) OmnilogTheme.accents.Dashboard.copy(alpha = 0.16f) else Color.Transparent,
         border = BorderStroke(
             1.dp,
-            if (isSelected) OmnilogColors.Dashboard else OmnilogTheme.colors.appLine,
+            if (isSelected) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine,
         ),
     ) {
         Text(
@@ -643,7 +643,7 @@ private fun ChoiceChip(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) OmnilogColors.Dashboard else OmnilogTheme.colors.appMuted,
+            color = if (isSelected) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
         )
     }
 }
@@ -707,7 +707,7 @@ private fun StepButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val tint = if (enabled) OmnilogColors.Dashboard else OmnilogTheme.colors.appLine
+    val tint = if (enabled) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = Color.Transparent,
@@ -854,7 +854,7 @@ private fun DateField(
             Icon(
                 Icons.Filled.DateRange,
                 contentDescription = null,
-                tint = OmnilogColors.Dashboard,
+                tint = OmnilogTheme.accents.Dashboard,
                 modifier = Modifier.size(16.dp),
             )
             Column {

@@ -27,7 +27,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 fun OmnilogSnackbar(
     snackbarData: SnackbarData,
     modifier: Modifier = Modifier,
-    accent: androidx.compose.ui.graphics.Color = OmnilogColors.Dashboard,
+    accent: androidx.compose.ui.graphics.Color = OmnilogTheme.accents.Dashboard,
 ) {
     val actionLabel = snackbarData.visuals.actionLabel
 

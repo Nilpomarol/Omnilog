@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,12 +76,12 @@ fun ObjectiveProgressCard(
     val pace = remember(progress, today) { progress.pace(today) }
     val accent = objective.mediaType.objectiveAccent()
     val fillColor = when (pace.status) {
-        ObjectiveStatus.Completed -> OmnilogColors.Completed
+        ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed
         ObjectiveStatus.Missed -> OmnilogTheme.colors.appLine
         else -> accent
     }
     val borderColor = when (pace.status) {
-        ObjectiveStatus.Completed -> OmnilogColors.Completed.copy(alpha = 0.45f)
+        ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed.copy(alpha = 0.45f)
         else -> OmnilogTheme.colors.appLine
     }
     val isActive = pace.status == ObjectiveStatus.Ahead ||
@@ -134,7 +135,7 @@ fun ObjectiveProgressCard(
                     text = "Objectiu: ${objectiveTargetLabel(objective)}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogTheme.colors.appInk,
+                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogTheme.accents.Completed else OmnilogTheme.colors.appInk,
                 )
                 Text(
                     text = "${(progress.percentage * 100).roundToInt()}%",
@@ -142,7 +143,7 @@ fun ObjectiveProgressCard(
                         .weight(1f)
                         .padding(bottom = 1.dp),
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogColors.Completed else OmnilogTheme.colors.appMuted,
+                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogTheme.accents.Completed else OmnilogTheme.colors.appMuted,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 )
             }
@@ -315,23 +316,29 @@ private fun com.nilpo.contenttracker.core.model.ObjectivePace.deltaText(): Strin
     else -> "Just al previst"
 }
 
+@Composable
+@ReadOnlyComposable
 private fun ObjectiveStatus.paceColor(muted: Color): Color = when (this) {
-    ObjectiveStatus.Behind -> OmnilogColors.Dashboard
-    ObjectiveStatus.Ahead -> OmnilogColors.Completed
+    ObjectiveStatus.Behind -> OmnilogTheme.accents.Dashboard
+    ObjectiveStatus.Ahead -> OmnilogTheme.accents.Completed
     else -> muted
 }
 
+@Composable
+@ReadOnlyComposable
 private fun com.nilpo.contenttracker.core.model.ObjectivePace.hintColor(muted: Color): Color = when (status) {
-    ObjectiveStatus.Completed -> OmnilogColors.Completed
+    ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed
     ObjectiveStatus.Missed -> muted
     else -> status.paceColor(muted)
 }
 
+@Composable
+@ReadOnlyComposable
 private fun ObjectiveStatus.chipStyle(muted: Color): Triple<String, Color, Boolean> = when (this) {
-    ObjectiveStatus.Completed -> Triple("Completat", OmnilogColors.Completed, true)
-    ObjectiveStatus.Ahead -> Triple("Avançat", OmnilogColors.Completed, false)
-    ObjectiveStatus.OnTrack -> Triple("Al dia", OmnilogColors.Completed, false)
-    ObjectiveStatus.Behind -> Triple("Endarrerit", OmnilogColors.Dashboard, false)
+    ObjectiveStatus.Completed -> Triple("Completat", OmnilogTheme.accents.Completed, true)
+    ObjectiveStatus.Ahead -> Triple("Avançat", OmnilogTheme.accents.Completed, false)
+    ObjectiveStatus.OnTrack -> Triple("Al dia", OmnilogTheme.accents.Completed, false)
+    ObjectiveStatus.Behind -> Triple("Endarrerit", OmnilogTheme.accents.Dashboard, false)
     ObjectiveStatus.Missed -> Triple("No assolit", muted, false)
 }
 
@@ -361,13 +368,15 @@ private val shortDateYear: DateTimeFormatter = DateTimeFormatter.ofPattern("d MM
 
 
 /** The media accent an objective is drawn in, shared by the profile card and the dashboard rings. */
+@Composable
+@ReadOnlyComposable
 fun MediaType?.objectiveAccent(): Color = when (this) {
-    MediaType.Anime -> OmnilogColors.Anime
-    MediaType.Book -> OmnilogColors.Books
-    MediaType.Movie -> OmnilogColors.Dashboard
-    MediaType.TvShow -> OmnilogColors.Tv
-    MediaType.Game -> OmnilogColors.Games
-    null -> OmnilogColors.Dashboard
+    MediaType.Anime -> OmnilogTheme.accents.Anime
+    MediaType.Book -> OmnilogTheme.accents.Books
+    MediaType.Movie -> OmnilogTheme.accents.Dashboard
+    MediaType.TvShow -> OmnilogTheme.accents.Tv
+    MediaType.Game -> OmnilogTheme.accents.Games
+    null -> OmnilogTheme.accents.Dashboard
 }
 
 data class ObjectivePresentation(
