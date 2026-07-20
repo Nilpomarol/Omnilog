@@ -173,7 +173,7 @@ fun HomeLandingScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item {
                     DashboardSearch(
@@ -748,12 +748,12 @@ private fun HomeCarousel(
     emptyText: String? = null,
     onQuickStart: ((TrackedMedia) -> Unit)? = null,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DashboardSectionTitle(title = title)
         if (items.isEmpty()) {
             emptyText?.let { EmptyCarouselState(text = it) }
         } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(items) { trackedMedia ->
                     HomeMediaTile(
                         trackedMedia = trackedMedia,
@@ -776,7 +776,7 @@ private fun HomeActiveCarousel(
     onQuickComplete: (TrackedMedia) -> Unit,
     isFiltered: Boolean,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DashboardSectionTitle(title = title)
         if (items.isEmpty()) {
             EmptyCarouselState(
@@ -787,7 +787,7 @@ private fun HomeActiveCarousel(
                 },
             )
         } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(items) { trackedMedia ->
                     HomeMediaTile(
                         trackedMedia = trackedMedia,
@@ -880,6 +880,12 @@ private fun DashboardFilterNotice(
     }
 }
 
+// A 2:3 poster, so the cover fills the tile without cropping. Keep the ratio if you resize:
+// the dashboard stacks several carousels, and tile height is what decides how many are reachable
+// without scrolling.
+private val TileWidth = 132.dp
+private val TileHeight = 198.dp
+
 @Composable
 private fun HomeMediaTile(
     trackedMedia: TrackedMedia,
@@ -903,8 +909,8 @@ private fun HomeMediaTile(
 
     Surface(
         modifier = Modifier
-            .width(164.dp)
-            .height(246.dp)
+            .width(TileWidth)
+            .height(TileHeight)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = OmnilogTheme.colors.appPanel,
@@ -918,7 +924,7 @@ private fun HomeMediaTile(
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(10.dp),
+                    .padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 if (trackedMedia.item.ownership.isOwned) {
@@ -956,26 +962,33 @@ private fun HomeMediaTile(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+                // The title gets the full tile width. Only the progress line shares its row with
+                // the rating — the rating is short and the progress label is too, whereas titles
+                // need every pixel at this tile size.
+                Text(
+                    text = displayMediaTitle(trackedMedia.item.title),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = OnCoverInk,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // The rating stands beside the whole progress block — label and bar both — so it
+                // gets the height of the two stacked together and can stay large. The title keeps
+                // the full width above it, which is what it needs at this tile size.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(
-                            text = displayMediaTitle(trackedMedia.item.title),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = OnCoverInk,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
                         Text(
                             text = session.progressLabel(
                                 progressTotal = trackedMedia.item.progressTotal
@@ -983,27 +996,31 @@ private fun HomeMediaTile(
                                 mediaType = trackedMedia.item.type,
                             ),
                             style = if (isGame) {
-                                MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp)
+                                MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp)
                             } else {
                                 MaterialTheme.typography.labelSmall
                             },
-                            fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
+                            fontWeight = if (isGame) {
+                                FontWeight.ExtraBold
+                            } else {
+                                FontWeight.SemiBold
+                            },
                             color = if (isGame) accent else OnCoverInk,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        trackedMedia.item.progressTotal
+                            .takeUnless { trackedMedia.item.type == MediaType.Game }
+                            ?.takeIf { it > 0 }
+                            ?.let { progressTotal ->
+                                ProgressBar(
+                                    fraction = session.progressFraction(progressTotal),
+                                    color = accent,
+                                )
+                            }
                     }
                     RatingSlot(rating = session?.rating, accent = accent)
                 }
-                trackedMedia.item.progressTotal
-                    .takeUnless { trackedMedia.item.type == MediaType.Game }
-                    ?.takeIf { it > 0 }
-                    ?.let { progressTotal ->
-                        ProgressBar(
-                            fraction = session.progressFraction(progressTotal),
-                            color = accent,
-                        )
-                    }
             }
         }
     }
@@ -1030,19 +1047,20 @@ private fun TileQuickActionButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    // Sized and filled like the status and owned pills opposite it, so the cover's four corners
+    // carry one badge language rather than two.
     Surface(
         onClick = onClick,
-        modifier = modifier.size(32.dp),
+        modifier = modifier.size(24.dp),
         shape = RoundedCornerShape(999.dp),
-        color = OmnilogTheme.colors.appBackground.copy(alpha = 0.82f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.60f)),
+        color = accent,
+        contentColor = Color.Black,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                tint = accent,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -1081,24 +1099,15 @@ private fun RatingSlot(
     rating: Int?,
     accent: Color,
 ) {
-    Row(
-        modifier = Modifier
-            .width(42.dp)
-            .height(32.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        if (rating == null) {
-            Box(modifier = Modifier.height(32.dp))
-        } else {
-            Text(
-                text = rating.toString(),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = accent,
-            )
-        }
-    }
+    // Sized to its content and skipped entirely when unrated, so an unrated tile gives the whole
+    // row back to the progress label instead of holding an empty column open.
+    if (rating == null) return
+    Text(
+        text = rating.toString(),
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.ExtraBold,
+        color = accent,
+    )
 }
 
 @Composable
