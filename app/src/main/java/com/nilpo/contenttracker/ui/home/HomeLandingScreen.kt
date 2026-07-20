@@ -1047,20 +1047,21 @@ private fun TileQuickActionButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    // Sized and filled like the status and owned pills opposite it, so the cover's four corners
-    // carry one badge language rather than two.
+    // Filled like the status and owned pills opposite it, but a little larger: those are read-only
+    // badges, this one is the tile's only tap target and pill size was too small to hit reliably —
+    // the rounded corner clips the touch area that would otherwise extend past it.
     Surface(
         onClick = onClick,
-        modifier = modifier.size(24.dp),
+        modifier = modifier.size(30.dp),
         shape = RoundedCornerShape(999.dp),
-        color = accent,
+        color = accent.copy(alpha = 0.86f),
         contentColor = Color.Black,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
     }
