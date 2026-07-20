@@ -108,9 +108,8 @@ fun HomeLandingScreen(
     onObjectivesClick: () -> Unit,
     onAddToSection: (MediaSection) -> Unit,
     onImportBackup: () -> Unit,
-    onQuickSetProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
-    onQuickComplete: (TrackedMedia) -> Unit = {},
-    onQuickStart: (TrackedMedia) -> Unit = {},
+    onQuickCommitProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
+    onQuickComplete: (TrackedMedia, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
@@ -218,7 +217,7 @@ fun HomeLandingScreen(
                             title = stringResource(R.string.home_active_title),
                             items = activeItemsVisible,
                             onMediaClick = onMediaClick,
-                            onQuickSetProgress = onQuickSetProgress,
+                            onQuickCommitProgress = onQuickCommitProgress,
                             onQuickComplete = onQuickComplete,
                             isFiltered = activeCandidates.isNotEmpty(),
                         )
@@ -234,7 +233,8 @@ fun HomeLandingScreen(
                             } else {
                                 stringResource(R.string.home_planned_empty)
                             },
-                            onQuickStart = onQuickStart,
+                            onQuickCommitProgress = onQuickCommitProgress,
+                            onQuickComplete = onQuickComplete,
                         )
                     }
 
@@ -261,7 +261,8 @@ fun HomeLandingScreen(
                                 title = stringResource(R.string.home_paused_title),
                                 items = pausedItems,
                                 onMediaClick = onMediaClick,
-                                onQuickStart = onQuickStart,
+                                onQuickCommitProgress = onQuickCommitProgress,
+                                onQuickComplete = onQuickComplete,
                             )
                         }
                     }
@@ -737,8 +738,8 @@ private fun DashboardSectionSearchRow(
 /**
  * A titled row of media tiles. Pass [emptyText] for a section that should explain itself when it
  * has nothing (the daily surfaces near the top); omit it and the caller is expected to skip the
- * section entirely instead. Pass [onQuickStart] to give each tile a start/resume action — it only
- * appears on tiles whose status can actually be started (see [HomeMediaTile]).
+ * section entirely instead. Pass the quick action callbacks to give each tile a button opening the
+ * progress sheet — it only appears on tiles whose status can act on it (see [HomeMediaTile]).
  */
 @Composable
 private fun HomeCarousel(
@@ -746,7 +747,8 @@ private fun HomeCarousel(
     items: List<TrackedMedia>,
     onMediaClick: (TrackedMedia) -> Unit,
     emptyText: String? = null,
-    onQuickStart: ((TrackedMedia) -> Unit)? = null,
+    onQuickCommitProgress: ((TrackedMedia, Int) -> Unit)? = null,
+    onQuickComplete: ((TrackedMedia, Int) -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DashboardSectionTitle(title = title)
@@ -759,7 +761,12 @@ private fun HomeCarousel(
                         trackedMedia = trackedMedia,
                         accent = trackedMedia.item.type.sectionAccent(),
                         onClick = { onMediaClick(trackedMedia) },
-                        onQuickStart = onQuickStart?.let { start -> { start(trackedMedia) } },
+                        onQuickCommitProgress = onQuickCommitProgress?.let { commit ->
+                            { value: Int -> commit(trackedMedia, value) }
+                        },
+                        onQuickComplete = onQuickComplete?.let { complete ->
+                            { value: Int -> complete(trackedMedia, value) }
+                        },
                     )
                 }
             }
@@ -772,8 +779,8 @@ private fun HomeActiveCarousel(
     title: String,
     items: List<TrackedMedia>,
     onMediaClick: (TrackedMedia) -> Unit,
-    onQuickSetProgress: (TrackedMedia, Int) -> Unit,
-    onQuickComplete: (TrackedMedia) -> Unit,
+    onQuickCommitProgress: (TrackedMedia, Int) -> Unit,
+    onQuickComplete: (TrackedMedia, Int) -> Unit,
     isFiltered: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -793,8 +800,8 @@ private fun HomeActiveCarousel(
                         trackedMedia = trackedMedia,
                         accent = trackedMedia.item.type.sectionAccent(),
                         onClick = { onMediaClick(trackedMedia) },
-                        onQuickSetProgress = { onQuickSetProgress(trackedMedia, it) },
-                        onQuickComplete = { onQuickComplete(trackedMedia) },
+                        onQuickCommitProgress = { onQuickCommitProgress(trackedMedia, it) },
+                        onQuickComplete = { onQuickComplete(trackedMedia, it) },
                     )
                 }
             }
@@ -891,17 +898,21 @@ private fun HomeMediaTile(
     trackedMedia: TrackedMedia,
     accent: Color,
     onClick: () -> Unit,
-    onQuickSetProgress: ((Int) -> Unit)? = null,
-    onQuickComplete: (() -> Unit)? = null,
-    onQuickStart: (() -> Unit)? = null,
+    onQuickCommitProgress: ((Int) -> Unit)? = null,
+    onQuickComplete: ((Int) -> Unit)? = null,
 ) {
     val session = trackedMedia.currentSession
     val isGame = trackedMedia.item.type == MediaType.Game
-    val quickActionsEnabled = onQuickSetProgress != null && onQuickComplete != null &&
+    // Planned and Paused open the very same sheet as In progress. Starting something is just a
+    // progress commit that happens to promote the status, so there is no reason for the dashboard
+    // to offer a blind status flip that guesses you are at zero.
+    val quickActionsEnabled = onQuickCommitProgress != null && onQuickComplete != null &&
         session != null &&
-        (session.status == TrackingStatus.InProgress || session.status == TrackingStatus.Paused)
-    val startActionEnabled = onQuickStart != null &&
-        (session?.status == TrackingStatus.Planned || session?.status == TrackingStatus.Paused)
+        (
+            session.status == TrackingStatus.InProgress ||
+                session.status == TrackingStatus.Paused ||
+                session.status == TrackingStatus.Planned
+            )
     var showQuickSheet by remember(trackedMedia.item.id) { mutableStateOf(false) }
     LaunchedEffect(quickActionsEnabled) {
         if (!quickActionsEnabled) showQuickSheet = false
@@ -934,29 +945,25 @@ private fun HomeMediaTile(
             }
             CoverScrim()
             if (quickActionsEnabled) {
+                // One destination, but the glyph still previews what the sheet will lead with:
+                // a play mark for something not currently running, a plus for adding to a total
+                // already in motion.
                 TileQuickActionButton(
-                    icon = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.quick_progress_open),
-                    accent = accent,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp),
-                    onClick = { showQuickSheet = true },
-                )
-            } else if (startActionEnabled) {
-                TileQuickActionButton(
-                    icon = Icons.Filled.PlayArrow,
-                    // Same action, different word: you start something planned, you resume a pause.
-                    contentDescription = if (session?.status == TrackingStatus.Paused) {
-                        stringResource(R.string.home_paused_resume)
+                    icon = if (session?.status == TrackingStatus.InProgress) {
+                        Icons.Filled.Add
                     } else {
-                        stringResource(R.string.home_planned_start)
+                        Icons.Filled.PlayArrow
+                    },
+                    contentDescription = when (session?.status) {
+                        TrackingStatus.Paused -> stringResource(R.string.home_paused_resume)
+                        TrackingStatus.Planned -> stringResource(R.string.home_planned_start)
+                        else -> stringResource(R.string.quick_progress_open)
                     },
                     accent = accent,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp),
-                    onClick = { onQuickStart?.invoke() },
+                    onClick = { showQuickSheet = true },
                 )
             }
             Column(
@@ -1029,9 +1036,12 @@ private fun HomeMediaTile(
         QuickProgressSheet(
             trackedMedia = trackedMedia,
             accent = accent,
-            onSetProgress = { onQuickSetProgress?.invoke(it) },
+            onCommit = {
+                onQuickCommitProgress?.invoke(it)
+                showQuickSheet = false
+            },
             onComplete = {
-                onQuickComplete?.invoke()
+                onQuickComplete?.invoke(it)
                 showQuickSheet = false
             },
             onDismiss = { showQuickSheet = false },

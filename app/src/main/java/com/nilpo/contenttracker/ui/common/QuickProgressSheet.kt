@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.ui.common
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,8 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -54,37 +59,83 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 /**
  * Compact dialog for the UX-13 quick progress actions.
  *
- * The "Ara mateix" tiles stay uncluttered: a single tap opens this sheet, which
- * keeps all the density (stepper / direct entry / complete) off the tile. The
- * concrete control depends on the media type:
- *  - Anime / TV: a −/+ episode stepper (each tap commits immediately, and the sheet
- *    stays open so consecutive taps land on the same control).
- *  - Book / Game: a direct numeric entry whose Desa button commits and closes — the
- *    sheet looks identical after a save, so closing is the only confirmation there is.
- *  - Movie: no progress control, only the complete button.
+ * The "Ara mateix" tiles stay uncluttered: a single tap opens this sheet, which keeps all the
+ * density off the tile. Every startable status routes here — Planned and Paused included — so the
+ * same gesture always means "tell me where you are", never a blind status flip.
  *
- * [onSetProgress] receives an absolute target value; the caller (ViewModel) clamps,
- * promotes a Planned/Paused session to In progress, and auto-completes when the
- * value reaches the total.
+ * Editing is deliberately deferred: the stepper and the text field both write to a local draft,
+ * and nothing is persisted until the primary button is pressed. That costs episodic media one tap
+ * versus the old commit-on-every-tap stepper, but it is what lets a single button describe the
+ * outcome honestly — and it stops a `+` onto the final episode from auto-completing the item
+ * before you have even looked at the button.
+ *
+ * Finishing is a checkbox rather than a second button, because "fill the progress to the total"
+ * and "mark it completed" are the same act whenever a total exists — offering them separately made
+ * the user perform it twice. Ticking the box fills the draft to the total and turns the single
+ * button into the completion action; unticking restores the draft you had. On a total-less item
+ * (any game) there is nothing to fill, so the tick simply means "completed at whatever the draft
+ * says", which is what keeps games from needing a layout of their own.
+ *
+ * That leaves exactly one call to action at all times. Its label is derived from the draft, not
+ * the status alone:
+ *  - box ticked               -> "Marca com a completat", in the Completat green
+ *  - Planned, draft untouched -> "Comença"
+ *  - Paused, draft untouched  -> "Reprèn"
+ *  - otherwise                -> "Desa el progrés"
+ *
+ * [onCommit] receives an absolute target value; the caller (ViewModel) clamps, promotes a
+ * Planned/Paused session to In progress, and completes when the value reaches the total.
+ * [onComplete] receives the same draft, so a game completed at 42 hours records the 42.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickProgressSheet(
     trackedMedia: TrackedMedia,
     accent: Color,
-    onSetProgress: (Int) -> Unit,
-    onComplete: () -> Unit,
+    onCommit: (Int) -> Unit,
+    onComplete: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val session = trackedMedia.currentSession ?: return
     val item = trackedMedia.item
-    val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }
+    // Games measure open-ended hours, so they never carry a total. Every other type does when its
+    // metadata supplied one — including movies, whose total is the TMDB runtime in minutes.
+    val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }?.takeIf { it > 0 }
 
-    // Close automatically once the item leaves the active states — covers both the
-    // explicit Completa button and auto-completion when +1 reaches the total.
+    // Close once the item lands somewhere the sheet can no longer act on. Planned, In progress and
+    // Paused are all editable here; Completed and Dropped are not.
     LaunchedEffect(session.status) {
-        if (session.status != TrackingStatus.InProgress && session.status != TrackingStatus.Paused) {
+        if (session.status == TrackingStatus.Completed || session.status == TrackingStatus.Dropped) {
             onDismiss()
+        }
+    }
+
+    // Re-seeded whenever the persisted value moves under us, so an external edit is not silently
+    // overwritten by a stale draft.
+    var draftText by remember(session.id, session.progressCurrent) {
+        mutableStateOf(session.progressCurrent.toString())
+    }
+    val draft = draftText.toIntOrNull()?.coerceIn(0, total ?: Int.MAX_VALUE)
+    val changed = draft != null && draft != session.progressCurrent
+    val promotes = session.status == TrackingStatus.Planned ||
+        session.status == TrackingStatus.Paused
+
+    // With a total the tick is just a view of the draft, so editing the number back down unticks
+    // the box on its own. Without one there is nothing to read it from, so it holds its own state.
+    var doneChecked by remember(session.id) { mutableStateOf(false) }
+    var draftBeforeDone by remember(session.id) { mutableStateOf<String?>(null) }
+    val done = if (total != null) draft == total else doneChecked
+    val completedAccent = OmnilogTheme.accents.Completed
+    val onDoneChange: (Boolean) -> Unit = { checked ->
+        doneChecked = checked
+        if (total != null) {
+            if (checked) {
+                draftBeforeDone = draftText
+                draftText = total.toString()
+            } else {
+                draftText = draftBeforeDone ?: session.progressCurrent.toString()
+                draftBeforeDone = null
+            }
         }
     }
 
@@ -132,41 +183,62 @@ fun QuickProgressSheet(
                 }
             }
 
-            when {
-                item.type.usesEpisodeStepper() -> QuickStepper(
-                    current = session.progressCurrent,
+            // The control takes the accent while you are editing and the Completat green once the
+            // box is ticked, so the whole sheet — control, tick and button — agrees on what the
+            // next tap will do.
+            val controlAccent = if (done) completedAccent else accent
+            if (item.type.usesEpisodeStepper()) {
+                QuickStepper(
+                    draft = draft,
                     total = total,
                     mediaType = item.type,
-                    accent = accent,
-                    onSetProgress = onSetProgress,
+                    accent = controlAccent,
+                    onDraftChange = { draftText = it.toString() },
                 )
-                item.type.usesDirectEntry() -> QuickDirectEntry(
-                    current = session.progressCurrent,
+            } else {
+                QuickDirectEntry(
+                    text = draftText,
                     total = total,
                     mediaType = item.type,
-                    accent = accent,
-                    onSetProgress = onSetProgress,
-                    onSaved = onDismiss,
+                    accent = controlAccent,
+                    onTextChange = { draftText = it },
                 )
-                // Movie: watch-once, no progress control — only the complete button below.
             }
 
+            DoneToggleRow(
+                checked = done,
+                accent = completedAccent,
+                onCheckedChange = onDoneChange,
+            )
+
             Button(
-                onClick = onComplete,
+                onClick = { draft?.let { if (done) onComplete(it) else onCommit(it) } },
                 modifier = Modifier.fillMaxWidth(),
+                // A Planned or Paused item always has something to commit — the promotion itself —
+                // even when the number never moved.
+                enabled = draft != null && (done || changed || promotes),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = accent,
+                    containerColor = controlAccent,
                     contentColor = Color.Black,
                 ),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
+                if (done) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
                 Text(
-                    text = stringResource(R.string.quick_progress_complete),
-                    modifier = Modifier.padding(start = 6.dp),
+                    text = when {
+                        done -> stringResource(R.string.quick_progress_complete)
+                        !changed && session.status == TrackingStatus.Planned ->
+                            stringResource(R.string.home_planned_start)
+                        !changed && session.status == TrackingStatus.Paused ->
+                            stringResource(R.string.home_paused_resume)
+                        else -> stringResource(R.string.quick_progress_save)
+                    },
+                    modifier = Modifier.padding(start = if (done) 6.dp else 0.dp),
                     fontWeight = FontWeight.ExtraBold,
                 )
             }
@@ -176,12 +248,13 @@ fun QuickProgressSheet(
 
 @Composable
 private fun QuickStepper(
-    current: Int,
+    draft: Int?,
     total: Int?,
     mediaType: MediaType,
     accent: Color,
-    onSetProgress: (Int) -> Unit,
+    onDraftChange: (Int) -> Unit,
 ) {
+    val current = draft ?: 0
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -192,7 +265,7 @@ private fun QuickStepper(
             enabled = current > 0,
             accent = accent,
             contentDescription = stringResource(R.string.quick_progress_decrease),
-            onClick = { onSetProgress(current - 1) },
+            onClick = { onDraftChange(current - 1) },
         )
         Column(
             modifier = Modifier.weight(1f),
@@ -216,7 +289,7 @@ private fun QuickStepper(
             enabled = total == null || current < total,
             accent = accent,
             contentDescription = stringResource(R.string.quick_progress_increase),
-            onClick = { onSetProgress(current + 1) },
+            onClick = { onDraftChange(current + 1) },
         )
     }
 }
@@ -250,81 +323,97 @@ private fun StepButton(
     }
 }
 
+/**
+ * The finish affordance. A divider sets it apart from the progress control above, because it is
+ * the one thing in the sheet that changes what the button will do rather than what it will write.
+ * The whole row is the target, not just the box.
+ */
 @Composable
-private fun QuickDirectEntry(
-    current: Int,
-    total: Int?,
-    mediaType: MediaType,
+private fun DoneToggleRow(
+    checked: Boolean,
     accent: Color,
-    onSetProgress: (Int) -> Unit,
-    onSaved: () -> Unit,
+    onCheckedChange: (Boolean) -> Unit,
 ) {
-    var text by remember(current) { mutableStateOf(current.toString()) }
-    val parsed = text.toIntOrNull()
-    val maximum = total ?: Int.MAX_VALUE
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Checkbox) { onCheckedChange(!checked) }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = accent.copy(alpha = 0.08f),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
-            ) {
-                BasicTextField(
-                    value = text,
-                    onValueChange = { input -> text = input.filter { it.isDigit() }.take(6) },
-                    modifier = Modifier
-                        .widthIn(min = 72.dp)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    textStyle = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        textAlign = TextAlign.Center,
-                        color = accent,
-                    ),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    cursorBrush = SolidColor(accent),
-                )
-            }
-            if (total != null && total > 0) {
-                Text(
-                    text = stringResource(
-                        R.string.quick_progress_of_total,
-                        total,
-                        progressUnitLabel(mediaType, total),
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-        }
-        Button(
-            onClick = {
-                parsed?.let { onSetProgress(it.coerceIn(0, maximum)) }
-                onSaved()
-            },
-            enabled = parsed != null && parsed != current,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = accent,
-                contentColor = Color.Black,
-            ),
-        ) {
-            Text(text = stringResource(R.string.save), fontWeight = FontWeight.ExtraBold)
+            Checkbox(
+                checked = checked,
+                // The row already carries the click and the label; a nested target would only
+                // give TalkBack a second, unlabelled way in.
+                onCheckedChange = null,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = accent,
+                    checkmarkColor = Color.Black,
+                    uncheckedColor = OmnilogTheme.colors.appMuted,
+                ),
+            )
+            Text(
+                text = stringResource(R.string.quick_progress_mark_done),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (checked) FontWeight.Bold else FontWeight.SemiBold,
+                color = if (checked) accent else OmnilogTheme.colors.appInk,
+            )
         }
     }
 }
 
-/** Episodic media where a single +1 tap is the canonical daily update. */
+@Composable
+private fun QuickDirectEntry(
+    text: String,
+    total: Int?,
+    mediaType: MediaType,
+    accent: Color,
+    onTextChange: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = accent.copy(alpha = 0.08f),
+            border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { input -> onTextChange(input.filter { it.isDigit() }.take(6)) },
+                modifier = Modifier
+                    .widthIn(min = 72.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                textStyle = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center,
+                    color = accent,
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                cursorBrush = SolidColor(accent),
+            )
+        }
+        if (total != null) {
+            Text(
+                text = stringResource(
+                    R.string.quick_progress_of_total,
+                    total,
+                    progressUnitLabel(mediaType, total),
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = OmnilogTheme.colors.appMuted,
+            )
+        }
+    }
+}
+
+/**
+ * Episodic media where counting up one at a time is the natural gesture. Everything else is
+ * measured in pages, hours or minutes and gets the typed field instead — movies included, since
+ * their total is the runtime, so a paused film can record where you stopped rather than being an
+ * all-or-nothing toggle.
+ */
 fun MediaType.usesEpisodeStepper(): Boolean =
     this == MediaType.Anime || this == MediaType.TvShow
-
-/** Media measured in pages/hours where a typed value beats incrementing by one. */
-fun MediaType.usesDirectEntry(): Boolean =
-    this == MediaType.Book || this == MediaType.Game

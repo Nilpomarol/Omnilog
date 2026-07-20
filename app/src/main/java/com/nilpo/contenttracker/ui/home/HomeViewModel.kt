@@ -427,83 +427,84 @@ class HomeViewModel(
     }
 
     /**
-     * UX-13 quick action: set the active session's progress to [newProgress].
-     * Promotes a Planned/Paused session to In progress, and auto-completes (with an
-     * undo affordance) when the value reaches the total. Plain increments give
-     * immediate visual feedback via the list flow, so they don't raise a snackbar.
+     * UX-13 quick action: commit the quick sheet's draft, setting the session's progress to
+     * [newProgress]. This is the single write behind every state the sheet's primary button can
+     * show — save, start, resume and complete all land here, because from the session's point of
+     * view they differ only in the numbers involved.
+     *
+     * Promotes a Planned/Paused session to In progress, and completes (with an undo affordance)
+     * when the value reaches the total.
+     *
+     * Only a Planned session gets today stamped as its start date, and only if it has none. A
+     * paused session was started at some point in the past; stamping today would both misreport
+     * the history and, because StatsCalculator buckets an unfinished session by its start date,
+     * file a months-old title into the current period. If it has no start date, it keeps none.
      */
-    fun quickSetProgress(media: TrackedMedia, newProgress: Int) {
+    fun quickCommitProgress(media: TrackedMedia, newProgress: Int) {
         val session = media.currentSession ?: return
         val item = media.item
         val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }
         val clamped = total?.let { newProgress.coerceIn(0, it) } ?: newProgress.coerceAtLeast(0)
-        if (clamped == session.progressCurrent) return
+        val promotes = session.status == TrackingStatus.Planned ||
+            session.status == TrackingStatus.Paused
+        // A promotion is itself a change worth writing, so only a genuinely idle commit bails out.
+        if (!promotes && clamped == session.progressCurrent) return
 
         if (total != null && clamped >= total) {
-            completeSession(session, progress = total, offerUndoFrom = session)
+            completeSession(
+                session = session,
+                progress = total,
+                offerUndoFrom = session,
+                // Completing straight out of Planned would otherwise leave a finished session with
+                // no start date at all.
+                startedAt = session.startedAt
+                    ?: LocalDate.now().takeIf { session.status == TrackingStatus.Planned },
+            )
             return
         }
 
-        val status = when (session.status) {
-            TrackingStatus.Planned, TrackingStatus.Paused -> TrackingStatus.InProgress
-            else -> session.status
+        val startedAt = when (session.status) {
+            TrackingStatus.Planned -> session.startedAt ?: LocalDate.now()
+            TrackingStatus.Paused -> session.startedAt
+            else -> session.startedAt ?: LocalDate.now()
         }
-        val startedAt = session.startedAt
-            ?: LocalDate.now().takeIf { status == TrackingStatus.InProgress }
         viewModelScope.launch {
             mediaRepository.updateSessionDetails(
                 sessionId = session.id,
-                status = status,
+                status = if (promotes) TrackingStatus.InProgress else session.status,
                 progressCurrent = clamped,
                 rating = session.rating,
                 notes = session.notes,
                 startedAt = startedAt,
                 finishedAt = session.finishedAt,
             )
+            // The card leaves its carousel the moment a promotion lands, so give that its undo.
+            // A plain progress edit stays put and shows its new value inline, which is feedback
+            // enough on its own.
+            if (promotes) {
+                mutableEvents.emit(HomeUiEvent.SessionStartedReversible(session))
+            }
         }
     }
 
     /**
-     * UX-17 quick action: start a planned title, or resume a paused one, from the dashboard.
-     * Progress is untouched — this only moves the session to In progress, so the title moves into
-     * `Ara mateix`.
+     * UX-13 quick action: mark the session completed at [progress], with undo.
      *
-     * Only a Planned session gets today stamped as its start date, and only if it has none. A
-     * paused session was started at some point in the past; stamping today would both misreport
-     * the history and, because StatsCalculator buckets an unfinished session by its start date,
-     * file a months-old title into the current period. If it has no start date, it keeps none.
-     *
-     * The tile is a single unguarded tap and the card leaves its section the moment it lands, so
-     * this raises an undo snackbar rather than a confirmation: an accidental tap costs one tap to
-     * reverse, and a deliberate one keeps its no-friction path.
+     * The value matters for the total-less types: a game finished at 42 hours has no total to fall
+     * back on, so taking the sheet's draft is the only way those 42 hours survive the completion.
+     * Anything with a total finishes at the total regardless of what the draft said.
      */
-    fun quickStart(media: TrackedMedia) {
-        val session = media.currentSession ?: return
-        val startedAt = when (session.status) {
-            TrackingStatus.Planned -> session.startedAt ?: LocalDate.now()
-            TrackingStatus.Paused -> session.startedAt
-            else -> return
-        }
-        viewModelScope.launch {
-            mediaRepository.updateSessionDetails(
-                sessionId = session.id,
-                status = TrackingStatus.InProgress,
-                progressCurrent = session.progressCurrent,
-                rating = session.rating,
-                notes = session.notes,
-                startedAt = startedAt,
-                finishedAt = session.finishedAt,
-            )
-            mutableEvents.emit(HomeUiEvent.SessionStartedReversible(session))
-        }
-    }
-
-    /** UX-13 quick action: mark the active session completed, with undo. */
-    fun quickComplete(media: TrackedMedia) {
+    fun quickComplete(media: TrackedMedia, progress: Int) {
         val session = media.currentSession ?: return
         val item = media.item
         val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }
-        completeSession(session, progress = total ?: session.progressCurrent, offerUndoFrom = session)
+        completeSession(
+            session = session,
+            progress = total ?: progress.coerceAtLeast(0),
+            offerUndoFrom = session,
+            startedAt = session.startedAt
+                ?: LocalDate.now().takeIf { session.status == TrackingStatus.Planned },
+        )
     }
 
     /** Re-applies the pre-action session snapshot captured for the undo snackbar. */
@@ -525,6 +526,7 @@ class HomeViewModel(
         session: TrackingSession,
         progress: Int,
         offerUndoFrom: TrackingSession,
+        startedAt: LocalDate? = session.startedAt,
     ) {
         viewModelScope.launch {
             mediaRepository.updateSessionDetails(
@@ -533,7 +535,7 @@ class HomeViewModel(
                 progressCurrent = progress,
                 rating = session.rating,
                 notes = session.notes,
-                startedAt = session.startedAt,
+                startedAt = startedAt,
                 finishedAt = session.finishedAt ?: LocalDate.now(),
             )
             mutableEvents.emit(HomeUiEvent.SessionCompletedReversible(offerUndoFrom))

@@ -833,9 +833,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     backStack.push(AppRoute.AddMedia(section))
                                 },
                                 onImportBackup = { backupActions.onImportBackupRequested() },
-                                onQuickSetProgress = viewModel::quickSetProgress,
+                                onQuickCommitProgress = viewModel::quickCommitProgress,
                                 onQuickComplete = viewModel::quickComplete,
-                                onQuickStart = viewModel::quickStart,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),
