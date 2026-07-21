@@ -20,6 +20,20 @@ data class TrackedMedia(
     val currentSession: TrackingSession?
         get() = orderedSessions.lastOrNull()
 
+    val primaryExternalRating: ExternalRating?
+        get() {
+            item.primaryExternalRatingId?.let { primaryId ->
+                externalRatings.firstOrNull { it.id == primaryId }?.let { return it }
+            }
+
+            val score = item.externalRatingScore ?: return null
+            val maxScore = item.externalRatingMax ?: return null
+            return externalRatings.firstOrNull { rating ->
+                kotlin.math.abs(rating.score - score) < 0.001 &&
+                    kotlin.math.abs(rating.maxScore - maxScore) < 0.001
+            }
+        }
+
     private val revisitSessionIds: Set<Long> by lazy {
         orderedSessions.drop(1).map { it.id }.toSet()
     }

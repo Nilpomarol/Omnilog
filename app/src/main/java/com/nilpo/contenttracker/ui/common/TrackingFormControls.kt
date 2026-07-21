@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
@@ -22,14 +20,11 @@ import androidx.compose.animation.core.spring
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -52,9 +47,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,7 +57,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalDensity
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -75,105 +69,29 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun TrackingStatusSelector(
     selectedStatus: TrackingStatus,
     accent: Color,
     onStatusSelected: (TrackingStatus) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-    var triggerWidthPx by remember { mutableStateOf(0) }
-    val selectedColor = statusColor(selectedStatus)
-    val triggerWidth = with(LocalDensity.current) { triggerWidthPx.toDp() }
-    Box(
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Surface(
-            onClick = { isExpanded = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .onSizeChanged { triggerWidthPx = it.width },
-            shape = RoundedCornerShape(12.dp),
-            color = selectedColor.copy(alpha = 0.14f),
-            border = BorderStroke(1.dp, selectedColor.copy(alpha = 0.60f)),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Surface(
-                    modifier = Modifier.size(10.dp),
-                    shape = CircleShape,
-                    color = selectedColor,
-                ) {}
-                Text(
-                    text = stringResource(selectedStatus.labelResId()),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = selectedColor,
-                )
-                Icon(
-                    imageVector = Icons.Filled.ArrowDropDown,
-                    contentDescription = null,
-                    tint = selectedColor,
-                )
-            }
-        }
-        DropdownMenu(
-            expanded = isExpanded,
-            onDismissRequest = { isExpanded = false },
-            modifier = if (triggerWidthPx == 0) Modifier.fillMaxWidth() else Modifier.width(triggerWidth),
-            shape = RoundedCornerShape(14.dp),
-            containerColor = OmnilogTheme.colors.appPanel,
-            tonalElevation = 0.dp,
-            shadowElevation = 10.dp,
-            border = BorderStroke(1.dp, selectedColor.copy(alpha = 0.35f)),
-        ) {
-            Column(modifier = Modifier.padding(6.dp)) {
-                TrackingStatus.entries.forEach { status ->
-                    val statusColor = statusColor(status)
-                    val isSelected = status == selectedStatus
-                    Surface(
-                        onClick = {
-                            onStatusSelected(status)
-                            isExpanded = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) statusColor.copy(alpha = 0.16f) else Color.Transparent,
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(10.dp),
-                                shape = CircleShape,
-                                color = statusColor,
-                            ) {}
-                            Text(
-                                text = stringResource(status.labelResId()),
-                                modifier = Modifier.weight(1f),
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) statusColor else OmnilogTheme.colors.appInk,
-                            )
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = statusColor,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    OmnilogDropdownField(
+        selectedOption = selectedStatus,
+        options = TrackingStatus.entries,
+        optionLabel = { stringResource(it.labelResId()) },
+        onOptionSelected = onStatusSelected,
+        modifier = modifier,
+        optionColor = { statusColor(it) },
+        optionIcon = { status, tint ->
+            Icon(
+                painter = painterResource(status.iconResId),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = tint,
+            )
+        },
+    )
 }
 
 @Composable
@@ -542,6 +460,14 @@ private fun TrackingStatus.labelResId(): Int = when (this) {
     TrackingStatus.Paused -> R.string.status_paused
     TrackingStatus.Dropped -> R.string.status_dropped
 }
+private val TrackingStatus.iconResId: Int
+    get() = when (this) {
+        TrackingStatus.Planned -> R.drawable.ic_state_planned
+        TrackingStatus.InProgress -> R.drawable.ic_state_in_progress
+        TrackingStatus.Completed -> R.drawable.ic_state_completed
+        TrackingStatus.Paused -> R.drawable.ic_state_paused
+        TrackingStatus.Dropped -> R.drawable.ic_state_dropped
+    }
 @Composable
 @ReadOnlyComposable
 private fun statusColor(status: TrackingStatus): Color = when (status) {

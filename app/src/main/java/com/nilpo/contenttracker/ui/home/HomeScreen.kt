@@ -83,8 +83,8 @@ import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
-import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
-import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
+import com.nilpo.contenttracker.ui.common.OmnilogAnchoredDropdown
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownChip
 import com.nilpo.contenttracker.ui.common.OmnilogEmptyState
 import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
@@ -456,8 +456,7 @@ private fun BrowseControls(
     onSortDirectionChange: (HomeSortDirection) -> Unit,
     onAdvancedFiltersClick: () -> Unit,
 ) {
-    var statusExpanded by remember { mutableStateOf(false) }
-    var sortExpanded by remember { mutableStateOf(false) }
+    val statusOptions: List<TrackingStatus?> = listOf(null) + TrackingStatus.entries
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -475,72 +474,53 @@ private fun BrowseControls(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(modifier = Modifier.weight(1f)) {
-            DropdownChip(
-                modifier = Modifier.fillMaxWidth(),
-                label = statusFilter?.label() ?: stringResource(R.string.filter_all_statuses),
-                selected = statusFilter != null,
-                color = statusFilter?.stateColor ?: accent,
-                onClick = { statusExpanded = true },
-            )
-            OmnilogDropdownMenu(
-                expanded = statusExpanded,
-                onDismissRequest = { statusExpanded = false },
-            ) {
-                OmnilogDropdownItem(
-                    text = stringResource(R.string.filter_all_statuses),
-                    selected = statusFilter == null,
-                    accent = accent,
-                    onClick = { onStatusFilterChange(null); statusExpanded = false },
-                )
-                TrackingStatus.entries.forEach { status ->
-                    OmnilogDropdownItem(
-                        text = status.label(),
-                        selected = statusFilter == status,
-                        accent = status.stateColor,
-                        labelColor = status.stateColor,
-                        onClick = { onStatusFilterChange(status); statusExpanded = false },
-                    )
-                }
-            }
-        }
-
-        Box {
-            SortChip(
-                sortMode = sortMode,
-                sortDirection = sortDirection,
-                accent = accent,
-                onOpenMenu = { sortExpanded = true },
-                onToggleDirection = {
-                    onSortDirectionChange(
-                        if (sortDirection == HomeSortDirection.Ascending) {
-                            HomeSortDirection.Descending
-                        } else {
-                            HomeSortDirection.Ascending
-                        },
+            OmnilogDropdownChip(
+                selectedOption = statusFilter,
+                options = statusOptions,
+                optionLabel = { it?.label() ?: stringResource(R.string.filter_all_statuses) },
+                onOptionSelected = onStatusFilterChange,
+                modifier = Modifier.weight(1f),
+                isActive = { it != null },
+                optionColor = { it?.stateColor ?: accent },
+                optionIcon = { status, tint ->
+                    Icon(
+                        painter = painterResource(status?.dropdownIconResId ?: R.drawable.ic_filter),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = tint,
                     )
                 },
             )
-            OmnilogDropdownMenu(
-                expanded = sortExpanded,
-                onDismissRequest = { sortExpanded = false },
-            ) {
-                HomeSortMode.entries.forEach { mode ->
-                    OmnilogDropdownItem(
-                        text = mode.label(),
-                        selected = sortMode == mode,
-                        accent = accent,
-                        onClick = { onSortModeChange(mode); sortExpanded = false },
-                    )
-                }
-            }
-        }
 
-        AdvancedFiltersButton(
-            activeCount = advancedFilters.activeCount,
-            color = accent,
-            onClick = onAdvancedFiltersClick,
-        )
+            OmnilogAnchoredDropdown(
+                selectedOption = sortMode,
+                options = HomeSortMode.entries,
+                optionLabel = { it.label() },
+                onOptionSelected = onSortModeChange,
+                optionColor = { accent },
+            ) { _, _, _, anchorModifier ->
+                SortChip(
+                    sortMode = sortMode,
+                    sortDirection = sortDirection,
+                    accent = accent,
+                    menuAnchorModifier = anchorModifier,
+                    onToggleDirection = {
+                        onSortDirectionChange(
+                            if (sortDirection == HomeSortDirection.Ascending) {
+                                HomeSortDirection.Descending
+                            } else {
+                                HomeSortDirection.Ascending
+                            },
+                        )
+                    },
+                )
+            }
+
+            AdvancedFiltersButton(
+                activeCount = advancedFilters.activeCount,
+                color = accent,
+                onClick = onAdvancedFiltersClick,
+            )
         }
     }
 }
@@ -632,7 +612,7 @@ private fun SortChip(
     sortMode: HomeSortMode,
     sortDirection: HomeSortDirection,
     accent: Color,
-    onOpenMenu: () -> Unit,
+    menuAnchorModifier: Modifier,
     onToggleDirection: () -> Unit,
 ) {
     Surface(
@@ -643,9 +623,8 @@ private fun SortChip(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
-                modifier = Modifier
+                modifier = menuAnchorModifier
                     .clip(RoundedCornerShape(999.dp))
-                    .clickable { onOpenMenu() }
                     .padding(start = 12.dp, end = 6.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -1066,45 +1045,6 @@ private fun RatingFilterSection(
 private fun Set<String>.toggle(value: String): Set<String> =
     if (value in this) this - value else this + value
 
-@Composable
-private fun DropdownChip(
-    label: String,
-    selected: Boolean,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = if (selected) color.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogTheme.colors.appLine),
-        contentColor = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-        }
-    }
-}
-
 
 @Composable
 private fun TrackingStatus.label(): String {
@@ -1116,6 +1056,15 @@ private fun TrackingStatus.label(): String {
         TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
     }
 }
+
+private val TrackingStatus.dropdownIconResId: Int
+    get() = when (this) {
+        TrackingStatus.Planned -> R.drawable.ic_state_planned
+        TrackingStatus.InProgress -> R.drawable.ic_state_in_progress
+        TrackingStatus.Completed -> R.drawable.ic_state_completed
+        TrackingStatus.Paused -> R.drawable.ic_state_paused
+        TrackingStatus.Dropped -> R.drawable.ic_state_dropped
+    }
 
 private fun HomeBrowseMode.groupMode(): HomeGroupMode = when (this) {
     HomeBrowseMode.Items -> HomeGroupMode.None

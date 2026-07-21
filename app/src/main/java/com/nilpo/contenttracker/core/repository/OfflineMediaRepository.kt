@@ -7,6 +7,7 @@ import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.ObjectiveEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
+import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
@@ -22,6 +23,9 @@ import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.metadataJsonWithSteamAppId
+import com.nilpo.contenttracker.core.model.normalizeSteamAppId
+import com.nilpo.contenttracker.core.model.steamAppIdFromMetadataJson
 import com.nilpo.contenttracker.core.model.normalizeSynopsis
 import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.core.model.Objective
@@ -62,7 +66,7 @@ class OfflineMediaRepository(
                     collection = relation.collection?.toDomain(),
                     availableCollections = availableCollections,
                     sessions = relation.sessions.map { session ->
-                        session.toDomain(relation.progressUpdates)
+                        session.toDomain(relation.progressUpdates, relation.statusEvents)
                     },
                     credits = relation.credits.map { it.toDomain() },
                     externalRatings = relation.externalRatings.map { it.toDomain() },
@@ -98,7 +102,7 @@ class OfflineMediaRepository(
 
     override suspend fun exportBackupJson(): String {
         return JSONObject()
-            .put("schemaVersion", 5)
+            .put("schemaVersion", 6)
             .put("exportedAtEpochMillis", System.currentTimeMillis())
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
@@ -383,7 +387,7 @@ class OfflineMediaRepository(
                 progressTotal = validTotal,
                 originalTitle = request.originalTitle?.trim()?.takeIf { it.isNotBlank() },
                 releaseYear = request.releaseYear,
-                language = ItemLanguage.normalize(request.language),
+                language = ItemLanguage.normalize(request.language).takeUnless { request.type == MediaType.Game },
                 genresJson = request.genres.toJsonArrayString(),
                 creatorsJson = request.creators.toJsonArrayString(),
                 coverUrl = request.coverUrl,
@@ -436,6 +440,7 @@ class OfflineMediaRepository(
                             score = rating.score,
                             maxScore = rating.maxScore,
                             voteCount = rating.voteCount,
+                            scoreDescriptor = rating.scoreDescriptor,
                             origin = "Provider",
                         ),
                     )
@@ -495,7 +500,17 @@ class OfflineMediaRepository(
             progressCurrent.coerceIn(0, maxProgress)
         } ?: progressCurrent.coerceAtLeast(0)
 
+        // The finish date is written exactly as the edit gave it, including not at all. Defaulting it
+        // here would make "finished, date unknown" impossible to record: clearing the field would
+        // silently refill with today on save, so the only way to express an unknown date would be to
+        // never have set one. The session editor offers today's date up front instead, where it is
+        // visible and can be cleared.
+
         val updatedAtEpochMillis = System.currentTimeMillis()
+        // Compared as the stored string rather than as a parsed enum: an unrecognised value on the
+        // row should read as "different from whatever we are writing", not silently become Planned.
+        val previousStatus = session.status
+
         mediaDao.updateSessionDetails(
             sessionId = sessionId,
             status = status.name,
@@ -506,6 +521,21 @@ class OfflineMediaRepository(
             finishedAtEpochDay = finishedAt?.toEpochDay(),
             updatedAtEpochMillis = updatedAtEpochMillis,
         )
+
+        // Log the transition, not the state. This is the only record that a session was ever paused:
+        // the status column will be overwritten by the next change, and a pause followed by a resume
+        // would otherwise leave nothing at all behind. Written only when the status actually moves,
+        // so saving a session's notes does not manufacture an event.
+        if (status.name != previousStatus) {
+            mediaDao.insertSessionStatusEvent(
+                SessionStatusEventEntity(
+                    mediaItemId = session.mediaItemId,
+                    sessionId = sessionId,
+                    status = status.name,
+                    createdAtEpochMillis = updatedAtEpochMillis,
+                ),
+            )
+        }
         if (validProgress != session.progressCurrent) {
             mediaDao.insertProgressUpdateIfNeeded(
                 mediaItemId = session.mediaItemId,
@@ -539,16 +569,55 @@ class OfflineMediaRepository(
         )
     }
 
-    override suspend fun updateProgressUpdateDate(
+    override suspend fun updateProgressUpdate(
         progressUpdateId: Long,
+        progressValue: Int,
         loggedAt: LocalDate?,
     ) {
         val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return
-        mediaDao.updateProgressUpdateDate(
+        val mediaItem = mediaDao.getMediaItem(update.mediaItemId) ?: return
+        val validProgressTotal = mediaItem.progressTotal
+            ?.takeUnless { mediaItem.type == MediaType.Game.name }
+        mediaDao.updateProgressUpdateAndRecalculateSession(
             progressUpdateId = progressUpdateId,
+            progressValue = progressValue,
             loggedAtEpochDay = loggedAt?.toEpochDay() ?: update.loggedAtEpochDay,
             hasKnownDate = loggedAt != null,
+            updatedAtEpochMillis = System.currentTimeMillis(),
+            maxProgress = validProgressTotal,
         )
+    }
+
+    /**
+     * Deletes a logged transition, and the other half of its pause if it had one.
+     *
+     * A pause and the resume that ended it are one fact told in two rows, so removing either without
+     * the other leaves the log describing something that never happened: delete just the resume and
+     * the title reads as paused forever, delete just the pause and a resume dangles with nothing to
+     * resume from. Whichever row the correction was aimed at, the span goes.
+     */
+    override suspend fun deleteSessionStatusEvent(eventId: Long) {
+        val event = mediaDao.getSessionStatusEvent(eventId) ?: return
+        val sessionEvents = mediaDao.getSessionStatusEventsForSession(event.sessionId)
+
+        val partner = when (event.status) {
+            TrackingStatus.Paused.name -> sessionEvents
+                .firstOrNull {
+                    it.createdAtEpochMillis > event.createdAtEpochMillis &&
+                        it.status == TrackingStatus.InProgress.name
+                }
+
+            TrackingStatus.InProgress.name -> sessionEvents
+                .lastOrNull {
+                    it.createdAtEpochMillis < event.createdAtEpochMillis &&
+                        it.status == TrackingStatus.Paused.name
+                }
+
+            else -> null
+        }
+
+        mediaDao.deleteSessionStatusEvent(eventId)
+        partner?.let { mediaDao.deleteSessionStatusEvent(it.id) }
     }
 
     override suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery? {
@@ -864,6 +933,7 @@ class OfflineMediaRepository(
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
+        steamAppId: String?,
     ) {
         val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
         val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return
@@ -872,12 +942,22 @@ class OfflineMediaRepository(
             ?.coerceAtLeast(0)
         val validOriginalTitle = originalTitle?.trim()?.takeIf { it.isNotBlank() }
         val validReleaseYear = releaseYear?.coerceAtLeast(0)
-        val validLanguage = ItemLanguage.normalize(language)
+        val validLanguage = ItemLanguage.normalize(language).takeUnless { currentItem.type == MediaType.Game.name }
         val validGenres = genres.cleanMetadataList()
         val validCreators = creators.cleanMetadataList()
         val validCoverUrl = coverUrl?.trim()?.takeIf { it.isNotBlank() }
         val validSynopsis = normalizeSynopsis(synopsis)
         val validSourceUrl = sourceUrl?.trim()?.takeIf { it.isNotBlank() }
+        val validSteamAppId = if (currentItem.type == MediaType.Game.name) {
+            normalizeSteamAppId(steamAppId)
+        } else {
+            null
+        }
+        val updatedPopularityJson = if (currentItem.type == MediaType.Game.name) {
+            metadataJsonWithSteamAppId(currentItem.popularityJson, validSteamAppId)
+        } else {
+            currentItem.popularityJson
+        }
         val updatedOverrideFields = currentItem.metadataOverrideFields() + buildSet {
             if (currentItem.title != validTitle) add(MetadataRefreshField.Title)
             if (currentItem.originalTitle != validOriginalTitle) add(MetadataRefreshField.OriginalTitle)
@@ -903,6 +983,7 @@ class OfflineMediaRepository(
             coverUrl = validCoverUrl,
             synopsis = validSynopsis,
             sourceUrl = validSourceUrl,
+            popularityJson = updatedPopularityJson,
         )
         mediaDao.updateMetadataOverrideFields(
             mediaItemId = mediaItemId,
@@ -936,6 +1017,7 @@ class OfflineMediaRepository(
                     score = rating.score,
                     maxScore = rating.maxScore,
                     voteCount = rating.voteCount,
+                    scoreDescriptor = rating.scoreDescriptor,
                 )
             }
         val existingPrimaryRating = currentItem.externalRatingScore?.let { score ->
@@ -985,7 +1067,7 @@ class OfflineMediaRepository(
         val normalizedRefreshed = refreshed.copy(
             title = refreshed.title.trim().takeIf { it.isNotBlank() } ?: currentItem.title,
             originalTitle = refreshed.originalTitle?.trim()?.takeIf { it.isNotBlank() },
-            language = ItemLanguage.normalize(refreshed.language),
+            language = ItemLanguage.normalize(refreshed.language).takeUnless { mediaType == MediaType.Game },
             genres = refreshed.genres.cleanMetadataList(),
             creators = refreshed.creators.cleanMetadataList(),
             progressTotal = refreshedTotal,
@@ -1028,6 +1110,7 @@ class OfflineMediaRepository(
                     score = rating.score,
                     maxScore = rating.maxScore,
                     voteCount = rating.voteCount,
+                    scoreDescriptor = rating.scoreDescriptor,
                 )
             }
         val existingPrimaryRating = currentItem.externalRatingScore?.let { score ->
@@ -1164,6 +1247,7 @@ class OfflineMediaRepository(
                             score = rating.score,
                             maxScore = rating.maxScore,
                             voteCount = rating.voteCount,
+                            scoreDescriptor = rating.scoreDescriptor,
                             origin = "Provider",
                         ),
                     )
@@ -1244,6 +1328,7 @@ class OfflineMediaRepository(
                     score = rating.score,
                     maxScore = rating.maxScore,
                     voteCount = rating.voteCount,
+                    scoreDescriptor = rating.scoreDescriptor,
                 )
             }
         val existingPrimaryRating = currentItem.externalRatingScore?.let { score ->
@@ -1258,7 +1343,17 @@ class OfflineMediaRepository(
                 null
             }
         }
-        val linked = metadataRepository.getSuggestionDetails(suggestion)
+        val suggestionWithSteamId = if (currentMediaType == MediaType.Game) {
+            suggestion.copy(
+                popularityJson = metadataJsonWithSteamAppId(
+                    suggestion.popularityJson,
+                    steamAppIdFromMetadataJson(currentItem.popularityJson),
+                ),
+            )
+        } else {
+            suggestion
+        }
+        val linked = metadataRepository.getSuggestionDetails(suggestionWithSteamId)
             .withPreservedMyAnimeListId(currentItem)
         val linkedTotal = linked.progressTotal
             ?.takeUnless { currentMediaType == MediaType.Game }
@@ -1324,6 +1419,7 @@ class OfflineMediaRepository(
                         score = rating.score,
                         maxScore = rating.maxScore,
                         voteCount = rating.voteCount,
+                        scoreDescriptor = rating.scoreDescriptor,
                         origin = "Provider",
                     ),
                 )
@@ -1488,10 +1584,16 @@ private fun List<MediaCredit>.creditSummary(): String {
         }
 }
 
-private fun List<MetadataExternalRatingSuggestion>.ratingSummary(): String {
+internal fun List<MetadataExternalRatingSuggestion>.ratingSummary(): String {
     return filter { it.score > 0.0 && it.maxScore > 0.0 }
         .joinToString(", ") { rating ->
-            "${rating.source.name} ${rating.score.cleanNumber()}/${rating.maxScore.cleanNumber()}"
+            buildString {
+                append("${rating.source.name} ${rating.score.cleanNumber()}/${rating.maxScore.cleanNumber()}")
+                rating.scoreDescriptor
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { descriptor -> append(" · $descriptor") }
+            }
         }
 }
 
@@ -1537,19 +1639,22 @@ private fun MetadataSource.defaultExternalRatingSource(): String {
         MetadataSource.OpenLibrary -> ExternalRatingSource.OpenLibrary
         MetadataSource.GoogleBooks -> ExternalRatingSource.GoogleBooks
         MetadataSource.Tmdb -> ExternalRatingSource.Tmdb
-        MetadataSource.Rawg -> ExternalRatingSource.Rawg
+        MetadataSource.Rawg -> ExternalRatingSource.Steam
         MetadataSource.Imdb -> ExternalRatingSource.Imdb
         MetadataSource.StoryGraph -> ExternalRatingSource.StoryGraph
     }.name
 }
 
-private fun MediaType.preferredPrimaryExternalRating(
+internal fun MediaType.preferredPrimaryExternalRating(
     ratings: List<MetadataExternalRatingSuggestion>,
     fallback: MetadataRatingSuggestion?,
 ): MetadataRatingSuggestion? {
     val preferredRating = when (this) {
         MediaType.Book -> ratings.firstOrNull {
             it.source == ExternalRatingSource.Goodreads && it.score > 0.0 && it.maxScore > 0.0
+        }
+        MediaType.Game -> ratings.firstOrNull {
+            it.source == ExternalRatingSource.Steam && it.score > 0.0 && it.maxScore > 0.0
         }
         else -> null
     }
@@ -1689,7 +1794,7 @@ private fun String.normalizedImportTitle(): String =
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
     val schemaVersion = root.optInt("schemaVersion", -1)
-    if (schemaVersion !in 1..5) {
+    if (schemaVersion !in 1..6) {
         throw UnsupportedBackupSchemaException(schemaVersion)
     }
 
@@ -1741,6 +1846,7 @@ private fun ParsedBackup.validate() {
 
     val collectionIds = collections.map { it.id }.toSet()
     val mediaItemIds = mediaItems.map { it.id }.toSet()
+    val mediaTypesById = mediaItems.associate { it.id to it.type }
     val sessionIds = sessions.map { it.id }.toSet()
 
     collections.forEach { collection ->
@@ -1810,6 +1916,15 @@ private fun ParsedBackup.validate() {
         require(rating.maxScore > 0.0) { "External rating max scores must be positive" }
         rating.voteCount?.let { count ->
             require(count >= 0) { "External rating vote counts cannot be negative" }
+        }
+        rating.scoreDescriptor?.let { descriptor ->
+            require(descriptor.isNotBlank()) { "External rating descriptors cannot be blank" }
+            require(rating.source == ExternalRatingSource.Steam.name) {
+                "Only Steam ratings can have a score descriptor"
+            }
+            require(mediaTypesById[rating.mediaItemId] == MediaType.Game.name) {
+                "Steam score descriptors are only supported for games"
+            }
         }
     }
 
@@ -1920,6 +2035,7 @@ private fun ExternalRatingEntity.toJson(): JSONObject {
         .put("score", score)
         .put("maxScore", maxScore)
         .putNullable("voteCount", voteCount)
+        .putNullable("scoreDescriptor", scoreDescriptor)
         .put("origin", origin)
 }
 
@@ -2045,6 +2161,7 @@ private fun JSONObject.toExternalRatingEntity(): ExternalRatingEntity {
         score = getDouble("score"),
         maxScore = getDouble("maxScore"),
         voteCount = optNullableInt("voteCount"),
+        scoreDescriptor = optNullableString("scoreDescriptor"),
         origin = optString("origin", "Manual"),
     )
 }
@@ -2113,3 +2230,4 @@ private fun List<String>.toJsonArrayString(): String? {
 
 private fun List<String>.cleanMetadataList(): List<String> =
     map { it.trim() }.filter { it.isNotBlank() }.distinct()
+

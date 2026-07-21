@@ -119,6 +119,7 @@ import com.nilpo.contenttracker.ui.navigation.selectHome
 import com.nilpo.contenttracker.ui.navigation.selectSection
 import com.nilpo.contenttracker.ui.settings.SettingsScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
+import com.nilpo.contenttracker.ui.timeline.TimelineScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.coroutines.Dispatchers
@@ -137,6 +138,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val timelineEntries by viewModel.timelineEntries.collectAsStateWithLifecycle()
     val metadataUiState by viewModel.metadataUiState.collectAsStateWithLifecycle()
     val recommendationUiState by viewModel.recommendationUiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -695,6 +697,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     accent = when (currentRoute) {
                         AppRoute.Home,
                         AppRoute.Stats,
+                        AppRoute.Timeline,
                         AppRoute.Profile,
                         AppRoute.Settings,
                             -> OmnilogTheme.accents.Dashboard
@@ -703,6 +706,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     },
                     showBackNavigation = currentRoute is AppRoute.MediaDetail ||
                             currentRoute == AppRoute.Stats ||
+                            currentRoute == AppRoute.Timeline ||
                             currentRoute == AppRoute.Profile ||
                             currentRoute == AppRoute.Settings ||
                             currentRoute is AppRoute.CollectionDetail,
@@ -711,6 +715,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     showProfileAction = currentRoute !is AppRoute.MediaDetail &&
                             currentRoute !is AppRoute.AddMedia &&
                             currentRoute != AppRoute.Stats &&
+                            currentRoute != AppRoute.Timeline &&
                             currentRoute != AppRoute.Profile,
                     showSettingsAction = currentRoute == AppRoute.Profile,
                     profileImagePath = profileImagePath,
@@ -820,12 +825,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         } else if (route == AppRoute.Home) {
                             HomeLandingScreen(
                                 uiState = uiState,
+                                timelineEntries = timelineEntries,
                                 onMediaClick = openTrackedMedia,
                                 onSectionSearch = { section, query ->
                                     viewModel.selectSectionWithSearch(section, query)
                                     backStack.selectSection(section)
                                 },
                                 onStatsClick = { backStack.push(AppRoute.Stats) },
+                                onTimelineClick = { backStack.push(AppRoute.Timeline) },
                                 onObjectivesClick = openProfile,
                                 onAddToSection = { section ->
                                     viewModel.selectSection(section)
@@ -883,6 +890,20 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                         snackbarHostState.showSnackbar("Còpia automàtica desactivada.")
                                     }
                                 },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route == AppRoute.Timeline) {
+                            TimelineScreen(
+                                entries = timelineEntries,
+                                isLoading = uiState.isLoading,
+                                onMediaClick = { mediaItemId ->
+                                    uiState.allTrackedItems
+                                        .firstOrNull { it.item.id == mediaItemId }
+                                        ?.let(openTrackedMedia)
+                                },
+                                onBrowseLibrary = { backStack.selectHome() },
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),
@@ -1079,7 +1100,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     onUpdateSessionDetails = viewModel::updateSessionDetails,
                                     onDeletePastSession = viewModel::deletePastSession,
                                     onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
-                                    onUpdateProgressUpdateDate = viewModel::updateProgressUpdateDate,
+                                    onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
+                                    onUpdateProgressUpdate = viewModel::updateProgressUpdate,
                                     onAddExternalRating = viewModel::addExternalRating,
                                     onUpdateExternalRating = viewModel::updateExternalRating,
                                     onSetPrimaryExternalRating = viewModel::setPrimaryExternalRating,

@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
+import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.ConsumptionPlatform
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
@@ -20,10 +21,15 @@ import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.Ownership
 import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.ProgressUpdate
+import com.nilpo.contenttracker.core.model.SessionStatusEvent
+import com.nilpo.contenttracker.core.model.metadataJsonWithSteamAppId
+import com.nilpo.contenttracker.core.model.steamAppIdFromMetadataJson
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.json.JSONArray
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 fun MediaItemEntity.toDomain(): MediaItem {
     return MediaItem(
@@ -41,6 +47,7 @@ fun MediaItemEntity.toDomain(): MediaItem {
         coverUrl = coverUrl,
         synopsis = synopsis,
         sourceUrl = sourceUrl,
+        steamAppId = steamAppIdFromMetadataJson(popularityJson),
         externalRatingScore = externalRatingScore,
         externalRatingMax = externalRatingMax,
         externalRatingVoteCount = externalRatingVoteCount,
@@ -87,7 +94,7 @@ fun MediaItem.toEntity(): MediaItemEntity {
         rankingLabel = rankingLabel,
         providerCollectionTitle = providerCollectionTitle,
         ratingDistributionJson = ratingDistributionJson,
-        popularityJson = popularityJson,
+        popularityJson = metadataJsonWithSteamAppId(popularityJson, steamAppId),
         rankingJson = rankingJson,
         metadataLastFetchedAtEpochMillis = metadataLastFetchedAtEpochMillis,
         metadataExternalId = metadataExternalId,
@@ -148,7 +155,25 @@ fun ProgressUpdateEntity.toDomain(): ProgressUpdate {
     )
 }
 
-fun TrackingSessionEntity.toDomain(progressUpdates: List<ProgressUpdateEntity> = emptyList()): TrackingSession {
+/**
+ * The day is derived here rather than stored, because a status change cannot be back-dated: the
+ * instant it was recorded is the only time there is. Resolved at the mapper boundary so the domain
+ * model keeps a plain [LocalDate] and nothing downstream has to know about zones.
+ */
+fun SessionStatusEventEntity.toDomain(): SessionStatusEvent = SessionStatusEvent(
+    id = id,
+    sessionId = sessionId,
+    status = enumValueOrDefault(status, TrackingStatus.Planned),
+    occurredOn = Instant.ofEpochMilli(createdAtEpochMillis)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate(),
+    createdAtEpochMillis = createdAtEpochMillis,
+)
+
+fun TrackingSessionEntity.toDomain(
+    progressUpdates: List<ProgressUpdateEntity> = emptyList(),
+    statusEvents: List<SessionStatusEventEntity> = emptyList(),
+): TrackingSession {
     return TrackingSession(
         id = id,
         mediaItemId = mediaItemId,
@@ -169,6 +194,14 @@ fun TrackingSessionEntity.toDomain(progressUpdates: List<ProgressUpdateEntity> =
         progressUpdates = progressUpdates
             .filter { update -> update.sessionId == id }
             .sortedWith(compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }.thenBy { it.createdAtEpochMillis })
+            .map { it.toDomain() },
+        // Oldest first. Ordered by the instant rather than the day, so two transitions made minutes
+        // apart keep their sequence — which is the whole point of a log.
+        statusEvents = statusEvents
+            .filter { event -> event.sessionId == id }
+            .sortedWith(
+                compareBy<SessionStatusEventEntity> { it.createdAtEpochMillis }.thenBy { it.id },
+            )
             .map { it.toDomain() },
     )
 }
@@ -198,6 +231,7 @@ fun ExternalRatingEntity.toDomain(): ExternalRating {
         score = score,
         maxScore = maxScore,
         voteCount = voteCount,
+        scoreDescriptor = scoreDescriptor,
         origin = enumValueOrDefault(origin, ExternalRatingOrigin.Provider),
     )
 }
@@ -210,6 +244,7 @@ fun ExternalRating.toEntity(): ExternalRatingEntity {
         score = score,
         maxScore = maxScore,
         voteCount = voteCount,
+        scoreDescriptor = scoreDescriptor,
         origin = origin.name,
     )
 }

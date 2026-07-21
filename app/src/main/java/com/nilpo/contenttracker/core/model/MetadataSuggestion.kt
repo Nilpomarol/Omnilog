@@ -94,6 +94,7 @@ data class MetadataExternalRatingSuggestion(
     val score: Double,
     val maxScore: Double,
     val voteCount: Int? = null,
+    val scoreDescriptor: String? = null,
 )
 
 data class MetadataSearchRequest(

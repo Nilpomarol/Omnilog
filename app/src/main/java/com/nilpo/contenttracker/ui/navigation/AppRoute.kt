@@ -31,6 +31,9 @@ internal sealed interface AppRoute : NavKey {
     data object Stats : AppRoute
 
     @Serializable
+    data object Timeline : AppRoute
+
+    @Serializable
     data object Profile : AppRoute
 
     @Serializable

@@ -7,6 +7,7 @@ data class ExternalRating(
     val score: Double,
     val maxScore: Double,
     val voteCount: Int? = null,
+    val scoreDescriptor: String? = null,
     val origin: ExternalRatingOrigin = ExternalRatingOrigin.Provider,
 )
 

@@ -11,6 +11,7 @@ import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.ObjectiveEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
+import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.database.relation.TrackedMediaRelation
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
@@ -57,6 +58,15 @@ interface MediaDao {
 
     @Query("SELECT * FROM progress_updates WHERE sessionId = :sessionId ORDER BY loggedAtEpochDay, createdAtEpochMillis, id")
     suspend fun getProgressUpdatesForSession(sessionId: Long): List<ProgressUpdateEntity>
+
+    @Query("SELECT * FROM session_status_events ORDER BY createdAtEpochMillis, id")
+    suspend fun getSessionStatusEvents(): List<SessionStatusEventEntity>
+
+    @Query(
+        "SELECT * FROM session_status_events WHERE sessionId = :sessionId " +
+            "ORDER BY createdAtEpochMillis, id",
+    )
+    suspend fun getSessionStatusEventsForSession(sessionId: Long): List<SessionStatusEventEntity>
 
     @Query("SELECT * FROM external_ratings ORDER BY id")
     suspend fun getExternalRatings(): List<ExternalRatingEntity>
@@ -144,6 +154,20 @@ interface MediaDao {
     suspend fun insertProgressUpdate(update: ProgressUpdateEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSessionStatusEvent(event: SessionStatusEventEntity): Long
+
+    @Query("SELECT * FROM session_status_events WHERE id = :eventId LIMIT 1")
+    suspend fun getSessionStatusEvent(eventId: Long): SessionStatusEventEntity?
+
+    /**
+     * Removes one logged transition. The log is append-only by design, so this exists purely to
+     * correct a mistake — an accidental pause has no other way out, since the row cannot be edited
+     * into being right.
+     */
+    @Query("DELETE FROM session_status_events WHERE id = :eventId")
+    suspend fun deleteSessionStatusEvent(eventId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExternalRating(externalRating: ExternalRatingEntity): Long
 
     @Query("SELECT * FROM external_ratings WHERE id = :externalRatingId LIMIT 1")
@@ -156,6 +180,7 @@ interface MediaDao {
             score = :score,
             maxScore = :maxScore,
             voteCount = :voteCount,
+            scoreDescriptor = NULL,
             origin = :origin
         WHERE id = :externalRatingId
         """,
@@ -221,7 +246,8 @@ interface MediaDao {
             creatorsJson = :creatorsJson,
             coverUrl = :coverUrl,
             synopsis = :synopsis,
-            sourceUrl = :sourceUrl
+            sourceUrl = :sourceUrl,
+            popularityJson = :popularityJson
         WHERE id = :mediaItemId
         """,
     )
@@ -237,6 +263,7 @@ interface MediaDao {
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
+        popularityJson: String?,
     )
 
     @Query("UPDATE media_items SET primaryExternalRatingId = :primaryExternalRatingId WHERE id = :mediaItemId")
@@ -382,12 +409,61 @@ interface MediaDao {
     @Query("DELETE FROM progress_updates WHERE sessionId = :sessionId")
     suspend fun deleteProgressUpdatesForSession(sessionId: Long)
 
-    @Query("UPDATE progress_updates SET loggedAtEpochDay = :loggedAtEpochDay, hasKnownDate = :hasKnownDate WHERE id = :progressUpdateId")
-    suspend fun updateProgressUpdateDate(
+    @Query(
+        """
+        UPDATE progress_updates
+        SET progressValue = :progressValue,
+            loggedAtEpochDay = :loggedAtEpochDay,
+            hasKnownDate = :hasKnownDate
+        WHERE id = :progressUpdateId
+        """,
+    )
+    suspend fun updateProgressUpdate(
         progressUpdateId: Long,
+        progressValue: Int,
         loggedAtEpochDay: Long,
         hasKnownDate: Boolean,
     )
+
+    /**
+     * Progress updates are cumulative, so the session's current progress is the value of the
+     * chronologically last update — the same rule [deleteProgressUpdate] callers apply. Editing a
+     * date can therefore change which update is last, which is why value and date edits share this
+     * transaction. [maxProgress] is the media total when one is meaningful; null leaves the value
+     * unbounded above.
+     */
+    @Transaction
+    suspend fun updateProgressUpdateAndRecalculateSession(
+        progressUpdateId: Long,
+        progressValue: Int,
+        loggedAtEpochDay: Long,
+        hasKnownDate: Boolean,
+        updatedAtEpochMillis: Long,
+        maxProgress: Int?,
+    ) {
+        val existing = getProgressUpdate(progressUpdateId) ?: return
+        updateProgressUpdate(
+            progressUpdateId = progressUpdateId,
+            progressValue = progressValue.clampToProgressTotal(maxProgress),
+            loggedAtEpochDay = loggedAtEpochDay,
+            hasKnownDate = hasKnownDate,
+        )
+        val currentProgress = getProgressUpdatesForSession(existing.sessionId)
+            .maxWithOrNull(
+                compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }
+                    .thenBy { it.createdAtEpochMillis }
+                    .thenBy { it.id },
+            )
+            ?.progressValue
+            ?: 0
+        // Older rows may predate the current total, so the recalculated session value is clamped
+        // too rather than trusting that the edited row is the one that decided it.
+        updateSessionProgress(
+            sessionId = existing.sessionId,
+            progressCurrent = currentProgress.clampToProgressTotal(maxProgress),
+            updatedAtEpochMillis = updatedAtEpochMillis,
+        )
+    }
 
     @Query("DELETE FROM progress_updates WHERE id = :progressUpdateId")
     suspend fun deleteProgressUpdate(progressUpdateId: Long)
@@ -451,3 +527,6 @@ interface MediaDao {
         deleteEmptyMediaCollections()
     }
 }
+
+private fun Int.clampToProgressTotal(maxProgress: Int?): Int =
+    maxProgress?.let { coerceIn(0, it) } ?: coerceAtLeast(0)

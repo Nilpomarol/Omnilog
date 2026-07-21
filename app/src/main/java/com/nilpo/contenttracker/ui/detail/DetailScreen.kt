@@ -50,7 +50,8 @@ import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
-import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
+import com.nilpo.contenttracker.ui.common.formatExternalRating
+import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
@@ -66,13 +67,14 @@ fun DetailScreen(
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
-    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
+    onDeleteStatusEvent: (Long) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
     onAddExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onSetPrimaryExternalRating: (Long) -> Unit,
     onDeleteExternalRating: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
-    onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, String?, String?, String?) -> Unit,
+    onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, String?, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
     onLinkMediaMetadata: () -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
@@ -103,12 +105,15 @@ fun DetailScreen(
             trackedMedia.item.type == MediaType.Book &&
             trackedMedia.externalRatings.none { it.source == ExternalRatingSource.Goodreads } &&
             trackedMedia.item.id.toString() !in skippedGoodreadsPromptIds
+    val primaryExternalRating = trackedMedia.primaryExternalRating
     val metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
         collectionName = trackedMedia.collection?.name,
         collectionSortOrder = trackedMedia.item.collectionSortOrder,
         progressTotal = trackedMedia.item.effectiveProgressTotal(),
         isOwned = trackedMedia.item.ownership.isOwned,
-        externalRatingSourceName = trackedMedia.primaryRatingSourceName(),
+        externalRatingSourceName = primaryExternalRating?.source?.displayName(),
+        externalRatingSource = primaryExternalRating?.source,
+        externalRatingScoreDescriptor = primaryExternalRating?.scoreDescriptor,
     )
     val relatedMedia = remember(trackedMedia, allTrackedMedia) {
         findRelatedMedia(
@@ -204,7 +209,8 @@ fun DetailScreen(
                         accent = accent,
                         onUpdateSessionDetails = onUpdateSessionDetails,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
-                        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
+                        onDeleteStatusEvent = onDeleteStatusEvent,
+                        onUpdateProgressUpdate = onUpdateProgressUpdate,
                     )
                 }
             }
@@ -252,7 +258,8 @@ fun DetailScreen(
                         accent = accent,
                         onUpdateSessionDetails = onUpdateSessionDetails,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
-                        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
+                        onDeleteStatusEvent = onDeleteStatusEvent,
+                        onUpdateProgressUpdate = onUpdateProgressUpdate,
                         onDeleteSession = { onDeletePastSession(session.id) },
                     )
                 }
@@ -265,6 +272,7 @@ fun DetailScreen(
                 item {
                     ExternalScoreTiles(
                         ratings = trackedMedia.externalRatings,
+                        mediaType = trackedMedia.item.type,
                         accent = accent,
                     )
                 }
@@ -380,7 +388,7 @@ fun DetailScreen(
                 item = trackedMedia.item,
                 accent = accent,
                 onDismiss = { headerActions.isEditingItemDetails = false },
-                onSaveMetadata = { title, originalTitle, releaseYear, language, progressTotal, genres, creators, coverUrl, synopsis, sourceUrl ->
+                onSaveMetadata = { title, originalTitle, releaseYear, language, progressTotal, genres, creators, coverUrl, synopsis, sourceUrl, steamAppId ->
                     onUpdateMediaItemMetadata(
                         trackedMedia.item.id,
                         title,
@@ -393,6 +401,7 @@ fun DetailScreen(
                         coverUrl,
                         synopsis,
                         sourceUrl,
+                        steamAppId,
                     )
                     headerActions.isEditingItemDetails = false
                 },
@@ -404,6 +413,7 @@ fun DetailScreen(
 @Composable
 private fun ExternalScoreTiles(
     ratings: List<ExternalRating>,
+    mediaType: MediaType,
     accent: Color,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -415,6 +425,7 @@ private fun ExternalScoreTiles(
                 rowRatings.forEach { rating ->
                     ExternalScoreTile(
                         rating = rating,
+                        mediaType = mediaType,
                         accent = accent,
                         modifier = Modifier.weight(1f),
                     )
@@ -430,11 +441,12 @@ private fun ExternalScoreTiles(
 @Composable
 private fun ExternalScoreTile(
     rating: ExternalRating,
+    mediaType: MediaType,
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.height(112.dp),
+        modifier = modifier.height(128.dp),
         shape = RoundedCornerShape(8.dp),
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
@@ -451,16 +463,32 @@ private fun ExternalScoreTile(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
-                    text = formatExternalRatingOnTen(rating.score, rating.maxScore),
+                    text = formatExternalRating(
+                        score = rating.score,
+                        maxScore = rating.maxScore,
+                        mediaType = mediaType,
+                        source = rating.source,
+                    ),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = accent,
                 )
+                localizedSteamScoreDescriptor(
+                    mediaType = mediaType,
+                    source = rating.source,
+                    descriptor = rating.scoreDescriptor,
+                )?.let { descriptor ->
+                    Text(
+                        text = descriptor,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogTheme.colors.appMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             rating.voteCount?.let { voteCount ->
                 Text(
@@ -486,23 +514,9 @@ private fun formatScore(value: Double): String {
     }
 }
 
-private fun TrackedMedia.primaryRatingSourceName(): String? {
-    item.primaryExternalRatingId?.let { primaryId ->
-        return externalRatings.firstOrNull { it.id == primaryId }?.source?.displayName()
-    }
-
-    val score = item.externalRatingScore ?: return null
-    val maxScore = item.externalRatingMax ?: return null
-    return externalRatings.firstOrNull { rating ->
-        rating.score.closeTo(score) && rating.maxScore.closeTo(maxScore)
-    }?.source?.displayName()
-}
-
 private fun MediaItem.effectiveProgressTotal(): Int? {
     return progressTotal.takeUnless { type == MediaType.Game }
 }
-
-private fun Double.closeTo(other: Double): Boolean = kotlin.math.abs(this - other) < 0.001
 
 private fun formatCompactCount(value: Double): String {
     val absValue = kotlin.math.abs(value)

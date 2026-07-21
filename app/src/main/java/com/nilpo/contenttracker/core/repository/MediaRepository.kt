@@ -138,7 +138,21 @@ interface MediaRepository {
     suspend fun deletePastSession(sessionId: Long): DeletionRecovery?
 
     suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery?
-    suspend fun updateProgressUpdateDate(progressUpdateId: Long, loggedAt: LocalDate?)
+
+    /**
+     * Removes one logged status transition.
+     *
+     * The status log is append-only — a pause records the moment it was made and nothing in the app
+     * can back-date one — so correcting a mistaken pause means deleting the row rather than editing
+     * it. Deleting a pause also orphans the resume that ended it, so both go together.
+     */
+    suspend fun deleteSessionStatusEvent(eventId: Long)
+
+    /**
+     * Edits a cumulative progress row and re-derives the owning session's current progress in one
+     * transaction. A null [loggedAt] marks the row as having no known date.
+     */
+    suspend fun updateProgressUpdate(progressUpdateId: Long, progressValue: Int, loggedAt: LocalDate?)
 
     suspend fun deleteMediaItem(mediaItemId: Long): DeletionRecovery?
     suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean
@@ -193,6 +207,7 @@ interface MediaRepository {
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
+        steamAppId: String?,
     )
 
     suspend fun previewMediaItemMetadataRefresh(

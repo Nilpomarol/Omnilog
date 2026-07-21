@@ -138,6 +138,7 @@ fun ProfileObjectivesSection(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "Objectius personals",

@@ -29,39 +29,42 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
-private const val DashboardPreferencesName = "omnilog_dashboard_preferences"
+private const val ActiveFilterPreferencesName = "omnilog_dashboard_preferences"
 
-/** Hidden rather than visible sections, so a medium added to the library later shows up by default. */
-private const val HiddenDashboardSectionsKey = "dashboard_hidden_sections"
+/** Hidden rather than visible sections, so a medium added to Ara mateix later shows up by default. */
+private const val HiddenActiveSectionsKey = "active_hidden_sections"
+
+/** The former global-dashboard key. Its value now applies only to Ara mateix. */
+private const val LegacyDashboardSectionsKey = "dashboard_hidden_sections"
 
 /** The games-only boolean the section filter replaced (UX-18). Read once, to migrate, then removed. */
 private const val LegacyHideGamesKey = "hide_games_from_active"
 
 @Composable
-fun rememberDashboardPreferences(): SharedPreferences {
+fun rememberActiveFilterPreferences(): SharedPreferences {
     val context = LocalContext.current
     return remember(context) {
-        context.getSharedPreferences(DashboardPreferencesName, Context.MODE_PRIVATE)
+        context.getSharedPreferences(ActiveFilterPreferencesName, Context.MODE_PRIVATE)
     }
 }
 
 /**
- * Which sections Home leaves out, kept in step with the file.
+ * Which sections Ara mateix leaves out, kept in step with the file.
  *
  * Observed rather than read once at composition: Settings owns the control and Home renders the
- * result, so a cached value would leave the dashboard filtering by a preference the user has
+ * result, so a cached value would leave Ara mateix filtering by a preference the user has
  * already changed on the other screen.
  */
 @Composable
-fun rememberHiddenDashboardSections(preferences: SharedPreferences): State<Set<MediaSection>> {
+fun rememberHiddenActiveSections(preferences: SharedPreferences): State<Set<MediaSection>> {
     val hidden = remember(preferences) {
-        mutableStateOf(preferences.readHiddenDashboardSections())
+        mutableStateOf(preferences.readHiddenActiveSections())
     }
     DisposableEffect(preferences) {
         // A null key means the whole file changed (a clear()), so re-read on it too.
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
-            if (key == null || key == HiddenDashboardSectionsKey) {
-                hidden.value = changed.readHiddenDashboardSections()
+            if (key == null || key == HiddenActiveSectionsKey) {
+                hidden.value = changed.readHiddenActiveSections()
             }
         }
         preferences.registerOnSharedPreferenceChangeListener(listener)
@@ -70,30 +73,33 @@ fun rememberHiddenDashboardSections(preferences: SharedPreferences): State<Set<M
     return hidden
 }
 
-fun SharedPreferences.readHiddenDashboardSections(): Set<MediaSection> {
-    getStringSet(HiddenDashboardSectionsKey, null)?.let { stored ->
+fun SharedPreferences.readHiddenActiveSections(): Set<MediaSection> {
+    getStringSet(HiddenActiveSectionsKey, null)?.let { stored ->
         return stored.mapNotNullTo(mutableSetOf()) { name ->
             MediaSection.entries.firstOrNull { it.name == name }
         }
     }
-    // `Amaga jocs` meant exactly "hide the Games section", so it carries over as that and the old
-    // key goes away. Anyone who never set it starts with nothing hidden.
-    val migrated = if (getBoolean(LegacyHideGamesKey, false)) setOf(MediaSection.Games) else emptySet()
+    // Carry the former global section filter over to Ara mateix. If that never existed, migrate the
+    // original games-only setting. Anyone who set neither starts with nothing hidden.
+    val migrated = getStringSet(LegacyDashboardSectionsKey, null)?.mapNotNullTo(mutableSetOf()) { name ->
+        MediaSection.entries.firstOrNull { it.name == name }
+    } ?: if (getBoolean(LegacyHideGamesKey, false)) setOf(MediaSection.Games) else emptySet()
     edit()
-        .putStringSet(HiddenDashboardSectionsKey, migrated.mapTo(mutableSetOf()) { it.name })
+        .putStringSet(HiddenActiveSectionsKey, migrated.mapTo(mutableSetOf()) { it.name })
+        .remove(LegacyDashboardSectionsKey)
         .remove(LegacyHideGamesKey)
         .apply()
     return migrated
 }
 
-fun SharedPreferences.writeHiddenDashboardSections(sections: Set<MediaSection>) {
+fun SharedPreferences.writeHiddenActiveSections(sections: Set<MediaSection>) {
     edit()
-        .putStringSet(HiddenDashboardSectionsKey, sections.mapTo(mutableSetOf()) { it.name })
+        .putStringSet(HiddenActiveSectionsKey, sections.mapTo(mutableSetOf()) { it.name })
         .apply()
 }
 
 /**
- * The sections Home draws from, as one chip per shelf.
+ * The sections Ara mateix draws from, as one chip per shelf.
  *
  * Chips are [MediaSection], not `MediaType`, so the granularity matches the nav and `Cinema i TV`
  * stays a single shelf rather than splitting into two chips nothing else in the app distinguishes.
@@ -102,7 +108,7 @@ fun SharedPreferences.writeHiddenDashboardSections(sections: Set<MediaSection>) 
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DashboardSectionChips(
+fun ActiveSectionChips(
     hiddenSections: Set<MediaSection>,
     onToggleSection: (MediaSection) -> Unit,
     modifier: Modifier = Modifier,

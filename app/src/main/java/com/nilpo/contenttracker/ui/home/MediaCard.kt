@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
@@ -44,6 +45,7 @@ import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
+import com.nilpo.contenttracker.ui.common.formatExternalRating
 import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
@@ -67,6 +69,7 @@ fun MediaCard(
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
+    val primaryExternalRating = trackedMedia.primaryExternalRating
     val creator = item.creators.firstOrNull()
     val collection = formatCollectionDisplayName(
         trackedMedia.collection?.name,
@@ -172,6 +175,7 @@ fun MediaCard(
                     accent = accent,
                     externalRatingScore = item.externalRatingScore,
                     externalRatingMax = item.externalRatingMax,
+                    externalRatingSource = primaryExternalRating?.source,
                 )
             }
         }
@@ -226,6 +230,7 @@ private fun CardProgressFooter(
     accent: Color,
     externalRatingScore: Double?,
     externalRatingMax: Double?,
+    externalRatingSource: ExternalRatingSource?,
 ) {
     val isGame = mediaType == MediaType.Game
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -251,6 +256,8 @@ private fun CardProgressFooter(
                 personalRating = session?.rating,
                 externalRatingScore = externalRatingScore,
                 externalRatingMax = externalRatingMax,
+                externalRatingSource = externalRatingSource,
+                mediaType = mediaType,
                 accent = accent,
             )
         }
@@ -269,10 +276,23 @@ private fun CardRatings(
     personalRating: Int?,
     externalRatingScore: Double?,
     externalRatingMax: Double?,
+    externalRatingSource: ExternalRatingSource?,
+    mediaType: MediaType,
     accent: Color,
 ) {
     val externalRating = if (externalRatingScore != null && externalRatingMax != null) {
-        formatExternalRatingCompact(externalRatingScore, externalRatingMax)
+        formatExternalRating(
+            score = externalRatingScore,
+            maxScore = externalRatingMax,
+            mediaType = mediaType,
+            source = externalRatingSource,
+        ).let { formatted ->
+            if (mediaType == MediaType.Game && externalRatingSource == ExternalRatingSource.Steam) {
+                formatted
+            } else {
+                formatted.removeSuffix("/10")
+            }
+        }
     } else {
         null
     }
@@ -304,7 +324,13 @@ private fun CardRatings(
             }
         }
         externalRating?.let { value ->
-            val description = stringResource(R.string.library_row_external_rating, value)
+            val description = if (
+                mediaType == MediaType.Game && externalRatingSource == ExternalRatingSource.Steam
+            ) {
+                stringResource(R.string.library_row_external_rating_percentage, value)
+            } else {
+                stringResource(R.string.library_row_external_rating, value)
+            }
             Row(
                 modifier = Modifier.clearAndSetSemantics { contentDescription = description },
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -324,15 +350,6 @@ private fun CardRatings(
                 )
             }
         }
-    }
-}
-
-private fun formatExternalRatingCompact(score: Double, maxScore: Double): String {
-    val normalized = if (maxScore > 0.0) score / maxScore * 10.0 else score
-    return if (normalized % 1.0 == 0.0) {
-        normalized.toInt().toString()
-    } else {
-        "%.1f".format(normalized)
     }
 }
 

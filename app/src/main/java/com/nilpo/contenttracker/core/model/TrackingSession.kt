@@ -21,4 +21,27 @@ data class TrackingSession(
     val finishedAt: LocalDate? = null,
     val updatedAtEpochMillis: Long = 0,
     val progressUpdates: List<ProgressUpdate> = emptyList(),
+    /**
+     * Dated status changes, oldest first.
+     *
+     * Empty for every session that has not changed status since the log was introduced — the log is
+     * append-only from that point and was not backfilled, because the days those older transitions
+     * happened on were never recorded and inventing them would put events on the wrong dates.
+     */
+    val statusEvents: List<SessionStatusEvent> = emptyList(),
+)
+
+/**
+ * One dated status change on a session.
+ *
+ * [status] is the status being moved *into*, so a pause and the resume that follows are two rows
+ * rather than one row with a duration. Durations can be derived from the sequence; a sequence cannot
+ * be derived from durations.
+ */
+data class SessionStatusEvent(
+    val id: Long,
+    val sessionId: Long,
+    val status: TrackingStatus,
+    val occurredOn: LocalDate,
+    val createdAtEpochMillis: Long,
 )

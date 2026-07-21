@@ -25,5 +25,6 @@ data class ExternalRatingEntity(
     val score: Double,
     val maxScore: Double,
     val voteCount: Int? = null,
+    val scoreDescriptor: String? = null,
     val origin: String = "Provider",
 )

@@ -1,6 +1,5 @@
 package com.nilpo.contenttracker.ui.stats
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,11 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +40,7 @@ import com.nilpo.contenttracker.core.stats.estimatedTimeByMedium
 import com.nilpo.contenttracker.core.stats.StatsCalculator
 import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownChip
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
@@ -352,116 +347,47 @@ private fun StatsFilterBar(
     selectedMediaFilter: StatsMediaFilter,
     onMediaFilterSelected: (StatsMediaFilter) -> Unit,
 ) {
-    var periodExpanded by remember { mutableStateOf(false) }
-    var mediaExpanded by remember { mutableStateOf(false) }
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.weight(1f)) {
-            DropdownChip(
-                modifier = Modifier.fillMaxWidth(),
-                label = selectedPeriod.label(),
-                selected = true,
-                color = OmnilogTheme.accents.Dashboard,
-                onClick = { periodExpanded = true },
-            )
-            DropdownMenu(
-                expanded = periodExpanded,
-                onDismissRequest = { periodExpanded = false },
-            ) {
-                periodOptions.forEach { period ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = period.label(),
-                                fontWeight = if (selectedPeriod == period) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        },
-                        onClick = {
-                            onPeriodSelected(period)
-                            periodExpanded = false
-                        },
-                    )
-                }
-            }
-        }
-        Box(modifier = Modifier.weight(1f)) {
-            DropdownChip(
-                modifier = Modifier.fillMaxWidth(),
-                label = selectedMediaFilter.label(),
-                selected = selectedMediaFilter != StatsMediaFilter.All,
-                color = selectedMediaFilter.themedAccent(),
-                onClick = { mediaExpanded = true },
-            )
-            DropdownMenu(
-                expanded = mediaExpanded,
-                onDismissRequest = { mediaExpanded = false },
-            ) {
-                StatsMediaFilter.entries.forEach { filter ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = filter.label(),
-                                color = filter.themedAccent(),
-                                fontWeight = if (selectedMediaFilter == filter) {
-                                    FontWeight.SemiBold
-                                } else {
-                                    FontWeight.Normal
-                                },
-                            )
-                        },
-                        onClick = {
-                            onMediaFilterSelected(filter)
-                            mediaExpanded = false
-                        },
-                    )
-                }
-            }
-        }
+        OmnilogDropdownChip(
+            selectedOption = selectedPeriod,
+            options = periodOptions,
+            optionLabel = { it.label() },
+            onOptionSelected = onPeriodSelected,
+            modifier = Modifier.weight(1f),
+            optionColor = { OmnilogTheme.accents.Dashboard },
+        )
+        OmnilogDropdownChip(
+            selectedOption = selectedMediaFilter,
+            options = StatsMediaFilter.entries,
+            optionLabel = { it.label() },
+            onOptionSelected = onMediaFilterSelected,
+            modifier = Modifier.weight(1f),
+            isActive = { it != StatsMediaFilter.All },
+            optionColor = { it.themedAccent() },
+            optionIcon = { filter, tint ->
+                Icon(
+                    painter = painterResource(filter.dropdownIconResId),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = tint,
+                )
+            },
+        )
     }
 }
 
-@Composable
-private fun DropdownChip(
-    label: String,
-    selected: Boolean,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = if (selected) color.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, if (selected) color.copy(alpha = 0.50f) else OmnilogTheme.colors.appLine),
-        contentColor = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-        }
+private val StatsMediaFilter.dropdownIconResId: Int
+    get() = when (this) {
+        StatsMediaFilter.All -> R.drawable.ic_group_items
+        StatsMediaFilter.Anime -> R.drawable.ic_nav_anime
+        StatsMediaFilter.Books -> R.drawable.ic_nav_books
+        StatsMediaFilter.Movies -> R.drawable.ic_media_movie
+        StatsMediaFilter.Games -> R.drawable.ic_nav_games
     }
-}
 
 @Composable
 private fun StatsSection(

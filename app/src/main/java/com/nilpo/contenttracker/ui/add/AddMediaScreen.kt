@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -34,8 +33,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -60,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -87,6 +85,7 @@ import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownField
 import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
 import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.common.SynopsisText
@@ -108,7 +107,7 @@ import com.nilpo.contenttracker.ui.common.toCollectionOrderOrNull
 import com.nilpo.contenttracker.ui.common.toCollectionPickerOptions
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.displayName
-import com.nilpo.contenttracker.ui.common.formatExternalRatingOnTen
+import com.nilpo.contenttracker.ui.common.formatExternalRating
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
@@ -381,7 +380,8 @@ fun AddMediaScreen(
                                 collectionSortOrder = collectionOrder.toCollectionOrderOrNull(),
                                 originalTitle = selectedMetadataForForm?.originalTitle,
                                 releaseYear = selectedMetadataForForm?.releaseYear,
-                                language = ItemLanguage.normalize(selectedMetadataForForm?.language),
+                                language = ItemLanguage.normalize(selectedMetadataForForm?.language)
+                                    .takeUnless { selectedMediaType == MediaType.Game },
                                 genres = selectedMetadataForForm?.genres.orEmpty(),
                                 creators = selectedMetadataForForm?.creators.orEmpty(),
                                 credits = selectedMetadataForForm?.credits.orEmpty(),
@@ -423,8 +423,12 @@ fun AddMediaScreen(
                             initialProgress = digits
                         }
                     },
-                    language = language,
-                    onLanguageChange = { language = ItemLanguage.normalize(it) ?: ItemLanguage.Original },
+                    language = language.takeUnless { selectedMediaType == MediaType.Game },
+                    onLanguageChange = if (selectedMediaType == MediaType.Game) {
+                        null
+                    } else {
+                        { value -> language = ItemLanguage.normalize(value) ?: ItemLanguage.Original }
+                    },
                     platform = platform,
                     onPlatformChange = { platform = it },
                     selectedStatus = selectedStatus,
@@ -463,7 +467,8 @@ fun AddMediaScreen(
                                 type = selectedMediaType,
                                 title = title,
                                 progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
-                                language = ItemLanguage.normalize(language),
+                                language = ItemLanguage.normalize(language)
+                                    .takeUnless { selectedMediaType == MediaType.Game },
                                 initialStatus = selectedStatus,
                                 initialProgress = initialProgress.toIntOrNull() ?: 0,
                                 initialRating = initialRating,
@@ -1616,8 +1621,8 @@ private fun ManualAddStep(
     onTitleChange: (String) -> Unit,
     totalProgress: String,
     onTotalProgressChange: (String) -> Unit,
-    language: String,
-    onLanguageChange: (String) -> Unit,
+    language: String?,
+    onLanguageChange: ((String) -> Unit)?,
     platform: String,
     onPlatformChange: (String) -> Unit,
     selectedStatus: TrackingStatus,
@@ -1734,12 +1739,21 @@ private fun TrackingSetupForm(
 ) {
     val accent = selectedMediaType.sectionAccent()
     if (availableMediaTypes.size > 1) {
-        OptionSelector(
-            label = stringResource(R.string.field_media_type),
-            options = availableMediaTypes,
+        OmnilogDropdownField(
             selectedOption = selectedMediaType,
+            options = availableMediaTypes,
             optionLabel = { it.label() },
             onOptionSelected = onMediaTypeSelected,
+            label = stringResource(R.string.field_media_type),
+            optionColor = { it.sectionAccent() },
+            optionIcon = { mediaType, tint ->
+                Icon(
+                    painter = painterResource(mediaType.dropdownIconResId),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = tint,
+                )
+            },
         )
     }
 
@@ -1774,45 +1788,14 @@ private fun OwnershipSelector(
     onOwnershipTypeSelected: (OwnershipType) -> Unit,
     accent: Color,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = selectedOwnershipType.label(),
-            onValueChange = {},
-            label = { Text(stringResource(R.string.field_ownership_type)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true },
-            readOnly = true,
-            singleLine = true,
-            trailingIcon = {
-                IconButton(onClick = { expanded = !expanded }) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = null,
-                    )
-                }
-            },
-            colors = reviewTextFieldColors(accent),
-            shape = RoundedCornerShape(12.dp),
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            OwnershipType.entries.forEach { ownershipType ->
-                DropdownMenuItem(
-                    text = { Text(ownershipType.label()) },
-                    onClick = {
-                        onOwnershipTypeSelected(ownershipType)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
+    OmnilogDropdownField(
+        selectedOption = selectedOwnershipType,
+        options = OwnershipType.entries,
+        optionLabel = { it.label() },
+        onOptionSelected = onOwnershipTypeSelected,
+        label = stringResource(R.string.field_ownership_type),
+        fieldColor = accent,
+    )
 }
 
 @Composable
@@ -2088,8 +2071,16 @@ internal fun MetadataSuggestionRow(
                         )
                     }
                     suggestion.externalRating?.let { rating ->
+                        val source = suggestion.externalRatings.firstOrNull { candidate ->
+                            candidate.score == rating.score && candidate.maxScore == rating.maxScore
+                        }?.source
                         Text(
-                            text = formatExternalRatingOnTen(rating.score, rating.maxScore),
+                            text = formatExternalRating(
+                                score = rating.score,
+                                maxScore = rating.maxScore,
+                                mediaType = suggestion.mediaType,
+                                source = source,
+                            ),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = accent,
@@ -2194,6 +2185,15 @@ private fun MediaType.sectionAccent(): Color {
         MediaType.Game -> OmnilogTheme.accents.Games
     }
 }
+
+private val MediaType.dropdownIconResId: Int
+    get() = when (this) {
+        MediaType.Anime -> R.drawable.ic_nav_anime
+        MediaType.Book -> R.drawable.ic_nav_books
+        MediaType.Movie -> R.drawable.ic_media_movie
+        MediaType.TvShow -> R.drawable.ic_media_series
+        MediaType.Game -> R.drawable.ic_nav_games
+    }
 
 private enum class AddMediaStep {
     Search,

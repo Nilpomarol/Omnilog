@@ -30,7 +30,7 @@ The first version should include:
 
 - progress recorded for a session
 - a session starting when `startedAt` is known
-- a revisit starting, identified by `sessionNumber > 1`
+- a revisit starting, identified by its position in the surviving chronological session order
 - a completed session when `finishedAt` is known
 
 It should not create standalone historical events for:
@@ -77,14 +77,16 @@ Creators, genres, collections, provider scores, and synopsis text should stay ou
 For updates after the first known baseline, calculate the difference from the previous cumulative value.
 
 - Positive differences can be shown as `+N`.
-- Negative differences should be treated as corrections and must not be presented as negative consumption.
+- Zero and negative differences are maintenance/correction records. They become the baseline for later deltas but do not create timeline entries.
 - A first update has no trustworthy baseline. Prefer `Progrés registrat · 180 pàgines` over claiming `+180 pàgines`.
+
+If a correction is the final progress record on the completion date, it supersedes earlier progress rows for that date and supplies the corrected completion total. This keeps corrections available in the detail history without contaminating the consumption timeline.
 
 Progress records created as part of importing or registering an older completed session must not appear as new activity on the import date. Prefer the historical completion event when a real `finishedAt` exists. The existing `countsTowardObjectives` behavior can help suppress current synthetic entries, but it is not a general event-source model and should not be given broader semantics.
 
 ### Start And Revisit
 
-Create a start event only when `startedAt` exists. If `sessionNumber > 1`, describe it as a revisit, reread, replay, or rewatch using media-appropriate copy where that remains concise.
+Create a start event only when `startedAt` exists. Derive its displayed visit number from the session's current position in `TrackedMedia.orderedSessions`; do not expose the stored `sessionNumber` as a user-facing count. The stored value remains a stable allocation/undo identity and may legitimately contain gaps after deletes. Use the same stable event key before and after deletion-driven Start/Revisit reclassification.
 
 Do not infer a historical start date from `updatedAtEpochMillis`.
 
@@ -235,6 +237,8 @@ Navigation will require:
 - No Room schema change or new dependency is added unless performance evidence requires it.
 
 ## Risks And Open Decisions
+
+**Implementation note (2026-07-20):** The pure-Kotlin builder, focused derivation tests, shared Home/full-screen rows, filters, navigation, state restoration, Catalan copy, loading/empty treatments, accessibility semantics, deletion-safe dynamic visit numbering, correction suppression, persistent per-media-type visibility controls, and progress-history editing for every media type are implemented without a schema or dependency change. Editing a cumulative progress value or date atomically recalculates the owning session's current progress. The full debug unit suite and debug APK build pass. A connected device verified the dense Home preview, full timeline, media/year filtering, filtered-empty state, sparse history, detail return with filters/position retained, Home bottom-nav selection, the five-type configuration sheet and its persisted selection, a non-book history editor, and layouts at 100% and 200% font scale; the device settings and test selections were restored afterward. Live empty-library/loading and an on-device unknown-date group were not exercised to avoid replacing the device's real library, so this plan is not marked fully complete.
 
 - Imported sessions may have useful completion dates but synthetic progress-update dates.
 - Exact consumption times are unavailable; most historical data is day-level.

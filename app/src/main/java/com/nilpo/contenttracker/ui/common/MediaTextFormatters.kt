@@ -6,11 +6,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import java.util.Locale
+import kotlin.math.roundToInt
+
+/**
+ * The locale every formatted date goes through.
+ *
+ * The app ships one language: `res/values/` holds Catalan copy and there is no other qualifier, so
+ * a device set to English would otherwise render `January` and `Monday` beside Catalan text.
+ * `Locale.getDefault()` follows the device, not the app, which is the wrong authority here.
+ */
+val OmnilogLocale: Locale = Locale.forLanguageTag("ca")
 
 /**
  * The unit a medium measures progress in, spelled out and agreeing in number with [value].
@@ -128,6 +140,46 @@ fun formatExternalRatingOnTen(score: Double, maxScore: Double): String {
     return "${formatDecimal(normalizedScore)}/10"
 }
 
+fun formatExternalRating(
+    score: Double,
+    maxScore: Double,
+    mediaType: MediaType,
+    source: ExternalRatingSource?,
+): String {
+    if (mediaType == MediaType.Game && source == ExternalRatingSource.Steam) {
+        val percentage = if (maxScore > 0.0) score / maxScore * 100.0 else score
+        return "${percentage.roundToInt()}%"
+    }
+    return formatExternalRatingOnTen(score, maxScore)
+}
+
+@Composable
+fun localizedSteamScoreDescriptor(
+    mediaType: MediaType,
+    source: ExternalRatingSource?,
+    descriptor: String?,
+): String? {
+    if (mediaType != MediaType.Game || source != ExternalRatingSource.Steam) return null
+    return steamScoreDescriptorResId(descriptor)?.let { stringResource(it) }
+}
+
+@androidx.annotation.StringRes
+internal fun steamScoreDescriptorResId(descriptor: String?): Int? {
+    return when (descriptor?.trim()?.lowercase(Locale.ROOT)) {
+        "overwhelmingly positive" -> R.string.steam_score_overwhelmingly_positive
+        "very positive" -> R.string.steam_score_very_positive
+        "positive" -> R.string.steam_score_positive
+        "mostly positive" -> R.string.steam_score_mostly_positive
+        "mixed" -> R.string.steam_score_mixed
+        "mostly negative" -> R.string.steam_score_mostly_negative
+        "negative" -> R.string.steam_score_negative
+        "very negative" -> R.string.steam_score_very_negative
+        "overwhelmingly negative" -> R.string.steam_score_overwhelmingly_negative
+        "no user reviews" -> R.string.steam_score_no_reviews
+        else -> null
+    }
+}
+
 @Composable
 fun MetadataSummary(
     trackedMedia: TrackedMedia,
@@ -135,8 +187,8 @@ fun MetadataSummary(
 ) {
     val platform = session.platform?.let { stringResource(R.string.platform_label, it.name) }
     val ownership = stringResource(R.string.owned_label).takeIf { trackedMedia.item.ownership.isOwned }
-    val externalRating = trackedMedia.externalRatings.firstOrNull()?.let {
-        "${it.source.name} ${formatExternalRatingOnTen(it.score, it.maxScore)}"
+    val externalRating = trackedMedia.primaryExternalRating?.let {
+        "${it.source.displayName()} ${formatExternalRating(it.score, it.maxScore, trackedMedia.item.type, it.source)}"
     }
     val details = listOfNotNull(platform, ownership, externalRating)
 
@@ -153,7 +205,7 @@ private fun formatDecimal(value: Double): String {
     return if (value % 1.0 == 0.0) {
         value.toInt().toString()
     } else {
-        "%.1f".format(value)
+        String.format(OmnilogLocale, "%.1f", value)
     }
 }
 

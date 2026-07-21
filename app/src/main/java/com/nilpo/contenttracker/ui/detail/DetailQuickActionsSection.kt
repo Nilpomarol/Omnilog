@@ -19,10 +19,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,10 +55,13 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.CollectionPickerSheet
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownField
 import com.nilpo.contenttracker.ui.common.OmnilogModal
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.toCollectionPickerOptions
 import com.nilpo.contenttracker.ui.common.displayName
+import com.nilpo.contenttracker.ui.common.formatExternalRating
+import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
@@ -403,6 +403,11 @@ private fun ExternalRatingManageRow(
     val parsedScore = score.toDecimalOrNull()
     val maxScore = if (selectedSource == rating.source) rating.maxScore else selectedSource.defaultMaxScore()
     val availableSources = (mediaType.externalRatingSources() + selectedSource).distinct()
+    val steamDescriptor = localizedSteamScoreDescriptor(
+        mediaType = mediaType,
+        source = rating.source,
+        descriptor = rating.scoreDescriptor,
+    )
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -446,13 +451,27 @@ private fun ExternalRatingManageRow(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "${rating.score.cleanDecimal()}/${rating.maxScore.cleanDecimal()}",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = OmnilogTheme.colors.appInk,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = formatExternalRating(
+                                score = rating.score,
+                                maxScore = rating.maxScore,
+                                mediaType = mediaType,
+                                source = rating.source,
+                            ),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = OmnilogTheme.colors.appInk,
+                        )
+                        steamDescriptor?.let { descriptor ->
+                            Text(
+                                text = descriptor,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = OmnilogTheme.colors.appMuted,
+                            )
+                        }
+                    }
                     Text(
                         text = rating.voteCount?.let { "${it} ${stringResource(R.string.field_external_rating_users).lowercase()}" }.orEmpty(),
                         style = MaterialTheme.typography.titleMedium,
@@ -488,7 +507,9 @@ private fun ExternalRatingManageRow(
                     colors = omnilogModalTextFieldColors(accent),
                 )
                 Text(
-                    text = "/${maxScore.cleanDecimal()}",
+                    text = if (
+                        mediaType == MediaType.Game && selectedSource == ExternalRatingSource.Steam
+                    ) "%" else "/${maxScore.cleanDecimal()}",
                     modifier = Modifier.padding(top = 18.dp),
                     color = OmnilogTheme.colors.appMuted,
                     style = MaterialTheme.typography.bodyMedium,
@@ -555,43 +576,18 @@ private fun String.toDecimalOrNull(): Double? = replace(',', '.').toDoubleOrNull
 private fun Double.cleanDecimal(): String = if (this % 1.0 == 0.0) toInt().toString() else toString()
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 private fun ExternalRatingSourceDropdown(
     sources: List<ExternalRatingSource>,
     selectedOption: ExternalRatingSource,
     onOptionSelected: (ExternalRatingSource) -> Unit,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-    ) {
-        OutlinedTextField(
-            value = selectedOption.displayName(),
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            label = { Text(stringResource(R.string.field_external_rating_source)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(),
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            sources.forEach { source ->
-                DropdownMenuItem(
-                    text = { Text(source.displayName()) },
-                    onClick = {
-                        onOptionSelected(source)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
+    OmnilogDropdownField(
+        selectedOption = selectedOption,
+        options = sources,
+        optionLabel = { it.displayName() },
+        onOptionSelected = onOptionSelected,
+        label = stringResource(R.string.field_external_rating_source),
+    )
 }
 
 private fun MediaType.defaultExternalRatingSource(): ExternalRatingSource {
@@ -601,7 +597,7 @@ private fun MediaType.defaultExternalRatingSource(): ExternalRatingSource {
         MediaType.Movie,
         MediaType.TvShow,
             -> ExternalRatingSource.Imdb
-        MediaType.Game -> ExternalRatingSource.Rawg
+        MediaType.Game -> ExternalRatingSource.Steam
     }
 }
 
@@ -619,7 +615,11 @@ private fun ExternalRatingSource.defaultMaxScore(): Double {
 }
 
 private fun MediaType.prefersPrimarySource(source: ExternalRatingSource): Boolean {
-    return this == MediaType.Book && source == ExternalRatingSource.Goodreads
+    return when (this) {
+        MediaType.Book -> source == ExternalRatingSource.Goodreads
+        MediaType.Game -> source == ExternalRatingSource.Steam
+        else -> false
+    }
 }
 
 

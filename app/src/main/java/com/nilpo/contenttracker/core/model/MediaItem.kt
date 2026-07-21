@@ -15,6 +15,7 @@ data class MediaItem(
     val coverUrl: String? = null,
     val synopsis: String? = null,
     val sourceUrl: String? = null,
+    val steamAppId: String? = null,
     val externalRatingScore: Double? = null,
     val externalRatingMax: Double? = null,
     val externalRatingVoteCount: Int? = null,

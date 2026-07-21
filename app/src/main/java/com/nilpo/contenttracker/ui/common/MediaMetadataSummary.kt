@@ -71,6 +71,8 @@ data class MediaMetadataUi(
     val externalRatingMax: Double? = null,
     val externalRatingVoteCount: Int? = null,
     val externalRatingSourceName: String? = null,
+    val externalRatingSource: ExternalRatingSource? = null,
+    val externalRatingScoreDescriptor: String? = null,
     val popularityScore: Double? = null,
     val rankingPosition: Int? = null,
     val rankingLabel: String? = null,
@@ -169,7 +171,7 @@ fun MediaMetadataHero(
                         overflow = TextOverflow.Ellipsis,
                 )
             }
-                metadata.language?.let { language ->
+                metadata.language?.takeUnless { metadata.mediaType == MediaType.Game }?.let { language ->
                     Text(
                         text = stringResource(R.string.metadata_language_value, languageLabel(language)),
                         style = MaterialTheme.typography.bodySmall,
@@ -264,7 +266,7 @@ fun MediaMetadataSecondary(
             )
         }
 
-        metadata.language?.let { language ->
+        metadata.language?.takeUnless { metadata.mediaType == MediaType.Game }?.let { language ->
             MetadataSection(
                 title = stringResource(R.string.metadata_language),
                 body = languageLabel(language),
@@ -320,12 +322,22 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
     val rating = metadata.externalRatingScore
     val users = metadata.externalRatingVoteCount?.toDouble() ?: metadata.popularityScore
     val length = metadata.progressTotal.takeUnless { metadata.mediaType == MediaType.Game }
+    val steamDescriptor = localizedSteamScoreDescriptor(
+        mediaType = metadata.mediaType,
+        source = metadata.externalRatingSource,
+        descriptor = metadata.externalRatingScoreDescriptor,
+    )
     val supportingStats = listOfNotNull(
+        steamDescriptor,
         metadata.sourceName?.takeIf { rating == null },
         metadata.rankingText(),
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(
+            if (metadata.mediaType == MediaType.Game) 2.dp else 6.dp,
+        ),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -337,7 +349,12 @@ private fun HeroMetrics(metadata: MediaMetadataUi) {
                     ?: stringResource(R.string.field_rating),
                 value = rating?.let { score ->
                     metadata.externalRatingMax?.let { maxScore ->
-                        formatExternalRatingOnTen(score, maxScore)
+                        formatExternalRating(
+                            score = score,
+                            maxScore = maxScore,
+                            mediaType = metadata.mediaType,
+                            source = metadata.externalRatingSource,
+                        )
                     } ?: "${formatDecimal(score)}/10"
                 } ?: "-",
                 color = OmnilogTheme.accents.Dashboard,
@@ -441,6 +458,11 @@ fun MetadataCoverImage(
 }
 
 fun MetadataSuggestion.toMediaMetadataUi(): MediaMetadataUi {
+    val primaryExternalRating = externalRating?.let { primaryRating ->
+        externalRatings.firstOrNull { candidate ->
+            candidate.score == primaryRating.score && candidate.maxScore == primaryRating.maxScore
+        }
+    }
     return MediaMetadataUi(
         mediaType = mediaType,
         title = title,
@@ -459,11 +481,9 @@ fun MetadataSuggestion.toMediaMetadataUi(): MediaMetadataUi {
         externalRatingScore = externalRating?.score,
         externalRatingMax = externalRating?.maxScore,
         externalRatingVoteCount = externalRating?.voteCount,
-        externalRatingSourceName = externalRating?.let { rating ->
-            externalRatings.firstOrNull { externalRating ->
-                externalRating.score == rating.score && externalRating.maxScore == rating.maxScore
-            }?.source?.displayName()
-        },
+        externalRatingSourceName = primaryExternalRating?.source?.displayName(),
+        externalRatingSource = primaryExternalRating?.source,
+        externalRatingScoreDescriptor = primaryExternalRating?.scoreDescriptor,
         popularityScore = popularityScore,
         rankingPosition = rankingPosition,
         rankingLabel = rankingLabel,

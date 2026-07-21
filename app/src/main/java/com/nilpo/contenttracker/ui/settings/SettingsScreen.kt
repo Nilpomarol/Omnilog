@@ -19,7 +19,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
@@ -44,16 +43,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
-import com.nilpo.contenttracker.ui.common.DashboardSectionChips
-import com.nilpo.contenttracker.ui.common.rememberDashboardPreferences
-import com.nilpo.contenttracker.ui.common.rememberHiddenDashboardSections
-import com.nilpo.contenttracker.ui.common.writeHiddenDashboardSections
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.ActiveSectionChips
+import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
+import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
+import com.nilpo.contenttracker.ui.common.writeHiddenActiveSections
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.theme.ThemePreference
 import com.nilpo.contenttracker.ui.theme.rememberThemePreference
@@ -77,137 +77,134 @@ fun SettingsScreen(
     onAutoBackupDisabled: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dashboardPreferences = rememberDashboardPreferences()
-    val hiddenSections by rememberHiddenDashboardSections(dashboardPreferences)
+    val activeFilterPreferences = rememberActiveFilterPreferences()
+    val hiddenActiveSections by rememberHiddenActiveSections(activeFilterPreferences)
     val themePreferences = rememberThemePreferences()
     val themePreference by rememberThemePreference(themePreferences)
 
-    Surface(
-        modifier = modifier,
-        color = OmnilogTheme.colors.appBackground,
-    ) {
+    Surface(modifier = modifier, color = OmnilogTheme.colors.appBackground) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(26.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            item { SettingsHero() }
             item {
-                SettingsHero()
+                SettingsSection(title = "Aparença i inici") {
+                    SettingsPanel {
+                        SettingsThemeRow(
+                            selected = themePreference,
+                            onSelect = { themePreferences.writeThemePreference(it) },
+                        )
+                        SettingsDivider()
+                        SettingsChipsRow(
+                            icon = Icons.Filled.Home,
+                            accent = OmnilogTheme.accents.Dashboard,
+                            title = "Seccions visibles a Ara mateix",
+                        ) {
+                            ActiveSectionChips(
+                                hiddenSections = hiddenActiveSections,
+                                onToggleSection = { section ->
+                                    activeFilterPreferences.writeHiddenActiveSections(
+                                        if (section in hiddenActiveSections) {
+                                            hiddenActiveSections - section
+                                        } else {
+                                            hiddenActiveSections + section
+                                        },
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
             }
             item {
-                AutoBackupCard(
-                    isAutoBackupEnabled = isAutoBackupEnabled,
-                    selectedFrequency = autoBackupFrequency,
-                    onFolderRequested = onAutoBackupFolderRequested,
-                    onFrequencyChange = onAutoBackupFrequencyChange,
-                    onDisabled = onAutoBackupDisabled,
-                )
-            }
-            item {
-                SettingsGroup(
-                    title = "Preferències",
-                    description = "Decideix què et pregunta Omnilog i què mostra a l'inici.",
-                    accent = OmnilogTheme.accents.Books,
-                ) {
-                    SettingsThemeRow(
-                        selected = themePreference,
-                        onSelect = { themePreferences.writeThemePreference(it) },
-                    )
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        icon = Icons.Filled.Star,
-                        accent = OmnilogTheme.accents.Books,
-                        title = "Demanar nota de Goodreads",
-                        description = "Pregunta la nota quan deses llibres importats.",
-                        checked = askForGoodreadsRating,
-                        onCheckedChange = onAskForGoodreadsRatingChange,
-                    )
-                    SettingsDivider()
-                    SettingsChipsRow(
-                        icon = Icons.Filled.Home,
-                        accent = OmnilogTheme.accents.Dashboard,
-                        title = stringResource(R.string.settings_dashboard_sections_title),
-                        description = stringResource(R.string.settings_dashboard_sections_description),
-                    ) {
-                        DashboardSectionChips(
-                            hiddenSections = hiddenSections,
-                            onToggleSection = { section ->
-                                dashboardPreferences.writeHiddenDashboardSections(
-                                    if (section in hiddenSections) {
-                                        hiddenSections - section
-                                    } else {
-                                        hiddenSections + section
-                                    },
-                                )
-                            },
+                SettingsSection(title = "Preferències") {
+                    SettingsPanel {
+                        SettingsSwitchRow(
+                            icon = Icons.Filled.Star,
+                            accent = OmnilogTheme.accents.Books,
+                            title = "Nota de Goodreads",
+                            description = "Pregunta la nota quan importes llibres.",
+                            checked = askForGoodreadsRating,
+                            onCheckedChange = onAskForGoodreadsRatingChange,
                         )
                     }
                 }
             }
             item {
-                SettingsGroup(
-                    title = "Dades i còpies",
-                    description = stringResource(R.string.settings_backup_group_description),
-                    accent = OmnilogTheme.accents.Dashboard,
-                ) {
-                    SettingsActionRow(
-                        icon = Icons.AutoMirrored.Filled.ArrowForward,
-                        title = "Exporta una còpia",
-                        description = stringResource(R.string.settings_export_backup_description),
-                        onClick = onExportBackup,
-                    )
-                    SettingsDivider()
-                    SettingsActionRow(
-                        icon = Icons.Filled.ArrowDropDown,
-                        title = "Importa una còpia",
-                        description = stringResource(R.string.settings_import_backup_description),
-                        onClick = onImportBackup,
-                    )
-                    SettingsDivider()
-                    SettingsActionRow(
-                        icon = Icons.Filled.CheckCircle,
-                        title = "Restaura una còpia anterior",
-                        description = stringResource(R.string.settings_restore_backup_description),
-                        onClick = onRestoreBackup,
-                    )
+                SettingsSection(title = "Dades i seguretat") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AutoBackupCard(
+                            isAutoBackupEnabled = isAutoBackupEnabled,
+                            selectedFrequency = autoBackupFrequency,
+                            onFolderRequested = onAutoBackupFolderRequested,
+                            onFrequencyChange = onAutoBackupFrequencyChange,
+                            onDisabled = onAutoBackupDisabled,
+                        )
+                        SettingsPanel {
+                            SettingsActionRow(
+                                icon = ImageVector.vectorResource(R.drawable.ic_settings_export),
+                                title = "Exporta la biblioteca",
+                                description = stringResource(R.string.settings_export_backup_description),
+                                onClick = onExportBackup,
+                            )
+                            SettingsDivider()
+                            SettingsActionRow(
+                                icon = ImageVector.vectorResource(R.drawable.ic_settings_import),
+                                accent = OmnilogTheme.accents.Tv,
+                                title = "Importa una còpia",
+                                description = stringResource(R.string.settings_import_backup_description),
+                                onClick = onImportBackup,
+                            )
+                            SettingsDivider()
+                            SettingsActionRow(
+                                icon = Icons.Filled.CheckCircle,
+                                accent = OmnilogTheme.accents.Completed,
+                                title = "Restaura una còpia anterior",
+                                description = stringResource(R.string.settings_restore_backup_description),
+                                onClick = onRestoreBackup,
+                            )
+                        }
+                    }
                 }
             }
             item {
-                SettingsGroup(
-                    title = "Importa d'altres serveis",
-                    description = "Afegeix el teu historial sense perdre el que ja tens.",
-                    accent = OmnilogTheme.accents.Anime,
-                ) {
-                    SettingsActionRow(
-                        icon = Icons.Filled.Star,
-                        accent = OmnilogTheme.accents.Anime,
-                        title = "MyAnimeList XML",
-                        description = "Afegeix el teu historial d'anime.",
-                        onClick = onImportMyAnimeListXml,
-                    )
-                    SettingsDivider()
-                    SettingsActionRow(
-                        icon = Icons.Filled.PlayArrow,
-                        accent = OmnilogTheme.accents.Tv,
-                        title = stringResource(R.string.import_imdb_csv),
-                        description = stringResource(
-                            R.string.import_imdb_description,
-                            stringResource(R.string.nav_movies_tv),
-                        ),
-                        onClick = onImportImdbCsv,
-                    )
-                    SettingsDivider()
-                    SettingsActionRow(
-                        icon = Icons.Filled.Edit,
-                        accent = OmnilogTheme.accents.Books,
-                        title = "StoryGraph CSV",
-                        description = "Afegeix llibres i lectures.",
-                        onClick = onImportStoryGraphCsv,
-                    )
+                SettingsSection(title = "Importa d'altres serveis") {
+                    SettingsPanel {
+                        SettingsActionRow(
+                            icon = Icons.Filled.Star,
+                            accent = OmnilogTheme.accents.Anime,
+                            title = "MyAnimeList XML",
+                            description = "Afegeix el teu historial d'anime.",
+                            onClick = onImportMyAnimeListXml,
+                        )
+                        SettingsDivider()
+                        SettingsActionRow(
+                            icon = Icons.Filled.PlayArrow,
+                            accent = OmnilogTheme.accents.Tv,
+                            title = stringResource(R.string.import_imdb_csv),
+                            description = stringResource(
+                                R.string.import_imdb_description,
+                                stringResource(R.string.nav_movies_tv),
+                            ),
+                            onClick = onImportImdbCsv,
+                        )
+                        SettingsDivider()
+                        SettingsActionRow(
+                            icon = Icons.Filled.Edit,
+                            accent = OmnilogTheme.accents.Books,
+                            title = "StoryGraph CSV",
+                            description = "Afegeix llibres i lectures.",
+                            onClick = onImportStoryGraphCsv,
+                        )
+                    }
                 }
             }
             item {
-                SettingsAboutFooter()
+                SettingsSection(title = "Omnilog") {
+                    SettingsAboutFooter()
+                }
             }
         }
     }
@@ -219,97 +216,66 @@ private fun SettingsHero() {
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Text(
+            text = "Configuració",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = OmnilogTheme.colors.appInk,
+            maxLines = 1,
+        )
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.10f),
         ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = RoundedCornerShape(15.dp),
-                color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.22f),
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = null,
-                        tint = OmnilogTheme.accents.Dashboard,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = "Configuració",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
+                Icon(
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = null,
+                    tint = OmnilogTheme.accents.Dashboard,
+                    modifier = Modifier.size(17.dp),
                 )
                 Text(
-                    text = "Fes que Omnilog s'adapti a la teva manera de fer seguiment.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Les dades es queden al dispositiu",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
                 )
             }
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Lock,
-                contentDescription = null,
-                tint = OmnilogTheme.accents.Dashboard,
-                modifier = Modifier.size(15.dp),
-            )
-            Text(
-                text = stringResource(R.string.settings_local_storage_notice),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = OmnilogTheme.colors.appMuted,
-            )
         }
     }
 }
 
 @Composable
-private fun SettingsGroup(
+private fun SettingsSection(
     title: String,
-    description: String,
-    accent: Color,
     content: @Composable () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.padding(horizontal = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                modifier = Modifier.size(width = 4.dp, height = 40.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = accent,
-            ) {}
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-        }
-        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title.uppercase(),
+            modifier = Modifier.padding(horizontal = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = OmnilogTheme.colors.appMuted,
+            maxLines = 1,
+        )
+        content()
+    }
+}
+
+@Composable
+private fun SettingsPanel(content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = OmnilogTheme.colors.appPanel),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
         content()
     }
 }
@@ -317,7 +283,7 @@ private fun SettingsGroup(
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(
-        modifier = Modifier.padding(start = 50.dp),
+        modifier = Modifier.padding(start = 52.dp, end = 10.dp),
         color = OmnilogTheme.colors.appLine,
     )
 }
@@ -330,36 +296,69 @@ private fun AutoBackupCard(
     onFrequencyChange: (AutoBackupFrequency) -> Unit,
     onDisabled: () -> Unit,
 ) {
+    val statusAccent = if (isAutoBackupEnabled) {
+        OmnilogTheme.accents.Completed
+    } else {
+        OmnilogTheme.accents.Dashboard
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = OmnilogTheme.colors.appPanel),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, statusAccent.copy(alpha = 0.26f)),
     ) {
         Column {
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SettingsLeadingIcon(icon = Icons.Filled.Settings, accent = OmnilogTheme.accents.Dashboard)
-                Column(modifier = Modifier.weight(1f)) {
+                SettingsLeadingIcon(
+                    icon = if (isAutoBackupEnabled) Icons.Filled.CheckCircle else Icons.Filled.Settings,
+                    accent = statusAccent,
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
                     Text(
                         text = "Còpia automàtica",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = OmnilogTheme.colors.appInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = if (isAutoBackupEnabled) "Activada" else "Tria una carpeta per activar-la",
+                        text = if (isAutoBackupEnabled) {
+                            "Activada · ${selectedFrequency.label.lowercase()}"
+                        } else {
+                            "Tria una carpeta per protegir la biblioteca"
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = OmnilogTheme.colors.appMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = statusAccent.copy(alpha = 0.15f),
+                ) {
+                    Text(
+                        text = if (isAutoBackupEnabled) "PROTEGIDA" else "INACTIVA",
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = statusAccent,
+                        maxLines = 1,
                     )
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OmnilogTheme.colors.appLine)
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 10.dp), color = OmnilogTheme.colors.appLine)
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -368,6 +367,7 @@ private fun AutoBackupCard(
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = OmnilogTheme.colors.appInk,
+                    maxLines = 1,
                 )
                 Row(
                     modifier = Modifier
@@ -384,17 +384,18 @@ private fun AutoBackupCard(
                                     role = Role.RadioButton,
                                     onClick = { onFrequencyChange(frequency) },
                                 )
-                                .padding(horizontal = 5.dp, vertical = 4.dp),
+                                .padding(horizontal = 4.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (frequency == selectedFrequency) FontWeight.ExtraBold else FontWeight.SemiBold,
                             color = if (frequency == selectedFrequency) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
                         )
                     }
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OmnilogTheme.colors.appLine)
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 10.dp), color = OmnilogTheme.colors.appLine)
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -406,6 +407,7 @@ private fun AutoBackupCard(
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = OmnilogTheme.accents.Dashboard,
+                    maxLines = 1,
                 )
                 if (isAutoBackupEnabled) {
                     Text(
@@ -416,6 +418,7 @@ private fun AutoBackupCard(
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = OmnilogTheme.accents.Dropped,
+                        maxLines = 1,
                     )
                 }
             }
@@ -430,8 +433,8 @@ private fun SettingsLeadingIcon(
     enabled: Boolean = true,
 ) {
     Surface(
-        modifier = Modifier.size(36.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.size(32.dp),
+        shape = RoundedCornerShape(10.dp),
         color = accent.copy(alpha = if (enabled) 0.14f else 0.08f),
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -439,7 +442,7 @@ private fun SettingsLeadingIcon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = accent.copy(alpha = if (enabled) 1f else 0.56f),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -454,39 +457,30 @@ private fun SettingsChipsRow(
     icon: ImageVector,
     accent: Color,
     title: String,
-    description: String,
     content: @Composable () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SettingsLeadingIcon(icon = icon, accent = accent)
-            Column(
+            Text(
+                text = title,
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        // Indented to the label, not the icon, so the chips read as belonging to this row.
-        Box(modifier = Modifier.padding(start = 48.dp)) {
+        Box(modifier = Modifier.padding(start = 42.dp)) {
             content()
         }
     }
@@ -501,34 +495,26 @@ private fun SettingsThemeRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SettingsLeadingIcon(icon = Icons.Filled.Settings, accent = OmnilogTheme.accents.Tv)
-            Column(
+            Text(
+                text = "Tema de l'aplicació",
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_theme_title),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
-                )
-                Text(
-                    text = stringResource(R.string.settings_theme_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 1,
+            )
         }
         Row(
-            modifier = Modifier.padding(start = 48.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(start = 42.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             ThemePreference.entries.forEach { option ->
                 val isSelected = option == selected
@@ -547,10 +533,11 @@ private fun SettingsThemeRow(
                 ) {
                     Text(
                         text = option.themeOptionLabel(),
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
                         color = if (isSelected) OmnilogTheme.accents.Tv else OmnilogTheme.colors.appMuted,
+                        maxLines = 1,
                     )
                 }
             }
@@ -584,25 +571,29 @@ private fun SettingsSwitchRow(
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             )
-            .padding(horizontal = 2.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SettingsLeadingIcon(icon = icon, accent = accent)
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
                 color = OmnilogTheme.colors.appInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
                 color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Switch(
@@ -634,25 +625,29 @@ private fun SettingsActionRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SettingsLeadingIcon(icon = icon, accent = accent, enabled = enabled)
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
                 color = if (enabled) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
                 color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         if (enabled) {
@@ -660,7 +655,7 @@ private fun SettingsActionRow(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
                 tint = accent,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -668,30 +663,57 @@ private fun SettingsActionRow(
 
 @Composable
 private fun SettingsAboutFooter() {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HorizontalDivider(color = OmnilogTheme.colors.appLine)
-        Row(
-            modifier = Modifier.padding(horizontal = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    SettingsPanel {
+        SettingsInfoRow(
+            icon = Icons.Filled.Lock,
+            accent = OmnilogTheme.accents.Dashboard,
+            title = "Privacitat",
+            description = "Dades locals, sense compte ni sincronització.",
+        )
+        SettingsDivider()
+        SettingsInfoRow(
+            icon = Icons.Filled.Info,
+            accent = OmnilogTheme.colors.appMuted,
+            title = "Sobre l'aplicació",
+            description = "Omnilog · Versió 1.0",
+        )
+    }
+}
+
+@Composable
+private fun SettingsInfoRow(
+    icon: ImageVector,
+    accent: Color,
+    title: String,
+    description: String,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SettingsLeadingIcon(icon = icon, accent = accent)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
-            SettingsLeadingIcon(icon = Icons.Filled.Info, accent = OmnilogTheme.colors.appMuted)
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                Text(
-                    text = "Omnilog 1.0",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
-                )
-                Text(
-                    text = stringResource(R.string.settings_local_storage_footer),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

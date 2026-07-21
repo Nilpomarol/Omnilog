@@ -56,7 +56,8 @@ fun SessionDetail(
     mediaType: MediaType,
     accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
-    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
+    onDeleteStatusEvent: (Long) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
     onDelete: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
@@ -96,15 +97,16 @@ fun SessionDetail(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (mediaType == MediaType.Book) {
-                        ProgressHistoryAction(
-                            updates = session.progressUpdates,
-                            mediaType = mediaType,
-                            accent = visualState.color,
-                            onDeleteProgressUpdate = onDeleteProgressUpdate,
-                            onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
-                        )
-                    }
+                    ProgressHistoryAction(
+                        updates = session.progressUpdates,
+                        progressTotal = progressTotal,
+                        mediaType = mediaType,
+                        accent = visualState.color,
+                        onDeleteProgressUpdate = onDeleteProgressUpdate,
+                        onUpdateProgressUpdate = onUpdateProgressUpdate,
+                        statusEvents = session.statusEvents,
+                        onDeleteStatusEvent = onDeleteStatusEvent,
+                    )
                     trailingContent?.invoke()
                     if (onDelete != null) {
                         TextButton(onClick = { showDeleteConfirmation = true }) {

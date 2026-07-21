@@ -72,6 +72,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.common.progressUnitLabel
@@ -97,7 +98,8 @@ fun CurrentSessionSection(
     accent: Color,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
-    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
+    onDeleteStatusEvent: (Long) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -108,7 +110,8 @@ fun CurrentSessionSection(
         accent = accent,
         onEditClick = { showEditor = true },
         onDeleteProgressUpdate = onDeleteProgressUpdate,
-        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
+        onDeleteStatusEvent = onDeleteStatusEvent,
+        onUpdateProgressUpdate = onUpdateProgressUpdate,
     )
 
     if (showEditor) {
@@ -140,7 +143,8 @@ private fun SessionCard(
     accent: Color,
     onEditClick: () -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
-    onUpdateProgressUpdateDate: (Long, LocalDate?) -> Unit,
+    onDeleteStatusEvent: (Long) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
 ) {
     val visualState = session.visualState(accent = accent)
     val progressFraction = session.progressFraction(progressTotal)
@@ -171,15 +175,16 @@ private fun SessionCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (mediaType == MediaType.Book) {
-                        ProgressHistoryAction(
-                            updates = session.progressUpdates,
-                            mediaType = mediaType,
-                            accent = visualState.color,
-                            onDeleteProgressUpdate = onDeleteProgressUpdate,
-        onUpdateProgressUpdateDate = onUpdateProgressUpdateDate,
-                        )
-                    }
+                    ProgressHistoryAction(
+                        updates = session.progressUpdates,
+                        progressTotal = progressTotal,
+                        mediaType = mediaType,
+                        accent = visualState.color,
+                        onDeleteProgressUpdate = onDeleteProgressUpdate,
+                        onUpdateProgressUpdate = onUpdateProgressUpdate,
+                        statusEvents = session.statusEvents,
+                        onDeleteStatusEvent = onDeleteStatusEvent,
+                    )
                     FilledTonalIconButton(
                         onClick = onEditClick,
                         modifier = Modifier.size(32.dp),
@@ -330,6 +335,12 @@ fun SessionEditorScreen(
                     draftStatus = status
                     if (status == TrackingStatus.InProgress && draftStartedAtText.isBlank()) {
                         draftStartedAtText = LocalDate.now().toString()
+                    }
+                    // Offered, not imposed — the same way the start date is. Filling the field here
+                    // rather than defaulting it on save is what keeps "finished, date unknown"
+                    // expressible: the date is visible before saving and can be cleared again.
+                    if (status.endsSession && draftFinishedAtText.isBlank()) {
+                        draftFinishedAtText = LocalDate.now().toString()
                     }
                     if (status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
                         draftProgressText = progressTotal.toString()

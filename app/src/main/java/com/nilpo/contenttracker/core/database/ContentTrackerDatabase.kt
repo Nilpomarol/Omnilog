@@ -9,6 +9,7 @@ import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.ObjectiveEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
+import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 
 @Database(
@@ -18,10 +19,11 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
         MediaCreditEntity::class,
         TrackingSessionEntity::class,
         ProgressUpdateEntity::class,
+        SessionStatusEventEntity::class,
         ExternalRatingEntity::class,
         ObjectiveEntity::class,
     ],
-    version = 16,
+    version = 19,
     exportSchema = false,
 )
 abstract class ContentTrackerDatabase : RoomDatabase() {

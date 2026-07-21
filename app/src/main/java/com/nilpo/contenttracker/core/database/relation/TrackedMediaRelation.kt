@@ -7,6 +7,7 @@ import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
+import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 
 data class TrackedMediaRelation(
@@ -27,6 +28,11 @@ data class TrackedMediaRelation(
         entityColumn = "mediaItemId",
     )
     val progressUpdates: List<ProgressUpdateEntity>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "mediaItemId",
+    )
+    val statusEvents: List<SessionStatusEventEntity>,
     @Relation(
         parentColumn = "id",
         entityColumn = "mediaItemId",

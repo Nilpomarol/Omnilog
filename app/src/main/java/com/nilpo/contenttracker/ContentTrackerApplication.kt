@@ -68,7 +68,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             "content-tracker.db",
         )
             .fallbackToDestructiveMigration(false)
-                        .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                        .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
             .build()
     }
 
@@ -144,6 +144,87 @@ private val MIGRATION_14_15 = object : Migration(14, 15) {
 private val MIGRATION_15_16 = object : Migration(15, 16) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE progress_updates ADD COLUMN hasKnownDate INTEGER NOT NULL DEFAULT 1")
+    }
+}
+
+private val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE external_ratings ADD COLUMN scoreDescriptor TEXT")
+    }
+}
+
+/**
+ * Adds the session status log — see `SessionStatusEventEntity` for why pauses need one.
+ *
+ * Nothing is backfilled. Existing sessions record only the status they are in now, with no memory of
+ * when they got there, so any historical row this migration wrote would be a date it made up.
+ * Libraries upgrading to this version start their pause history empty and accumulate it from here.
+ */
+private val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS session_status_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                mediaItemId INTEGER NOT NULL,
+                sessionId INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                occurredOnEpochDay INTEGER NOT NULL,
+                createdAtEpochMillis INTEGER NOT NULL,
+                FOREIGN KEY(sessionId) REFERENCES tracking_sessions(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_session_status_events_sessionId " +
+                "ON session_status_events(sessionId)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_session_status_events_mediaItemId " +
+                "ON session_status_events(mediaItemId)",
+        )
+    }
+}
+
+/**
+ * Drops `session_status_events.occurredOnEpochDay`, which only ever held the day already implied by
+ * `createdAtEpochMillis` — no status change can be back-dated, so the two could never legitimately
+ * differ, and having both meant they could accidentally.
+ *
+ * Rebuilt rather than `ALTER TABLE ... DROP COLUMN`, which SQLite only supports from 3.35 and this
+ * app's minSdk predates. Rows are copied across even though the table is one build old and expected
+ * to be empty: a migration that assumes it has nothing to lose is a migration that loses something.
+ */
+private val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS session_status_events_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                mediaItemId INTEGER NOT NULL,
+                sessionId INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                createdAtEpochMillis INTEGER NOT NULL,
+                FOREIGN KEY(sessionId) REFERENCES tracking_sessions(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            INSERT INTO session_status_events_new (id, mediaItemId, sessionId, status, createdAtEpochMillis)
+            SELECT id, mediaItemId, sessionId, status, createdAtEpochMillis FROM session_status_events
+            """.trimIndent(),
+        )
+        db.execSQL("DROP TABLE session_status_events")
+        db.execSQL("ALTER TABLE session_status_events_new RENAME TO session_status_events")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_session_status_events_sessionId " +
+                "ON session_status_events(sessionId)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_session_status_events_mediaItemId " +
+                "ON session_status_events(mediaItemId)",
+        )
     }
 }
 

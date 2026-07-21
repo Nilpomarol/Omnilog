@@ -56,6 +56,7 @@ fun ItemDetailsEditor(
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
+        steamAppId: String?,
     ) -> Unit,
 ) {
     var title by rememberSaveable(item.id) { mutableStateOf(item.title) }
@@ -69,6 +70,7 @@ fun ItemDetailsEditor(
     var creatorsText by rememberSaveable(item.id) { mutableStateOf(item.creators.joinToString(", ")) }
     var coverUrl by rememberSaveable(item.id) { mutableStateOf(item.coverUrl.orEmpty()) }
     var sourceUrl by rememberSaveable(item.id) { mutableStateOf(item.sourceUrl.orEmpty()) }
+    var steamAppId by rememberSaveable(item.id) { mutableStateOf(item.steamAppId.orEmpty()) }
     var synopsis by rememberSaveable(item.id) { mutableStateOf(plainSynopsis(item.synopsis).orEmpty()) }
 
     Scaffold(
@@ -92,13 +94,14 @@ fun ItemDetailsEditor(
                                 title,
                                 originalTitle.trim().takeIf { it.isNotBlank() },
                                 releaseYearText.toIntOrNull(),
-                                ItemLanguage.normalize(language),
+                                ItemLanguage.normalize(language).takeUnless { item.type == MediaType.Game },
                                 totalText.toIntOrNull().takeUnless { item.type == MediaType.Game },
                                 genresText.toMetadataList(),
                                 creatorsText.toMetadataList(),
                                 coverUrl.trim().takeIf { it.isNotBlank() },
                                 synopsis.trim().takeIf { it.isNotBlank() },
                                 sourceUrl.trim().takeIf { it.isNotBlank() },
+                                steamAppId.trim().takeIf { it.isNotBlank() },
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black),
@@ -141,12 +144,14 @@ fun ItemDetailsEditor(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
-            LanguageDropdown(
-                value = language,
-                onValueChange = { language = ItemLanguage.normalize(it) ?: ItemLanguage.Original },
-                label = stringResource(R.string.field_language),
-                accent = accent,
-            )
+            if (item.type != MediaType.Game) {
+                LanguageDropdown(
+                    value = language,
+                    onValueChange = { language = ItemLanguage.normalize(it) ?: ItemLanguage.Original },
+                    label = stringResource(R.string.field_language),
+                    accent = accent,
+                )
+            }
             if (item.type != MediaType.Game) {
                 MetadataEditorField(
                     value = totalText,
@@ -185,6 +190,21 @@ fun ItemDetailsEditor(
                 accent = accent,
                 singleLine = true,
             )
+            if (item.type == MediaType.Game) {
+                MetadataEditorField(
+                    value = steamAppId,
+                    onValueChange = { value -> steamAppId = value.filter(Char::isDigit) },
+                    label = stringResource(R.string.field_steam_app_id),
+                    accent = accent,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                Text(
+                    text = stringResource(R.string.field_steam_app_id_help),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             MetadataEditorField(
                 value = synopsis,
                 onValueChange = { synopsis = it },

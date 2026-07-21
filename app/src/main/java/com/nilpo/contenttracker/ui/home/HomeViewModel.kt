@@ -32,15 +32,22 @@ import com.nilpo.contenttracker.core.repository.MyAnimeListXmlImportResult
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvImportResult
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
+import com.nilpo.contenttracker.core.timeline.TimelineBuilder
+import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -103,6 +110,7 @@ class HomeViewModel(
             .sortByMode(filters.sort, filters.direction)
 
         HomeUiState(
+            isLoading = false,
             selectedSection = section,
             allTrackedItems = allTrackedItems,
             trackedItems = visibleItems,
@@ -125,6 +133,22 @@ class HomeViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = HomeUiState(),
+        )
+
+    /**
+     * Derived from [uiState] rather than its own repository query so both share one observation of
+     * the library. [distinctUntilChanged] matters here: [uiState] re-emits on every keystroke and
+     * filter change, none of which affect the timeline.
+     */
+    val timelineEntries: StateFlow<List<TimelineEntry>> = uiState
+        .map { it.allTrackedItems }
+        .distinctUntilChanged()
+        .map { TimelineBuilder().buildEntries(it) }
+        .flowOn(Dispatchers.Default)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
         )
 
     suspend fun exportBackupJson(): String {
@@ -548,9 +572,16 @@ class HomeViewModel(
         }
     }
 
-    fun updateProgressUpdateDate(progressUpdateId: Long, loggedAt: LocalDate?) {
+    fun updateProgressUpdate(progressUpdateId: Long, progressValue: Int, loggedAt: LocalDate?) {
         viewModelScope.launch {
-            mediaRepository.updateProgressUpdateDate(progressUpdateId, loggedAt)
+            mediaRepository.updateProgressUpdate(progressUpdateId, progressValue, loggedAt)
+        }
+    }
+
+    /** Corrects a mistaken pause. See `MediaRepository.deleteSessionStatusEvent`. */
+    fun deleteSessionStatusEvent(eventId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteSessionStatusEvent(eventId)
         }
     }
 
@@ -674,6 +705,7 @@ class HomeViewModel(
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
+        steamAppId: String?,
     ) {
         viewModelScope.launch {
             mediaRepository.updateMediaItemMetadata(
@@ -688,6 +720,7 @@ class HomeViewModel(
                 coverUrl = coverUrl,
                 synopsis = synopsis,
                 sourceUrl = sourceUrl,
+                steamAppId = steamAppId,
             )
             persistCover(coverUrl)
         }
