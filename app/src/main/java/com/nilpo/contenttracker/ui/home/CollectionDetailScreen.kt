@@ -55,7 +55,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
@@ -156,7 +155,6 @@ fun CollectionDetailScreen(
             // ── Header ────────────────────────────────────────────────────
             if (isReordering) {
                 ReorderHeaderBar(
-                    collectionName = collection.name,
                     accent = accent,
                     onCancel = {
                         if (hasUnsavedReorder) {
@@ -525,17 +523,6 @@ private fun CollectionHeroHeader(
                     }
                 }
 
-                Text(
-                    text = collection.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp),
-                )
-
                 if (itemCount > 0) {
                     Row(
                         modifier = Modifier.padding(top = 8.dp),
@@ -657,7 +644,6 @@ private fun HeroStatChip(
 
 @Composable
 private fun ReorderHeaderBar(
-    collectionName: String,
     accent: Color,
     onCancel: () -> Unit,
     onSave: () -> Unit,
@@ -676,25 +662,13 @@ private fun ReorderHeaderBar(
                 .padding(start = 16.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
+            Text(
+                text = stringResource(R.string.collection_reorder),
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.field_collection),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = accent,
-                )
-                Text(
-                    text = collectionName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogTheme.colors.appInk,
+            )
             TextButton(onClick = onCancel) {
                 Text(text = stringResource(R.string.cancel))
             }

@@ -88,7 +88,7 @@ fun SettingsScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item { SettingsHero() }
+            item { SettingsPrivacyNotice() }
             item {
                 SettingsSection(title = "Aparença i inici") {
                     SettingsPanel {
@@ -211,41 +211,30 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsHero() {
-    Column(
+private fun SettingsPrivacyNotice() {
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.10f),
     ) {
-        Text(
-            text = "Configuració",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = OmnilogTheme.colors.appInk,
-            maxLines = 1,
-        )
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.10f),
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Lock,
-                    contentDescription = null,
-                    tint = OmnilogTheme.accents.Dashboard,
-                    modifier = Modifier.size(17.dp),
-                )
-                Text(
-                    text = "Les dades es queden al dispositiu",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = OmnilogTheme.colors.appMuted,
-                    maxLines = 1,
-                )
-            }
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = null,
+                tint = OmnilogTheme.accents.Dashboard,
+                modifier = Modifier.size(17.dp),
+            )
+            Text(
+                text = "Les dades es queden al dispositiu",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+            )
         }
     }
 }

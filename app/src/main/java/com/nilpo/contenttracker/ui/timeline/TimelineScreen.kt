@@ -12,10 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
@@ -38,6 +34,7 @@ import com.nilpo.contenttracker.core.timeline.TimelineFilters
 import com.nilpo.contenttracker.core.timeline.TimelineMediaFilter
 import com.nilpo.contenttracker.core.timeline.toRecap
 import com.nilpo.contenttracker.core.timeline.toSnapshot
+import com.nilpo.contenttracker.ui.TimelineHeaderActions
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownChip
 import com.nilpo.contenttracker.ui.common.OmnilogEmptyState
@@ -49,6 +46,7 @@ import java.time.LocalDate
 fun TimelineScreen(
     entries: List<TimelineEntry>,
     isLoading: Boolean,
+    headerActions: TimelineHeaderActions,
     onMediaClick: (Long) -> Unit,
     onBrowseLibrary: () -> Unit,
     modifier: Modifier = Modifier,
@@ -56,6 +54,7 @@ fun TimelineScreen(
     var mediaFilterName by rememberSaveable { mutableStateOf(TimelineMediaFilter.All.name) }
     var selectedYear by rememberSaveable { mutableStateOf<Int?>(null) }
     var showConfiguration by rememberSaveable { mutableStateOf(false) }
+    headerActions.onSettingsRequested = { showConfiguration = true }
     val preferences = rememberTimelinePreferences()
     val visibility by rememberTimelineVisibility(preferences)
     val mediaFilter = TimelineMediaFilter.entries.firstOrNull { it.name == mediaFilterName }
@@ -87,7 +86,6 @@ fun TimelineScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TimelinePageHeading(onConfigure = { showConfiguration = true })
                 OmnilogStatusPanel(
                     text = stringResource(R.string.timeline_loading),
                     accent = OmnilogTheme.accents.Dashboard,
@@ -99,7 +97,6 @@ fun TimelineScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TimelinePageHeading(onConfigure = { showConfiguration = true })
                 OmnilogEmptyState(
                     title = stringResource(
                         if (isHiddenByConfiguration) {
@@ -140,7 +137,6 @@ fun TimelineScreen(
             ) {
                 item(key = "timeline-header") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TimelinePageHeading(onConfigure = { showConfiguration = true })
                         TimelineFilterBar(
                             selectedMedia = mediaFilter,
                             selectedYear = selectedYear,
@@ -211,30 +207,6 @@ fun TimelineScreen(
             onVisibilityChange = preferences::writeTimelineVisibility,
             onDismiss = { showConfiguration = false },
         )
-    }
-}
-
-@Composable
-private fun TimelinePageHeading(onConfigure: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.timeline_title),
-            modifier = Modifier.weight(1f),
-            color = OmnilogTheme.colors.appInk,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
-        )
-        IconButton(onClick = onConfigure) {
-            Icon(
-                imageVector = Icons.Filled.Settings,
-                contentDescription = stringResource(R.string.timeline_settings_open),
-                tint = OmnilogTheme.accents.Dashboard,
-            )
-        }
     }
 }
 

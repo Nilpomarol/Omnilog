@@ -23,12 +23,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
@@ -850,35 +851,58 @@ fun TimelineRecentActivity(
     }
     if (recentEntries.isEmpty()) return
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = stringResource(R.string.timeline_recent_title),
-                color = OmnilogTheme.colors.appInk,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
-            TextButton(onClick = onViewAll) {
-                Text(text = stringResource(R.string.timeline_view_all))
+            // The heading is the way through, as on the objectives and analytics cards above. Only
+            // the heading — the rows below lead to their own titles, so making the whole card
+            // clickable would put two destinations under one press.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onViewAll),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.timeline_recent_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogTheme.colors.appInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = stringResource(R.string.timeline_view_all),
+                    modifier = Modifier.size(18.dp),
+                    tint = OmnilogTheme.accents.Dashboard,
+                )
             }
-        }
-        recentEntries.forEachIndexed { index, entry ->
-            TimelineCompactRow(
-                entry = entry,
-                onClick = { onEntryClick(entry.mediaItemId) },
-            )
-            if (index < recentEntries.lastIndex) {
-                HorizontalDivider(color = OmnilogTheme.colors.appLine)
+            Column {
+                recentEntries.forEachIndexed { index, entry ->
+                    TimelineCompactRow(
+                        entry = entry,
+                        onClick = { onEntryClick(entry.mediaItemId) },
+                    )
+                    if (index < recentEntries.lastIndex) {
+                        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+                    }
+                }
             }
         }
     }
 }
 
-/** Dashboard-sized row: no card, no rail, no type label — the dot alone carries the accent. */
+/** Dashboard-sized row: no card, no rail, no type label — the action's own colour carries the accent. */
 @Composable
 private fun TimelineCompactRow(entry: TimelineEntry, onClick: () -> Unit) {
     val accent = entry.railAccent()
@@ -901,17 +925,17 @@ private fun TimelineCompactRow(entry: TimelineEntry, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(7.dp)
-                .clip(CircleShape)
-                .background(accent),
-        )
+        // No accent dot. It repeated the colour the action line already carries, and it was the
+        // unlabelled half of the pair — the sentence reads without the dot, not the other way round.
+        // Its width is what stopped "+42 pàg · total 214" ellipsizing on a narrow screen.
         MetadataCoverImage(
             coverUrl = entry.coverUrl,
             modifier = Modifier
                 .width(30.dp)
                 .height(45.dp),
+            // Matches every other cover in this file. The default is 10.dp, which is a third of the
+            // width at this size — enough to read as a rounded chip rather than as a book jacket.
+            shape = RoundedCornerShape(3.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(

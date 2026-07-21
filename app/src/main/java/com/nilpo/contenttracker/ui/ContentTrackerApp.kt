@@ -67,6 +67,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -182,8 +183,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val backupActions = remember { BackupHeaderActions() }
     val profileHeaderActions = remember { ProfileHeaderActions() }
+    val timelineHeaderActions = remember { TimelineHeaderActions() }
     val selectedMedia = (currentRoute as? AppRoute.MediaDetail)?.let { route ->
         uiState.allTrackedItems.firstOrNull { it.item.id == route.mediaItemId }
+    }
+    val currentCollection = (currentRoute as? AppRoute.CollectionDetail)?.let { route ->
+        uiState.allTrackedItems
+            .mapNotNull { it.collection }
+            .firstOrNull { it.id == route.collectionId }
     }
     val currentSection = when (val route = currentRoute) {
         is AppRoute.Section -> route.section
@@ -704,11 +711,23 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
 
                         else -> currentSection.themedAccent()
                     },
+                    title = when (val route = currentRoute) {
+                        AppRoute.Stats -> stringResource(R.string.stats_title)
+                        AppRoute.Timeline -> stringResource(R.string.timeline_title)
+                        AppRoute.Profile -> ""
+                        AppRoute.Settings -> "Configuració"
+                        is AppRoute.AuthorDetail -> route.author
+                        is AppRoute.CollectionDetail -> currentCollection?.name
+                            ?: stringResource(R.string.field_collection)
+                        is AppRoute.MediaDetail -> ""
+                        else -> null
+                    },
                     showBackNavigation = currentRoute is AppRoute.MediaDetail ||
                             currentRoute == AppRoute.Stats ||
                             currentRoute == AppRoute.Timeline ||
                             currentRoute == AppRoute.Profile ||
                             currentRoute == AppRoute.Settings ||
+                            currentRoute is AppRoute.AuthorDetail ||
                             currentRoute is AppRoute.CollectionDetail,
                     showDetailActions = currentRoute is AppRoute.MediaDetail &&
                             !detailActions.isManagingExternalRatings,
@@ -717,7 +736,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute != AppRoute.Stats &&
                             currentRoute != AppRoute.Timeline &&
                             currentRoute != AppRoute.Profile,
-                    showSettingsAction = currentRoute == AppRoute.Profile,
+                    showProfileControls = currentRoute == AppRoute.Profile,
+                    showHomeSettingsAction = currentRoute == AppRoute.Home,
+                    showTimelineSettingsAction = currentRoute == AppRoute.Timeline,
                     profileImagePath = profileImagePath,
                     detailActions = detailActions,
                     onProfileRequested = openProfile,
@@ -726,6 +747,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     onProfileEditCancelled = { profileHeaderActions.onCancelRequested() },
                     onProfileEditSaved = { profileHeaderActions.onSaveRequested() },
                     onSettingsRequested = openSettings,
+                    onTimelineSettingsRequested = {
+                        timelineHeaderActions.onSettingsRequested()
+                    },
                     onBack = if (detailActions.isManagingExternalRatings) {
                         detailActions.onCloseExternalRatings
                     } else if (currentRoute is AppRoute.CollectionDetail) {
@@ -898,6 +922,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             TimelineScreen(
                                 entries = timelineEntries,
                                 isLoading = uiState.isLoading,
+                                headerActions = timelineHeaderActions,
                                 onMediaClick = { mediaItemId ->
                                     uiState.allTrackedItems
                                         .firstOrNull { it.item.id == mediaItemId }
@@ -934,7 +959,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             )
                         } else if (route is AppRoute.AuthorDetail) {
                             AuthorDetailScreen(
-                                author = route.author,
                                 creatorLabelResId = route.section.creatorDetailLabelResId,
                                 items = uiState.allTrackedItems.filter { trackedMedia ->
                                     trackedMedia.item.type in route.section.types &&
@@ -944,7 +968,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                             }
                                 },
                                 accent = route.section.themedAccent(),
-                                onBack = navigateBack,
                                 onMediaClick = openTrackedMedia,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1908,6 +1931,11 @@ class ProfileHeaderActions {
     var onSaveRequested: () -> Unit = {}
 }
 
+/** Lets the Activity screen expose its configuration sheet through the shared top bar. */
+class TimelineHeaderActions {
+    var onSettingsRequested: () -> Unit = {}
+}
+
 class BackupHeaderActions {
     var onExportBackupRequested: () -> Unit = {}
     var onImportBackupRequested: () -> Unit = {}
@@ -2078,10 +2106,13 @@ private fun OmnilogNavItem(
 @Composable
 private fun OmnilogTopBar(
     accent: Color,
+    title: String?,
     showBackNavigation: Boolean,
     showDetailActions: Boolean,
     showProfileAction: Boolean,
-    showSettingsAction: Boolean,
+    showProfileControls: Boolean,
+    showHomeSettingsAction: Boolean,
+    showTimelineSettingsAction: Boolean,
     profileImagePath: String?,
     detailActions: DetailHeaderActions,
     onProfileRequested: () -> Unit,
@@ -2090,6 +2121,7 @@ private fun OmnilogTopBar(
     onProfileEditCancelled: () -> Unit,
     onProfileEditSaved: () -> Unit,
     onSettingsRequested: () -> Unit,
+    onTimelineSettingsRequested: () -> Unit,
     onBack: () -> Unit,
 ) {
     TopAppBar(
@@ -2117,22 +2149,32 @@ private fun OmnilogTopBar(
             }
         },
         title = {
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = accent, fontWeight = FontWeight.ExtraBold)) {
-                        append("Omni")
-                    }
-                    withStyle(
-                        SpanStyle(
-                            color = OmnilogTheme.colors.appInk,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    ) {
-                        append("log")
-                    }
-                },
-                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp),
-            )
+            if (title == null) {
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.ExtraBold)) {
+                            append("Omni")
+                        }
+                        withStyle(
+                            SpanStyle(
+                                color = OmnilogTheme.colors.appInk,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        ) {
+                            append("log")
+                        }
+                    },
+                    style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp),
+                )
+            } else if (title.isNotEmpty()) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         },
         actions = {
             if (showDetailActions) {
@@ -2213,7 +2255,15 @@ private fun OmnilogTopBar(
                         )
                     }
                 }
-            } else if (showSettingsAction) {
+            } else if (showTimelineSettingsAction) {
+                IconButton(onClick = onTimelineSettingsRequested) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = stringResource(R.string.timeline_settings_open),
+                        tint = OmnilogTheme.accents.Dashboard,
+                    )
+                }
+            } else if (showProfileControls) {
                 // While editing, the bar carries the commit controls: the profile edits itself in
                 // place, so there is no form below to hold a Save button.
                 if (profileIsEditing) {
@@ -2241,6 +2291,9 @@ private fun OmnilogTopBar(
                             tint = OmnilogTheme.colors.appMuted,
                         )
                     }
+                }
+            } else {
+                if (showHomeSettingsAction) {
                     IconButton(onClick = onSettingsRequested) {
                         Icon(
                             imageVector = Icons.Filled.Settings,
@@ -2249,23 +2302,24 @@ private fun OmnilogTopBar(
                         )
                     }
                 }
-            } else if (showProfileAction) {
-                IconButton(onClick = onProfileRequested) {
-                    if (profileImagePath != null) {
-                        AsyncImage(
-                            model = File(profileImagePath),
-                            contentDescription = stringResource(R.string.profile_menu),
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape),
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = stringResource(R.string.profile_menu),
-                            tint = OmnilogTheme.colors.appMuted,
-                        )
+                if (showProfileAction) {
+                    IconButton(onClick = onProfileRequested) {
+                        if (profileImagePath != null) {
+                            AsyncImage(
+                                model = File(profileImagePath),
+                                contentDescription = stringResource(R.string.profile_menu),
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.AccountCircle,
+                                contentDescription = stringResource(R.string.profile_menu),
+                                tint = OmnilogTheme.colors.appMuted,
+                            )
+                        }
                     }
                 }
             }

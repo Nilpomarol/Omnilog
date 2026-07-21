@@ -840,6 +840,14 @@ private fun EmptyCarouselState(text: String) {
     }
 }
 
+/**
+ * The carousel section heading: a title, a hairline reaching the far edge, and an optional control
+ * riding at the end of it.
+ *
+ * [trailingContent] should stay compact. The row's height is whatever its tallest child is, so a
+ * control with a 48.dp minimum — a Material `TextButton`, say — silently sets the height of every
+ * heading on the page.
+ */
 @Composable
 private fun DashboardSectionTitle(
     title: String,
