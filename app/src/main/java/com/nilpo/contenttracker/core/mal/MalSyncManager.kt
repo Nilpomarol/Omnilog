@@ -2,7 +2,11 @@ package com.nilpo.contenttracker.core.mal
 
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
+import android.util.Log
+import android.widget.Toast
 import androidx.work.Constraints
 import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
@@ -20,10 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
@@ -46,15 +47,6 @@ data class MalSyncState(
 
 enum class MalWorkerOutcome { Success, Retry, AuthorizationRequired }
 
-sealed interface MalSyncEvent {
-    data class Updated(val animeTitles: List<String>) : MalSyncEvent
-    data class Failed(
-        val animeTitle: String?,
-        val willRetry: Boolean,
-        val authorizationRequired: Boolean = false,
-    ) : MalSyncEvent
-}
-
 class MalSyncManager(
     private val context: Context,
     private val mediaDao: MediaDao,
@@ -65,9 +57,8 @@ class MalSyncManager(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutableState = MutableStateFlow(initialState())
-    private val mutableEvents = MutableSharedFlow<MalSyncEvent>(extraBufferCapacity = 8)
+    private val mainHandler = Handler(Looper.getMainLooper())
     val state: StateFlow<MalSyncState> = mutableState.asStateFlow()
-    val events: SharedFlow<MalSyncEvent> = mutableEvents.asSharedFlow()
 
     init {
         scope.launch {
@@ -153,10 +144,14 @@ class MalSyncManager(
     }
 
     suspend fun queueMediaItem(mediaItemId: Long) {
-        queueMediaItem(mediaItemId, schedule = true)
+        queueMediaItem(mediaItemId, schedule = true, showSkippedReason = true)
     }
 
-    private suspend fun queueMediaItem(mediaItemId: Long, schedule: Boolean) {
+    private suspend fun queueMediaItem(
+        mediaItemId: Long,
+        schedule: Boolean,
+        showSkippedReason: Boolean = false,
+    ) {
         val item = mediaDao.getMediaItem(mediaItemId) ?: return
         if (item.type != MediaType.Anime.name) return
         val malId = resolveMyAnimeListId(
@@ -165,7 +160,13 @@ class MalSyncManager(
             metadataExternalId = item.metadataExternalId,
             popularityJson = item.popularityJson,
             sourceUrl = item.sourceUrl,
-        ) ?: return
+        ) ?: run {
+            Log.w(MalLogTag, "Not queued: mediaItem=$mediaItemId has no MAL id")
+            if (showSkippedReason) {
+                showToast("MAL: ${item.title} no té cap identificador de MyAnimeList.")
+            }
+            return
+        }
         if (item.malId != malId) mediaDao.updateMalId(mediaItemId, malId)
 
         val existing = mediaDao.getMalSyncQueueItem(mediaItemId)
@@ -181,8 +182,15 @@ class MalSyncManager(
                 lastSuccessAtEpochMillis = existing?.lastSuccessAtEpochMillis,
             ),
         )
-        if (schedule && tokenStore.isSyncEnabled() && tokenStore.readTokens() != null) {
+        val canSync = tokenStore.isSyncEnabled() && tokenStore.readTokens() != null
+        Log.d(MalLogTag, "Queued mediaItem=$mediaItemId malId=$malId canSync=$canSync")
+        if (schedule && canSync) {
+            if (showSkippedReason) {
+                showToast("MAL: ${item.title} en cua (ID $malId).")
+            }
             MalSyncScheduler.enqueue(context)
+        } else if (showSkippedReason && !canSync) {
+            showToast("MAL: ${item.title} està pendent; el compte no està connectat o sincronitzat.")
         }
     }
 
@@ -195,24 +203,26 @@ class MalSyncManager(
 
     suspend fun syncAllIfEnabled() {
         if (!tokenStore.isSyncEnabled() || tokenStore.readTokens() == null) return
-        mediaDao.getMediaItems().forEach { item -> queueMediaItem(item.id, schedule = false) }
+        mediaDao.getMediaItems().forEach { item ->
+            queueMediaItem(item.id, schedule = false, showSkippedReason = false)
+        }
         MalSyncScheduler.enqueue(context)
     }
 
     suspend fun processPending(isFinalAttempt: Boolean = false): MalWorkerOutcome {
         if (!tokenStore.isSyncEnabled()) return MalWorkerOutcome.Success
         var tokens = tokenStore.readTokens() ?: run {
-            mutableEvents.tryEmit(
-                MalSyncEvent.Failed(
-                    animeTitle = oldestPendingTitle(),
-                    willRetry = false,
-                    authorizationRequired = true,
-                ),
+            showFailureToast(
+                animeTitle = oldestPendingTitle(),
+                statusCode = null,
+                detail = "cal tornar a connectar el compte",
+                willRetry = false,
             )
             return MalWorkerOutcome.AuthorizationRequired
         }
         val updatedTitles = mutableListOf<String>()
-        var failureEvent: MalSyncEvent.Failed? = null
+        val successCodes = mutableSetOf<Int>()
+        var failure: MalFailureDiagnostic? = null
         mutableState.update { it.copy(isSyncing = true, error = null) }
         return try {
             tokens = ensureFresh(tokens)
@@ -232,11 +242,11 @@ class MalSyncManager(
 
                     val attemptAt = System.currentTimeMillis()
                     try {
-                        apiClient.updateAnimeList(tokens.accessToken, queueItem.malId, payload)
+                        successCodes += apiClient.updateAnimeList(tokens.accessToken, queueItem.malId, payload)
                     } catch (error: MalApiException) {
                         if (error.statusCode == 401) {
                             tokens = refreshOrDisconnect(tokens)
-                            apiClient.updateAnimeList(tokens.accessToken, queueItem.malId, payload)
+                            successCodes += apiClient.updateAnimeList(tokens.accessToken, queueItem.malId, payload)
                         } else {
                             throw error
                         }
@@ -260,26 +270,38 @@ class MalSyncManager(
                 MalWorkerOutcome.Retry
             }
         } catch (error: MalAuthorizationRequiredException) {
-            failureEvent = MalSyncEvent.Failed(
+            failure = MalFailureDiagnostic(
                 animeTitle = oldestPendingTitle(),
+                statusCode = error.statusCode,
+                detail = error.message,
                 willRetry = false,
-                authorizationRequired = true,
             )
             MalWorkerOutcome.AuthorizationRequired
         } catch (error: MalApiException) {
             val willRetry = error.isRetryable && !isFinalAttempt
             val failedTitle = markOldestPendingFailure(error.message, retryable = willRetry)
-            failureEvent = MalSyncEvent.Failed(failedTitle, willRetry)
+            failure = MalFailureDiagnostic(failedTitle, error.statusCode, error.message, willRetry)
             if (willRetry) MalWorkerOutcome.Retry else MalWorkerOutcome.Success
         } catch (error: Exception) {
             val willRetry = !isFinalAttempt
             val failedTitle = markOldestPendingFailure(error.message, retryable = willRetry)
-            failureEvent = MalSyncEvent.Failed(failedTitle, willRetry)
+            failure = MalFailureDiagnostic(
+                animeTitle = failedTitle,
+                statusCode = null,
+                detail = "${error::class.simpleName}: ${error.message.orEmpty()}",
+                willRetry = willRetry,
+            )
             if (willRetry) MalWorkerOutcome.Retry else MalWorkerOutcome.Success
         } finally {
+            val currentFailure = failure
             when {
-                failureEvent != null -> mutableEvents.tryEmit(failureEvent)
-                updatedTitles.isNotEmpty() -> mutableEvents.tryEmit(MalSyncEvent.Updated(updatedTitles))
+                currentFailure != null -> showFailureToast(
+                    animeTitle = currentFailure.animeTitle,
+                    statusCode = currentFailure.statusCode,
+                    detail = currentFailure.detail,
+                    willRetry = currentFailure.willRetry,
+                )
+                updatedTitles.isNotEmpty() -> showSuccessToast(updatedTitles, successCodes)
             }
             mutableState.update { it.copy(isSyncing = false) }
         }
@@ -298,7 +320,7 @@ class MalSyncManager(
             mutableState.update {
                 it.copy(isConnected = false, accountName = null, isSyncEnabled = false, error = "Torna a connectar MAL.")
             }
-            throw MalAuthorizationRequiredException()
+            throw MalAuthorizationRequiredException(error.statusCode, error.message)
         }
         throw error
     }
@@ -321,6 +343,38 @@ class MalSyncManager(
     private suspend fun oldestPendingTitle(): String? = mediaDao.getPendingMalSyncQueue(1)
         .firstOrNull()
         ?.let { mediaDao.getMediaItem(it.mediaItemId)?.title }
+
+    private fun showSuccessToast(animeTitles: List<String>, statusCodes: Set<Int>) {
+        val code = statusCodes.sorted().joinToString("/").ifBlank { "2xx" }
+        val subject = if (animeTitles.size == 1) animeTitles.first() else "${animeTitles.size} animes"
+        Log.i(MalLogTag, "Sync accepted: HTTP $code, count=${animeTitles.size}")
+        showToast("MAL HTTP $code: $subject actualitzat correctament.")
+    }
+
+    private fun showFailureToast(
+        animeTitle: String?,
+        statusCode: Int?,
+        detail: String?,
+        willRetry: Boolean,
+    ) {
+        val code = statusCode?.let { "HTTP $it" } ?: "sense resposta HTTP"
+        val subject = animeTitle ?: "anime"
+        val safeDetail = detail.orEmpty().replace(Regex("\\s+"), " ").take(MaxToastDetailLength)
+        Log.e(MalLogTag, "Sync failed: $code, title=$subject, retry=$willRetry, detail=$safeDetail")
+        showToast(
+            buildString {
+                append("MAL $code: no s'ha actualitzat $subject")
+                if (safeDetail.isNotBlank()) append(" — $safeDetail")
+                if (willRetry) append(". Es tornarà a provar")
+            },
+        )
+    }
+
+    private fun showToast(message: String) {
+        mainHandler.post {
+            Toast.makeText(context.applicationContext, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     private fun initialState(): MalSyncState {
         val tokens = tokenStore.readTokens()
@@ -363,6 +417,7 @@ class MalSyncWorker(
     workerParameters: WorkerParameters,
 ) : CoroutineWorker(appContext, workerParameters) {
     override suspend fun doWork(): Result {
+        Log.d(MalLogTag, "Worker started: attempt=$runAttemptCount")
         val application = applicationContext as? ContentTrackerApplication ?: return Result.failure()
         return when (
             application.malSyncManager.processPending(
@@ -376,7 +431,17 @@ class MalSyncWorker(
     }
 }
 
-private class MalAuthorizationRequiredException : Exception()
+private data class MalFailureDiagnostic(
+    val animeTitle: String?,
+    val statusCode: Int?,
+    val detail: String?,
+    val willRetry: Boolean,
+)
+
+private class MalAuthorizationRequiredException(
+    val statusCode: Int? = null,
+    message: String? = null,
+) : Exception(message)
 
 private fun secureRandomString(byteCount: Int): String {
     val bytes = ByteArray(byteCount).also(SecureRandom()::nextBytes)
@@ -390,5 +455,7 @@ private const val FailedState = "Failed"
 private const val BatchSize = 25
 private const val MaxItemsPerRun = 100
 private const val MaxStoredErrorLength = 300
+private const val MaxToastDetailLength = 120
+private const val MalLogTag = "OmnilogMAL"
 private const val RefreshLeewayMillis = 60_000L
 private const val MaxWorkerRetries = 5

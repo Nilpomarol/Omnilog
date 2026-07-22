@@ -9,6 +9,11 @@ import java.net.URLEncoder
 
 data class MalAccount(val name: String)
 
+data class MalApiResponse(
+    val statusCode: Int,
+    val json: JSONObject,
+)
+
 class MalApiException(
     val statusCode: Int,
     message: String,
@@ -49,20 +54,19 @@ class MalApiClient(
             url = "$ApiBase/users/@me",
             method = "GET",
             accessToken = accessToken,
-        )
+        ).json
         MalAccount(name = json.getString("name"))
     }
 
-    suspend fun updateAnimeList(accessToken: String, malId: Int, payload: MalSyncPayload) {
+    suspend fun updateAnimeList(accessToken: String, malId: Int, payload: MalSyncPayload): Int =
         withContext(Dispatchers.IO) {
             requestJson(
                 url = "$ApiBase/anime/$malId/my_list_status",
                 method = "PUT",
                 accessToken = accessToken,
                 form = payload.toFormFields(),
-            )
+            ).statusCode
         }
-    }
 
     private fun tokenRequest(
         form: Map<String, String>,
@@ -72,7 +76,7 @@ class MalApiClient(
             url = TokenUrl,
             method = "POST",
             form = form,
-        )
+        ).json
         val expiresInSeconds = json.optLong("expires_in", 0L).coerceAtLeast(60L)
         return MalTokens(
             accessToken = json.getString("access_token"),
@@ -87,7 +91,7 @@ class MalApiClient(
         method: String,
         accessToken: String? = null,
         form: Map<String, String>? = null,
-    ): JSONObject {
+    ): MalApiResponse {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = NetworkTimeoutMillis
         connection.readTimeout = NetworkTimeoutMillis
@@ -114,7 +118,10 @@ class MalApiClient(
                 ?.takeIf { it.isNotBlank() }
             throw MalApiException(statusCode, remoteMessage ?: "MyAnimeList request failed ($statusCode)")
         }
-        return if (body.isBlank()) JSONObject() else JSONObject(body)
+        return MalApiResponse(
+            statusCode = statusCode,
+            json = if (body.isBlank()) JSONObject() else JSONObject(body),
+        )
     }
 }
 
