@@ -6,8 +6,9 @@ android.useAndroidX=true
 android.disallowKotlinSourceSets=false
 
 # Optional provider credentials.
-# Do not commit real keys here. Prefer environment variables or
-# user-level Gradle properties in ~/.gradle/gradle.properties.
+# Copy this file to the untracked root gradle.properties, set the values in
+# ~/.gradle/gradle.properties, or provide matching environment variables.
+# Never commit real credentials.
 GOOGLE_BOOKS_API_KEY=
 RAWG_API_KEY=
 OMDB_API_KEY=
