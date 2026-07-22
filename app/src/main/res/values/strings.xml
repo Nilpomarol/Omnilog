@@ -586,6 +586,26 @@
     <string name="theme_option_system">Sistema</string>
     <string name="theme_option_light">Clar</string>
     <string name="theme_option_dark">Fosc</string>
+    <string name="settings_import_imdb_description">Afegeix pel·lícules i sèries a %1$s des d\'un fitxer CSV.</string>
+    <string name="settings_backup_last_just_now">Última còpia ara mateix.</string>
+    <plurals name="settings_backup_last_minutes">
+        <item quantity="one">Última còpia fa %1$d minut.</item>
+        <item quantity="other">Última còpia fa %1$d minuts.</item>
+    </plurals>
+    <plurals name="settings_backup_last_hours">
+        <item quantity="one">Última còpia fa %1$d hora.</item>
+        <item quantity="other">Última còpia fa %1$d hores.</item>
+    </plurals>
+    <plurals name="settings_backup_last_days">
+        <item quantity="one">Última còpia fa %1$d dia.</item>
+        <item quantity="other">Última còpia fa %1$d dies.</item>
+    </plurals>
+    <string name="settings_backup_last_on">Última còpia el %1$s.</string>
+    <string name="settings_backup_last_never">Encara no se n\'ha fet cap.</string>
+    <plurals name="settings_visible_sections_summary">
+        <item quantity="one">Se\'n mostra %1$d de %2$d.</item>
+        <item quantity="other">Se\'n mostren %1$d de %2$d.</item>
+    </plurals>
     <string name="settings_active_sections_title">Contingut d\'Ara mateix</string>
     <string name="settings_active_sections_description">Tria quines seccions apareixen al carrusel Ara mateix.</string>
     <string name="settings_backup_group_description">La biblioteca &#233;s local. Exporta-la o configura una c&#242;pia autom&#224;tica per conservar-la i recuperar-la.</string>

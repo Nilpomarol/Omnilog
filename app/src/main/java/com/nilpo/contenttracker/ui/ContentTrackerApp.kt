@@ -883,6 +883,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     .padding(innerPadding),
                             )
                         } else if (route == AppRoute.Settings) {
+                            // The worker writes its success stamp from the background, where this
+                            // state cannot see it. Re-read on entry so the "last backup" line is
+                            // not stale for the whole life of the process.
+                            LaunchedEffect(Unit) {
+                                autoBackupConfiguration = AutoBackupPreferences.read(context)
+                            }
                             SettingsScreen(
                                 askForGoodreadsRating = askForGoodreadsRating,
                                 onAskForGoodreadsRatingChange = { enabled ->
@@ -898,6 +904,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onImportStoryGraphCsv = { backupActions.onImportStoryGraphCsvRequested() },
                                 isAutoBackupEnabled = autoBackupConfiguration.directoryUri != null,
                                 autoBackupFrequency = autoBackupConfiguration.frequency,
+                                lastAutoBackupAtEpochMillis = autoBackupConfiguration.lastSuccessAtEpochMillis,
                                 onAutoBackupFolderRequested = { autoBackupFolderLauncher.launch(null) },
                                 onAutoBackupFrequencyChange = { frequency ->
                                     AutoBackupPreferences.saveFrequency(context, frequency)
