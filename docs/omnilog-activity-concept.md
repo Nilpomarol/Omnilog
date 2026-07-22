@@ -2,26 +2,26 @@
 
 ## Purpose
 
-This document defines what the per-session progress history is for, and records the decisions behind it. It replaces the feature currently shipped as `ProgressHistoryAction` and named `Historial de progrés`.
+This document defines what the per-session progress history is for, and records the decisions behind it. It replaced the feature previously shipped as `ProgressHistoryAction` and named `Historial de progrés`.
 
-It is a concept document, not an implementation plan. It fixes the rules; the work needed to satisfy them is listed at the end but not sequenced.
+It is a concept document, not an implementation plan. It fixes the rules; `docs/omnilog-activity-implementation-plan.md` records how they were satisfied.
 
-Status: agreed, not yet implemented.
+Status: delivered. The rules below describe the feature as it stands, and the decisions they overturned are kept rather than deleted — several were reversed once, and the reasoning matters more than the conclusion.
 
-## The Problem With The Current Feature
+## The Problem It Replaced
 
-The shipped history is a log of edits to the database rather than a log of consumption. It presents rows of `progress_updates` in the order they were written, labelled with the arithmetic difference between neighbouring cumulative values.
+The old history was a log of edits to the database rather than a log of consumption. It presented rows of `progress_updates` in the order they were written, labelled with the arithmetic difference between neighbouring cumulative values.
 
-That produces entries like `-3 pàgines · total 180`. Nothing of the kind happened to the user. A correction is being reported as an event.
+That produced entries like `-3 pàgines · total 180`. Nothing of the kind happened to the user. A correction was being reported as an event.
 
-The same confusion shows up elsewhere in the feature:
+The same confusion showed up elsewhere in it:
 
-- Rows are displayed by insertion instant but deltas are computed by logged date, so back-dating a row makes the arithmetic disagree with the visible sequence.
-- The delta baseline is taken from all rows including import snapshots, while rendering filters those out, so a hidden row silently absorbs part of a visible delta.
-- The surface is reached through a button that reads as a repair tool, so it is only opened when something is wrong.
-- It is offered even when a single entry exists, where there is no sequence to read.
+- Rows were displayed by insertion instant but deltas were computed by logged date, so back-dating a row made the arithmetic disagree with the visible sequence.
+- The delta baseline was taken from all rows including import snapshots, while rendering filtered those out, so a hidden row silently absorbed part of a visible delta.
+- The surface was reached through a button that read as a repair tool, so it was only opened when something was wrong.
+- It was offered even when a single entry existed, where there is no sequence to read.
 
-These are symptoms of one thing: the feature has no product definition, so its presentation defaulted to its storage shape.
+These were symptoms of one thing: the feature had no product definition, so its presentation defaulted to its storage shape.
 
 ## Product Definition
 
@@ -43,9 +43,13 @@ The feature is `Activitat`. `Historial` is retired — it reads as an audit trai
 
 **There are no negative entries.** Consuming less than recorded is a correction, not an event. If progress genuinely needs to go backwards, the user edits the offending entry down or deletes it. This case is rare enough that it does not justify modelling a reversal.
 
-**Pause and resume belong in the same list.** They are part of the session's story and are read in sequence with progress. They are a different kind of row and must look like one. They remain append-only and delete-only, and deleting either half of a pause still removes both, as documented in `MediaRepository.deleteSessionStatusEvent`.
+**Status changes belong in the same list.** Pauses, resumes, completions and abandonments are part of the session's story and are read in sequence with progress. They are a different kind of row and must look like one.
 
-**A single entry is not activity.** With one row there is no sequence, so the surface is not offered. This applies to every media type without exception.
+**A status change is dated by the user, not by the clock.** The instant a row was written fixes its place in the sequence; the day it happened is the user's to state and can be corrected. Pause a book on Friday, remember on Sunday, and the log should not insist on Sunday. This is the same split `progress_updates` already makes between `loggedAtEpochDay` and `createdAtEpochMillis`.
+
+**Deleting a transition undoes only that transition.** It never happened, so the session falls back to the state before it: delete a resume and the session is paused again, which is what it was. An earlier version of this concept removed a pause and its resume together, on the grounds that half a pair described nothing real. That was wrong — a lone pause describes something perfectly real, namely a session that is still paused. Only the newest transition moves the session's own status; removing an older one edits the record without touching the present.
+
+**A single row is not activity.** With one row there is no sequence, so the surface is not offered. Milestones count towards this: a session with one entry but a start and a finish does have a sequence to read — began, advanced, ended — which is what the rule is protecting. It applies to every media type without exception.
 
 **Where you started is not activity either.** Progress that predates tracking — adding something already finished, or already part-way through — is a starting position, not something that happened. It belongs to the session as a baseline and never becomes a row. This is the same rule as the one above applied to storage: if there is nothing to sequence, it is not a record. See *Baselines* below.
 
@@ -112,6 +116,32 @@ And it gives the derived window an honest floor: the first entry of a session me
 
 The current flag is only set for completed sessions. Adding something already in progress — a book at page 180 — writes a counting row, so those 180 pages land in today's objectives as though they were read today. That is the same problem wearing a different coat, and it gets the same answer: 180 is a baseline.
 
+## The Status Log
+
+The log records every transition, but Activitat does not show every row. Two filters decide what is worth reading, both in `meaningfulActivityStatuses`.
+
+**A transition that changes nothing is not shown.** A second consecutive pause says nothing the first did not. A resume with no pause before it is not a resume at all — it is a session starting, which the start milestone already says.
+
+**Terminal transitions stay.** Completing and abandoning are the end of the story and belong in it, unlike starting, which the milestone covers.
+
+### Milestones
+
+A session's `startedAt` and `finishedAt` appear as rows, so the list does not begin mid-story with a run of entries that have no beginning and no end.
+
+They are **read-only**. Both are edited through the session editor, and offering them here as well would be two places to change one fact. This is the distinction the earlier draft of this concept missed when it excluded them entirely: showing is not editing.
+
+A finish milestone is **suppressed when a matching terminal transition exists**, because the two would say the same thing twice. Sessions that predate the log have no such transition and rely on the milestone; sessions that have one rely on the transition, which carries a date the user can correct.
+
+### Two orderings
+
+**The list** is ordered by the instant each row was written. Entries and status changes can both be re-dated, and a correction should not make rows jump around the list it was made in.
+
+**Running totals** accumulate in date order instead. A total answers "where had I got to by then", which is a claim about the order things were consumed. It also has to agree with `TimelineBuilder`, which totals the same entries the same way.
+
+The cost is that a back-dated entry can show a total out of step with its position — re-date the newest entry to the earliest day and its total becomes the smallest while it stays at the top. That is the honest consequence of the row sitting where it was recorded and the total counting where it belongs.
+
+Milestones have no recorded instant, so they take the ends of the list outright, which is also where they belong.
+
 ## Presentation
 
 ### Grouping is readability only
@@ -137,48 +167,43 @@ Movies are deliberately not special-cased out of the feature. The single-entry r
 
 ### Editing
 
-Editing acts on the entry itself rather than on per-row icon buttons. The current row carries a 32dp edit button and a 32dp delete button side by side, both below the minimum touch target and both adjacent to a destructive action.
+A row is acted on by tapping the row. The surface it replaced put a 32dp edit button and a 32dp delete button on every line — two targets below the minimum touch size, one destructive, a thumb's width apart.
 
-The edit surface must offer, in the language of the concept:
+An entry's editor offers the amount as an increment in the media type's unit, the date, the period switch, and delete. Delete sits under the save button in the error colour: reachable, but never where the thumb lands by default. A status row's editor offers its date and delete; milestones open nothing.
 
-- the amount consumed, expressed as an increment in the media type's unit
-- the date
-- the option to mark the entry as covering a period
-- delete
+**Entries are not capped by the media's total.** A provider's page count is metadata and can be corrected below what the user has actually recorded, so validating an entry against it would make real history unsaveable. The only bound is that an amount must be positive — an entry worth nothing is a deletion.
 
-The current dialog labels its field `Progrés acumulat` while the row it was opened from displays a delta. Under increment storage that mismatch disappears on its own.
+**A status change cannot be dated outside its neighbours.** The editor bounds the picker by the previous and next transition, because a log whose rows disagree with their own order describes nothing.
 
 ### Placement
 
-Deferred to the UI overhaul, with one constraint from this concept: Activitat is something the user reads, which argues for an inline or expandable surface on the session card rather than a modal that has to be dismissed. The final choice should be made against real screens.
+A bottom sheet, opened from an `Activitat (n)` trigger on the session card. Activitat is read, and a sheet is put down rather than closed with a button. It also lets a long history scroll without the session card growing to hold it.
+
+**Only the top dismisses it.** A sheet drags on whatever its content leaves unconsumed, which would make a downward swipe anywhere in the list a dismissal — including at the top of a long history, mid-read. The list keeps every vertical gesture, leaving the drag handle and the title as the only places that close it.
 
 ### Visual language
 
-The feature does not currently match the rest of the app and needs a full pass alongside the overhaul. It should use `OmnilogTheme` colours, the app's own card and typography treatment, and the accent of the session it belongs to, rather than reading as a plain Material list.
+A miniature of the Timeline: entries hang off a rail with beads, a status change taking the larger bead in its own accent and an entry a small one in the line's tone. Activitat is the same content at one title's scale, so it should not need a second reading vocabulary.
 
-## Consistency Requirements
+## Durability
 
-**Deleting a status event must be undoable.** Progress deletions publish a `DeletionRecovery` and show an undo snackbar; status deletions do not, despite removing two rows at once. The more destructive action currently has less protection.
+**Deleting is undoable.** Both entry and status deletions publish a `DeletionRecovery` and show an undo snackbar. Restoring a status deletion puts back the row and the session status it moved, and refuses if either has changed underneath — a half-applied undo would leave a sequence that never happened.
 
-**Delete confirmations must identify what is going.** The progress dialog quotes the entry. The status dialog does not say which pause is being removed.
+**Delete confirmations name what is going.**
 
-**The surface must survive a delete.** Deleting an entry currently closes the whole surface, because the open/closed state is keyed on the entry count. Cleaning up three bad entries means reopening three times.
+**The surface survives a delete.** Its open state is not keyed on the rows it displays, so cleaning up three bad entries does not mean reopening three times.
 
-## What This Invalidates
+**The status log is backed up.** It was not, and `replaceAllData` deletes sessions, so restoring a backup silently destroyed every pause and resume in the library. Backups carry it from schema 9.
 
-Recorded so the implementation plan has a starting point. None of this is scheduled here.
+## What It Cost
 
-**Storage.** `ProgressUpdateEntity.progressValue` is cumulative and is read as such by `ObjectiveCalculator`, `TimelineBuilder`, session progress recalculation in `MediaDao.updateProgressUpdateAndRecalculateSession`, deletion recalculation in `OfflineMediaRepository.deleteProgressUpdate`, and the backup JSON format. Moving to increments touches all of them and needs a migration. This is the largest single cost in the concept and should be planned before any UI work.
+The work touched storage, every reader of it, the backup format and the whole surface, across four database versions. `docs/omnilog-activity-implementation-plan.md` records it in detail — the migration and its lossy steps, the readers that assumed cumulative values, and the two bugs the conversion uncovered along the way.
 
-**Catch-up rows move to the session.** Rows written with `countsTowardObjectives = false` are baselines, not activity, and become a field on `TrackingSession`. The flag is then unused and is removed along with the filtering it forced on `ProgressHistoryAction`, `TimelineBuilder` and `ObjectiveCalculator`. See *Baselines* above.
+Two are worth naming here because they were the point rather than the by-product.
 
-**Derived deltas.** The delta arithmetic in `ProgressHistoryAction` and the regression handling in `TimelineBuilder` both exist to paper over cumulative storage. Increments remove the need for both, including the timeline's rule that a non-positive delta is data maintenance and gets no row.
+**`countsTowardObjectives` was hiding a real bug.** The flag was set whenever a row was written after its session was already complete, which caught both "added a book I finished years ago" and "logged today's reading a day late" — and silently dropped the second from goals. Two books worth 1033 pages had gone uncounted for months. The flag is gone; baselines and dates carry what it was standing in for.
 
-**The modal.** `ProgressHistoryModal` and its `OmnilogModal` host are replaced by whatever the overhaul chooses.
-
-**Dead strings.** `progress_history_entry` and `progress_history_more` have no references and should go. The remaining `progress_history_*` strings are renamed to `activity_*` and rewritten in the language of this concept.
-
-**Date formatting.** `dd/MM/yyyy` is hard-coded in `ProgressHistoryAction.formatDate`. It should follow the locale.
+**The status log was never backed up.** Restoring a backup silently destroyed every pause and resume in the library. Nothing on screen said so.
 
 ## Open Question
 

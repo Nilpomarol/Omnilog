@@ -538,6 +538,3 @@ interface MediaDao {
         deleteEmptyMediaCollections()
     }
 }
-
-private fun Int.clampToProgressTotal(maxProgress: Int?): Int =
-    maxProgress?.let { coerceIn(0, it) } ?: coerceAtLeast(0)
