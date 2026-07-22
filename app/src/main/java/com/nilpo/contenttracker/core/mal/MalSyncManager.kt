@@ -43,6 +43,16 @@ data class MalSyncState(
     val failedCount: Int = 0,
     val lastSuccessAtEpochMillis: Long? = null,
     val error: String? = null,
+    val changes: List<MalSyncChange> = emptyList(),
+)
+
+data class MalSyncChange(
+    val mediaItemId: Long,
+    val animeTitle: String,
+    val malId: Int,
+    val isFailed: Boolean,
+    val attemptCount: Int,
+    val error: String?,
 )
 
 enum class MalWorkerOutcome { Success, Retry, AuthorizationRequired }
@@ -63,11 +73,24 @@ class MalSyncManager(
     init {
         scope.launch {
             mediaDao.observeMalSyncQueue().collectLatest { queue ->
+                val changes = queue
+                    .filter { it.state == PendingState || it.state == FailedState }
+                    .map { item ->
+                        MalSyncChange(
+                            mediaItemId = item.mediaItemId,
+                            animeTitle = mediaDao.getMediaItem(item.mediaItemId)?.title ?: "Anime #${item.malId}",
+                            malId = item.malId,
+                            isFailed = item.state == FailedState,
+                            attemptCount = item.attemptCount,
+                            error = item.lastError,
+                        )
+                    }
                 mutableState.update { current ->
                     current.copy(
-                        pendingCount = queue.count { it.state == PendingState },
-                        failedCount = queue.count { it.state == FailedState },
+                        pendingCount = changes.count { !it.isFailed },
+                        failedCount = changes.count { it.isFailed },
                         lastSuccessAtEpochMillis = queue.mapNotNull { it.lastSuccessAtEpochMillis }.maxOrNull(),
+                        changes = changes,
                     )
                 }
             }
@@ -209,6 +232,39 @@ class MalSyncManager(
         MalSyncScheduler.enqueue(context)
     }
 
+    suspend fun retryUnfinishedChanges() {
+        if (!tokenStore.isSyncEnabled() || tokenStore.readTokens() == null) {
+            showToast("MAL: torna a connectar el compte abans de reintentar.")
+            return
+        }
+        val unfinished = mediaDao.getUnfinishedMalSyncQueue()
+        if (unfinished.isEmpty()) {
+            showToast("MAL: no hi ha canvis pendents.")
+            return
+        }
+        val now = System.currentTimeMillis()
+        unfinished.filter { it.state == FailedState }.forEach { item ->
+            mediaDao.insertMalSyncQueueItem(
+                item.copy(
+                    state = PendingState,
+                    attemptCount = 0,
+                    lastError = null,
+                    updatedAtEpochMillis = now,
+                ),
+            )
+        }
+        Log.d(MalLogTag, "Retry requested for ${unfinished.size} unfinished item(s)")
+        MalSyncScheduler.enqueue(context)
+    }
+
+    suspend fun cancelUnfinishedChanges() {
+        MalSyncScheduler.cancel(context)
+        val count = mediaDao.getUnfinishedMalSyncQueue().size
+        mediaDao.deleteUnfinishedMalSyncQueue()
+        Log.d(MalLogTag, "Cancelled $count unfinished item(s)")
+        showToast("MAL: s'han cancel·lat $count canvis pendents.")
+    }
+
     suspend fun processPending(isFinalAttempt: Boolean = false): MalWorkerOutcome {
         if (!tokenStore.isSyncEnabled()) return MalWorkerOutcome.Success
         var tokens = tokenStore.readTokens() ?: run {
@@ -251,8 +307,14 @@ class MalSyncManager(
                             throw error
                         }
                     }
+                    val currentQueueItem = mediaDao.getMalSyncQueueItem(queueItem.mediaItemId)
+                    if (currentQueueItem == null || currentQueueItem.state != PendingState) {
+                        Log.d(MalLogTag, "Result ignored after cancellation: mediaItem=${queueItem.mediaItemId}")
+                        processed++
+                        continue
+                    }
                     mediaDao.insertMalSyncQueueItem(
-                        queueItem.copy(
+                        currentQueueItem.copy(
                             state = SyncedState,
                             attemptCount = 0,
                             lastError = null,
@@ -409,6 +471,10 @@ object MalSyncScheduler {
             ExistingWorkPolicy.REPLACE,
             request,
         )
+    }
+
+    fun cancel(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(UniqueWorkName)
     }
 }
 

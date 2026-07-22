@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
 import com.nilpo.contenttracker.core.mal.MalSyncState
+import com.nilpo.contenttracker.core.mal.MalSyncChange
 import com.nilpo.contenttracker.ui.common.ActiveSectionChips
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
@@ -100,6 +101,8 @@ fun SettingsScreen(
     malSyncState: MalSyncState,
     onConnectMyAnimeList: () -> Unit,
     onSyncMyAnimeList: () -> Unit,
+    onRetryMyAnimeList: () -> Unit,
+    onCancelMyAnimeList: () -> Unit,
     onDisconnectMyAnimeList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -195,11 +198,41 @@ fun SettingsScreen(
                             SettingsActionRow(
                                 title = malSyncState.accountName?.let { "Compte: $it" } ?: "Compte connectat",
                                 description = malSyncDescription(malSyncState),
-                                onClick = onSyncMyAnimeList,
+                                onClick = if (malSyncState.isSyncEnabled) {
+                                    onRetryMyAnimeList
+                                } else {
+                                    onSyncMyAnimeList
+                                },
                                 enabled = !malSyncState.isSyncing,
                                 iconResId = MediaSection.Anime.navIconResId,
                                 accent = OmnilogTheme.accents.Anime,
                             )
+                            malSyncState.changes.forEach { change ->
+                                SettingsDivider()
+                                SettingsActionRow(
+                                    title = change.animeTitle,
+                                    description = malSyncChangeDescription(change),
+                                    onClick = {},
+                                    enabled = false,
+                                )
+                            }
+                            if (malSyncState.changes.isNotEmpty()) {
+                                SettingsDivider()
+                                SettingsActionRow(
+                                    title = "Reintenta només aquests canvis",
+                                    description = "No es tornaran a enviar els animes que ja estan sincronitzats.",
+                                    onClick = onRetryMyAnimeList,
+                                    enabled = !malSyncState.isSyncing,
+                                    accent = OmnilogTheme.accents.Anime,
+                                )
+                                SettingsDivider()
+                                SettingsActionRow(
+                                    title = "Cancel·la els canvis pendents",
+                                    description = "Elimina aquesta cua sense modificar les dades d'Omnilog.",
+                                    onClick = onCancelMyAnimeList,
+                                    accent = OmnilogTheme.accents.Dropped,
+                                )
+                            }
                             SettingsDivider()
                             SettingsActionRow(
                                 title = "Desconnecta MyAnimeList",
@@ -783,6 +816,15 @@ private fun malSyncDescription(state: MalSyncState): String = when {
     state.pendingCount > 0 -> "${state.pendingCount} canvis pendents. Toca per sincronitzar ara."
     state.lastSuccessAtEpochMillis != null -> "Al dia · ${lastAutoBackupSummary(state.lastSuccessAtEpochMillis)}"
     else -> "Connectat. Toca per enviar la biblioteca d'anime."
+}
+
+private fun malSyncChangeDescription(change: MalSyncChange): String = if (change.isFailed) {
+    buildString {
+        append("Error · MAL #${change.malId}")
+        change.error?.takeIf { it.isNotBlank() }?.let { append(" · ${it.take(120)}") }
+    }
+} else {
+    "Pendent · MAL #${change.malId}"
 }
 
 /**

@@ -948,12 +948,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     }
                                 },
                                 onSyncMyAnimeList = {
-                                    if (malSyncState.isSyncEnabled) {
-                                        viewModel.enableAndSyncMyAnimeList()
-                                    } else {
-                                        showMalInitialSyncConfirmation = true
-                                    }
+                                    showMalInitialSyncConfirmation = true
                                 },
+                                onRetryMyAnimeList = viewModel::retryMyAnimeListChanges,
+                                onCancelMyAnimeList = viewModel::cancelMyAnimeListChanges,
                                 onDisconnectMyAnimeList = viewModel::disconnectMyAnimeList,
                                 modifier = Modifier
                                     .fillMaxSize()

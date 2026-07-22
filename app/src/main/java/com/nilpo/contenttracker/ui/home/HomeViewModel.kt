@@ -94,6 +94,14 @@ class HomeViewModel(
         viewModelScope.launch { malSyncManager.enableAndSyncAll() }
     }
 
+    fun retryMyAnimeListChanges() {
+        viewModelScope.launch { malSyncManager.retryUnfinishedChanges() }
+    }
+
+    fun cancelMyAnimeListChanges() {
+        viewModelScope.launch { malSyncManager.cancelUnfinishedChanges() }
+    }
+
     fun disconnectMyAnimeList() = malSyncManager.disconnect()
 
     private val filters = combine(

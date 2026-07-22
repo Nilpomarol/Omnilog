@@ -91,14 +91,19 @@ class MalApiClient(
         method: String,
         accessToken: String? = null,
         form: Map<String, String>? = null,
+        redirectCount: Int = 0,
     ): MalApiResponse {
         val connection = URL(url).openConnection() as HttpURLConnection
+        connection.instanceFollowRedirects = false
         connection.connectTimeout = NetworkTimeoutMillis
         connection.readTimeout = NetworkTimeoutMillis
         connection.requestMethod = method
         connection.setRequestProperty("Accept", "application/json")
         if (accessToken != null) {
             connection.setRequestProperty("Authorization", "Bearer $accessToken")
+        }
+        if (URL(url).host == ApiHost) {
+            connection.setRequestProperty("X-MAL-CLIENT-ID", clientId)
         }
         if (form != null) {
             connection.doOutput = true
@@ -109,6 +114,24 @@ class MalApiClient(
         }
 
         val statusCode = connection.responseCode
+        if (statusCode == 307 || statusCode == 308) {
+            val location = connection.getHeaderField("Location")
+            if (!location.isNullOrBlank() && redirectCount < MaxRedirects) {
+                val redirectedUrl = URL(URL(url), location)
+                val isTrustedRedirect = redirectedUrl.protocol == "https" &&
+                    redirectedUrl.host in TrustedMalHosts
+                if (isTrustedRedirect) {
+                    connection.disconnect()
+                    return requestJson(
+                        url = redirectedUrl.toString(),
+                        method = method,
+                        accessToken = accessToken,
+                        form = form,
+                        redirectCount = redirectCount + 1,
+                    )
+                }
+            }
+        }
         val body = (if (statusCode in 200..299) connection.inputStream else connection.errorStream)
             ?.bufferedReader()
             ?.use { it.readText() }
@@ -116,7 +139,12 @@ class MalApiClient(
         if (statusCode !in 200..299) {
             val remoteMessage = runCatching { JSONObject(body).optString("message") }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
-            throw MalApiException(statusCode, remoteMessage ?: "MyAnimeList request failed ($statusCode)")
+            val location = connection.getHeaderField("Location")?.take(MaxRedirectLocationLength)
+            val detail = remoteMessage ?: "MyAnimeList request failed ($statusCode)"
+            throw MalApiException(
+                statusCode,
+                if (location == null) detail else "$detail; redirect=$location",
+            )
         }
         return MalApiResponse(
             statusCode = statusCode,
@@ -132,5 +160,9 @@ internal fun Map<String, String>.toFormBody(): String = entries.joinToString("&"
 private fun String.urlEncode(): String = URLEncoder.encode(this, Charsets.UTF_8.name())
 
 private const val ApiBase = "https://api.myanimelist.net/v2"
+private const val ApiHost = "api.myanimelist.net"
 private const val TokenUrl = "https://myanimelist.net/v1/oauth2/token"
 private const val NetworkTimeoutMillis = 15_000
+private const val MaxRedirects = 3
+private const val MaxRedirectLocationLength = 160
+private val TrustedMalHosts = setOf("api.myanimelist.net", "myanimelist.net")

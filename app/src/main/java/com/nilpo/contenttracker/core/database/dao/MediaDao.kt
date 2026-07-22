@@ -52,11 +52,20 @@ interface MediaDao {
     @Query("SELECT * FROM mal_sync_queue ORDER BY updatedAtEpochMillis")
     fun observeMalSyncQueue(): Flow<List<MalSyncQueueEntity>>
 
+    @Query(
+        "SELECT * FROM mal_sync_queue WHERE state IN ('Pending', 'Failed') " +
+            "ORDER BY updatedAtEpochMillis",
+    )
+    suspend fun getUnfinishedMalSyncQueue(): List<MalSyncQueueEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMalSyncQueueItem(item: MalSyncQueueEntity)
 
     @Query("DELETE FROM mal_sync_queue WHERE mediaItemId = :mediaItemId")
     suspend fun deleteMalSyncQueueItem(mediaItemId: Long)
+
+    @Query("DELETE FROM mal_sync_queue WHERE state IN ('Pending', 'Failed')")
+    suspend fun deleteUnfinishedMalSyncQueue()
 
     @Query("SELECT * FROM media_credits ORDER BY mediaItemId, sortOrder, id")
     suspend fun getMediaCredits(): List<MediaCreditEntity>
