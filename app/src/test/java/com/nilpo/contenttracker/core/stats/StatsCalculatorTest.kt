@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.core.stats
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.SessionStatusEvent
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -15,6 +16,46 @@ import java.time.LocalDate
 class StatsCalculatorTest {
     private val today = LocalDate.of(2026, 7, 8)
     private val calculator = StatsCalculator(today)
+
+    @Test
+    fun reopeningDoesNotEraseARecordedCompletionFromStats() {
+        val completionDay = LocalDate.of(2026, 5, 4)
+        val item = trackedMedia(
+            id = 1,
+            type = MediaType.Book,
+            sessions = listOf(
+                session(
+                    id = 1,
+                    mediaItemId = 1,
+                    status = TrackingStatus.InProgress,
+                    statusEvents = listOf(
+                        SessionStatusEvent(
+                            id = 1,
+                            sessionId = 1,
+                            status = TrackingStatus.Completed,
+                            occurredOn = completionDay,
+                            createdAtEpochMillis = 1,
+                        ),
+                        SessionStatusEvent(
+                            id = 2,
+                            sessionId = 1,
+                            status = TrackingStatus.InProgress,
+                            occurredOn = completionDay.plusDays(1),
+                            createdAtEpochMillis = 2,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = listOf(item),
+            filters = StatsFilters(StatsPeriod.ThisYear, setOf(MediaType.Book)),
+        )
+
+        assertEquals(1, snapshot.completionSessions)
+        assertEquals(1, snapshot.uniqueTitlesCompleted)
+    }
 
     @Test
     fun thisYearStatsUseFinishedCompletedSessions() {
@@ -1873,6 +1914,7 @@ class StatsCalculatorTest {
         rating: Int? = null,
         startedAt: LocalDate? = null,
         finishedAt: LocalDate? = null,
+        statusEvents: List<SessionStatusEvent> = emptyList(),
     ): TrackingSession {
         return TrackingSession(
             id = id,
@@ -1883,6 +1925,7 @@ class StatsCalculatorTest {
             rating = rating,
             startedAt = startedAt,
             finishedAt = finishedAt,
+            statusEvents = statusEvents,
         )
     }
 }

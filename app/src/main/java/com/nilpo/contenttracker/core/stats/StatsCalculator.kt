@@ -14,16 +14,23 @@ import java.time.ZoneId
 class StatsCalculator(
     private val today: LocalDate = LocalDate.now(),
 ) {
+    private data class CompletedSession(
+        val trackedMedia: TrackedMedia,
+        val session: TrackingSession,
+        val completedOn: LocalDate?,
+    )
+
     fun calculate(
         items: List<TrackedMedia>,
         filters: StatsFilters,
     ): StatsSnapshot {
         val filteredItems = items.filter { trackedMedia -> trackedMedia.item.type in filters.mediaTypes }
         val completedSessions = filteredItems.flatMap { trackedMedia ->
-            trackedMedia.sessions
-                .filter { session -> session.status == TrackingStatus.Completed }
-                .filter { session -> filters.period.contains(session.finishedAt, today) }
-                .map { session -> trackedMedia to session }
+            trackedMedia.sessions.flatMap { session ->
+                session.completionDates()
+                    .filter { date -> filters.period.contains(date, today) }
+                    .map { date -> CompletedSession(trackedMedia, session, date) }
+            }
         }
         // Ratings are dated by finishedAt, exactly like completions, so the rating charts can
         // never disagree with the completion count for the same period. A rating on a session
@@ -34,7 +41,7 @@ class StatsCalculator(
         val ratedSessions = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
                 .filter { session -> session.rating != null }
-                .filter { session -> filters.period.contains(session.finishedAt, today) }
+                .filter { session -> filters.period.contains(session.latestCompletionDate(), today) }
                 .map { session -> trackedMedia to session }
         }
         val revisitSessions = filteredItems.flatMap { trackedMedia ->
@@ -229,14 +236,12 @@ class StatsCalculator(
 
         val completionSessions = filteredItems.sumOf { trackedMedia ->
             trackedMedia.sessions
-                .count { session ->
-                    session.status == TrackingStatus.Completed && inScope(session.finishedAt)
-                }
+                .sumOf { session -> session.completionDates().count(::inScope) }
         }
         val ratings = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
                 .filter { session -> session.rating != null }
-                .filter { session -> inScope(session.finishedAt) }
+                .filter { session -> inScope(session.latestCompletionDate()) }
                 .mapNotNull { session -> session.rating }
         }
         val revisits = filteredItems.flatMap { trackedMedia ->
@@ -296,12 +301,14 @@ class StatsCalculator(
     }
 
     private fun completionSessionsByMonth(
-        completedSessions: List<Pair<TrackedMedia, TrackingSession>>,
+        completedSessions: List<CompletedSession>,
         period: StatsPeriod,
     ): List<StatsBucket> {
         val monthValues = completedSessions
-            .mapNotNull { (trackedMedia, session) ->
-                session.finishedAt?.let { date -> YearMonth.from(date) to trackedMedia.item.type }
+            .mapNotNull { completion ->
+                completion.completedOn?.let { date ->
+                    YearMonth.from(date) to completion.trackedMedia.item.type
+                }
             }
         val monthTotals = monthValues
             .groupingBy { (month, _) -> month }
@@ -398,7 +405,7 @@ class StatsCalculator(
                 val rating = session.rating?.takeIf { value -> value in 1..10 } ?: return@mapNotNull null
                 // Same date as the period filter uses, so a rating cannot be filtered into the
                 // period by one date and then bucketed into a month by another.
-                val date = session.finishedAt ?: return@mapNotNull null
+                val date = session.latestCompletionDate() ?: return@mapNotNull null
                 YearMonth.from(date) to rating
             }
             .groupBy(
@@ -420,7 +427,7 @@ class StatsCalculator(
 
     private fun mediumStats(
         mediaTypes: Set<MediaType>,
-        completedSessions: List<Pair<TrackedMedia, TrackingSession>>,
+        completedSessions: List<CompletedSession>,
         ratedSessions: List<Pair<TrackedMedia, TrackingSession>>,
     ): List<MediumStats> {
         return mediaTypes
@@ -472,7 +479,7 @@ class StatsCalculator(
     }
 
     private fun progressTotals(
-        completedSessions: List<Pair<TrackedMedia, TrackingSession>>,
+        completedSessions: List<CompletedSession>,
     ): List<ProgressTotalStats> {
         return completedSessions
             .groupBy { (trackedMedia, _) -> trackedMedia.item.type }
@@ -493,7 +500,7 @@ class StatsCalculator(
      * again, so the parts sum to the whole the headline states.
      */
     private fun revisitedTitleBreakdown(
-        revisitedCompletions: List<Pair<TrackedMedia, TrackingSession>>,
+        revisitedCompletions: List<CompletedSession>,
     ): List<RevisitStats> {
         return revisitedCompletions
             .distinctBy { (trackedMedia, _) -> trackedMedia.item.id }
@@ -759,6 +766,19 @@ class StatsCalculator(
                     .toLocalDate()
             }
     }
+
+    /** Status events are canonical; the session finish date is the legacy/current fallback. */
+    private fun TrackingSession.completionDates(): List<LocalDate?> {
+        val recorded = statusEvents
+            .filter { it.status == TrackingStatus.Completed }
+            .map { it.occurredOn }
+        return recorded.ifEmpty {
+            if (status == TrackingStatus.Completed) listOf(finishedAt) else emptyList()
+        }
+    }
+
+    private fun TrackingSession.latestCompletionDate(): LocalDate? =
+        completionDates().filterNotNull().maxOrNull()
 
     private fun StatsPeriod.contains(date: LocalDate?, today: LocalDate): Boolean {
         if (date == null) return this == StatsPeriod.AllTime
