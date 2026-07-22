@@ -10,6 +10,7 @@ import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.MalSyncQueueEntity
 import com.nilpo.contenttracker.core.database.entity.ObjectiveEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
@@ -35,6 +36,27 @@ interface MediaDao {
 
     @Query("SELECT * FROM media_items ORDER BY id")
     suspend fun getMediaItems(): List<MediaItemEntity>
+
+    @Query("UPDATE media_items SET malId = :malId WHERE id = :mediaItemId")
+    suspend fun updateMalId(mediaItemId: Long, malId: Int)
+
+    @Query("SELECT * FROM mal_sync_queue WHERE mediaItemId = :mediaItemId LIMIT 1")
+    suspend fun getMalSyncQueueItem(mediaItemId: Long): MalSyncQueueEntity?
+
+    @Query(
+        "SELECT * FROM mal_sync_queue WHERE state = 'Pending' " +
+            "ORDER BY updatedAtEpochMillis LIMIT :limit",
+    )
+    suspend fun getPendingMalSyncQueue(limit: Int): List<MalSyncQueueEntity>
+
+    @Query("SELECT * FROM mal_sync_queue ORDER BY updatedAtEpochMillis")
+    fun observeMalSyncQueue(): Flow<List<MalSyncQueueEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMalSyncQueueItem(item: MalSyncQueueEntity)
+
+    @Query("DELETE FROM mal_sync_queue WHERE mediaItemId = :mediaItemId")
+    suspend fun deleteMalSyncQueueItem(mediaItemId: Long)
 
     @Query("SELECT * FROM media_credits ORDER BY mediaItemId, sortOrder, id")
     suspend fun getMediaCredits(): List<MediaCreditEntity>
@@ -332,6 +354,7 @@ interface MediaDao {
             rankingJson = :rankingJson,
             metadataSource = :metadataSource,
             metadataExternalId = :metadataExternalId,
+            malId = :malId,
             metadataLastFetchedAtEpochMillis = :metadataLastFetchedAtEpochMillis
         WHERE id = :mediaItemId
         """,
@@ -360,6 +383,7 @@ interface MediaDao {
         rankingJson: String?,
         metadataSource: String?,
         metadataExternalId: String?,
+        malId: Int?,
         metadataLastFetchedAtEpochMillis: Long,
     )
 

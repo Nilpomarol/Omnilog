@@ -398,6 +398,7 @@ fun AddMediaScreen(
                                 rankingJson = selectedMetadataForForm?.rankingJson,
                                 metadataSource = selectedMetadataForForm?.source,
                                 metadataExternalId = selectedMetadataForForm?.externalId,
+                                malId = selectedMetadataForForm?.malId,
                                 coverUrl = selectedMetadataForForm?.coverUrl,
                                 synopsis = selectedMetadataForForm?.synopsis,
                             ),

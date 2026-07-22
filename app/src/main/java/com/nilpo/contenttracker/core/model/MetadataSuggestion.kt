@@ -27,6 +27,7 @@ data class MetadataSuggestion(
     val seasonSuggestions: List<MetadataSeasonSuggestion> = emptyList(),
     val bookEdition: BookEditionMetadata? = null,
     val bookEditionSuggestions: List<BookEditionMetadata> = emptyList(),
+    val malId: Int? = null,
 )
 
 data class BookEditionMetadata(

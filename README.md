@@ -76,6 +76,11 @@ MAL_CLIENT_ID=your-client-id
 
 The root `gradle.properties` is local-only and ignored. Copy `gradle.properties.example` when setting up the project, or place credentials in user-level Gradle properties or environment variables.
 
+For MAL account synchronization, register `omnilog://mal-oauth` as the application's OAuth redirect
+URI in MyAnimeList. Omnilog uses the authorization-code flow with PKCE, stores tokens behind Android
+Keystore encryption, and only sends data from Omnilog to MAL after the first bulk sync is confirmed.
+MAL-only titles are never deleted.
+
 ## Documentation
 
 - [Roadmap](docs/omnilog-roadmap.md)

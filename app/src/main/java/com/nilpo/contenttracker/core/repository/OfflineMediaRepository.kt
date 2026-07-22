@@ -32,6 +32,7 @@ import com.nilpo.contenttracker.core.model.normalizeSteamAppId
 import com.nilpo.contenttracker.core.model.steamAppIdFromMetadataJson
 import com.nilpo.contenttracker.core.model.normalizeSynopsis
 import com.nilpo.contenttracker.core.model.plainSynopsis
+import com.nilpo.contenttracker.core.model.resolveMyAnimeListId
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.ObjectiveUnit
@@ -50,6 +51,7 @@ import java.time.ZoneId
 
 class OfflineMediaRepository(
     private val database: ContentTrackerDatabase,
+    private val onMalRelevantChange: suspend (Long) -> Unit = {},
 ) : MediaRepository {
     private val mediaDao: MediaDao = database.mediaDao()
     override fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>> {
@@ -359,6 +361,7 @@ class OfflineMediaRepository(
         // Progress supplied when a session is created is where the user already was, not a sitting
         // they logged, so it becomes the session's baseline and produces no entry.
         mediaDao.insertTrackingSession(newSession.copy(baselineProgress = validProgress))
+        onMalRelevantChange(request.mediaItemId)
     }
 
     override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long = database.withTransaction {
@@ -409,6 +412,13 @@ class OfflineMediaRepository(
                 metadataLastFetchedAtEpochMillis = request.metadataSource?.let { System.currentTimeMillis() },
                 metadataExternalId = request.metadataExternalId,
                 metadataSource = request.metadataSource?.name,
+                malId = resolveMyAnimeListId(
+                    explicitMalId = request.malId,
+                    metadataSource = request.metadataSource?.name,
+                    metadataExternalId = request.metadataExternalId,
+                    popularityJson = request.popularityJson,
+                    sourceUrl = request.sourceUrl,
+                ),
                 isOwned = request.isOwned,
             ),
         )
@@ -477,6 +487,7 @@ class OfflineMediaRepository(
                 updatedAtEpochMillis = initialUpdatedAtEpochMillis,
             ),
         )
+        onMalRelevantChange(mediaItemId)
         mediaItemId
     }
 
@@ -576,8 +587,8 @@ class OfflineMediaRepository(
                 }
             }
         }
-
         val after = captureSessionHistory(sessionId) ?: return@withTransaction null
+        onMalRelevantChange(session.mediaItemId)
         DeletionRecovery.SessionMutation(before = before, after = after)
     }
 
@@ -619,6 +630,7 @@ class OfflineMediaRepository(
         val progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId)
         val statusEvents = mediaDao.getSessionStatusEventsForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
+        onMalRelevantChange(session.mediaItemId)
         DeletionRecovery.PastSession(
             session = session,
             progressUpdates = progressUpdates,
@@ -643,6 +655,7 @@ class OfflineMediaRepository(
             coversPeriod = coversPeriod ?: update.coversPeriod,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        onMalRelevantChange(update.mediaItemId)
     }
 
     /** Deletes one mistaken transition and restores the exact state it left when it is the latest. */
@@ -701,6 +714,7 @@ class OfflineMediaRepository(
         val sessionAfterDeletion = mediaDao.getTrackingSession(event.sessionId)
             ?: return@withTransaction null
         val statusEventsAfterDeletion = mediaDao.getSessionStatusEventsForSession(event.sessionId)
+        onMalRelevantChange(event.mediaItemId)
         DeletionRecovery.SessionStatusEvents(
             events = listOf(event),
             statusEventsBeforeDeletion = sessionEvents,
@@ -739,6 +753,7 @@ class OfflineMediaRepository(
                 updatedAtEpochMillis = System.currentTimeMillis(),
             )
         }
+        onMalRelevantChange(event.mediaItemId)
     }
 
     private fun SessionStatusEventEntity.resolvedOccurredOn(): LocalDate =
@@ -765,6 +780,7 @@ class OfflineMediaRepository(
             progressCurrent = progressAfterDeletion,
             updatedAtEpochMillis = updatedAtEpochMillis,
         )
+        onMalRelevantChange(update.mediaItemId)
         DeletionRecovery.ProgressUpdate(
             update = update,
             sessionBeforeDeletion = sessionBeforeDeletion,
@@ -798,13 +814,24 @@ class OfflineMediaRepository(
     }
 
     override suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean = database.withTransaction {
-        when (recovery) {
+        val restored = when (recovery) {
             is DeletionRecovery.MediaItem -> restoreMediaItemDeletion(recovery)
             is DeletionRecovery.PastSession -> restorePastSessionDeletion(recovery)
             is DeletionRecovery.ProgressUpdate -> restoreProgressUpdateDeletion(recovery)
             is DeletionRecovery.SessionStatusEvents -> restoreSessionStatusEvents(recovery)
             is DeletionRecovery.SessionMutation -> restoreSessionMutation(recovery)
         }
+        if (restored) {
+            val mediaItemId = when (recovery) {
+                is DeletionRecovery.MediaItem -> recovery.item.id
+                is DeletionRecovery.PastSession -> recovery.session.mediaItemId
+                is DeletionRecovery.ProgressUpdate -> recovery.update.mediaItemId
+                is DeletionRecovery.SessionStatusEvents -> recovery.sessionBeforeDeletion.mediaItemId
+                is DeletionRecovery.SessionMutation -> recovery.before.session.mediaItemId
+            }
+            onMalRelevantChange(mediaItemId)
+        }
+        restored
     }
 
     private suspend fun restoreMediaItemDeletion(recovery: DeletionRecovery.MediaItem): Boolean {
@@ -1074,6 +1101,7 @@ class OfflineMediaRepository(
         )
         mediaDao.deleteEmptyMediaCollections()
 
+        onMalRelevantChange(mediaItemId)
     }
 
     override suspend fun updateMediaItemMetadata(
@@ -1145,6 +1173,7 @@ class OfflineMediaRepository(
             metadataOverrideFieldsCsv = updatedOverrideFields.toMetadataOverrideFieldsCsv(),
         )
 
+        onMalRelevantChange(mediaItemId)
     }
 
     override suspend fun previewMediaItemMetadataRefresh(
@@ -1362,6 +1391,7 @@ class OfflineMediaRepository(
             ) ?: currentItem.rankingJson,
             metadataSource = refreshed.source.name,
             metadataExternalId = refreshed.externalId,
+            malId = refreshed.malId ?: currentItem.toResolvedMalId(),
             metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
         )
 
@@ -1425,6 +1455,7 @@ class OfflineMediaRepository(
             )
         }
 
+        onMalRelevantChange(preview.mediaItemId)
         return true
     }
 
@@ -1527,6 +1558,7 @@ class OfflineMediaRepository(
             rankingJson = linked.rankingJson,
             metadataSource = linked.source.name,
             metadataExternalId = linked.externalId,
+            malId = linked.malId ?: currentItem.toResolvedMalId(),
             metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
         )
 
@@ -1563,6 +1595,7 @@ class OfflineMediaRepository(
                 )
             }
 
+        onMalRelevantChange(mediaItemId)
         return true
     }
 
@@ -1796,15 +1829,16 @@ private fun MetadataExternalRatingSuggestion.toPrimaryRating(): MetadataRatingSu
 
 private fun MetadataSuggestion.withPreservedMyAnimeListId(currentItem: MediaItemEntity): MetadataSuggestion {
     if (mediaType != MediaType.Anime || source != MetadataSource.AniList) return this
-    val malId = popularityJson.myAnimeListIdFromJson()
-        ?: currentItem.myAnimeListId()
+    val preservedMalId = this.malId
+        ?: popularityJson.myAnimeListIdFromJson()?.toIntOrNull()
+        ?: currentItem.toResolvedMalId()
         ?: return this
     val mergedPopularityJson = runCatching {
         JSONObject(popularityJson ?: "{}")
-            .put("malId", malId)
+            .put("malId", preservedMalId)
             .toString()
     }.getOrDefault(popularityJson)
-    return copy(popularityJson = mergedPopularityJson)
+    return copy(malId = preservedMalId, popularityJson = mergedPopularityJson)
 }
 
 private fun ExternalRatingEntity.isPrimaryExternalRating(mediaItem: MediaItemEntity?): Boolean {
@@ -1828,12 +1862,13 @@ private fun List<ExternalRatingEntity>.preferredPrimaryReplacement(mediaItem: Me
 
 private fun Double.closeTo(other: Double): Boolean = kotlin.math.abs(this - other) < 0.001
 
-private fun MediaItemEntity.myAnimeListId(): String? {
-    if (metadataSource == MetadataSource.Jikan.name && !metadataExternalId.isNullOrBlank()) {
-        return metadataExternalId.trim()
-    }
-    return popularityJson.myAnimeListIdFromJson()
-}
+private fun MediaItemEntity.toResolvedMalId(): Int? = resolveMyAnimeListId(
+    explicitMalId = malId,
+    metadataSource = metadataSource,
+    metadataExternalId = metadataExternalId,
+    popularityJson = popularityJson,
+    sourceUrl = sourceUrl,
+)
 
 private fun String?.myAnimeListIdFromJson(): String? {
     return runCatching {
@@ -1945,9 +1980,9 @@ private fun StoryGraphCsvItem.storyGraphDuplicateKey(): String {
 }
 
 private fun MediaItemEntity.myAnimeListDuplicateKey(): String {
-    val malId = myAnimeListId()
-    return if (!malId.isNullOrBlank()) {
-        "mal:${malId.trim().lowercase()}"
+    val malId = toResolvedMalId()
+    return if (malId != null) {
+        "mal:$malId"
     } else {
         "anime:${title.normalizedImportTitle()}:${progressTotal ?: ""}"
     }
@@ -2245,6 +2280,7 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .putNullable("metadataLastFetchedAtEpochMillis", metadataLastFetchedAtEpochMillis)
         .putNullable("metadataExternalId", metadataExternalId)
         .putNullable("metadataSource", metadataSource)
+        .putNullable("malId", malId)
         .putNullable("metadataOverrideFieldsCsv", metadataOverrideFieldsCsv)
         .put("isOwned", isOwned)
 }
@@ -2352,6 +2388,7 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         metadataLastFetchedAtEpochMillis = optNullableLong("metadataLastFetchedAtEpochMillis"),
         metadataExternalId = optNullableString("metadataExternalId") ?: optNullableString("externalId"),
         metadataSource = optNullableString("metadataSource") ?: optNullableString("sourceApi"),
+        malId = optNullableInt("malId"),
         metadataOverrideFieldsCsv = optNullableString("metadataOverrideFieldsCsv"),
         isOwned = if (has("isOwned")) {
             optBoolean("isOwned", false)

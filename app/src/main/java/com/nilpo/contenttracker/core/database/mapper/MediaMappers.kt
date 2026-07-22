@@ -19,6 +19,7 @@ import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.ProgressUpdate
+import com.nilpo.contenttracker.core.model.resolveMyAnimeListId
 import com.nilpo.contenttracker.core.model.SessionStatusEvent
 import com.nilpo.contenttracker.core.model.metadataJsonWithSteamAppId
 import com.nilpo.contenttracker.core.model.steamAppIdFromMetadataJson
@@ -60,6 +61,13 @@ fun MediaItemEntity.toDomain(): MediaItem {
         metadataLastFetchedAtEpochMillis = metadataLastFetchedAtEpochMillis,
         metadataExternalId = metadataExternalId,
         metadataSource = enumValueOrNull<MetadataSource>(metadataSource),
+        malId = resolveMyAnimeListId(
+            explicitMalId = malId,
+            metadataSource = metadataSource,
+            metadataExternalId = metadataExternalId,
+            popularityJson = popularityJson,
+            sourceUrl = sourceUrl,
+        ),
         isOwned = isOwned,
     )
 }
@@ -94,6 +102,7 @@ fun MediaItem.toEntity(): MediaItemEntity {
         metadataLastFetchedAtEpochMillis = metadataLastFetchedAtEpochMillis,
         metadataExternalId = metadataExternalId,
         metadataSource = metadataSource?.name,
+        malId = malId,
         isOwned = isOwned,
     )
 }

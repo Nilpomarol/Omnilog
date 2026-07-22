@@ -36,6 +36,10 @@ Supported keys:
 - `OMDB_API_KEY`
 - `MAL_CLIENT_ID`
 
+The MAL API client must register `omnilog://mal-oauth` as its OAuth redirect URI. Account sync is
+one-way: local anime status, progress, score, notes, dates, and supported rewatch fields are projected
+to MAL. The local Room database remains authoritative.
+
 Preferred locations:
 
 - environment variables

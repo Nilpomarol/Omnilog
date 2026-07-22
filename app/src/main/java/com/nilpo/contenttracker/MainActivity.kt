@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,11 +24,13 @@ class MainActivity : ComponentActivity() {
             metadataRepository = (application as ContentTrackerApplication).metadataRepository,
             recommendationRepository = (application as ContentTrackerApplication).recommendationRepository,
             coverRepository = (application as ContentTrackerApplication).coverRepository,
+            malSyncManager = (application as ContentTrackerApplication).malSyncManager,
         )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleMalOAuthIntent(intent)
         setContent {
             val themePreferences = rememberThemePreferences()
             val themePreference by rememberThemePreference(themePreferences)
@@ -48,6 +51,19 @@ class MainActivity : ComponentActivity() {
                     viewModel = homeViewModel,
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleMalOAuthIntent(intent)
+    }
+
+    private fun handleMalOAuthIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme == "omnilog" && uri.host == "mal-oauth") {
+            homeViewModel.handleMalAuthorizationRedirect(uri)
         }
     }
 }

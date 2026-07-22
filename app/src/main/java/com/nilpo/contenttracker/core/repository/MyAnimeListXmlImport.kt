@@ -103,6 +103,7 @@ internal fun MyAnimeListXmlItem.toAddTrackedMediaRequest(): AddTrackedMediaReque
         sourceUrl = malId?.let { "https://myanimelist.net/anime/$it" },
         metadataSource = malId?.let { MetadataSource.Jikan },
         metadataExternalId = malId,
+        malId = malId?.toIntOrNull(),
     )
 }
 
