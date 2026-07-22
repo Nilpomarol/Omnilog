@@ -74,6 +74,11 @@ OMDB_API_KEY=your-key
 MAL_CLIENT_ID=your-client-id
 ```
 
+For MAL account synchronization, register `omnilog://mal-oauth` as the application's OAuth redirect
+URI in MyAnimeList. Omnilog uses the authorization-code flow with PKCE, stores tokens behind Android
+Keystore encryption, and only sends data from Omnilog to MAL after the first bulk sync is confirmed.
+MAL-only titles are never deleted.
+
 The tracked root `gradle.properties` intentionally contains blank credential placeholders only.
 
 ## Documentation

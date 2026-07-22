@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
+import com.nilpo.contenttracker.core.mal.MalSyncState
 import com.nilpo.contenttracker.ui.common.ActiveSectionChips
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
@@ -96,6 +97,10 @@ fun SettingsScreen(
     onAutoBackupFolderRequested: () -> Unit,
     onAutoBackupFrequencyChange: (AutoBackupFrequency) -> Unit,
     onAutoBackupDisabled: () -> Unit,
+    malSyncState: MalSyncState,
+    onConnectMyAnimeList: () -> Unit,
+    onSyncMyAnimeList: () -> Unit,
+    onDisconnectMyAnimeList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activeFilterPreferences = rememberActiveFilterPreferences()
@@ -178,6 +183,39 @@ fun SettingsScreen(
                                 title = "Restaura una còpia anterior",
                                 description = stringResource(R.string.settings_restore_backup_description),
                                 onClick = onRestoreBackup,
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                SettingsSection(title = "MyAnimeList") {
+                    SettingsPanel {
+                        if (malSyncState.isConnected) {
+                            SettingsActionRow(
+                                title = malSyncState.accountName?.let { "Compte: $it" } ?: "Compte connectat",
+                                description = malSyncDescription(malSyncState),
+                                onClick = onSyncMyAnimeList,
+                                enabled = !malSyncState.isSyncing,
+                                iconResId = MediaSection.Anime.navIconResId,
+                                accent = OmnilogTheme.accents.Anime,
+                            )
+                            SettingsDivider()
+                            SettingsActionRow(
+                                title = "Desconnecta MyAnimeList",
+                                description = "Atura els enviaments. Les dades d'Omnilog no canviaran.",
+                                onClick = onDisconnectMyAnimeList,
+                                accent = OmnilogTheme.accents.Dropped,
+                            )
+                        } else {
+                            SettingsActionRow(
+                                title = if (malSyncState.isAuthorizing) "Connectant…" else "Connecta MyAnimeList",
+                                description = malSyncState.error
+                                    ?: "Omnilog podrà actualitzar la llista d'anime amb les teves dades locals.",
+                                onClick = onConnectMyAnimeList,
+                                enabled = malSyncState.isAvailable && !malSyncState.isAuthorizing,
+                                iconResId = MediaSection.Anime.navIconResId,
+                                accent = OmnilogTheme.accents.Anime,
                             )
                         }
                     }
@@ -737,6 +775,16 @@ private fun AutoBackupCard(
     }
 }
 
+@Composable
+private fun malSyncDescription(state: MalSyncState): String = when {
+    state.isSyncing -> "Sincronitzant ${state.pendingCount} canvis…"
+    !state.isSyncEnabled -> "Toca per revisar i activar el primer enviament des d'Omnilog."
+    state.failedCount > 0 -> "${state.failedCount} canvis necessiten atenció. Toca per reintentar."
+    state.pendingCount > 0 -> "${state.pendingCount} canvis pendents. Toca per sincronitzar ara."
+    state.lastSuccessAtEpochMillis != null -> "Al dia · ${lastAutoBackupSummary(state.lastSuccessAtEpochMillis)}"
+    else -> "Connectat. Toca per enviar la biblioteca d'anime."
+}
+
 /**
  * The screen's closing line rather than a section of its own.
  *
@@ -757,8 +805,8 @@ private fun SettingsAboutFooter() {
             color = OmnilogTheme.colors.appLine,
         )
         Text(
-            text = "Les teves dades es queden en aquest telèfon. Omnilog no té comptes, " +
-                "ni núvol, ni sincronització.",
+            text = "La biblioteca es queda en aquest telèfon. Si connectes MyAnimeList, " +
+                "només s'hi envia l'estat actual dels teus animes.",
             style = MaterialTheme.typography.bodySmall,
             color = OmnilogTheme.colors.appMuted,
         )

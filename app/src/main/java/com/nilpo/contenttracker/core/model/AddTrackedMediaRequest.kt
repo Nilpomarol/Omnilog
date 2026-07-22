@@ -36,6 +36,7 @@ data class AddTrackedMediaRequest(
     val rankingJson: String? = null,
     val metadataSource: MetadataSource? = null,
     val metadataExternalId: String? = null,
+    val malId: Int? = null,
     val coverUrl: String? = null,
     val synopsis: String? = null,
 )

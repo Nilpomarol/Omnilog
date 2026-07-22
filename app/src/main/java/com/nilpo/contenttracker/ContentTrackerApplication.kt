@@ -15,6 +15,7 @@ import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
 import com.nilpo.contenttracker.core.cover.CoverRepository
 import com.nilpo.contenttracker.core.cover.CoverSyncScheduler
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
+import com.nilpo.contenttracker.core.mal.MalSyncManager
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
 import com.nilpo.contenttracker.core.repository.BookRecommendationRepository
 import com.nilpo.contenttracker.core.repository.CompositeMetadataRepository
@@ -51,6 +52,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         AutoBackupScheduler.ensureScheduled(this)
         CoverSyncScheduler.enqueue(this)
+        malSyncManager.resumePendingSync()
     }
 
     override fun newImageLoader(context: Context): ImageLoader {
@@ -68,12 +70,39 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             "content-tracker.db",
         )
             .fallbackToDestructiveMigration(false)
-                        .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+            .addMigrations(
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+                MIGRATION_9_10,
+                MIGRATION_10_11,
+                MIGRATION_11_12,
+                MIGRATION_12_13,
+                MIGRATION_13_14,
+                MIGRATION_14_15,
+                MIGRATION_15_16,
+                MIGRATION_16_17,
+                MIGRATION_17_18,
+                MIGRATION_18_19,
+                MIGRATION_19_20,
+            )
             .build()
     }
 
+    val malSyncManager: MalSyncManager by lazy {
+        MalSyncManager(
+            context = applicationContext,
+            mediaDao = database.mediaDao(),
+            clientId = BuildConfig.MAL_CLIENT_ID,
+            redirectUri = BuildConfig.MAL_REDIRECT_URI,
+        )
+    }
+
     val mediaRepository: OfflineMediaRepository by lazy {
-        OfflineMediaRepository(database.mediaDao())
+        OfflineMediaRepository(
+            mediaDao = database.mediaDao(),
+            onMalRelevantChange = malSyncManager::queueMediaItem,
+        )
     }
 
     val metadataRepository: MetadataRepository by lazy {
@@ -224,6 +253,44 @@ private val MIGRATION_18_19 = object : Migration(18, 19) {
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS index_session_status_events_mediaItemId " +
                 "ON session_status_events(mediaItemId)",
+        )
+    }
+}
+
+private val MIGRATION_19_20 = object : Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE media_items ADD COLUMN malId INTEGER")
+        db.execSQL(
+            """
+            UPDATE media_items
+            SET malId = CAST(metadataExternalId AS INTEGER)
+            WHERE type = 'Anime'
+              AND metadataSource = 'Jikan'
+              AND metadataExternalId IS NOT NULL
+              AND metadataExternalId != ''
+              AND metadataExternalId NOT GLOB '*[^0-9]*'
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS mal_sync_queue (
+                mediaItemId INTEGER NOT NULL,
+                malId INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                attemptCount INTEGER NOT NULL,
+                lastError TEXT,
+                updatedAtEpochMillis INTEGER NOT NULL,
+                lastAttemptAtEpochMillis INTEGER,
+                lastSuccessAtEpochMillis INTEGER,
+                PRIMARY KEY(mediaItemId),
+                FOREIGN KEY(mediaItemId) REFERENCES media_items(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_mal_sync_queue_state ON mal_sync_queue(state)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_mal_sync_queue_updatedAtEpochMillis " +
+                "ON mal_sync_queue(updatedAtEpochMillis)",
         )
     }
 }

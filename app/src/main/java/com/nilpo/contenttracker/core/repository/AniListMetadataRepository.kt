@@ -44,7 +44,7 @@ class AniListMetadataRepository(
             return getJikanSuggestionDetails(suggestion)
         }
         if (suggestion.source != MetadataSource.AniList) return suggestion
-        val suggestionMalId = suggestion.malId()
+        val suggestionMalId = suggestion.malId
 
         // Failures propagate: the caller reports them and offers a retry, rather than silently
         // handing back the un-enriched suggestion as if the details had loaded.
@@ -58,7 +58,7 @@ class AniListMetadataRepository(
                 .getJSONObject("Media")
                 .toMetadataSuggestion()
                 ?: suggestion
-            val malId = detailed.malId() ?: suggestionMalId
+            val malId = detailed.malId ?: suggestionMalId
 
             val officialMalDetails = malId?.let { id ->
                 getOfficialMalAnimeDetails(id)
@@ -76,6 +76,7 @@ class AniListMetadataRepository(
             val malRank = officialMalDetails?.optInt("rank", 0)?.takeIf { it > 0 }
 
             detailed.copy(
+                malId = malId,
                 popularityJson = detailed.popularityJson.withMalId(malId),
                 externalRating = malRating?.let {
                     MetadataRatingSuggestion(
@@ -176,6 +177,7 @@ class AniListMetadataRepository(
         return MetadataSuggestion(
             source = MetadataSource.AniList,
             externalId = id.toString(),
+            malId = malId,
             mediaType = MediaType.Anime,
             title = title,
             originalTitle = originalTitle,
@@ -288,12 +290,6 @@ class AniListMetadataRepository(
     }
 }
 
-private fun MetadataSuggestion.malId(): Int? {
-    return runCatching {
-        JSONObject(popularityJson ?: "{}").optInt("malId", 0).takeIf { it > 0 }
-    }.getOrNull()
-}
-
 private fun String?.withMalId(malId: Int?): String? {
     if (malId == null) return this
     return runCatching {
@@ -370,6 +366,7 @@ private fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): Meta
     return base.copy(
         source = MetadataSource.Jikan,
         externalId = malId,
+        malId = malId.toIntOrNull(),
         title = optString("title_english").takeIf { it.isNotBlank() }
             ?: optString("title").takeIf { it.isNotBlank() }
             ?: base.title,

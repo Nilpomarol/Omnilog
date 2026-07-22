@@ -82,6 +82,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupPreferences
 import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.BackupPreview
@@ -142,6 +143,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val timelineEntries by viewModel.timelineEntries.collectAsStateWithLifecycle()
     val metadataUiState by viewModel.metadataUiState.collectAsStateWithLifecycle()
     val recommendationUiState by viewModel.recommendationUiState.collectAsStateWithLifecycle()
+    val malSyncState by viewModel.malSyncState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -166,6 +168,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var pendingImdbCsvImport by remember { mutableStateOf<PendingImdbCsvImport?>(null) }
     var pendingStoryGraphCsvImport by remember { mutableStateOf<PendingStoryGraphCsvImport?>(null) }
     var pendingMyAnimeListXmlImport by remember { mutableStateOf<PendingMyAnimeListXmlImport?>(null) }
+    var showMalInitialSyncConfirmation by remember { mutableStateOf(false) }
     var metadataLinkTarget by remember { mutableStateOf<TrackedMedia?>(null) }
     var metadataLinkQuery by remember { mutableStateOf("") }
     var metadataLinkSuggestions by remember { mutableStateOf<List<MetadataSuggestion>>(emptyList()) }
@@ -921,6 +924,20 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                         snackbarHostState.showSnackbar("Còpia automàtica desactivada.")
                                     }
                                 },
+                                malSyncState = malSyncState,
+                                onConnectMyAnimeList = {
+                                    viewModel.beginMalAuthorization()?.let { authorizationUrl ->
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authorizationUrl)))
+                                    }
+                                },
+                                onSyncMyAnimeList = {
+                                    if (malSyncState.isSyncEnabled) {
+                                        viewModel.enableAndSyncMyAnimeList()
+                                    } else {
+                                        showMalInitialSyncConfirmation = true
+                                    }
+                                },
+                                onDisconnectMyAnimeList = viewModel::disconnectMyAnimeList,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),
@@ -1519,6 +1536,40 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { pendingMyAnimeListXmlImport = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (showMalInitialSyncConfirmation) {
+        val synchronizableAnimeCount = uiState.allTrackedItems.count { tracked ->
+            tracked.item.type == MediaType.Anime && tracked.item.malId != null
+        }
+        val unmatchedAnimeCount = uiState.allTrackedItems.count { tracked ->
+            tracked.item.type == MediaType.Anime && tracked.item.malId == null
+        }
+        OmnilogAlertDialog(
+            onDismissRequest = { showMalInitialSyncConfirmation = false },
+            title = "Activa la sincronització amb MyAnimeList?",
+            text = {
+                Text(
+                    text = "S'enviaran $synchronizableAnimeCount animes. $unmatchedAnimeCount no tenen " +
+                        "identificador MAL i s'ignoraran. Els animes que només existeixin a MAL no s'esborraran.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMalInitialSyncConfirmation = false
+                        viewModel.enableAndSyncMyAnimeList()
+                    },
+                ) {
+                    Text("Envia la biblioteca")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMalInitialSyncConfirmation = false }) {
                     Text(text = stringResource(R.string.cancel))
                 }
             },

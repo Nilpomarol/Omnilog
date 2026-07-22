@@ -35,6 +35,7 @@ android {
         buildConfigField("String", "RAWG_API_KEY", "\"$rawgApiKey\"")
         buildConfigField("String", "OMDB_API_KEY", "\"$omdbApiKey\"")
         buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"")
+        buildConfigField("String", "MAL_REDIRECT_URI", "\"omnilog://mal-oauth\"")
     }
 
     buildFeatures {

@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.home
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -16,6 +17,7 @@ import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.mal.MalSyncManager
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.core.repository.DeletionRecovery
 import com.nilpo.contenttracker.core.repository.DeletionRecoveryStore
@@ -57,6 +59,7 @@ class HomeViewModel(
     private val metadataRepository: MetadataRepository,
     private val recommendationRepository: RecommendationRepository,
     private val coverRepository: CoverRepository,
+    private val malSyncManager: MalSyncManager,
 ) : ViewModel() {
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
@@ -78,7 +81,20 @@ class HomeViewModel(
 
     val metadataUiState = metadataSearchState.asStateFlow()
     val recommendationUiState = recommendationState.asStateFlow()
+    val malSyncState = malSyncManager.state
     val events = mutableEvents.asSharedFlow()
+
+    fun beginMalAuthorization(): String? = malSyncManager.beginAuthorization()
+
+    fun handleMalAuthorizationRedirect(uri: Uri) {
+        viewModelScope.launch { malSyncManager.handleAuthorizationRedirect(uri) }
+    }
+
+    fun enableAndSyncMyAnimeList() {
+        viewModelScope.launch { malSyncManager.enableAndSyncAll() }
+    }
+
+    fun disconnectMyAnimeList() = malSyncManager.disconnect()
 
     private val filters = combine(
         searchQuery,
@@ -160,6 +176,7 @@ class HomeViewModel(
 
     suspend fun importBackupJson(json: String) {
         mediaRepository.importBackupJson(json)
+        malSyncManager.syncAllIfEnabled()
         synchronizeLibraryCoversInBackground()
     }
 
@@ -898,6 +915,7 @@ class HomeViewModel(
         private val metadataRepository: MetadataRepository,
         private val recommendationRepository: RecommendationRepository,
         private val coverRepository: CoverRepository,
+        private val malSyncManager: MalSyncManager,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -906,6 +924,7 @@ class HomeViewModel(
                 metadataRepository = metadataRepository,
                 recommendationRepository = recommendationRepository,
                 coverRepository = coverRepository,
+                malSyncManager = malSyncManager,
             ) as T
         }
     }
