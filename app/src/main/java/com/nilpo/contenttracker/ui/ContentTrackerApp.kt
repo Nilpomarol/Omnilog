@@ -714,7 +714,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     title = when (val route = currentRoute) {
                         AppRoute.Stats -> stringResource(R.string.stats_title)
                         AppRoute.Timeline -> stringResource(R.string.timeline_title)
-                        AppRoute.Profile -> ""
+                        AppRoute.Profile -> "Perfil"
                         AppRoute.Settings -> "Configuració"
                         is AppRoute.AuthorDetail -> route.author
                         is AppRoute.CollectionDetail -> currentCollection?.name
