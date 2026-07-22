@@ -33,7 +33,6 @@ import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.ObjectiveUnit
 import com.nilpo.contenttracker.core.model.canonicalUnit
 import com.nilpo.contenttracker.core.model.definition
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
@@ -102,7 +101,7 @@ class OfflineMediaRepository(
 
     override suspend fun exportBackupJson(): String {
         return JSONObject()
-            .put("schemaVersion", 6)
+            .put("schemaVersion", 7)
             .put("exportedAtEpochMillis", System.currentTimeMillis())
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
@@ -407,7 +406,6 @@ class OfflineMediaRepository(
                 metadataExternalId = request.metadataExternalId,
                 metadataSource = request.metadataSource?.name,
                 isOwned = request.isOwned,
-                ownershipType = request.ownershipType.name,
             ),
         )
 
@@ -880,7 +878,7 @@ class OfflineMediaRepository(
         newCollectionName: String?,
         collectionSortOrder: Double?,
         progressTotal: Int?,
-        ownershipType: OwnershipType,
+        isOwned: Boolean,
     ) {
         val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return
         val validTitle = title.trim().takeIf { it.isNotBlank() } ?: return
@@ -907,8 +905,7 @@ class OfflineMediaRepository(
             collectionId = validCollectionId,
             collectionSortOrder = validCollectionSortOrder,
             progressTotal = validTotal,
-            isOwned = ownershipType != OwnershipType.None,
-            ownershipType = ownershipType.name,
+            isOwned = isOwned,
         )
         mediaDao.deleteEmptyMediaCollections()
 
@@ -1794,7 +1791,7 @@ private fun String.normalizedImportTitle(): String =
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
     val schemaVersion = root.optInt("schemaVersion", -1)
-    if (schemaVersion !in 1..6) {
+    if (schemaVersion !in 1..7) {
         throw UnsupportedBackupSchemaException(schemaVersion)
     }
 
@@ -1856,7 +1853,6 @@ private fun ParsedBackup.validate() {
     mediaItems.forEach { item ->
         require(item.title.isNotBlank()) { "Media item titles cannot be blank" }
         requireEnum<MediaType>(item.type) { "Unknown media type: ${item.type}" }
-        requireEnum<OwnershipType>(item.ownershipType) { "Unknown ownership type: ${item.ownershipType}" }
         item.metadataSource?.let { source ->
             requireEnum<MetadataSource>(source) { "Unknown metadata source: $source" }
         }
@@ -1985,7 +1981,6 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .putNullable("metadataSource", metadataSource)
         .putNullable("metadataOverrideFieldsCsv", metadataOverrideFieldsCsv)
         .put("isOwned", isOwned)
-        .put("ownershipType", ownershipType)
 }
 
 private fun MediaCreditEntity.toJson(): JSONObject {
@@ -2091,8 +2086,12 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         metadataExternalId = optNullableString("metadataExternalId") ?: optNullableString("externalId"),
         metadataSource = optNullableString("metadataSource") ?: optNullableString("sourceApi"),
         metadataOverrideFieldsCsv = optNullableString("metadataOverrideFieldsCsv"),
-        isOwned = optBoolean("isOwned", false),
-        ownershipType = optString("ownershipType", "None"),
+        isOwned = if (has("isOwned")) {
+            optBoolean("isOwned", false)
+        } else {
+            // Compatibility with any hand-edited legacy backup that retained only the old subtype.
+            optString("ownershipType", "None") != "None"
+        },
     )
 }
 

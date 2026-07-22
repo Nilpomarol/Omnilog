@@ -157,7 +157,7 @@ fun MediaCard(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
-                        if (item.ownership.isOwned) {
+                        if (item.isOwned) {
                             OwnedBadge()
                         }
                         if (session != null) {

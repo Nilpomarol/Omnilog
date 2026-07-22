@@ -163,14 +163,14 @@ internal fun StatsMediaTile(
                 modifier = Modifier.fillMaxSize(),
             )
             CoverScrim()
-            if (trackedMedia.item.ownership.isOwned || statLabel != null) {
+            if (trackedMedia.item.isOwned || statLabel != null) {
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(10.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    if (trackedMedia.item.ownership.isOwned) {
+                    if (trackedMedia.item.isOwned) {
                         OwnedBadge()
                     }
                     statLabel?.let { label ->

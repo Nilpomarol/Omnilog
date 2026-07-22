@@ -1018,7 +1018,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                             newCollectionName = null,
                                             collectionSortOrder = collectionSortOrder,
                                             progressTotal = trackedMedia.item.progressTotal,
-                                            ownershipType = trackedMedia.item.ownership.type,
+                                            isOwned = trackedMedia.item.isOwned,
                                         )
                                     },
                                     onCollectionActionMessage = { message ->

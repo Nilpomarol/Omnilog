@@ -30,5 +30,5 @@ data class MediaItem(
     val metadataLastFetchedAtEpochMillis: Long? = null,
     val metadataExternalId: String? = null,
     val metadataSource: MetadataSource? = null,
-    val ownership: Ownership = Ownership(isOwned = false),
+    val isOwned: Boolean = false,
 )

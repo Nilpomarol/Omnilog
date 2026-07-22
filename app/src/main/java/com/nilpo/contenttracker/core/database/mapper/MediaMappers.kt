@@ -18,8 +18,6 @@ import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
-import com.nilpo.contenttracker.core.model.Ownership
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.ProgressUpdate
 import com.nilpo.contenttracker.core.model.SessionStatusEvent
 import com.nilpo.contenttracker.core.model.metadataJsonWithSteamAppId
@@ -62,10 +60,7 @@ fun MediaItemEntity.toDomain(): MediaItem {
         metadataLastFetchedAtEpochMillis = metadataLastFetchedAtEpochMillis,
         metadataExternalId = metadataExternalId,
         metadataSource = enumValueOrNull<MetadataSource>(metadataSource),
-        ownership = Ownership(
-            isOwned = isOwned,
-            type = enumValueOrDefault(ownershipType, OwnershipType.None),
-        ),
+        isOwned = isOwned,
     )
 }
 
@@ -99,8 +94,7 @@ fun MediaItem.toEntity(): MediaItemEntity {
         metadataLastFetchedAtEpochMillis = metadataLastFetchedAtEpochMillis,
         metadataExternalId = metadataExternalId,
         metadataSource = metadataSource?.name,
-        isOwned = ownership.isOwned,
-        ownershipType = ownership.type.name,
+        isOwned = isOwned,
     )
 }
 

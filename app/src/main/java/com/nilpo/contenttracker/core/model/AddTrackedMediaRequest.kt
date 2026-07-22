@@ -13,7 +13,6 @@ data class AddTrackedMediaRequest(
     val initialStartedAt: LocalDate? = null,
     val initialFinishedAt: LocalDate? = null,
     val isOwned: Boolean,
-    val ownershipType: OwnershipType,
     val platformName: String?,
     val platformType: ConsumptionPlatformType,
     val collectionId: Long? = null,

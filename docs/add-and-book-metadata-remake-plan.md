@@ -45,7 +45,7 @@ Ordering is: exact ISBN, exact title and author, preferred language, completenes
 
 ### 3. Choose a status and enter only relevant tracking data
 
-The primary add sheet always contains a status selector, collection selector, and ownership selector. The visible tracking fields change with the selected status.
+The primary add sheet always contains a status selector, collection selector, and one-tap ownership checkbox. The visible tracking fields change with the selected status.
 
 | Status | Status-specific fields | Always visible |
 | --- | --- | --- |

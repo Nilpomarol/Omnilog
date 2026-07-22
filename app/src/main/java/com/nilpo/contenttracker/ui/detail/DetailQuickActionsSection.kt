@@ -50,7 +50,6 @@ import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -72,7 +71,7 @@ fun DetailQuickActionsSection(
     library: List<TrackedMedia>,
     currentSession: TrackingSession?,
     accent: Color,
-    onSaveItemDetails: (String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
+    onSaveItemDetails: (String, Long?, String?, Double?, Int?, Boolean) -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
 ) {
     var showCollectionDialog by rememberSaveable(item.id) { mutableStateOf(false) }
@@ -84,13 +83,13 @@ fun DetailQuickActionsSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             QuickActionButton(
-                text = if (item.ownership.isOwned) {
+                text = if (item.isOwned) {
                     stringResource(R.string.owned_label)
                 } else {
                     stringResource(R.string.owned_action_add)
                 },
                 accent = accent,
-                selected = item.ownership.isOwned,
+                selected = item.isOwned,
                 modifier = Modifier.weight(1f),
                 onClick = {
                     onSaveItemDetails(
@@ -99,7 +98,7 @@ fun DetailQuickActionsSection(
                         null,
                         item.collectionSortOrder,
                         item.effectiveProgressTotal(),
-                        if (item.ownership.isOwned) OwnershipType.None else OwnershipType.Physical,
+                        !item.isOwned,
                     )
                 },
             )
@@ -139,7 +138,7 @@ fun DetailQuickActionsSection(
                     result.newCollectionName,
                     result.sortOrder,
                     item.effectiveProgressTotal(),
-                    item.ownership.type,
+                    item.isOwned,
                 )
                 showCollectionDialog = false
             },

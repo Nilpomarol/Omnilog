@@ -12,7 +12,6 @@ import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.Objective
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.flow.Flow
@@ -192,7 +191,7 @@ interface MediaRepository {
         newCollectionName: String?,
         collectionSortOrder: Double?,
         progressTotal: Int?,
-        ownershipType: OwnershipType,
+        isOwned: Boolean,
     )
 
     suspend fun updateMediaItemMetadata(

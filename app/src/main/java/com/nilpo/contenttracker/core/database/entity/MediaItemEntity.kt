@@ -49,5 +49,7 @@ data class MediaItemEntity(
     val metadataSource: String? = null,
     val metadataOverrideFieldsCsv: String? = null,
     val isOwned: Boolean = false,
+    // Retained only for compatibility with existing on-device databases. Ownership is now
+    // represented exclusively by [isOwned]; this legacy column is never read by the domain layer.
     val ownershipType: String = "None",
 )

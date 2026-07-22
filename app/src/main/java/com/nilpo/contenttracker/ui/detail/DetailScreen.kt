@@ -41,7 +41,6 @@ import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.DetailHeaderActions
@@ -73,7 +72,7 @@ fun DetailScreen(
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onSetPrimaryExternalRating: (Long) -> Unit,
     onDeleteExternalRating: (Long) -> Unit,
-    onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, OwnershipType) -> Unit,
+    onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, Boolean) -> Unit,
     onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, String?, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
     onLinkMediaMetadata: () -> Unit,
@@ -110,7 +109,7 @@ fun DetailScreen(
         collectionName = trackedMedia.collection?.name,
         collectionSortOrder = trackedMedia.item.collectionSortOrder,
         progressTotal = trackedMedia.item.effectiveProgressTotal(),
-        isOwned = trackedMedia.item.ownership.isOwned,
+        isOwned = trackedMedia.item.isOwned,
         externalRatingSourceName = primaryExternalRating?.source?.displayName(),
         externalRatingSource = primaryExternalRating?.source,
         externalRatingScoreDescriptor = primaryExternalRating?.scoreDescriptor,
@@ -222,7 +221,7 @@ fun DetailScreen(
                     library = allTrackedMedia,
                     currentSession = currentSession,
                     accent = accent,
-                    onSaveItemDetails = { title, collectionId, newCollectionName, collectionSortOrder, progressTotal, ownershipType ->
+                    onSaveItemDetails = { title, collectionId, newCollectionName, collectionSortOrder, progressTotal, isOwned ->
                         onUpdateMediaItemDetails(
                             trackedMedia.item.id,
                             title,
@@ -230,7 +229,7 @@ fun DetailScreen(
                             newCollectionName,
                             collectionSortOrder,
                             progressTotal,
-                            ownershipType,
+                            isOwned,
                         )
                     },
                     onStartNewSession = onStartNewSession,

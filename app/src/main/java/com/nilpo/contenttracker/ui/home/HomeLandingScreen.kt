@@ -969,7 +969,7 @@ private fun HomeMediaTile(
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                if (trackedMedia.item.ownership.isOwned) {
+                if (trackedMedia.item.isOwned) {
                     OwnedBadge()
                 }
                 CardStatusIcon(status = session?.status)

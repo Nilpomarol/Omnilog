@@ -12,7 +12,6 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
@@ -678,7 +677,7 @@ class HomeViewModel(
         newCollectionName: String?,
         collectionSortOrder: Double?,
         progressTotal: Int?,
-        ownershipType: OwnershipType,
+        isOwned: Boolean,
     ) {
         viewModelScope.launch {
             mediaRepository.updateMediaItemDetails(
@@ -688,7 +687,7 @@ class HomeViewModel(
                 newCollectionName = newCollectionName,
                 collectionSortOrder = collectionSortOrder,
                 progressTotal = progressTotal,
-                ownershipType = ownershipType,
+                isOwned = isOwned,
             )
         }
     }

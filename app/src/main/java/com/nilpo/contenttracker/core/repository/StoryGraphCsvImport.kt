@@ -4,7 +4,6 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -85,7 +84,6 @@ internal fun StoryGraphCsvItem.toAddTrackedMediaRequest(): AddTrackedMediaReques
         initialStartedAt = dateAdded.takeIf { readStatus == TrackingStatus.InProgress },
         initialFinishedAt = lastDateRead,
         isOwned = isOwned,
-        ownershipType = if (isOwned) format.toOwnershipType() else OwnershipType.None,
         platformName = format,
         platformType = format.toPlatformType(),
         genres = tags,
@@ -178,13 +176,6 @@ private fun String.lastStoryGraphDateOrNull(): LocalDate? {
 private fun String.toOmnilogRatingOrNull(): Int? {
     val rating = toDoubleOrNull() ?: return null
     return (rating * 2.0).roundToInt().coerceIn(1, 10)
-}
-
-private fun String?.toOwnershipType(): OwnershipType {
-    return when (this?.lowercase()) {
-        "ebook", "digital", "audiobook" -> OwnershipType.Digital
-        else -> OwnershipType.Physical
-    }
 }
 
 private fun String?.toPlatformType(): ConsumptionPlatformType {

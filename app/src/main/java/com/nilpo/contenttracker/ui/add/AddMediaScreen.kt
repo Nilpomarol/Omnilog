@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.DatePicker
@@ -56,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -77,7 +80,6 @@ import com.nilpo.contenttracker.core.model.MetadataSeasonSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.plainSynopsis
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.LanguageDropdown
@@ -147,7 +149,7 @@ fun AddMediaScreen(
     var platform by remember { mutableStateOf("") }
     var selectedMediaType by remember { mutableStateOf(initialMediaType) }
     var selectedStatus by remember { mutableStateOf(TrackingStatus.Planned) }
-    var selectedOwnershipType by remember { mutableStateOf(OwnershipType.None) }
+    var isOwned by remember { mutableStateOf(false) }
     var selectedPlatformType by remember { mutableStateOf(ConsumptionPlatformType.Other) }
     var initialProgress by remember { mutableStateOf("0") }
     var initialRating by remember { mutableStateOf<Int?>(null) }
@@ -344,8 +346,8 @@ fun AddMediaScreen(
                     onPlatformChange = { platform = it },
                     selectedPlatformType = selectedPlatformType,
                     onPlatformTypeSelected = { selectedPlatformType = it },
-                    selectedOwnershipType = selectedOwnershipType,
-                    onOwnershipTypeSelected = { selectedOwnershipType = it },
+                    isOwned = isOwned,
+                    onOwnedChange = { isOwned = it },
                     availableCollections = collectionOptionsForType,
                     itemTitle = title,
                     providerCollectionTitle = selectedMetadataForForm?.collectionTitle,
@@ -367,8 +369,7 @@ fun AddMediaScreen(
                                 initialNotes = initialNotes.takeIf { it.isNotBlank() },
                                 initialStartedAt = initialStartedAt.toLocalDateOrNull(),
                                 initialFinishedAt = initialFinishedAt.toLocalDateOrNull(),
-                                isOwned = selectedOwnershipType != OwnershipType.None,
-                                ownershipType = selectedOwnershipType,
+                                isOwned = isOwned,
                                 platformName = platform.takeIf { it.isNotBlank() },
                                 platformType = selectedPlatformType,
                                 collectionId = matchedCollection?.id,
@@ -433,8 +434,8 @@ fun AddMediaScreen(
                     onPlatformChange = { platform = it },
                     selectedStatus = selectedStatus,
                     onStatusSelected = applyStatus,
-                    selectedOwnershipType = selectedOwnershipType,
-                    onOwnershipTypeSelected = { selectedOwnershipType = it },
+                    isOwned = isOwned,
+                    onOwnedChange = { isOwned = it },
                     selectedPlatformType = selectedPlatformType,
                     onPlatformTypeSelected = { selectedPlatformType = it },
                     initialProgress = initialProgress,
@@ -475,8 +476,7 @@ fun AddMediaScreen(
                                 initialNotes = initialNotes.takeIf { it.isNotBlank() },
                                 initialStartedAt = initialStartedAt.toLocalDateOrNull(),
                                 initialFinishedAt = initialFinishedAt.toLocalDateOrNull(),
-                                isOwned = selectedOwnershipType != OwnershipType.None,
-                                ownershipType = selectedOwnershipType,
+                                isOwned = isOwned,
                                 platformName = platform.takeIf { it.isNotBlank() },
                                 platformType = selectedPlatformType,
                                 collectionId = matchedCollection?.id,
@@ -1018,8 +1018,8 @@ private fun MetadataReviewStep(
     onPlatformChange: (String) -> Unit,
     selectedPlatformType: ConsumptionPlatformType,
     onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
-    selectedOwnershipType: OwnershipType,
-    onOwnershipTypeSelected: (OwnershipType) -> Unit,
+    isOwned: Boolean,
+    onOwnedChange: (Boolean) -> Unit,
     availableCollections: List<CollectionPickerOption>,
     itemTitle: String,
     providerCollectionTitle: String?,
@@ -1071,9 +1071,9 @@ private fun MetadataReviewStep(
         accent = accent,
     )
 
-    OwnershipSelector(
-        selectedOwnershipType = selectedOwnershipType,
-        onOwnershipTypeSelected = onOwnershipTypeSelected,
+    OwnershipToggle(
+        isOwned = isOwned,
+        onOwnedChange = onOwnedChange,
         accent = accent,
     )
 
@@ -1627,8 +1627,8 @@ private fun ManualAddStep(
     onPlatformChange: (String) -> Unit,
     selectedStatus: TrackingStatus,
     onStatusSelected: (TrackingStatus) -> Unit,
-    selectedOwnershipType: OwnershipType,
-    onOwnershipTypeSelected: (OwnershipType) -> Unit,
+    isOwned: Boolean,
+    onOwnedChange: (Boolean) -> Unit,
     selectedPlatformType: ConsumptionPlatformType,
     onPlatformTypeSelected: (ConsumptionPlatformType) -> Unit,
     initialProgress: String,
@@ -1698,9 +1698,9 @@ private fun ManualAddStep(
         accent = accent,
     )
 
-    OwnershipSelector(
-        selectedOwnershipType = selectedOwnershipType,
-        onOwnershipTypeSelected = onOwnershipTypeSelected,
+    OwnershipToggle(
+        isOwned = isOwned,
+        onOwnedChange = onOwnedChange,
         accent = accent,
     )
 
@@ -1783,19 +1783,41 @@ private fun TrackingSetupForm(
 }
 
 @Composable
-private fun OwnershipSelector(
-    selectedOwnershipType: OwnershipType,
-    onOwnershipTypeSelected: (OwnershipType) -> Unit,
+private fun OwnershipToggle(
+    isOwned: Boolean,
+    onOwnedChange: (Boolean) -> Unit,
     accent: Color,
 ) {
-    OmnilogDropdownField(
-        selectedOption = selectedOwnershipType,
-        options = OwnershipType.entries,
-        optionLabel = { it.label() },
-        onOptionSelected = onOwnershipTypeSelected,
-        label = stringResource(R.string.field_ownership_type),
-        fieldColor = accent,
-    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Checkbox) { onOwnedChange(!isOwned) },
+        shape = RoundedCornerShape(12.dp),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, if (isOwned) accent else OmnilogTheme.colors.appLine),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Checkbox(
+                checked = isOwned,
+                onCheckedChange = null,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = accent,
+                    checkmarkColor = Color.Black,
+                    uncheckedColor = OmnilogTheme.colors.appMuted,
+                ),
+            )
+            Text(
+                text = stringResource(R.string.owned_label),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isOwned) FontWeight.Bold else FontWeight.Medium,
+                color = OmnilogTheme.colors.appInk,
+            )
+        }
+    }
 }
 
 @Composable
@@ -2222,17 +2244,6 @@ private fun MediaType.addTitle(): String {
         MediaType.Movie -> stringResource(R.string.add_title_movie)
         MediaType.TvShow -> stringResource(R.string.add_title_tv)
         MediaType.Game -> stringResource(R.string.add_title_game)
-    }
-}
-
-@Composable
-private fun OwnershipType.label(): String {
-    return when (this) {
-        OwnershipType.None -> stringResource(R.string.ownership_none)
-        OwnershipType.Physical -> stringResource(R.string.ownership_physical)
-        OwnershipType.Digital -> stringResource(R.string.ownership_digital)
-        OwnershipType.Subscription -> stringResource(R.string.ownership_subscription)
-        OwnershipType.Borrowed -> stringResource(R.string.ownership_borrowed)
     }
 }
 

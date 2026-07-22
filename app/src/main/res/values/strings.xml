@@ -459,7 +459,6 @@
     <string name="field_media_type">Tipus</string>
     <string name="field_platform">Plataforma</string>
     <string name="field_platform_type">Tipus de plataforma</string>
-    <string name="field_ownership_type">Propietat</string>
     <string name="field_collection">Col·lecció</string>
     <string name="field_collection_order">Ordre dins la col·lecció</string>
     <string name="field_new_collection">Nova col·lecció</string>
@@ -659,11 +658,6 @@
     <string name="media_type_movie">Pel·lícula</string>
     <string name="media_type_tv_show">Sèrie</string>
     <string name="media_type_game">Joc</string>
-    <string name="ownership_none">No en propietat</string>
-    <string name="ownership_physical">Físic</string>
-    <string name="ownership_digital">Digital</string>
-    <string name="ownership_subscription">Subscripció</string>
-    <string name="ownership_borrowed">Prestat</string>
     <string name="platform_type_physical">Físic</string>
     <string name="platform_type_digital_store">Botiga digital</string>
     <string name="platform_type_streaming">Streaming</string>

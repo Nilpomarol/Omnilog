@@ -219,8 +219,7 @@ interface MediaDao {
             collectionId = :collectionId,
             collectionSortOrder = :collectionSortOrder,
             progressTotal = :progressTotal,
-            isOwned = :isOwned,
-            ownershipType = :ownershipType
+            isOwned = :isOwned
         WHERE id = :mediaItemId
         """,
     )
@@ -231,7 +230,6 @@ interface MediaDao {
         collectionSortOrder: Double?,
         progressTotal: Int?,
         isOwned: Boolean,
-        ownershipType: String,
     )
 
     @Query(

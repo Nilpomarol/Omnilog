@@ -4,7 +4,6 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
-import com.nilpo.contenttracker.core.model.OwnershipType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
@@ -98,7 +97,6 @@ internal fun MyAnimeListXmlItem.toAddTrackedMediaRequest(): AddTrackedMediaReque
         initialStartedAt = startedAt,
         initialFinishedAt = finishedAt,
         isOwned = false,
-        ownershipType = OwnershipType.None,
         platformName = seriesType,
         platformType = ConsumptionPlatformType.Other,
         genres = tags,
