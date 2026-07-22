@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
@@ -147,25 +148,52 @@ interface MediaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMediaCredits(credits: List<MediaCreditEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertTrackingSession(session: TrackingSessionEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Updates a parent row without REPLACE's delete-and-reinsert cascade semantics. */
+    @Update
+    suspend fun updateTrackingSession(session: TrackingSessionEntity): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertProgressUpdate(update: ProgressUpdateEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSessionStatusEvent(event: SessionStatusEventEntity): Long
 
     @Query("SELECT * FROM session_status_events WHERE id = :eventId LIMIT 1")
     suspend fun getSessionStatusEvent(eventId: Long): SessionStatusEventEntity?
 
     /**
-     * Removes one logged transition. The log is append-only by design, so this exists purely to
-     * correct a mistake — an accidental pause has no other way out, since the row cannot be edited
-     * into being right.
+     * Removes one logged transition as an explicit correction. Normal state changes only append.
      */
     @Query("DELETE FROM session_status_events WHERE id = :eventId")
     suspend fun deleteSessionStatusEvent(eventId: Long)
+
+    @Query("DELETE FROM session_status_events WHERE sessionId = :sessionId")
+    suspend fun deleteSessionStatusEventsForSession(sessionId: Long)
+
+    @Query("UPDATE session_status_events SET occurredOnEpochDay = :occurredOnEpochDay WHERE id = :eventId")
+    suspend fun updateSessionStatusEventDate(eventId: Long, occurredOnEpochDay: Long)
+
+    @Query("UPDATE session_status_events SET previousStatus = :previousStatus WHERE id = :eventId")
+    suspend fun updateSessionStatusEventPreviousStatus(eventId: Long, previousStatus: String?)
+
+    @Query(
+        "UPDATE tracking_sessions SET status = :status, updatedAtEpochMillis = :updatedAtEpochMillis " +
+            "WHERE id = :sessionId",
+    )
+    suspend fun updateSessionStatus(sessionId: Long, status: String, updatedAtEpochMillis: Long)
+
+    @Query(
+        "UPDATE tracking_sessions SET finishedAtEpochDay = :finishedAtEpochDay, " +
+            "updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :sessionId",
+    )
+    suspend fun updateSessionFinishedDate(
+        sessionId: Long,
+        finishedAtEpochDay: Long?,
+        updatedAtEpochMillis: Long,
+    )
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExternalRating(externalRating: ExternalRatingEntity): Long
@@ -373,33 +401,8 @@ interface MediaDao {
         updatedAtEpochMillis: Long,
     )
 
-    @Query(
-        """
-        UPDATE tracking_sessions
-        SET progressCurrent = :progressTotal,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE mediaItemId = :mediaItemId AND progressCurrent > :progressTotal
-        """,
-    )
-    suspend fun clampSessionsToMediaTotal(
-        mediaItemId: Long,
-        progressTotal: Int,
-        updatedAtEpochMillis: Long,
-    )
-
-    @Query(
-        """
-        UPDATE tracking_sessions
-        SET progressCurrent = :progressTotal,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE mediaItemId = :mediaItemId AND status = 'Completed' AND progressCurrent = 0
-        """,
-    )
-    suspend fun fillCompletedSessionsToMediaTotal(
-        mediaItemId: Long,
-        progressTotal: Int,
-        updatedAtEpochMillis: Long,
-    )
+    @Query("UPDATE tracking_sessions SET baselineProgress = :baselineProgress WHERE id = :sessionId")
+    suspend fun updateSessionBaseline(sessionId: Long, baselineProgress: Int)
 
     @Query("DELETE FROM tracking_sessions WHERE id = :sessionId")
     suspend fun deleteTrackingSession(sessionId: Long)
@@ -410,55 +413,58 @@ interface MediaDao {
     @Query(
         """
         UPDATE progress_updates
-        SET progressValue = :progressValue,
+        SET amount = :amount,
             loggedAtEpochDay = :loggedAtEpochDay,
-            hasKnownDate = :hasKnownDate
+            hasKnownDate = :hasKnownDate,
+            coversPeriod = :coversPeriod
         WHERE id = :progressUpdateId
         """,
     )
     suspend fun updateProgressUpdate(
         progressUpdateId: Long,
-        progressValue: Int,
+        amount: Int,
         loggedAtEpochDay: Long,
         hasKnownDate: Boolean,
+        coversPeriod: Boolean,
     )
 
     /**
-     * Progress updates are cumulative, so the session's current progress is the value of the
-     * chronologically last update — the same rule [deleteProgressUpdate] callers apply. Editing a
-     * date can therefore change which update is last, which is why value and date edits share this
-     * transaction. [maxProgress] is the media total when one is meaningful; null leaves the value
-     * unbounded above.
+     * Edits one entry and brings the session's cached total back in line.
+     *
+     * Entries are increments, so the session's progress is its baseline plus the sum of its entries
+     * — not, as it once was, whichever row happened to be chronologically last. That older rule made
+     * editing a date change the total, which is why date and value edits had to share a transaction.
+     * They still share one, but only so the row and the cached total cannot disagree in between.
+     *
+     * Media totals are metadata, not ownership of user history, so they deliberately do not cap an
+     * existing entry. Correcting provider metadata must never rewrite what the user logged.
      */
     @Transaction
     suspend fun updateProgressUpdateAndRecalculateSession(
         progressUpdateId: Long,
-        progressValue: Int,
+        amount: Int,
         loggedAtEpochDay: Long,
         hasKnownDate: Boolean,
+        coversPeriod: Boolean,
         updatedAtEpochMillis: Long,
-        maxProgress: Int?,
     ) {
         val existing = getProgressUpdate(progressUpdateId) ?: return
+        if (amount <= 0) return
+        val session = getTrackingSession(existing.sessionId) ?: return
+        val otherEntries = getProgressUpdatesForSession(existing.sessionId)
+            .filterNot { it.id == progressUpdateId }
+            .sumOf { it.amount }
+
         updateProgressUpdate(
             progressUpdateId = progressUpdateId,
-            progressValue = progressValue.clampToProgressTotal(maxProgress),
+            amount = amount,
             loggedAtEpochDay = loggedAtEpochDay,
             hasKnownDate = hasKnownDate,
+            coversPeriod = coversPeriod,
         )
-        val currentProgress = getProgressUpdatesForSession(existing.sessionId)
-            .maxWithOrNull(
-                compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }
-                    .thenBy { it.createdAtEpochMillis }
-                    .thenBy { it.id },
-            )
-            ?.progressValue
-            ?: 0
-        // Older rows may predate the current total, so the recalculated session value is clamped
-        // too rather than trusting that the edited row is the one that decided it.
         updateSessionProgress(
             sessionId = existing.sessionId,
-            progressCurrent = currentProgress.clampToProgressTotal(maxProgress),
+            progressCurrent = session.baselineProgress + otherEntries + amount,
             updatedAtEpochMillis = updatedAtEpochMillis,
         )
     }
@@ -489,6 +495,9 @@ interface MediaDao {
     @Query("DELETE FROM progress_updates")
     suspend fun deleteAllProgressUpdates()
 
+    @Query("DELETE FROM session_status_events")
+    suspend fun deleteAllSessionStatusEvents()
+
     @Query("DELETE FROM media_items")
     suspend fun deleteAllMediaItems()
     @Query("DELETE FROM media_credits")
@@ -506,6 +515,7 @@ interface MediaDao {
         progressUpdates: List<ProgressUpdateEntity>,
         externalRatings: List<ExternalRatingEntity>,
         objectives: List<ObjectiveEntity> = emptyList(),
+        sessionStatusEvents: List<SessionStatusEventEntity> = emptyList(),
     ) {
         deleteAllExternalRatings()
         deleteAllProgressUpdates()
@@ -520,6 +530,9 @@ interface MediaDao {
         mediaCredits.forEach { insertMediaCredit(it) }
         sessions.forEach { insertTrackingSession(it) }
         progressUpdates.forEach { insertProgressUpdate(it) }
+        // After the sessions they hang off: the rows cascade away with a session and cannot be
+        // written before one exists.
+        sessionStatusEvents.forEach { insertSessionStatusEvent(it) }
         externalRatings.forEach { insertExternalRating(it) }
         objectives.forEach { insertObjective(it) }
         deleteEmptyMediaCollections()

@@ -14,6 +14,12 @@ data class TrackingSession(
     val sessionNumber: Int,
     val status: TrackingStatus,
     val progressCurrent: Int = 0,
+    /**
+     * Progress that predates tracking — where the user already was when this session began. Always
+     * equal to [progressCurrent] minus the sum of [progressUpdates], and never surfaced as activity:
+     * a starting position is not something that happened.
+     */
+    val baselineProgress: Int = 0,
     val rating: Int? = null,
     val notes: String? = null,
     val platform: ConsumptionPlatform? = null,
@@ -41,6 +47,7 @@ data class TrackingSession(
 data class SessionStatusEvent(
     val id: Long,
     val sessionId: Long,
+    val previousStatus: TrackingStatus? = null,
     val status: TrackingStatus,
     val occurredOn: LocalDate,
     val createdAtEpochMillis: Long,

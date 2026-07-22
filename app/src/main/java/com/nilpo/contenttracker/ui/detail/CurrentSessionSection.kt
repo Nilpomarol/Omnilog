@@ -99,7 +99,8 @@ fun CurrentSessionSection(
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -111,6 +112,7 @@ fun CurrentSessionSection(
         onEditClick = { showEditor = true },
         onDeleteProgressUpdate = onDeleteProgressUpdate,
         onDeleteStatusEvent = onDeleteStatusEvent,
+        onUpdateStatusEventDate = onUpdateStatusEventDate,
         onUpdateProgressUpdate = onUpdateProgressUpdate,
     )
 
@@ -144,7 +146,8 @@ private fun SessionCard(
     onEditClick: () -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
 ) {
     val visualState = session.visualState(accent = accent)
     val progressFraction = session.progressFraction(progressTotal)
@@ -175,15 +178,20 @@ private fun SessionCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ProgressHistoryAction(
+                    ActivityAction(
                         updates = session.progressUpdates,
+                        statusEvents = session.statusEvents,
+                        baselineProgress = session.baselineProgress,
+                        sessionStartedAt = session.startedAt,
+                        sessionFinishedAt = session.finishedAt,
+                        sessionStatus = session.status,
                         progressTotal = progressTotal,
                         mediaType = mediaType,
                         accent = visualState.color,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                         onUpdateProgressUpdate = onUpdateProgressUpdate,
-                        statusEvents = session.statusEvents,
                         onDeleteStatusEvent = onDeleteStatusEvent,
+                        onUpdateStatusEventDate = onUpdateStatusEventDate,
                     )
                     FilledTonalIconButton(
                         onClick = onEditClick,
@@ -249,18 +257,35 @@ fun SessionEditorScreen(
     var draftStatus by rememberSaveable(session.id) { mutableStateOf(session.status) }
     var draftProgressText by rememberSaveable(session.id) {
         mutableStateOf(
-            if (session.status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
-                progressTotal.toString()
-            } else {
-                session.progressCurrent.toString()
-            },
+            session.progressCurrent.toString(),
         )
     }
     var draftRating by rememberSaveable(session.id) { mutableStateOf(session.rating) }
     var draftNotes by rememberSaveable(session.id) { mutableStateOf(session.notes.orEmpty()) }
     var draftStartedAtText by rememberSaveable(session.id) { mutableStateOf(session.startedAt?.toString().orEmpty()) }
     var draftFinishedAtText by rememberSaveable(session.id) { mutableStateOf(session.finishedAt?.toString().orEmpty()) }
-    val maxProgress = progressTotal ?: Int.MAX_VALUE
+    // Metadata totals may be corrected below recorded progress. Merely opening and saving the editor
+    // must never erase that history.
+    val maxProgress = maxOf(progressTotal ?: Int.MAX_VALUE, session.progressCurrent)
+    val parsedProgress = draftProgressText.toIntOrNull()
+    val parsedStartedAt = draftStartedAtText.toLocalDateOrNull()
+    val parsedFinishedAt = draftFinishedAtText.toLocalDateOrNull()
+    val datesParse = (draftStartedAtText.isBlank() || parsedStartedAt != null) &&
+        (draftFinishedAtText.isBlank() || parsedFinishedAt != null)
+    val datesOrdered = parsedStartedAt == null || parsedFinishedAt == null ||
+        !parsedFinishedAt.isBefore(parsedStartedAt)
+    val eventsBeforeTerminal = if (
+        draftStatus == session.status && draftStatus.endsSession &&
+        session.statusEvents.lastOrNull()?.status == draftStatus
+    ) {
+        session.statusEvents.dropLast(1)
+    } else {
+        session.statusEvents
+    }
+    val transitionOrderValid = parsedFinishedAt == null ||
+        eventsBeforeTerminal.lastOrNull()?.occurredOn?.isAfter(parsedFinishedAt) != true
+    val canSave = parsedProgress != null && parsedProgress in 0..maxProgress &&
+        datesParse && datesOrdered && transitionOrderValid
 
     Scaffold(
         topBar = {
@@ -294,7 +319,7 @@ fun SessionEditorScreen(
                             onSaveSessionDetails(
                                 session.id,
                                 draftStatus,
-                                draftProgressText.toIntOrNull()?.coerceIn(0, maxProgress) ?: 0,
+                                parsedProgress ?: return@Button,
                                 draftRating,
                                 draftNotes.takeIf { it.isNotBlank() },
                                 draftStartedAtText.toLocalDateOrNull(),
@@ -306,6 +331,7 @@ fun SessionEditorScreen(
                             containerColor = accent,
                             contentColor = Color.White,
                         ),
+                        enabled = canSave,
                     ) {
                         Text(text = stringResource(R.string.save))
                     }
@@ -342,8 +368,14 @@ fun SessionEditorScreen(
                     if (status.endsSession && draftFinishedAtText.isBlank()) {
                         draftFinishedAtText = LocalDate.now().toString()
                     }
+                    if (!status.endsSession) {
+                        draftFinishedAtText = ""
+                    }
                     if (status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
-                        draftProgressText = progressTotal.toString()
+                        draftProgressText = maxOf(
+                            draftProgressText.toIntOrNull() ?: 0,
+                            progressTotal,
+                        ).toString()
                     }
                 },
             )

@@ -23,7 +23,7 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
         ExternalRatingEntity::class,
         ObjectiveEntity::class,
     ],
-    version = 19,
+    version = 22,
     exportSchema = false,
 )
 abstract class ContentTrackerDatabase : RoomDatabase() {

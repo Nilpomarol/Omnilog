@@ -13,33 +13,51 @@ import androidx.room.PrimaryKey
  * for pausing, which repeats. A session paused in March, resumed in May and paused again in August
  * carries exactly one status, and the first two transitions are simply gone.
  *
- * So pauses need a log rather than a field. Rows are append-only and never rewritten: the point is
- * the sequence, and editing history in place would defeat it.
+ * So transitions need a log rather than a field. Normal state changes append rows. Explicit
+ * corrections may re-date or delete one, while [createdAtEpochMillis] keeps sequence stable.
  *
- * [createdAtEpochMillis] is the only time this table keeps, and the day is derived from it. There was
- * briefly a separate `occurredOnEpochDay` column alongside it, copied from the shape of
- * `progress_updates` — but that table stores its own day because progress genuinely can be
- * back-dated by the user, and a status change cannot. Two columns that must always agree are two
- * columns that can disagree, and they promptly did: one of them was being fed the session's
- * `finishedAt`, which is a different fact entirely and is legitimately unknown.
+ * Two times, and they mean different things. [createdAtEpochMillis] is when the row was written and
+ * fixes the sequence; [occurredOnEpochDay] is the day the user says it happened.
+ *
+ * An earlier version of this table kept only the first and derived the day from it, on the grounds
+ * that a status change cannot be back-dated. That was true only because nothing offered to set it:
+ * you could pause a book on Friday, remember on Sunday, and the log would insist it was Sunday. Now
+ * that the day is editable the two columns are no longer required to agree, which is exactly the
+ * arrangement `progress_updates` already uses for `loggedAtEpochDay` and `createdAtEpochMillis`.
+ *
+ * Null means the day was never set explicitly and is derived from [createdAtEpochMillis], which is
+ * what every row written before the column existed does.
  */
 @Entity(
     tableName = "session_status_events",
     foreignKeys = [
         ForeignKey(
-            entity = TrackingSessionEntity::class,
+            entity = MediaItemEntity::class,
             parentColumns = ["id"],
-            childColumns = ["sessionId"],
+            childColumns = ["mediaItemId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = TrackingSessionEntity::class,
+            parentColumns = ["id", "mediaItemId"],
+            childColumns = ["sessionId", "mediaItemId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("sessionId"), Index("mediaItemId")],
+    indices = [
+        Index("sessionId"),
+        Index("mediaItemId"),
+        Index(value = ["sessionId", "mediaItemId"]),
+    ],
 )
 data class SessionStatusEventEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val mediaItemId: Long,
     val sessionId: Long,
+    /** The state this transition left. Null only for rows created before schema 22. */
+    val previousStatus: String? = null,
     val status: String,
     val createdAtEpochMillis: Long = System.currentTimeMillis(),
+    val occurredOnEpochDay: Long? = null,
 )

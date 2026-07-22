@@ -27,7 +27,8 @@ fun PastSessionSection(
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onDeleteSession: () -> Unit,
 ) {
     var isEditing by rememberSaveable(session.id) { mutableStateOf(false) }
@@ -40,6 +41,7 @@ fun PastSessionSection(
         accent = accent,
         onDeleteProgressUpdate = onDeleteProgressUpdate,
         onDeleteStatusEvent = onDeleteStatusEvent,
+        onUpdateStatusEventDate = onUpdateStatusEventDate,
         onUpdateProgressUpdate = onUpdateProgressUpdate,
         onDelete = onDeleteSession,
         trailingContent = {

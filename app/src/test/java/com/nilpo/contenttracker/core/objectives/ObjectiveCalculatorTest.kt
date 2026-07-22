@@ -46,8 +46,8 @@ class ObjectiveCalculatorTest {
                     1,
                     updates = listOf(
                         update(100, LocalDate.of(2026, 6, 30)),
-                        update(160, LocalDate.of(2026, 7, 2)),
-                        update(220, LocalDate.of(2026, 7, 8)),
+                        update(60, LocalDate.of(2026, 7, 2)),
+                        update(60, LocalDate.of(2026, 7, 8)),
                     ),
                 ),
             ),
@@ -60,17 +60,17 @@ class ObjectiveCalculatorTest {
     }
 
     @Test
-    fun ignoresProgressCorrectionsButUsesThemAsFutureBaselines() {
+    fun baselineProgressDoesNotCountTowardObjectives() {
         val item = trackedMedia(
             id = 1,
             type = MediaType.Book,
             sessions = listOf(
                 session(
                     1,
+                    baselineProgress = 150,
                     updates = listOf(
                         update(100, LocalDate.of(2026, 6, 30)),
-                        update(150, LocalDate.of(2026, 7, 13), countsTowardObjectives = false),
-                        update(160, LocalDate.of(2026, 7, 14)),
+                        update(10, LocalDate.of(2026, 7, 14)),
                     ),
                 ),
             ),
@@ -83,7 +83,7 @@ class ObjectiveCalculatorTest {
     }
 
     @Test
-    fun undatedProgressDoesNotCountButRemainsTheNextBaseline() {
+    fun undatedProgressDoesNotCount() {
         val item = trackedMedia(
             id = 1,
             type = MediaType.Book,
@@ -92,8 +92,8 @@ class ObjectiveCalculatorTest {
                     1,
                     updates = listOf(
                         update(100, LocalDate.of(2026, 6, 30)),
-                        update(150, LocalDate.of(2026, 7, 5), hasKnownDate = false),
-                        update(160, LocalDate.of(2026, 7, 6)),
+                        update(50, LocalDate.of(2026, 7, 5), hasKnownDate = false),
+                        update(10, LocalDate.of(2026, 7, 6)),
                     ),
                 ),
             ),
@@ -141,28 +141,28 @@ class ObjectiveCalculatorTest {
     private fun session(
         number: Int,
         finishedAt: LocalDate? = null,
+        baselineProgress: Int = 0,
         updates: List<ProgressUpdate> = emptyList(),
     ) = TrackingSession(
         id = number.toLong(),
         mediaItemId = 1,
         sessionNumber = number,
         status = if (finishedAt != null) TrackingStatus.Completed else TrackingStatus.InProgress,
+        baselineProgress = baselineProgress,
         progressUpdates = updates,
         finishedAt = finishedAt,
     )
 
     private fun update(
-        value: Int,
+        amount: Int,
         date: LocalDate,
-        countsTowardObjectives: Boolean = true,
         hasKnownDate: Boolean = true,
     ) = ProgressUpdate(
-        id = value.toLong(),
+        id = amount.toLong(),
         mediaItemId = 1,
         sessionId = 1,
-        progressValue = value,
+        amount = amount,
         loggedAt = date,
-        countsTowardObjectives = countsTowardObjectives,
         hasKnownDate = hasKnownDate,
     )
 }

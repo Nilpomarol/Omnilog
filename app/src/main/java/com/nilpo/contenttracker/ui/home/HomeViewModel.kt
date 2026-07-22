@@ -477,7 +477,6 @@ class HomeViewModel(
             completeSession(
                 session = session,
                 progress = total,
-                offerUndoFrom = session,
                 // Completing straight out of Planned would otherwise leave a finished session with
                 // no start date at all.
                 startedAt = session.startedAt
@@ -492,7 +491,7 @@ class HomeViewModel(
             else -> session.startedAt ?: LocalDate.now()
         }
         viewModelScope.launch {
-            mediaRepository.updateSessionDetails(
+            val recovery = mediaRepository.updateSessionDetails(
                 sessionId = session.id,
                 status = if (promotes) TrackingStatus.InProgress else session.status,
                 progressCurrent = clamped,
@@ -505,7 +504,12 @@ class HomeViewModel(
             // A plain progress edit stays put and shows its new value inline, which is feedback
             // enough on its own.
             if (promotes) {
-                mutableEvents.emit(HomeUiEvent.SessionStartedReversible(session))
+                recovery?.let {
+                    val token = deletionRecoveryStore.put(it)
+                    mutableEvents.emit(
+                        HomeUiEvent.SessionStartedReversible(token, session.status),
+                    )
+                }
             }
         }
     }
@@ -524,35 +528,18 @@ class HomeViewModel(
         completeSession(
             session = session,
             progress = total ?: progress.coerceAtLeast(0),
-            offerUndoFrom = session,
             startedAt = session.startedAt
                 ?: LocalDate.now().takeIf { session.status == TrackingStatus.Planned },
         )
     }
 
-    /** Re-applies the pre-action session snapshot captured for the undo snackbar. */
-    fun undoQuickProgress(previous: TrackingSession) {
-        viewModelScope.launch {
-            mediaRepository.updateSessionDetails(
-                sessionId = previous.id,
-                status = previous.status,
-                progressCurrent = previous.progressCurrent,
-                rating = previous.rating,
-                notes = previous.notes,
-                startedAt = previous.startedAt,
-                finishedAt = previous.finishedAt,
-            )
-        }
-    }
-
     private fun completeSession(
         session: TrackingSession,
         progress: Int,
-        offerUndoFrom: TrackingSession,
         startedAt: LocalDate? = session.startedAt,
     ) {
         viewModelScope.launch {
-            mediaRepository.updateSessionDetails(
+            val recovery = mediaRepository.updateSessionDetails(
                 sessionId = session.id,
                 status = TrackingStatus.Completed,
                 progressCurrent = progress,
@@ -561,7 +548,10 @@ class HomeViewModel(
                 startedAt = startedAt,
                 finishedAt = session.finishedAt ?: LocalDate.now(),
             )
-            mutableEvents.emit(HomeUiEvent.SessionCompletedReversible(offerUndoFrom))
+            recovery?.let {
+                val token = deletionRecoveryStore.put(it)
+                mutableEvents.emit(HomeUiEvent.SessionCompletedReversible(token))
+            }
         }
     }
 
@@ -571,16 +561,27 @@ class HomeViewModel(
         }
     }
 
-    fun updateProgressUpdate(progressUpdateId: Long, progressValue: Int, loggedAt: LocalDate?) {
+    fun updateProgressUpdate(
+        progressUpdateId: Long,
+        amount: Int,
+        loggedAt: LocalDate?,
+        coversPeriod: Boolean,
+    ) {
         viewModelScope.launch {
-            mediaRepository.updateProgressUpdate(progressUpdateId, progressValue, loggedAt)
+            mediaRepository.updateProgressUpdate(progressUpdateId, amount, loggedAt, coversPeriod)
+        }
+    }
+
+    fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate) {
+        viewModelScope.launch {
+            mediaRepository.updateSessionStatusEventDate(eventId, occurredOn)
         }
     }
 
     /** Corrects a mistaken pause. See `MediaRepository.deleteSessionStatusEvent`. */
     fun deleteSessionStatusEvent(eventId: Long) {
         viewModelScope.launch {
-            mediaRepository.deleteSessionStatusEvent(eventId)
+            mediaRepository.deleteSessionStatusEvent(eventId)?.let { publishDeletionRecovery(it) }
         }
     }
 
@@ -831,6 +832,9 @@ class HomeViewModel(
     }
 
     private suspend fun publishDeletionRecovery(recovery: DeletionRecovery) {
+        require(recovery !is DeletionRecovery.SessionMutation) {
+            "Session mutations use their contextual quick-action event"
+        }
         val token = deletionRecoveryStore.put(recovery)
         when (recovery) {
             is DeletionRecovery.MediaItem -> mutableEvents.emit(
@@ -842,6 +846,10 @@ class HomeViewModel(
             is DeletionRecovery.ProgressUpdate -> mutableEvents.emit(
                 HomeUiEvent.ProgressUpdateDeletionAvailable(token),
             )
+            is DeletionRecovery.SessionStatusEvents -> mutableEvents.emit(
+                HomeUiEvent.StatusEventDeletionAvailable(token),
+            )
+            is DeletionRecovery.SessionMutation -> error("Unreachable")
         }
     }
     private fun cachedRecommendations(key: RecommendationCacheKey): CachedRecommendations? {
@@ -947,10 +955,14 @@ sealed interface HomeUiEvent {
     data class MediaItemDeletionAvailable(val deletionToken: Long, val title: String) : HomeUiEvent
     data class PastSessionDeletionAvailable(val deletionToken: Long, val visitNumber: Int) : HomeUiEvent
     data class ProgressUpdateDeletionAvailable(val deletionToken: Long) : HomeUiEvent
-    data class SessionCompletedReversible(val previous: TrackingSession) : HomeUiEvent
+    data class StatusEventDeletionAvailable(val deletionToken: Long) : HomeUiEvent
+    data class SessionCompletedReversible(val recoveryToken: Long) : HomeUiEvent
 
-    /** [previous] carries the pre-start status, which decides the started/resumed wording. */
-    data class SessionStartedReversible(val previous: TrackingSession) : HomeUiEvent
+    /** [previousStatus] decides the started/resumed wording without retaining a stale session. */
+    data class SessionStartedReversible(
+        val recoveryToken: Long,
+        val previousStatus: TrackingStatus,
+    ) : HomeUiEvent
     data object MetadataRefreshSucceeded : HomeUiEvent
     data object MetadataRefreshUnavailable : HomeUiEvent
     data object MetadataRefreshFailed : HomeUiEvent

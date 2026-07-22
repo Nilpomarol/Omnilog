@@ -234,6 +234,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val metadataLinkErrorMessage = stringResource(R.string.metadata_link_error)
     val deletionUndoAction = stringResource(R.string.deletion_undo_action)
     val deletionUndoProgressMessage = stringResource(R.string.deletion_undo_progress_message)
+    val deletionUndoStatusEventMessage = stringResource(R.string.deletion_undo_status_event_message)
     val deletionRestoredMessage = stringResource(R.string.deletion_restored)
     val deletionRestoreFailedMessage = stringResource(R.string.deletion_restore_failed)
     val navigateBack: () -> Unit = {
@@ -617,6 +618,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     )
                 }
 
+                is HomeUiEvent.StatusEventDeletionAvailable -> {
+                    showDeletionRecovery(
+                        deletionToken = event.deletionToken,
+                        message = deletionUndoStatusEventMessage,
+                    )
+                }
+
                 is HomeUiEvent.SessionCompletedReversible -> {
                     val result = snackbarHostState.showSnackbar(
                         message = context.getString(R.string.quick_progress_completed_message),
@@ -624,12 +632,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         duration = SnackbarDuration.Long,
                     )
                     if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.undoQuickProgress(event.previous)
+                        if (!viewModel.restoreDeletion(event.recoveryToken).getOrDefault(false)) {
+                            snackbarHostState.showSnackbar(deletionRestoreFailedMessage)
+                        }
+                    } else {
+                        viewModel.expireDeletion(event.recoveryToken)
                     }
                 }
 
                 is HomeUiEvent.SessionStartedReversible -> {
-                    val message = if (event.previous.status == TrackingStatus.Paused) {
+                    val message = if (event.previousStatus == TrackingStatus.Paused) {
                         R.string.quick_progress_resumed_message
                     } else {
                         R.string.quick_progress_started_message
@@ -640,7 +652,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         duration = SnackbarDuration.Long,
                     )
                     if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.undoQuickProgress(event.previous)
+                        if (!viewModel.restoreDeletion(event.recoveryToken).getOrDefault(false)) {
+                            snackbarHostState.showSnackbar(deletionRestoreFailedMessage)
+                        }
+                    } else {
+                        viewModel.expireDeletion(event.recoveryToken)
                     }
                 }
 
@@ -1131,6 +1147,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     onDeletePastSession = viewModel::deletePastSession,
                                     onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
                                     onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
+                                    onUpdateStatusEventDate = viewModel::updateSessionStatusEventDate,
                                     onUpdateProgressUpdate = viewModel::updateProgressUpdate,
                                     onAddExternalRating = viewModel::addExternalRating,
                                     onUpdateExternalRating = viewModel::updateExternalRating,

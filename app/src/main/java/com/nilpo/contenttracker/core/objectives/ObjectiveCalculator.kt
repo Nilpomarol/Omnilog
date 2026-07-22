@@ -35,8 +35,17 @@ class ObjectiveCalculator(
             .filter { trackedMedia -> matchesMediaType(trackedMedia.item.type, objective.mediaType) }
             .filter { trackedMedia ->
                 trackedMedia.sessions.any { session ->
-                    session.status == TrackingStatus.Completed &&
-                        session.finishedAt?.let { date -> !date.isBefore(objective.startDate) && !date.isAfter(objective.endDate) } == true
+                    val recordedDates = session.statusEvents
+                        .filter { it.status == TrackingStatus.Completed }
+                        .map { it.occurredOn }
+                        .ifEmpty {
+                            listOfNotNull(
+                                session.finishedAt.takeIf { session.status == TrackingStatus.Completed },
+                            )
+                        }
+                    recordedDates.any { date ->
+                        !date.isBefore(objective.startDate) && !date.isAfter(objective.endDate)
+                    }
                 }
             }
             .count()
@@ -50,19 +59,13 @@ class ObjectiveCalculator(
             .asSequence()
             .filter { trackedMedia -> matchesMediaType(trackedMedia.item.type, objective.mediaType) }
             .flatMap { trackedMedia -> trackedMedia.sessions.asSequence() }
+            // Entries are already increments, so there is nothing to derive: an entry counts in
+            // full or not at all. Undated entries are skipped because an objective is a claim about
+            // a period, and an entry with no date cannot be placed in one.
             .sumOf { session ->
-                var previousValue = 0
-                session.progressUpdates
-                    .sortedWith(
-                        compareBy<com.nilpo.contenttracker.core.model.ProgressUpdate> { it.loggedAt }
-                            .thenBy { it.createdAtEpochMillis }
-                            .thenBy { it.id },
-                    )
-                    .sumOf { update ->
-                        val delta = (update.progressValue - previousValue).coerceAtLeast(0)
-                        previousValue = update.progressValue
-                        if (update.countsTowardObjectives && update.hasKnownDate && objective.contains(update.loggedAt)) delta else 0
-                    }
+                session.progressUpdates.sumOf { update ->
+                    if (update.hasKnownDate && objective.contains(update.loggedAt)) update.amount else 0
+                }
             }
     }
 

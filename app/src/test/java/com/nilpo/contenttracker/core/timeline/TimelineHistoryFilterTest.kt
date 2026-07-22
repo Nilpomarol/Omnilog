@@ -115,7 +115,7 @@ class TimelineHistoryFilterTest {
                 finishedAt = day,
                 progressUpdates = listOf(
                     progressUpdate(id = 5, sessionId = 30, mediaItemId = 3, value = 100, date = day),
-                    progressUpdate(id = 6, sessionId = 30, mediaItemId = 3, value = 200, date = day),
+                    progressUpdate(id = 6, sessionId = 30, mediaItemId = 3, value = 100, date = day),
                 ),
             ),
         ),
@@ -133,7 +133,7 @@ class TimelineHistoryFilterTest {
                 finishedAt = day.plusDays(1),
                 progressUpdates = listOf(
                     progressUpdate(id = 1, sessionId = 10, mediaItemId = 1, value = 100, date = day.minusDays(1)),
-                    progressUpdate(id = 2, sessionId = 10, mediaItemId = 1, value = 130, date = day),
+                    progressUpdate(id = 2, sessionId = 10, mediaItemId = 1, value = 30, date = day),
                 ),
             ),
         ),
@@ -150,7 +150,7 @@ class TimelineHistoryFilterTest {
                 startedAt = day.minusDays(3),
                 progressUpdates = listOf(
                     progressUpdate(id = 3, sessionId = 20, mediaItemId = 2, value = 5, date = day.minusDays(1)),
-                    progressUpdate(id = 4, sessionId = 20, mediaItemId = 2, value = 7, date = day),
+                    progressUpdate(id = 4, sessionId = 20, mediaItemId = 2, value = 2, date = day),
                 ),
             ),
         ),
@@ -166,10 +166,9 @@ class TimelineHistoryFilterTest {
         id = id,
         mediaItemId = mediaItemId,
         sessionId = sessionId,
-        progressValue = value,
+        amount = value,
         loggedAt = date,
         hasKnownDate = true,
         createdAtEpochMillis = id * 100,
-        countsTowardObjectives = true,
     )
 }

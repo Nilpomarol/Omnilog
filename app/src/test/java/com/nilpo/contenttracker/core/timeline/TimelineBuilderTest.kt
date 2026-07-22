@@ -19,33 +19,20 @@ class TimelineBuilderTest {
     private val day = LocalDate.of(2026, 7, 20)
 
     @Test
-    fun consecutiveCumulativeUpdatesUsePositiveDeltasAfterFirstBaseline() {
-        val result = buildWithUpdates(update(1, 40, day), update(2, 65, day.plusDays(1)))
+    fun everyEntryCarriesItsOwnAmountAndTheRunningTotal() {
+        val result = buildWithUpdates(update(1, 40, day), update(2, 25, day.plusDays(1)))
 
-        assertEquals(listOf(25, null), result.entries.map { it.progress?.delta })
+        assertEquals(listOf(25, 40), result.entries.map { it.progress?.delta })
         assertEquals(listOf(65, 40), result.entries.map { it.progress?.value })
     }
 
     @Test
-    fun firstProgressUpdateIsAnAbsoluteRecordNotAnInventedDelta() {
+    fun theFirstEntryCountsInFullBecauseNothingPrecedesIt() {
         val entry = buildWithUpdates(update(1, 180, day)).entries.single()
 
         assertEquals(TimelineEntryKind.Progress, entry.kind)
         assertEquals(180, entry.progress?.value)
-        assertNull(entry.progress?.delta)
-    }
-
-    @Test
-    fun regressionIsMaintenanceNotActivityAndBecomesTheNextBaseline() {
-        val result = buildWithUpdates(
-            update(1, 80, day),
-            update(2, 60, day.plusDays(1)),
-            update(3, 70, day.plusDays(2)),
-        )
-
-        assertEquals(listOf(day.plusDays(2), day), result.entries.map { it.date })
-        assertEquals(10, result.entries.first().progress?.delta)
-        assertFalse(result.entries.any { it.progress?.value == 60 })
+        assertEquals(180, entry.progress?.delta)
     }
 
     @Test
@@ -56,7 +43,7 @@ class TimelineBuilderTest {
             rating = 9,
             updates = listOf(
                 update(1, 50, day, created = 100),
-                update(2, 100, day, created = 200),
+                update(2, 50, day, created = 200),
             ),
         )
         val entries = builder.build(listOf(media(sessions = listOf(session)))).entries
@@ -124,51 +111,54 @@ class TimelineBuilderTest {
     }
 
     @Test
-    fun syntheticProgressIsSuppressedButCanBeABaseline() {
-        val imported = update(1, 90, day, counts = false)
-        val real = update(2, 100, day.plusDays(1))
-        val entries = buildWithUpdates(imported, real).entries
+    fun baselineProgressProducesNoEntryButStillCountsInTheTotal() {
+        val session = session(baselineProgress = 90, updates = listOf(update(2, 10, day.plusDays(1))))
+        val entries = builder.build(listOf(media(sessions = listOf(session)))).entries
 
         assertEquals(1, entries.size)
         assertEquals(10, entries.single().progress?.delta)
-        assertFalse(entries.any { it.stableKey.endsWith(":1") })
+        assertEquals(100, entries.single().progress?.value)
     }
 
     @Test
-    fun deletingAProgressRecordRecalculatesTheFollowingDelta() {
+    fun deletingAnEntryLeavesItsNeighboursUntouched() {
         val first = update(1, 10, day)
-        val deleted = update(2, 20, day.plusDays(1))
-        val latest = update(3, 30, day.plusDays(2))
+        val deleted = update(2, 10, day.plusDays(1))
+        val latest = update(3, 10, day.plusDays(2))
         val before = buildWithUpdates(first, deleted, latest).entries.first()
         val after = buildWithUpdates(first, latest).entries.first()
 
+        // The amount is unchanged, because it never depended on the row before it. Only the
+        // running total moves, since there is now less in front of it.
         assertEquals(10, before.progress?.delta)
-        assertEquals(20, after.progress?.delta)
+        assertEquals(10, after.progress?.delta)
+        assertEquals(30, before.progress?.value)
+        assertEquals(20, after.progress?.value)
         assertFalse(buildWithUpdates(first, latest).entries.any { it.stableKey.endsWith(":2") })
     }
 
     @Test
-    fun aFinalSameDayCorrectionLeavesOnlyTheCorrectedCompletion() {
+    fun theLastEntryOnTheFinishingDayIsFoldedIntoTheCompletion() {
         val completed = session(
             status = TrackingStatus.Completed,
             finishedAt = day,
-            updates = listOf(update(1, 100, day), update(2, 90, day)),
+            updates = listOf(update(1, 90, day)),
         )
         val entries = builder.build(listOf(media(sessions = listOf(completed)))).entries
 
         assertEquals(1, entries.size)
         assertEquals(TimelineEntryKind.Completion, entries.single().kind)
         assertEquals(90, entries.single().progress?.value)
-        assertNull(entries.single().progress?.delta)
+        assertEquals(90, entries.single().progress?.delta)
     }
 
     @Test
-    fun aFinalSameDayCorrectionKeepsTheStartEvent() {
+    fun aSameDayCompletionKeepsTheStartEvent() {
         val completed = session(
             startedAt = day,
             status = TrackingStatus.Completed,
             finishedAt = day,
-            updates = listOf(update(1, 100, day), update(2, 90, day)),
+            updates = listOf(update(1, 90, day)),
         )
         val entries = builder.build(listOf(media(sessions = listOf(completed)))).entries
 
@@ -242,9 +232,9 @@ class TimelineBuilderTest {
     @Test
     fun orderingAndStableKeysAreDeterministicForTies() {
         val updates = listOf(
-            update(id = 9, value = 30, date = day, created = 200),
-            update(id = 7, value = 20, date = day, created = 200),
-            update(id = 3, value = 10, date = day, created = 100),
+            update(id = 9, amount = 30, date = day, created = 200),
+            update(id = 7, amount = 20, date = day, created = 200),
+            update(id = 3, amount = 10, date = day, created = 100),
         )
         val first = buildWithUpdates(*updates.reversed().toTypedArray()).entries
         val second = buildWithUpdates(*updates.toTypedArray()).entries
@@ -476,6 +466,29 @@ class TimelineBuilderTest {
         assertEquals(1, result.entries.count { it.kind == TimelineEntryKind.Dropped })
     }
 
+    @Test
+    fun reopeningASessionDoesNotEraseItsRecordedCompletion() {
+        val result = builder.build(
+            listOf(
+                media(
+                    sessions = listOf(
+                        session(
+                            status = TrackingStatus.InProgress,
+                            finishedAt = null,
+                            statusEvents = listOf(
+                                statusEvent(1, TrackingStatus.Completed, day),
+                                statusEvent(2, TrackingStatus.InProgress, day.plusDays(2)),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(1, result.entries.count { it.kind == TimelineEntryKind.Completion })
+        assertTrue(result.entries.none { it.kind == TimelineEntryKind.Resumed })
+    }
+
     private fun statusEvent(id: Long, status: TrackingStatus, on: LocalDate) = SessionStatusEvent(
         id = id,
         sessionId = 10,
@@ -503,6 +516,7 @@ class TimelineBuilderTest {
         startedAt: LocalDate? = null,
         finishedAt: LocalDate? = null,
         rating: Int? = null,
+        baselineProgress: Int = 0,
         updates: List<ProgressUpdate> = emptyList(),
         statusEvents: List<SessionStatusEvent> = emptyList(),
     ) = TrackingSession(
@@ -510,6 +524,7 @@ class TimelineBuilderTest {
         mediaItemId = 1,
         sessionNumber = number,
         status = status,
+        baselineProgress = baselineProgress,
         startedAt = startedAt,
         finishedAt = finishedAt,
         rating = rating,
@@ -519,19 +534,17 @@ class TimelineBuilderTest {
 
     private fun update(
         id: Long,
-        value: Int,
+        amount: Int,
         date: LocalDate,
         created: Long = id * 100,
         knownDate: Boolean = true,
-        counts: Boolean = true,
     ) = ProgressUpdate(
         id = id,
         mediaItemId = 1,
         sessionId = 10,
-        progressValue = value,
+        amount = amount,
         loggedAt = date,
         hasKnownDate = knownDate,
         createdAtEpochMillis = created,
-        countsTowardObjectives = counts,
     )
 }

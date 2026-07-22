@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
+import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
@@ -33,6 +34,13 @@ data class BackupPreview(
     val objectiveCount: Int = 0,
 )
 
+/** Complete persistence state for one session, used to make undo an exact inverse. */
+data class SessionHistoryState(
+    val session: TrackingSessionEntity,
+    val progressUpdates: List<ProgressUpdateEntity>,
+    val statusEvents: List<SessionStatusEventEntity>,
+)
+
 sealed interface DeletionRecovery {
     data class MediaItem(
         val item: MediaItemEntity,
@@ -40,12 +48,14 @@ sealed interface DeletionRecovery {
         val credits: List<MediaCreditEntity>,
         val sessions: List<TrackingSessionEntity>,
         val progressUpdates: List<ProgressUpdateEntity>,
+        val statusEvents: List<SessionStatusEventEntity> = emptyList(),
         val externalRatings: List<ExternalRatingEntity>,
     ) : DeletionRecovery
 
     data class PastSession(
         val session: TrackingSessionEntity,
         val progressUpdates: List<ProgressUpdateEntity>,
+        val statusEvents: List<SessionStatusEventEntity> = emptyList(),
         /**
          * Which time through the title the deleted session was, captured before deletion. Not the
          * same as its [TrackingSessionEntity.sessionNumber], which can be sparse.
@@ -57,6 +67,21 @@ sealed interface DeletionRecovery {
         val update: ProgressUpdateEntity,
         val sessionBeforeDeletion: TrackingSessionEntity,
         val sessionAfterDeletion: TrackingSessionEntity,
+    ) : DeletionRecovery
+
+    /** A deleted transition plus exact session snapshots for conflict-safe restoration. */
+    data class SessionStatusEvents(
+        val events: List<SessionStatusEventEntity>,
+        val statusEventsBeforeDeletion: List<SessionStatusEventEntity>,
+        val statusEventsAfterDeletion: List<SessionStatusEventEntity>,
+        val sessionBeforeDeletion: TrackingSessionEntity,
+        val sessionAfterDeletion: TrackingSessionEntity,
+    ) : DeletionRecovery
+
+    /** A complete before/after mutation. Restoring is allowed only while [after] still matches. */
+    data class SessionMutation(
+        val before: SessionHistoryState,
+        val after: SessionHistoryState,
     ) : DeletionRecovery
 }
 
@@ -132,26 +157,38 @@ interface MediaRepository {
         notes: String?,
         startedAt: LocalDate?,
         finishedAt: LocalDate?,
-    )
+    ): DeletionRecovery.SessionMutation?
 
     suspend fun deletePastSession(sessionId: Long): DeletionRecovery?
 
     suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery?
 
     /**
-     * Removes one logged status transition.
+     * Removes one logged status transition and reconnects the transition chain around it.
      *
-     * The status log is append-only — a pause records the moment it was made and nothing in the app
-     * can back-date one — so correcting a mistaken pause means deleting the row rather than editing
-     * it. Deleting a pause also orphans the resume that ended it, so both go together.
+     * Deleting a transition means it never happened, so the session falls back to the state it was
+     * in before — delete a resume and the session is paused again, which is what it was. An earlier
+     * version removed the pause and its resume together on the grounds that half a pair described
+     * nothing real; but a lone pause describes something perfectly real, namely a session that is
+     * still paused.
      */
-    suspend fun deleteSessionStatusEvent(eventId: Long)
+    suspend fun deleteSessionStatusEvent(eventId: Long): DeletionRecovery?
+
+    /** Re-dates a logged status change to the day it actually happened. */
+    suspend fun updateSessionStatusEventDate(eventId: Long, occurredOn: java.time.LocalDate)
 
     /**
-     * Edits a cumulative progress row and re-derives the owning session's current progress in one
-     * transaction. A null [loggedAt] marks the row as having no known date.
+     * Edits one activity entry and re-derives the owning session's total in one transaction.
+     *
+     * [amount] is the increment the entry records, not a running total. A null [loggedAt] marks the
+     * entry as having no known date; a null [coversPeriod] leaves the coverage flag as it was.
      */
-    suspend fun updateProgressUpdate(progressUpdateId: Long, progressValue: Int, loggedAt: LocalDate?)
+    suspend fun updateProgressUpdate(
+        progressUpdateId: Long,
+        amount: Int,
+        loggedAt: LocalDate?,
+        coversPeriod: Boolean? = null,
+    )
 
     suspend fun deleteMediaItem(mediaItemId: Long): DeletionRecovery?
     suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean

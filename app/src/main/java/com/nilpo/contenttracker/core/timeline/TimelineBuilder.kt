@@ -42,22 +42,18 @@ class TimelineBuilder {
     ): List<TimelineEntry> {
         val entries = mutableListOf<TimelineEntry>()
         val orderedUpdates = session.progressUpdates.sortedWith(progressUpdateComparator)
-        val progressRecords = orderedUpdates.mapIndexed { index, update ->
-            ProgressRecord(update, orderedUpdates.getOrNull(index - 1)?.progressValue)
+
+        // Entries are increments, so the total at each point is the session's baseline plus
+        // everything logged up to here. Nothing needs filtering out: every row is a real sitting,
+        // and progress that predates tracking is the baseline rather than a row.
+        val runningTotals = mutableMapOf<Long, Int>()
+        var runningTotal = session.baselineProgress
+        orderedUpdates.forEach { update ->
+            runningTotal += update.amount
+            runningTotals[update.id] = runningTotal
         }
 
-        progressRecords.forEach { record ->
-            val update = record.update
-
-            // Imports create cumulative snapshot rows. They remain useful as a baseline, but their
-            // insertion day is not a consumption fact and must not appear in recent activity.
-            if (!update.countsTowardObjectives) return@forEach
-
-            val delta = record.previousValue?.let { update.progressValue - it }
-            // A regression or duplicate cumulative value is data maintenance, not consumption.
-            // It still becomes the baseline for the next real advance, but it does not get a row
-            // in the chronology. The editable detail history remains the place to inspect it.
-            if (delta != null && delta <= 0) return@forEach
+        orderedUpdates.forEach { update ->
             entries += TimelineEntry(
                 stableKey = "progress:${media.item.id}:${session.id}:${update.id}",
                 mediaItemId = media.item.id,
@@ -71,8 +67,8 @@ class TimelineBuilder {
                 kind = TimelineEntryKind.Progress,
                 visitNumber = visitNumber,
                 progress = TimelineProgress(
-                    value = update.progressValue,
-                    delta = delta?.takeIf { it > 0 },
+                    value = runningTotals[update.id] ?: update.amount,
+                    delta = update.amount,
                 ),
                 progressTotal = media.item.progressTotal,
                 sortEpochMillis = update.createdAtEpochMillis,
@@ -114,11 +110,58 @@ class TimelineBuilder {
             }
         }
 
+        // Terminal transitions are history, even when the session is later reopened. The session
+        // fields are only the current snapshot; using them alone made old completions disappear.
+        session.statusEvents
+            .filter { it.status == TrackingStatus.Completed || it.status == TrackingStatus.Dropped }
+            .forEach { event ->
+                val isCompletion = event.status == TrackingStatus.Completed
+                val terminal = TimelineEntry(
+                    stableKey = "status:${media.item.id}:${session.id}:${event.id}",
+                    mediaItemId = media.item.id,
+                    sessionId = session.id,
+                    mediaType = media.item.type,
+                    mediaTitle = media.item.title,
+                    coverUrl = media.item.coverUrl,
+                    platformName = session.platform?.name,
+                    creator = media.item.creators.firstOrNull(),
+                    date = event.occurredOn,
+                    kind = if (isCompletion) TimelineEntryKind.Completion else TimelineEntryKind.Dropped,
+                    visitNumber = visitNumber,
+                    progressTotal = media.item.progressTotal,
+                    rating = session.rating.takeIf { isCompletion },
+                    sortEpochMillis = event.createdAtEpochMillis,
+                    sourceId = event.id,
+                )
+                if (isCompletion) {
+                    val finalUpdate = orderedUpdates.lastOrNull { update ->
+                        update.hasKnownDate && update.loggedAt == event.occurredOn &&
+                            update.createdAtEpochMillis <= event.createdAtEpochMillis
+                    }
+                    if (finalUpdate != null) {
+                        entries.removeAll { it.sourceId == finalUpdate.id }
+                        entries += terminal.copy(
+                            progress = TimelineProgress(
+                                value = runningTotals[finalUpdate.id] ?: session.progressCurrent,
+                                delta = finalUpdate.amount,
+                            ),
+                        )
+                    } else {
+                        entries += terminal
+                    }
+                } else {
+                    entries += terminal
+                }
+            }
+
         // Abandoning something is a dated event in its own right, and the only one the session model
         // can already tell us about: `finishedAt` is the day the session stopped, whichever way it
         // stopped. Sessions dropped before the app began dating that transition have no date and
         // produce nothing — inventing one would put the event on a day it did not happen.
-        if (session.status == TrackingStatus.Dropped && session.finishedAt != null) {
+        if (
+            session.status == TrackingStatus.Dropped && session.finishedAt != null &&
+            session.statusEvents.none { it.status == TrackingStatus.Dropped }
+        ) {
             entries += TimelineEntry(
                 stableKey = "dropped:${media.item.id}:${session.id}",
                 mediaItemId = media.item.id,
@@ -138,7 +181,10 @@ class TimelineBuilder {
             )
         }
 
-        if (session.status == TrackingStatus.Completed && session.finishedAt != null) {
+        if (
+            session.status == TrackingStatus.Completed && session.finishedAt != null &&
+            session.statusEvents.none { it.status == TrackingStatus.Completed }
+        ) {
             val finishedAt = session.finishedAt
             val completion = TimelineEntry(
                 stableKey = "completion:${media.item.id}:${session.id}",
@@ -156,30 +202,19 @@ class TimelineBuilder {
                 rating = session.rating,
                 sourceId = session.id,
             )
-            val finalProgressRecord = progressRecords.lastOrNull { record ->
-                record.update.countsTowardObjectives &&
-                    record.update.hasKnownDate &&
-                    record.update.loggedAt == finishedAt
+            // The last entry logged on the finishing day is folded into the completion, so a day
+            // that ended a session reads as one event rather than as progress followed by a finish.
+            // Corrections no longer need handling here: they are edits to an entry, so there is
+            // never a row describing progress the user has since revoked.
+            val finalUpdate = orderedUpdates.lastOrNull { update ->
+                update.hasKnownDate && update.loggedAt == finishedAt
             }
-            if (finalProgressRecord != null) {
-                val finalUpdate = finalProgressRecord.update
-                val finalDelta = finalProgressRecord.previousValue
-                    ?.let { finalUpdate.progressValue - it }
-                if (finalDelta != null && finalDelta <= 0) {
-                    // The correction supersedes earlier values from this completion day. Keeping
-                    // those rows would show consumption that the final corrected total revoked.
-                    entries.removeAll {
-                        it.sessionId == session.id &&
-                            it.date == finishedAt &&
-                            it.kind == TimelineEntryKind.Progress
-                    }
-                } else {
-                    entries.removeAll { it.sourceId == finalUpdate.id }
-                }
+            if (finalUpdate != null) {
+                entries.removeAll { it.sourceId == finalUpdate.id }
                 entries += completion.copy(
                     progress = TimelineProgress(
-                        value = finalUpdate.progressValue,
-                        delta = finalDelta?.takeIf { it > 0 },
+                        value = runningTotals[finalUpdate.id] ?: session.progressCurrent,
+                        delta = finalUpdate.amount,
                     ),
                     sortEpochMillis = finalUpdate.createdAtEpochMillis,
                 )
@@ -290,11 +325,6 @@ class TimelineBuilder {
                 // A resume opens a stretch, so it belongs with the starts.
                 TimelineEntryKind.Resumed -> 1
             }
-
-        data class ProgressRecord(
-            val update: ProgressUpdate,
-            val previousValue: Int?,
-        )
     }
 }
 

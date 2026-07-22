@@ -57,7 +57,8 @@ fun SessionDetail(
     accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onDelete: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
@@ -97,15 +98,20 @@ fun SessionDetail(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ProgressHistoryAction(
+                    ActivityAction(
                         updates = session.progressUpdates,
+                        statusEvents = session.statusEvents,
+                        baselineProgress = session.baselineProgress,
+                        sessionStartedAt = session.startedAt,
+                        sessionFinishedAt = session.finishedAt,
+                        sessionStatus = session.status,
                         progressTotal = progressTotal,
                         mediaType = mediaType,
                         accent = visualState.color,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                         onUpdateProgressUpdate = onUpdateProgressUpdate,
-                        statusEvents = session.statusEvents,
                         onDeleteStatusEvent = onDeleteStatusEvent,
+                        onUpdateStatusEventDate = onUpdateStatusEventDate,
                     )
                     trailingContent?.invoke()
                     if (onDelete != null) {

@@ -15,6 +15,8 @@ import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
 import com.nilpo.contenttracker.core.cover.CoverRepository
 import com.nilpo.contenttracker.core.cover.CoverSyncScheduler
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_19_20
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_21_22
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
 import com.nilpo.contenttracker.core.repository.BookRecommendationRepository
 import com.nilpo.contenttracker.core.repository.CompositeMetadataRepository
@@ -68,12 +70,12 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             "content-tracker.db",
         )
             .fallbackToDestructiveMigration(false)
-                        .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
             .build()
     }
 
     val mediaRepository: OfflineMediaRepository by lazy {
-        OfflineMediaRepository(database.mediaDao())
+        OfflineMediaRepository(database)
     }
 
     val metadataRepository: MetadataRepository by lazy {
@@ -225,6 +227,20 @@ private val MIGRATION_18_19 = object : Migration(18, 19) {
             "CREATE INDEX IF NOT EXISTS index_session_status_events_mediaItemId " +
                 "ON session_status_events(mediaItemId)",
         )
+    }
+}
+
+/**
+ * Gives a logged status change a day of its own, so a pause can be dated to when it happened rather
+ * than to when it was typed. See `SessionStatusEventEntity`.
+ *
+ * Nullable and left null for every existing row. The day those rows show is still derived from
+ * `createdAtEpochMillis`, which is what the app already displayed for them — backfilling a real
+ * column from that instant would mean guessing a timezone in SQL and could shift dates by a day.
+ */
+private val MIGRATION_20_21 = object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE session_status_events ADD COLUMN occurredOnEpochDay INTEGER")
     }
 }
 

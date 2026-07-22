@@ -105,15 +105,15 @@ class TimelineSummaryTest {
     fun totalsStaySeparatedByUnit() {
         val entries = TimelineBuilder().buildEntries(
             listOf(
-                mediaWithProgress(id = 1, type = MediaType.Anime, values = listOf(4, 9)),
-                mediaWithProgress(id = 2, type = MediaType.Book, values = listOf(100, 180)),
+                mediaWithProgress(id = 1, type = MediaType.Anime, amounts = listOf(4, 9)),
+                mediaWithProgress(id = 2, type = MediaType.Book, amounts = listOf(100, 180)),
             ),
         )
 
         val totals = entries.toSummary(today).totalsByUnit
 
-        assertEquals(5, totals[TimelineProgressUnit.Episodes])
-        assertEquals(80, totals[TimelineProgressUnit.Pages])
+        assertEquals(13, totals[TimelineProgressUnit.Episodes])
+        assertEquals(280, totals[TimelineProgressUnit.Pages])
     }
 
     @Test
@@ -149,7 +149,7 @@ class TimelineSummaryTest {
         visitNumber = 1,
     )
 
-    private fun mediaWithProgress(id: Long, type: MediaType, values: List<Int>) = TrackedMedia(
+    private fun mediaWithProgress(id: Long, type: MediaType, amounts: List<Int>) = TrackedMedia(
         item = MediaItem(id = id, type = type, title = "Title $id", progressTotal = 500),
         sessions = listOf(
             TrackingSession(
@@ -157,16 +157,15 @@ class TimelineSummaryTest {
                 mediaItemId = id,
                 sessionNumber = 1,
                 status = TrackingStatus.InProgress,
-                progressUpdates = values.mapIndexed { index, value ->
+                progressUpdates = amounts.mapIndexed { index, value ->
                     ProgressUpdate(
                         id = id * 100 + index,
                         mediaItemId = id,
                         sessionId = id * 10,
-                        progressValue = value,
-                        loggedAt = today.minusDays((values.size - index).toLong()),
+                        amount = value,
+                        loggedAt = today.minusDays((amounts.size - index).toLong()),
                         hasKnownDate = true,
                         createdAtEpochMillis = (index + 1) * 100L,
-                        countsTowardObjectives = true,
                     )
                 },
             ),

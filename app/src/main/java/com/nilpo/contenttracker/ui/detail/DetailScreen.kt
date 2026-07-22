@@ -67,7 +67,8 @@ fun DetailScreen(
     onDeletePastSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateProgressUpdate: (Long, Int, LocalDate?) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onAddExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onSetPrimaryExternalRating: (Long) -> Unit,
@@ -209,6 +210,7 @@ fun DetailScreen(
                         onUpdateSessionDetails = onUpdateSessionDetails,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                         onDeleteStatusEvent = onDeleteStatusEvent,
+                        onUpdateStatusEventDate = onUpdateStatusEventDate,
                         onUpdateProgressUpdate = onUpdateProgressUpdate,
                     )
                 }
@@ -258,6 +260,7 @@ fun DetailScreen(
                         onUpdateSessionDetails = onUpdateSessionDetails,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                         onDeleteStatusEvent = onDeleteStatusEvent,
+                        onUpdateStatusEventDate = onUpdateStatusEventDate,
                         onUpdateProgressUpdate = onUpdateProgressUpdate,
                         onDeleteSession = { onDeletePastSession(session.id) },
                     )

@@ -1,5 +1,7 @@
 package com.nilpo.contenttracker.core.repository
 
+import androidx.room.withTransaction
+import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
@@ -9,6 +11,8 @@ import com.nilpo.contenttracker.core.database.entity.ObjectiveEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
+import com.nilpo.contenttracker.core.database.migration.LegacyProgressRow
+import com.nilpo.contenttracker.core.database.migration.convertSessionToIncrements
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
@@ -40,11 +44,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 class OfflineMediaRepository(
-    private val mediaDao: MediaDao,
+    private val database: ContentTrackerDatabase,
 ) : MediaRepository {
+    private val mediaDao: MediaDao = database.mediaDao()
     override fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>> {
         val typeNames = types.map { it.name }
 
@@ -99,17 +106,18 @@ class OfflineMediaRepository(
         mediaDao.deleteObjective(objectiveId)
     }
 
-    override suspend fun exportBackupJson(): String {
-        return JSONObject()
-            .put("schemaVersion", 7)
+    override suspend fun exportBackupJson(): String = database.withTransaction {
+        JSONObject()
+            .put("schemaVersion", BackupSchemaVersion)
             .put("exportedAtEpochMillis", System.currentTimeMillis())
             .put("collections", JSONArray(mediaDao.getMediaCollections().map { it.toJson() }))
             .put("mediaItems", JSONArray(mediaDao.getMediaItems().map { it.toJson() }))
             .put("mediaCredits", JSONArray(mediaDao.getMediaCredits().map { it.toJson() }))
             .put("trackingSessions", JSONArray(mediaDao.getAllTrackingSessions().map { it.toJson() }))
             .put("progressUpdates", JSONArray(mediaDao.getProgressUpdates().map { it.toJson() }))
+            .put("sessionStatusEvents", JSONArray(mediaDao.getSessionStatusEvents().map { it.toJson() }))
             .put("externalRatings", JSONArray(mediaDao.getExternalRatings().map { it.toJson() }))
-.put("objectives", JSONArray(mediaDao.getObjectives().map { it.toJson() }))
+            .put("objectives", JSONArray(mediaDao.getObjectives().map { it.toJson() }))
             .toString(2)
     }
 
@@ -137,6 +145,7 @@ class OfflineMediaRepository(
             mediaCredits = backup.mediaCredits,
             sessions = backup.sessions,
             progressUpdates = backup.progressUpdates,
+            sessionStatusEvents = backup.sessionStatusEvents,
             externalRatings = backup.externalRatings,
             objectives = backup.objectives,
         )
@@ -304,10 +313,10 @@ class OfflineMediaRepository(
         )
     }
 
-    override suspend fun startNewSession(request: AddTrackingSessionRequest) {
+    override suspend fun startNewSession(request: AddTrackingSessionRequest) = database.withTransaction {
         val sessions = mediaDao.getTrackingSessions(request.mediaItemId)
         val latestSession = sessions.maxByOrNull { it.sessionNumber }
-        val mediaItem = mediaDao.getMediaItem(request.mediaItemId) ?: return
+        val mediaItem = mediaDao.getMediaItem(request.mediaItemId) ?: return@withTransaction
         val newSessionNumber = (latestSession?.sessionNumber ?: 0) + 1
         val updatedAtEpochMillis = System.currentTimeMillis()
         val validProgressTotal = mediaItem.progressTotal
@@ -347,17 +356,12 @@ class OfflineMediaRepository(
             )
         }
 
-        val sessionId = mediaDao.insertTrackingSession(newSession)
-        mediaDao.insertProgressUpdateIfNeeded(
-            mediaItemId = request.mediaItemId,
-            sessionId = sessionId,
-            progressValue = validProgress,
-            createdAtEpochMillis = updatedAtEpochMillis,
-            countsTowardObjectives = request.status != TrackingStatus.Completed || request.finishedAt == LocalDate.now(),
-        )
+        // Progress supplied when a session is created is where the user already was, not a sitting
+        // they logged, so it becomes the session's baseline and produces no entry.
+        mediaDao.insertTrackingSession(newSession.copy(baselineProgress = validProgress))
     }
 
-    override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long {
+    override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long = database.withTransaction {
         val validTotal = request.progressTotal
             ?.takeUnless { request.type == MediaType.Game }
             ?.coerceAtLeast(0)
@@ -456,12 +460,14 @@ class OfflineMediaRepository(
         val initialProgress = validTotal?.let { total ->
             request.initialProgress.coerceIn(0, total)
         } ?: request.initialProgress.coerceAtLeast(0)
-        val initialSessionId = mediaDao.insertTrackingSession(
+        mediaDao.insertTrackingSession(
             TrackingSessionEntity(
                 mediaItemId = mediaItemId,
                 sessionNumber = 1,
                 status = request.initialStatus.name,
                 progressCurrent = initialProgress,
+                // Where the user already was when they added this. See addSession.
+                baselineProgress = initialProgress,
                 rating = request.initialRating?.coerceIn(1, 10),
                 notes = request.initialNotes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = request.platformName?.trim()?.takeIf { it.isNotBlank() },
@@ -471,14 +477,7 @@ class OfflineMediaRepository(
                 updatedAtEpochMillis = initialUpdatedAtEpochMillis,
             ),
         )
-        mediaDao.insertProgressUpdateIfNeeded(
-            mediaItemId = mediaItemId,
-            sessionId = initialSessionId,
-            progressValue = initialProgress,
-            createdAtEpochMillis = initialUpdatedAtEpochMillis,
-            countsTowardObjectives = request.initialStatus != TrackingStatus.Completed || request.initialFinishedAt == LocalDate.now(),
-        )
-        return mediaItemId
+        mediaItemId
     }
 
     override suspend fun updateSessionDetails(
@@ -489,25 +488,58 @@ class OfflineMediaRepository(
         notes: String?,
         startedAt: LocalDate?,
         finishedAt: LocalDate?,
-    ) {
-        val session = mediaDao.getTrackingSession(sessionId) ?: return
-        val mediaItem = mediaDao.getMediaItem(session.mediaItemId) ?: return
-        val validProgressTotal = mediaItem.progressTotal
-            ?.takeUnless { mediaItem.type == MediaType.Game.name }
-        val validProgress = validProgressTotal?.let { maxProgress ->
-            progressCurrent.coerceIn(0, maxProgress)
-        } ?: progressCurrent.coerceAtLeast(0)
+    ): DeletionRecovery.SessionMutation? = database.withTransaction {
+        val before = captureSessionHistory(sessionId) ?: return@withTransaction null
+        val session = before.session
+        val mediaItem = mediaDao.getMediaItem(session.mediaItemId) ?: return@withTransaction null
+        // Provider metadata is not allowed to rewrite user history. A corrected total can be below
+        // already-recorded progress, so only the natural lower bound is enforced here.
+        val validProgress = progressCurrent.coerceAtLeast(0)
 
-        // The finish date is written exactly as the edit gave it, including not at all. Defaulting it
-        // here would make "finished, date unknown" impossible to record: clearing the field would
-        // silently refill with today on save, so the only way to express an unknown date would be to
-        // never have set one. The session editor offers today's date up front instead, where it is
-        // visible and can be cleared.
+        // A finish date belongs only to a terminal state. Keeping one while reopening a session made
+        // the snapshot contradict its own status and caused stats/timeline to disagree.
+        val validFinishedAt = finishedAt.takeIf {
+            status == TrackingStatus.Completed || status == TrackingStatus.Dropped
+        }
+        if (startedAt != null && validFinishedAt != null && validFinishedAt.isBefore(startedAt)) {
+            return@withTransaction null
+        }
 
         val updatedAtEpochMillis = System.currentTimeMillis()
         // Compared as the stored string rather than as a parsed enum: an unrecognised value on the
         // row should read as "different from whatever we are writing", not silently become Planned.
         val previousStatus = session.status
+
+        // Ending a session on a past date means everything this save records happened on that date,
+        // not today. Without this, finishing a book you read last month logged the remaining pages
+        // as today's reading — it counted towards this month's goals and showed up in today's
+        // timeline, neither of which you did.
+        val endedOn = validFinishedAt?.takeIf {
+            status == TrackingStatus.Completed || status == TrackingStatus.Dropped
+        }
+        val lastTransitionDay = before.statusEvents.lastOrNull()?.resolvedOccurredOn()
+        if (status.name != previousStatus && endedOn != null && lastTransitionDay?.isAfter(endedOn) == true) {
+            return@withTransaction null
+        }
+        if (status.name == previousStatus && endedOn != null) {
+            val terminalIndex = before.statusEvents.indexOfLast { it.status == status.name }
+            val precedingDay = before.statusEvents.getOrNull(terminalIndex - 1)?.resolvedOccurredOn()
+            if (precedingDay?.isAfter(endedOn) == true) return@withTransaction null
+        }
+        val transitionDay = endedOn ?: listOfNotNull(
+            LocalDate.now(),
+            startedAt,
+            lastTransitionDay,
+        ).maxOrNull() ?: LocalDate.now()
+
+        if (validProgress != session.progressCurrent) {
+            mediaDao.applyProgressTarget(
+                session = session,
+                target = validProgress,
+                loggedAt = endedOn ?: LocalDate.now(),
+                updatedAtEpochMillis = updatedAtEpochMillis,
+            )
+        }
 
         mediaDao.updateSessionDetails(
             sessionId = sessionId,
@@ -516,7 +548,7 @@ class OfflineMediaRepository(
             rating = rating?.coerceIn(1, 10),
             notes = notes?.trim()?.takeIf { it.isNotBlank() },
             startedAtEpochDay = startedAt?.toEpochDay(),
-            finishedAtEpochDay = finishedAt?.toEpochDay(),
+            finishedAtEpochDay = validFinishedAt?.toEpochDay(),
             updatedAtEpochMillis = updatedAtEpochMillis,
         )
 
@@ -529,28 +561,55 @@ class OfflineMediaRepository(
                 SessionStatusEventEntity(
                     mediaItemId = session.mediaItemId,
                     sessionId = sessionId,
+                    previousStatus = previousStatus,
                     status = status.name,
                     createdAtEpochMillis = updatedAtEpochMillis,
+                    occurredOnEpochDay = transitionDay.toEpochDay(),
                 ),
             )
+        } else if (status == TrackingStatus.Completed || status == TrackingStatus.Dropped) {
+            // The terminal event owns its historical date. Keep it aligned when the session editor
+            // corrects the snapshot's finish date without changing status.
+            before.statusEvents.lastOrNull { it.status == status.name }?.let { event ->
+                endedOn?.let { date ->
+                    mediaDao.updateSessionStatusEventDate(event.id, date.toEpochDay())
+                }
+            }
         }
-        if (validProgress != session.progressCurrent) {
-            mediaDao.insertProgressUpdateIfNeeded(
-                mediaItemId = session.mediaItemId,
-                sessionId = sessionId,
-                progressValue = validProgress,
-                createdAtEpochMillis = updatedAtEpochMillis,
-                countsTowardObjectives = status != TrackingStatus.Completed || finishedAt == LocalDate.now(),
-            )
-        }
+
+        val after = captureSessionHistory(sessionId) ?: return@withTransaction null
+        DeletionRecovery.SessionMutation(before = before, after = after)
     }
 
-    override suspend fun deletePastSession(sessionId: Long): DeletionRecovery? {
+    private suspend fun captureSessionHistory(sessionId: Long): SessionHistoryState? {
         val session = mediaDao.getTrackingSession(sessionId) ?: return null
+        return SessionHistoryState(
+            session = session,
+            progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId),
+            statusEvents = mediaDao.getSessionStatusEventsForSession(sessionId),
+        )
+    }
+
+    private suspend fun restoreSessionMutation(
+        recovery: DeletionRecovery.SessionMutation,
+    ): Boolean {
+        val current = captureSessionHistory(recovery.after.session.id) ?: return false
+        if (current != recovery.after) return false
+
+        mediaDao.deleteProgressUpdatesForSession(current.session.id)
+        mediaDao.deleteSessionStatusEventsForSession(current.session.id)
+        if (mediaDao.updateTrackingSession(recovery.before.session) != 1) return false
+        recovery.before.progressUpdates.forEach { mediaDao.insertProgressUpdate(it) }
+        recovery.before.statusEvents.forEach { mediaDao.insertSessionStatusEvent(it) }
+        return true
+    }
+
+    override suspend fun deletePastSession(sessionId: Long): DeletionRecovery? = database.withTransaction {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return@withTransaction null
         val sessions = mediaDao.getTrackingSessions(session.mediaItemId)
-        val latestSessionNumber = sessions.maxOfOrNull { it.sessionNumber } ?: return null
+        val latestSessionNumber = sessions.maxOfOrNull { it.sessionNumber } ?: return@withTransaction null
         if (sessions.size <= 1 || session.sessionNumber == latestSessionNumber) {
-            return null
+            return@withTransaction null
         }
         // Captured before the row goes away: the survivors are deliberately not renumbered, so
         // afterwards there is no way to recover which visit this was.
@@ -558,79 +617,143 @@ class OfflineMediaRepository(
             .sortedBy { it.sessionNumber }
             .indexOfFirst { it.id == sessionId } + 1
         val progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId)
-        mediaDao.deleteProgressUpdatesForSession(sessionId)
+        val statusEvents = mediaDao.getSessionStatusEventsForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
-        return DeletionRecovery.PastSession(
+        DeletionRecovery.PastSession(
             session = session,
             progressUpdates = progressUpdates,
+            statusEvents = statusEvents,
             visitNumber = visitNumber,
         )
     }
 
     override suspend fun updateProgressUpdate(
         progressUpdateId: Long,
-        progressValue: Int,
+        amount: Int,
         loggedAt: LocalDate?,
-    ) {
-        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return
-        val mediaItem = mediaDao.getMediaItem(update.mediaItemId) ?: return
-        val validProgressTotal = mediaItem.progressTotal
-            ?.takeUnless { mediaItem.type == MediaType.Game.name }
+        coversPeriod: Boolean?,
+    ) = database.withTransaction {
+        if (amount <= 0) return@withTransaction
+        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return@withTransaction
         mediaDao.updateProgressUpdateAndRecalculateSession(
             progressUpdateId = progressUpdateId,
-            progressValue = progressValue,
+            amount = amount,
             loggedAtEpochDay = loggedAt?.toEpochDay() ?: update.loggedAtEpochDay,
             hasKnownDate = loggedAt != null,
+            coversPeriod = coversPeriod ?: update.coversPeriod,
             updatedAtEpochMillis = System.currentTimeMillis(),
-            maxProgress = validProgressTotal,
         )
     }
 
-    /**
-     * Deletes a logged transition, and the other half of its pause if it had one.
-     *
-     * A pause and the resume that ended it are one fact told in two rows, so removing either without
-     * the other leaves the log describing something that never happened: delete just the resume and
-     * the title reads as paused forever, delete just the pause and a resume dangles with nothing to
-     * resume from. Whichever row the correction was aimed at, the span goes.
-     */
-    override suspend fun deleteSessionStatusEvent(eventId: Long) {
-        val event = mediaDao.getSessionStatusEvent(eventId) ?: return
+    /** Deletes one mistaken transition and restores the exact state it left when it is the latest. */
+    override suspend fun deleteSessionStatusEvent(eventId: Long): DeletionRecovery? = database.withTransaction {
+        val event = mediaDao.getSessionStatusEvent(eventId) ?: return@withTransaction null
+        val session = mediaDao.getTrackingSession(event.sessionId) ?: return@withTransaction null
         val sessionEvents = mediaDao.getSessionStatusEventsForSession(event.sessionId)
+        val eventIndex = sessionEvents.indexOfFirst { it.id == eventId }
+        if (eventIndex < 0) return@withTransaction null
 
-        val partner = when (event.status) {
-            TrackingStatus.Paused.name -> sessionEvents
-                .firstOrNull {
-                    it.createdAtEpochMillis > event.createdAtEpochMillis &&
-                        it.status == TrackingStatus.InProgress.name
-                }
-
-            TrackingStatus.InProgress.name -> sessionEvents
-                .lastOrNull {
-                    it.createdAtEpochMillis < event.createdAtEpochMillis &&
-                        it.status == TrackingStatus.Paused.name
-                }
-
-            else -> null
+        // Only the newest transition decides where the session stands now. Removing an older one
+        // edits the record without touching the present.
+        val isLatest = eventIndex == sessionEvents.lastIndex
+        val statusBefore = if (isLatest) {
+            // Whatever the session was before this transition: the previous logged status, or
+            // InProgress when there is none — you have to have been going to have stopped.
+            sessionEvents.getOrNull(eventIndex - 1)?.status
+                ?: event.previousStatus
+                ?: TrackingStatus.InProgress.name
+        } else {
+            null
         }
 
         mediaDao.deleteSessionStatusEvent(eventId)
-        partner?.let { mediaDao.deleteSessionStatusEvent(it.id) }
+        // Removing a historical link also reconnects the transition after it to the state that
+        // preceded the deleted row. Otherwise a later delete could resurrect a state that no
+        // longer exists in the log.
+        sessionEvents.getOrNull(eventIndex + 1)?.let { next ->
+            mediaDao.updateSessionStatusEventPreviousStatus(next.id, event.previousStatus)
+        }
+        statusBefore?.let { status ->
+            mediaDao.updateSessionStatus(
+                sessionId = event.sessionId,
+                status = status,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+            val terminalStatuses = setOf(TrackingStatus.Completed.name, TrackingStatus.Dropped.name)
+            if (status in terminalStatuses) {
+                val terminalDate = sessionEvents.getOrNull(eventIndex - 1)
+                    ?.takeIf { it.status == status }
+                    ?.resolvedOccurredOn()
+                mediaDao.updateSessionFinishedDate(
+                    sessionId = event.sessionId,
+                    finishedAtEpochDay = terminalDate?.toEpochDay(),
+                    updatedAtEpochMillis = System.currentTimeMillis(),
+                )
+            } else if (event.status in terminalStatuses) {
+                mediaDao.updateSessionFinishedDate(
+                    sessionId = event.sessionId,
+                    finishedAtEpochDay = null,
+                    updatedAtEpochMillis = System.currentTimeMillis(),
+                )
+            }
+        }
+
+        val sessionAfterDeletion = mediaDao.getTrackingSession(event.sessionId)
+            ?: return@withTransaction null
+        val statusEventsAfterDeletion = mediaDao.getSessionStatusEventsForSession(event.sessionId)
+        DeletionRecovery.SessionStatusEvents(
+            events = listOf(event),
+            statusEventsBeforeDeletion = sessionEvents,
+            statusEventsAfterDeletion = statusEventsAfterDeletion,
+            sessionBeforeDeletion = session,
+            sessionAfterDeletion = sessionAfterDeletion,
+        )
     }
 
-    override suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery? {
-        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return null
-        val sessionBeforeDeletion = mediaDao.getTrackingSession(update.sessionId) ?: return null
-        val remainingProgress = mediaDao.getProgressUpdatesForSession(update.sessionId)
-            .filterNot { it.id == progressUpdateId }
-        val progressAfterDeletion = remainingProgress
-            .maxWithOrNull(
-                compareBy<ProgressUpdateEntity> { it.loggedAtEpochDay }
-                    .thenBy { it.createdAtEpochMillis }
-                    .thenBy { it.id },
+    override suspend fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate) =
+        database.withTransaction {
+        val event = mediaDao.getSessionStatusEvent(eventId) ?: return@withTransaction
+        val orderedEvents = mediaDao.getSessionStatusEventsForSession(event.sessionId)
+        val eventIndex = orderedEvents.indexOfFirst { it.id == eventId }
+        if (eventIndex < 0) return@withTransaction
+        val previousDay = orderedEvents.getOrNull(eventIndex - 1)?.resolvedOccurredOn()
+        val nextDay = orderedEvents.getOrNull(eventIndex + 1)?.resolvedOccurredOn()
+        if (previousDay?.isAfter(occurredOn) == true || nextDay?.isBefore(occurredOn) == true) {
+            return@withTransaction
+        }
+        val session = mediaDao.getTrackingSession(event.sessionId) ?: return@withTransaction
+        if (session.startedAtEpochDay?.let(LocalDate::ofEpochDay)?.isAfter(occurredOn) == true) {
+            return@withTransaction
+        }
+        mediaDao.updateSessionStatusEventDate(
+            eventId = eventId,
+            occurredOnEpochDay = occurredOn.toEpochDay(),
+        )
+        val isCurrentTerminalEvent = event.status == session.status &&
+            event.status in setOf(TrackingStatus.Completed.name, TrackingStatus.Dropped.name) &&
+            mediaDao.getSessionStatusEventsForSession(event.sessionId).lastOrNull()?.id == eventId
+        if (isCurrentTerminalEvent) {
+            mediaDao.updateSessionFinishedDate(
+                sessionId = event.sessionId,
+                finishedAtEpochDay = occurredOn.toEpochDay(),
+                updatedAtEpochMillis = System.currentTimeMillis(),
             )
-            ?.progressValue
-            ?: 0
+        }
+    }
+
+    private fun SessionStatusEventEntity.resolvedOccurredOn(): LocalDate =
+        occurredOnEpochDay?.let(LocalDate::ofEpochDay)
+            ?: Instant.ofEpochMilli(createdAtEpochMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+
+    override suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery? = database.withTransaction {
+        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return@withTransaction null
+        val sessionBeforeDeletion = mediaDao.getTrackingSession(update.sessionId) ?: return@withTransaction null
+        val progressAfterDeletion = sessionBeforeDeletion.baselineProgress +
+            mediaDao.getProgressUpdatesForSession(update.sessionId)
+                .filterNot { it.id == progressUpdateId }
+                .sumOf { it.amount }
         val updatedAtEpochMillis = System.currentTimeMillis()
         val sessionAfterDeletion = sessionBeforeDeletion.copy(
             progressCurrent = progressAfterDeletion,
@@ -642,39 +765,46 @@ class OfflineMediaRepository(
             progressCurrent = progressAfterDeletion,
             updatedAtEpochMillis = updatedAtEpochMillis,
         )
-        return DeletionRecovery.ProgressUpdate(
+        DeletionRecovery.ProgressUpdate(
             update = update,
             sessionBeforeDeletion = sessionBeforeDeletion,
             sessionAfterDeletion = sessionAfterDeletion,
         )
     }
 
-    override suspend fun deleteMediaItem(mediaItemId: Long): DeletionRecovery? {
-        val item = mediaDao.getMediaItem(mediaItemId) ?: return null
+    override suspend fun deleteMediaItem(mediaItemId: Long): DeletionRecovery? = database.withTransaction {
+        val item = mediaDao.getMediaItem(mediaItemId) ?: return@withTransaction null
         val collection = item.collectionId?.let { mediaDao.getMediaCollection(it) }
         val credits = mediaDao.getMediaCreditsForItem(mediaItemId)
         val sessions = mediaDao.getTrackingSessions(mediaItemId)
         val sessionIds = sessions.map { it.id }.toSet()
         val progressUpdates = mediaDao.getProgressUpdates()
             .filter { it.mediaItemId == mediaItemId && it.sessionId in sessionIds }
+        val statusEvents = mediaDao.getSessionStatusEvents()
+            .filter { it.mediaItemId == mediaItemId && it.sessionId in sessionIds }
         val externalRatings = mediaDao.getExternalRatingsForItem(mediaItemId)
 
         mediaDao.deleteMediaItem(mediaItemId)
         mediaDao.deleteEmptyMediaCollections()
-        return DeletionRecovery.MediaItem(
+        DeletionRecovery.MediaItem(
             item = item,
             collection = collection,
             credits = credits,
             sessions = sessions,
             progressUpdates = progressUpdates,
+            statusEvents = statusEvents,
             externalRatings = externalRatings,
         )
     }
 
-    override suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean = when (recovery) {
-        is DeletionRecovery.MediaItem -> restoreMediaItemDeletion(recovery)
-        is DeletionRecovery.PastSession -> restorePastSessionDeletion(recovery)
-        is DeletionRecovery.ProgressUpdate -> restoreProgressUpdateDeletion(recovery)
+    override suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean = database.withTransaction {
+        when (recovery) {
+            is DeletionRecovery.MediaItem -> restoreMediaItemDeletion(recovery)
+            is DeletionRecovery.PastSession -> restorePastSessionDeletion(recovery)
+            is DeletionRecovery.ProgressUpdate -> restoreProgressUpdateDeletion(recovery)
+            is DeletionRecovery.SessionStatusEvents -> restoreSessionStatusEvents(recovery)
+            is DeletionRecovery.SessionMutation -> restoreSessionMutation(recovery)
+        }
     }
 
     private suspend fun restoreMediaItemDeletion(recovery: DeletionRecovery.MediaItem): Boolean {
@@ -688,12 +818,17 @@ class OfflineMediaRepository(
                 it.mediaItemId != item.id || it.sessionId !in sessionIds
             }
         ) return false
+        if (recovery.statusEvents.any {
+                it.mediaItemId != item.id || it.sessionId !in sessionIds
+            }
+        ) return false
         if (recovery.externalRatings.any { it.mediaItemId != item.id }) return false
 
         val existingCreditIds = mediaDao.getMediaCredits().map { it.id }.toSet()
         if (recovery.credits.any { it.id != 0L && it.id in existingCreditIds }) return false
         if (recovery.sessions.any { mediaDao.getTrackingSession(it.id) != null }) return false
         if (recovery.progressUpdates.any { mediaDao.getProgressUpdate(it.id) != null }) return false
+        if (recovery.statusEvents.any { mediaDao.getSessionStatusEvent(it.id) != null }) return false
         if (recovery.externalRatings.any { mediaDao.getExternalRating(it.id) != null }) return false
 
         val existingCollection = item.collectionId?.let { mediaDao.getMediaCollection(it) }
@@ -711,6 +846,7 @@ class OfflineMediaRepository(
         }
         recovery.sessions.forEach { mediaDao.insertTrackingSession(it) }
         recovery.progressUpdates.forEach { mediaDao.insertProgressUpdate(it) }
+        recovery.statusEvents.forEach { mediaDao.insertSessionStatusEvent(it) }
         recovery.externalRatings.forEach { mediaDao.insertExternalRating(it) }
         return true
     }
@@ -723,13 +859,42 @@ class OfflineMediaRepository(
                 it.mediaItemId != session.mediaItemId || it.sessionId != session.id
             }
         ) return false
+        if (recovery.statusEvents.any {
+                it.mediaItemId != session.mediaItemId || it.sessionId != session.id
+            }
+        ) return false
         if (recovery.progressUpdates.any { mediaDao.getProgressUpdate(it.id) != null }) return false
+        if (recovery.statusEvents.any { mediaDao.getSessionStatusEvent(it.id) != null }) return false
         if (mediaDao.getTrackingSessions(session.mediaItemId)
                 .any { it.sessionNumber == session.sessionNumber }
         ) return false
 
         mediaDao.insertTrackingSession(session)
         recovery.progressUpdates.forEach { mediaDao.insertProgressUpdate(it) }
+        recovery.statusEvents.forEach { mediaDao.insertSessionStatusEvent(it) }
+        return true
+    }
+
+    /**
+     * Puts a deleted pause back, both halves together.
+     *
+     * Refuses if the session has gone, or if any of the rows is already present — restoring half a
+     * pair on top of a surviving half would produce a sequence that never happened.
+     */
+    private suspend fun restoreSessionStatusEvents(
+        recovery: DeletionRecovery.SessionStatusEvents,
+    ): Boolean {
+        if (recovery.events.isEmpty()) return false
+        val sessionId = recovery.sessionAfterDeletion.id
+        if (recovery.events.any { it.sessionId != sessionId }) return false
+        val current = mediaDao.getTrackingSession(recovery.sessionAfterDeletion.id) ?: return false
+        if (current != recovery.sessionAfterDeletion) return false
+        if (mediaDao.getSessionStatusEventsForSession(sessionId) != recovery.statusEventsAfterDeletion) {
+            return false
+        }
+        mediaDao.deleteSessionStatusEventsForSession(sessionId)
+        if (mediaDao.updateTrackingSession(recovery.sessionBeforeDeletion) != 1) return false
+        recovery.statusEventsBeforeDeletion.forEach { mediaDao.insertSessionStatusEvent(it) }
         return true
     }
 
@@ -909,13 +1074,6 @@ class OfflineMediaRepository(
         )
         mediaDao.deleteEmptyMediaCollections()
 
-        validTotal?.let { total ->
-            mediaDao.clampSessionsToMediaTotal(
-                mediaItemId = mediaItemId,
-                progressTotal = total,
-                updatedAtEpochMillis = System.currentTimeMillis(),
-            )
-        }
     }
 
     override suspend fun updateMediaItemMetadata(
@@ -987,13 +1145,6 @@ class OfflineMediaRepository(
             metadataOverrideFieldsCsv = updatedOverrideFields.toMetadataOverrideFieldsCsv(),
         )
 
-        validTotal?.let { total ->
-            mediaDao.clampSessionsToMediaTotal(
-                mediaItemId = mediaItemId,
-                progressTotal = total,
-                updatedAtEpochMillis = System.currentTimeMillis(),
-            )
-        }
     }
 
     override suspend fun previewMediaItemMetadataRefresh(
@@ -1266,16 +1417,6 @@ class OfflineMediaRepository(
                 }
         }
 
-        if (MetadataRefreshField.ProgressTotal in selectedFields) {
-            refreshedTotal?.let { total ->
-                mediaDao.clampSessionsToMediaTotal(
-                    mediaItemId = preview.mediaItemId,
-                    progressTotal = total,
-                    updatedAtEpochMillis = System.currentTimeMillis(),
-                )
-            }
-        }
-
         val remainingOverrides = localOverrides - selectedFields
         if (remainingOverrides != localOverrides) {
             mediaDao.updateMetadataOverrideFields(
@@ -1421,19 +1562,6 @@ class OfflineMediaRepository(
                     ),
                 )
             }
-
-        linkedTotal?.let { total ->
-            mediaDao.clampSessionsToMediaTotal(
-                mediaItemId = mediaItemId,
-                progressTotal = total,
-                updatedAtEpochMillis = System.currentTimeMillis(),
-            )
-            mediaDao.fillCompletedSessionsToMediaTotal(
-                mediaItemId = mediaItemId,
-                progressTotal = total,
-                updatedAtEpochMillis = System.currentTimeMillis(),
-            )
-        }
 
         return true
     }
@@ -1713,24 +1841,74 @@ private fun String?.myAnimeListIdFromJson(): String? {
     }.getOrNull()
 }
 
-private suspend fun MediaDao.insertProgressUpdateIfNeeded(
-    mediaItemId: Long,
-    sessionId: Long,
-    progressValue: Int,
-    createdAtEpochMillis: Long,
-    countsTowardObjectives: Boolean = true,
+/**
+ * Moves a session's progress to [target], keeping `progressCurrent` equal to the baseline plus the
+ * sum of its entries.
+ *
+ * Advancing logs an entry for the difference, which is what the user just did. Going backwards is a
+ * correction rather than an event, so the surplus comes off the most recent entries first and only
+ * lowers the baseline once there are no entries left to trim: a correction supersedes what came
+ * immediately before it, and leaves no row of its own.
+ *
+ * [loggedAt] is the day the progress belongs to, which is today for an ordinary save but the finish
+ * date when a session is being ended on a past one.
+ */
+private suspend fun MediaDao.applyProgressTarget(
+    session: TrackingSessionEntity,
+    target: Int,
+    loggedAt: LocalDate,
+    updatedAtEpochMillis: Long,
 ) {
-    if (progressValue <= 0) return
+    val entries = getProgressUpdatesForSession(session.id)
+    val difference = target - (session.baselineProgress + entries.sumOf { it.amount })
 
-    insertProgressUpdate(
-        ProgressUpdateEntity(
-            mediaItemId = mediaItemId,
-            sessionId = sessionId,
-            progressValue = progressValue,
-            loggedAtEpochDay = LocalDate.now().toEpochDay(),
-            createdAtEpochMillis = createdAtEpochMillis,
-            countsTowardObjectives = countsTowardObjectives,
-        ),
+    when {
+        difference > 0 -> insertProgressUpdate(
+            ProgressUpdateEntity(
+                mediaItemId = session.mediaItemId,
+                sessionId = session.id,
+                amount = difference,
+                loggedAtEpochDay = loggedAt.toEpochDay(),
+                createdAtEpochMillis = updatedAtEpochMillis,
+            ),
+        )
+
+        difference < 0 -> {
+            var surplus = -difference
+            val newestFirst = entries.sortedWith(
+                compareByDescending<ProgressUpdateEntity> { it.loggedAtEpochDay }
+                    .thenByDescending { it.createdAtEpochMillis }
+                    .thenByDescending { it.id },
+            )
+            for (entry in newestFirst) {
+                if (surplus <= 0) break
+                if (surplus >= entry.amount) {
+                    surplus -= entry.amount
+                    deleteProgressUpdate(entry.id)
+                } else {
+                    updateProgressUpdate(
+                        progressUpdateId = entry.id,
+                        amount = entry.amount - surplus,
+                        loggedAtEpochDay = entry.loggedAtEpochDay,
+                        hasKnownDate = entry.hasKnownDate,
+                        coversPeriod = entry.coversPeriod,
+                    )
+                    surplus = 0
+                }
+            }
+            if (surplus > 0) {
+                updateSessionBaseline(
+                    sessionId = session.id,
+                    baselineProgress = (session.baselineProgress - surplus).coerceAtLeast(0),
+                )
+            }
+        }
+    }
+
+    updateSessionProgress(
+        sessionId = session.id,
+        progressCurrent = target,
+        updatedAtEpochMillis = updatedAtEpochMillis,
     )
 }
 
@@ -1788,10 +1966,26 @@ private fun String.normalizedImportTitle(): String =
         .replace(Regex("[^a-z0-9]+"), " ")
         .trim()
 
+/**
+ * The backup format version.
+ *
+ * Bumped to 8 when progress moved from cumulative totals to increments, and to 9 when the status
+ * log joined the backup at all — before that, restoring a backup silently dropped every pause and
+ * resume the library had ever recorded.
+ *
+ * Older backups are converted on the way in rather than refused. Refusing them would mean a backup
+ * taken before an upgrade could only be restored by an app version that no longer exists, which
+ * turns the one safety net into a dead end exactly when it is needed.
+ */
+private const val BackupSchemaVersion = 10
+
+/** The first version whose progress values are increments rather than cumulative totals. */
+private const val FirstIncrementBackupSchemaVersion = 8
+
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
     val schemaVersion = root.optInt("schemaVersion", -1)
-    if (schemaVersion !in 1..7) {
+    if (schemaVersion !in 1..BackupSchemaVersion) {
         throw UnsupportedBackupSchemaException(schemaVersion)
     }
 
@@ -1806,12 +2000,34 @@ private data class ParsedBackup(
     val mediaCredits: List<MediaCreditEntity>,
     val sessions: List<TrackingSessionEntity>,
     val progressUpdates: List<ProgressUpdateEntity>,
+    val sessionStatusEvents: List<SessionStatusEventEntity>,
     val externalRatings: List<ExternalRatingEntity>,
     val objectives: List<ObjectiveEntity>,
 )
 
 private fun parseBackupData(json: String): ParsedBackup {
     val root = parseBackupRoot(json)
+    val schemaVersion = root.getInt("schemaVersion")
+    val rawSessions = root.getJSONArray("trackingSessions")
+        .mapObjects { it.toTrackingSessionEntity() }
+
+    // Backups older than the increment format carry cumulative values and the catch-up flag, so
+    // they go through the same conversion the database migration runs. Anything newer is already
+    // in the right shape.
+    val (sessions, progressUpdates) = if (schemaVersion < FirstIncrementBackupSchemaVersion) {
+        convertLegacyProgress(
+            sessions = rawSessions,
+            legacyRows = root.optJSONArray("progressUpdates").orEmptyArray()
+                .mapObjects { it.toLegacyBackupRow() },
+        )
+    } else {
+        normalizeIncrementBackup(
+            sessions = rawSessions,
+            updates = root.optJSONArray("progressUpdates").orEmptyArray()
+                .mapObjects { it.toProgressUpdateEntity() },
+        )
+    }
+
     return ParsedBackup(
         schemaVersion = root.getInt("schemaVersion"),
         exportedAtEpochMillis = root.optNullableLong("exportedAtEpochMillis"),
@@ -1821,15 +2037,35 @@ private fun parseBackupData(json: String): ParsedBackup {
             .mapObjects { it.toMediaItemEntity() },
         mediaCredits = root.optJSONArray("mediaCredits").orEmptyArray()
             .mapObjects { it.toMediaCreditEntity() },
-        sessions = root.getJSONArray("trackingSessions")
-            .mapObjects { it.toTrackingSessionEntity() },
-        progressUpdates = root.optJSONArray("progressUpdates").orEmptyArray()
-            .mapObjects { it.toProgressUpdateEntity() },
+        sessions = sessions,
+        progressUpdates = progressUpdates,
+        // Absent from every backup written before version 9, which is why restoring one used to
+        // silently drop the pause log.
+        sessionStatusEvents = root.optJSONArray("sessionStatusEvents").orEmptyArray()
+            .mapObjects { it.toSessionStatusEventEntity() },
         externalRatings = root.optJSONArray("externalRatings").orEmptyArray()
             .mapObjects { it.toExternalRatingEntity() },
         objectives = root.optJSONArray("objectives").orEmptyArray()
             .mapObjects { it.toObjectiveEntity() },
     ).also { it.validate() }
+}
+
+/** Repairs pre-v10 increment backups without discarding canonical activity rows. */
+internal fun normalizeIncrementBackup(
+    sessions: List<TrackingSessionEntity>,
+    updates: List<ProgressUpdateEntity>,
+): Pair<List<TrackingSessionEntity>, List<ProgressUpdateEntity>> {
+    val normalizedSessions = sessions.map { session ->
+        val entryTotal = updates.filter { it.sessionId == session.id }.sumOf { it.amount }
+        var baseline = session.baselineProgress.coerceAtLeast(0)
+        val derived = baseline + entryTotal
+        if (derived < session.progressCurrent) baseline += session.progressCurrent - derived
+        session.copy(
+            baselineProgress = baseline,
+            progressCurrent = maxOf(session.progressCurrent, baseline + entryTotal),
+        )
+    }
+    return normalizedSessions to updates
 }
 
 private fun ParsedBackup.validate() {
@@ -1838,6 +2074,7 @@ private fun ParsedBackup.validate() {
     mediaCredits.requireUniquePositiveIds("media credits") { it.id }
     sessions.requireUniquePositiveIds("tracking sessions") { it.id }
     progressUpdates.requireUniquePositiveIds("progress updates") { it.id }
+    sessionStatusEvents.requireUniquePositiveIds("session status events") { it.id }
     externalRatings.requireUniquePositiveIds("external ratings") { it.id }
     objectives.requireUniquePositiveIds("objectives") { it.id }
 
@@ -1845,6 +2082,7 @@ private fun ParsedBackup.validate() {
     val mediaItemIds = mediaItems.map { it.id }.toSet()
     val mediaTypesById = mediaItems.associate { it.id to it.type }
     val sessionIds = sessions.map { it.id }.toSet()
+    val sessionsById = sessions.associateBy { it.id }
 
     collections.forEach { collection ->
         require(collection.name.isNotBlank()) { "Collection names cannot be blank" }
@@ -1890,6 +2128,7 @@ private fun ParsedBackup.validate() {
         require(session.mediaItemId in mediaItemIds) { "Session references a missing media item" }
         require(session.sessionNumber > 0) { "Session numbers must be positive" }
         require(session.progressCurrent >= 0) { "Session progress cannot be negative" }
+        require(session.baselineProgress >= 0) { "Session baselines cannot be negative" }
         requireEnum<TrackingStatus>(session.status) { "Unknown tracking status: ${session.status}" }
         session.platformType?.let { platformType ->
             requireEnum<ConsumptionPlatformType>(platformType) { "Unknown platform type: $platformType" }
@@ -1899,10 +2138,37 @@ private fun ParsedBackup.validate() {
         }
     }
 
+    sessionStatusEvents.forEach { event ->
+        val session = sessionsById[event.sessionId]
+            ?: error("Status event references a missing session")
+        require(event.mediaItemId == session.mediaItemId) {
+            "Status event media item does not match its session"
+        }
+        requireEnum<TrackingStatus>(event.status) { "Unknown tracking status: ${event.status}" }
+        event.previousStatus?.let { previous ->
+            requireEnum<TrackingStatus>(previous) { "Unknown previous status: $previous" }
+        }
+    }
+
     progressUpdates.forEach { update ->
-        require(update.mediaItemId in mediaItemIds) { "Progress update references a missing media item" }
-        require(update.sessionId in sessionIds) { "Progress update references a missing session" }
-        require(update.progressValue >= 0) { "Progress update values cannot be negative" }
+        val session = sessionsById[update.sessionId]
+            ?: error("Progress update references a missing session")
+        require(update.mediaItemId == session.mediaItemId) {
+            "Progress update media item does not match its session"
+        }
+        require(update.amount > 0) { "Progress entries must be positive" }
+    }
+
+    val updatesBySession = progressUpdates.groupBy { it.sessionId }
+    sessions.forEach { session ->
+        require(
+            session.progressCurrent == session.baselineProgress +
+                updatesBySession[session.id].orEmpty().sumOf { it.amount },
+        ) { "Session progress does not match its baseline and entries" }
+        require(
+            session.finishedAtEpochDay == null || session.startedAtEpochDay == null ||
+                session.finishedAtEpochDay >= session.startedAtEpochDay,
+        ) { "Session finishes before it starts" }
     }
 
     externalRatings.forEach { rating ->
@@ -2001,6 +2267,7 @@ private fun TrackingSessionEntity.toJson(): JSONObject {
         .put("sessionNumber", sessionNumber)
         .put("status", status)
         .put("progressCurrent", progressCurrent)
+        .put("baselineProgress", baselineProgress)
         .putNullable("rating", rating)
         .putNullable("notes", notes)
         .putNullable("platformName", platformName)
@@ -2015,11 +2282,11 @@ private fun ProgressUpdateEntity.toJson(): JSONObject {
         .put("id", id)
         .put("mediaItemId", mediaItemId)
         .put("sessionId", sessionId)
-        .put("progressValue", progressValue)
+        .put("amount", amount)
         .put("loggedAtEpochDay", loggedAtEpochDay)
         .put("hasKnownDate", hasKnownDate)
         .put("createdAtEpochMillis", createdAtEpochMillis)
-        .put("countsTowardObjectives", countsTowardObjectives)
+        .put("coversPeriod", coversPeriod)
 }
 
 private fun ExternalRatingEntity.toJson(): JSONObject {
@@ -2129,6 +2396,7 @@ private fun JSONObject.toTrackingSessionEntity(): TrackingSessionEntity {
         sessionNumber = getInt("sessionNumber"),
         status = getString("status"),
         progressCurrent = optInt("progressCurrent", 0),
+        baselineProgress = optInt("baselineProgress", 0),
         rating = optNullableInt("rating"),
         notes = optNullableString("notes"),
         platformName = optNullableString("platformName"),
@@ -2139,16 +2407,104 @@ private fun JSONObject.toTrackingSessionEntity(): TrackingSessionEntity {
     )
 }
 
+/** A cumulative progress row from a pre-increment backup, with the ids the conversion drops. */
+private data class LegacyBackupRow(
+    val row: LegacyProgressRow,
+    val mediaItemId: Long,
+    val sessionId: Long,
+)
+
+private fun JSONObject.toLegacyBackupRow(): LegacyBackupRow = LegacyBackupRow(
+    row = LegacyProgressRow(
+        id = getLong("id"),
+        progressValue = optInt("progressValue", 0),
+        loggedAtEpochDay = optLong("loggedAtEpochDay", LocalDate.now().toEpochDay()),
+        createdAtEpochMillis = optLong("createdAtEpochMillis", 0),
+        hasKnownDate = optBoolean("hasKnownDate", true),
+        countsTowardObjectives = optBoolean("countsTowardObjectives", true),
+    ),
+    mediaItemId = getLong("mediaItemId"),
+    sessionId = getLong("sessionId"),
+)
+
+/**
+ * Rewrites a pre-increment backup's progress into entries and session baselines.
+ *
+ * Deliberately the same shape as migration 19→20, including where the baseline comes from: the
+ * remainder of the session's own `progressCurrent` after the entries are accounted for. Restoring a
+ * backup and upgrading a database have to agree, or the same data would land differently depending
+ * on which route it took.
+ */
+private fun convertLegacyProgress(
+    sessions: List<TrackingSessionEntity>,
+    legacyRows: List<LegacyBackupRow>,
+): Pair<List<TrackingSessionEntity>, List<ProgressUpdateEntity>> {
+    val rowsBySession = legacyRows.groupBy { it.sessionId }
+    val entries = mutableListOf<ProgressUpdateEntity>()
+
+    val converted = sessions.map { session ->
+        val rows = rowsBySession[session.id].orEmpty()
+        val sourcesById = rows.associateBy { it.row.id }
+        val result = convertSessionToIncrements(
+            rows = rows.map { it.row },
+            finishedAtEpochDay = session.finishedAtEpochDay,
+        )
+
+        result.entries.forEach { entry ->
+            val source = sourcesById[entry.id] ?: return@forEach
+            entries += ProgressUpdateEntity(
+                id = entry.id,
+                mediaItemId = source.mediaItemId,
+                sessionId = session.id,
+                amount = entry.amount,
+                loggedAtEpochDay = entry.loggedAtEpochDay,
+                hasKnownDate = entry.hasKnownDate,
+                createdAtEpochMillis = source.row.createdAtEpochMillis,
+            )
+        }
+
+        session.copy(
+            baselineProgress = (session.progressCurrent - result.entries.sumOf { it.amount })
+                .coerceAtLeast(0),
+        )
+    }
+
+    return converted to entries
+}
+
+private fun SessionStatusEventEntity.toJson(): JSONObject {
+    return JSONObject()
+        .put("id", id)
+        .put("mediaItemId", mediaItemId)
+        .put("sessionId", sessionId)
+        .putNullable("previousStatus", previousStatus)
+        .put("status", status)
+        .put("createdAtEpochMillis", createdAtEpochMillis)
+        .putNullable("occurredOnEpochDay", occurredOnEpochDay)
+}
+
+private fun JSONObject.toSessionStatusEventEntity(): SessionStatusEventEntity {
+    return SessionStatusEventEntity(
+        id = getLong("id"),
+        mediaItemId = getLong("mediaItemId"),
+        sessionId = getLong("sessionId"),
+        previousStatus = optNullableString("previousStatus"),
+        status = getString("status"),
+        createdAtEpochMillis = optLong("createdAtEpochMillis", 0),
+        occurredOnEpochDay = optNullableLong("occurredOnEpochDay"),
+    )
+}
+
 private fun JSONObject.toProgressUpdateEntity(): ProgressUpdateEntity {
     return ProgressUpdateEntity(
         id = getLong("id"),
         mediaItemId = getLong("mediaItemId"),
         sessionId = getLong("sessionId"),
-        progressValue = optInt("progressValue", 0),
+        amount = optInt("amount", 0),
         loggedAtEpochDay = optLong("loggedAtEpochDay", LocalDate.now().toEpochDay()),
         hasKnownDate = optBoolean("hasKnownDate", true),
         createdAtEpochMillis = optLong("createdAtEpochMillis", 0),
-        countsTowardObjectives = optBoolean("countsTowardObjectives", true),
+        coversPeriod = optBoolean("coversPeriod", false),
     )
 }
 

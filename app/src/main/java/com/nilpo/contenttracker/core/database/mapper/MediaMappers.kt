@@ -141,26 +141,30 @@ fun ProgressUpdateEntity.toDomain(): ProgressUpdate {
         id = id,
         mediaItemId = mediaItemId,
         sessionId = sessionId,
-        progressValue = progressValue,
+        amount = amount,
         loggedAt = LocalDate.ofEpochDay(loggedAtEpochDay),
         hasKnownDate = hasKnownDate,
         createdAtEpochMillis = createdAtEpochMillis,
-        countsTowardObjectives = countsTowardObjectives,
+        coversPeriod = coversPeriod,
     )
 }
 
 /**
- * The day is derived here rather than stored, because a status change cannot be back-dated: the
- * instant it was recorded is the only time there is. Resolved at the mapper boundary so the domain
- * model keeps a plain [LocalDate] and nothing downstream has to know about zones.
+ * The stored day when there is one, otherwise the day the row was written.
+ *
+ * Rows predating the editable date have no day of their own, so the recorded instant stands in for
+ * it — which is what the app showed for them before either way. Resolved at the mapper boundary so
+ * the domain model keeps a plain [LocalDate] and nothing downstream has to know about zones.
  */
 fun SessionStatusEventEntity.toDomain(): SessionStatusEvent = SessionStatusEvent(
     id = id,
     sessionId = sessionId,
+    previousStatus = enumValueOrNull<TrackingStatus>(previousStatus),
     status = enumValueOrDefault(status, TrackingStatus.Planned),
-    occurredOn = Instant.ofEpochMilli(createdAtEpochMillis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate(),
+    occurredOn = occurredOnEpochDay?.let(LocalDate::ofEpochDay)
+        ?: Instant.ofEpochMilli(createdAtEpochMillis)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate(),
     createdAtEpochMillis = createdAtEpochMillis,
 )
 
@@ -174,6 +178,7 @@ fun TrackingSessionEntity.toDomain(
         sessionNumber = sessionNumber,
         status = enumValueOrDefault(status, TrackingStatus.Planned),
         progressCurrent = progressCurrent,
+        baselineProgress = baselineProgress,
         rating = rating,
         notes = notes,
         platform = platformName?.let { name ->
@@ -207,6 +212,7 @@ fun TrackingSession.toEntity(): TrackingSessionEntity {
         sessionNumber = sessionNumber,
         status = status.name,
         progressCurrent = progressCurrent,
+        baselineProgress = baselineProgress,
         rating = rating,
         notes = notes,
         platformName = platform?.name,
