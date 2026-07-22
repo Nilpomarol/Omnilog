@@ -20,7 +20,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
@@ -43,6 +46,15 @@ data class MalSyncState(
 
 enum class MalWorkerOutcome { Success, Retry, AuthorizationRequired }
 
+sealed interface MalSyncEvent {
+    data class Updated(val animeTitles: List<String>) : MalSyncEvent
+    data class Failed(
+        val animeTitle: String?,
+        val willRetry: Boolean,
+        val authorizationRequired: Boolean = false,
+    ) : MalSyncEvent
+}
+
 class MalSyncManager(
     private val context: Context,
     private val mediaDao: MediaDao,
@@ -53,7 +65,9 @@ class MalSyncManager(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutableState = MutableStateFlow(initialState())
+    private val mutableEvents = MutableSharedFlow<MalSyncEvent>(extraBufferCapacity = 8)
     val state: StateFlow<MalSyncState> = mutableState.asStateFlow()
+    val events: SharedFlow<MalSyncEvent> = mutableEvents.asSharedFlow()
 
     init {
         scope.launch {
@@ -185,9 +199,20 @@ class MalSyncManager(
         MalSyncScheduler.enqueue(context)
     }
 
-    suspend fun processPending(): MalWorkerOutcome {
+    suspend fun processPending(isFinalAttempt: Boolean = false): MalWorkerOutcome {
         if (!tokenStore.isSyncEnabled()) return MalWorkerOutcome.Success
-        var tokens = tokenStore.readTokens() ?: return MalWorkerOutcome.AuthorizationRequired
+        var tokens = tokenStore.readTokens() ?: run {
+            mutableEvents.tryEmit(
+                MalSyncEvent.Failed(
+                    animeTitle = oldestPendingTitle(),
+                    willRetry = false,
+                    authorizationRequired = true,
+                ),
+            )
+            return MalWorkerOutcome.AuthorizationRequired
+        }
+        val updatedTitles = mutableListOf<String>()
+        var failureEvent: MalSyncEvent.Failed? = null
         mutableState.update { it.copy(isSyncing = true, error = null) }
         return try {
             tokens = ensureFresh(tokens)
@@ -225,6 +250,7 @@ class MalSyncManager(
                             lastSuccessAtEpochMillis = System.currentTimeMillis(),
                         ),
                     )
+                    item?.title?.let(updatedTitles::add)
                     processed++
                 }
             }
@@ -234,14 +260,27 @@ class MalSyncManager(
                 MalWorkerOutcome.Retry
             }
         } catch (error: MalAuthorizationRequiredException) {
+            failureEvent = MalSyncEvent.Failed(
+                animeTitle = oldestPendingTitle(),
+                willRetry = false,
+                authorizationRequired = true,
+            )
             MalWorkerOutcome.AuthorizationRequired
         } catch (error: MalApiException) {
-            markOldestPendingFailure(error.message, retryable = error.isRetryable)
-            if (error.isRetryable) MalWorkerOutcome.Retry else MalWorkerOutcome.Success
+            val willRetry = error.isRetryable && !isFinalAttempt
+            val failedTitle = markOldestPendingFailure(error.message, retryable = willRetry)
+            failureEvent = MalSyncEvent.Failed(failedTitle, willRetry)
+            if (willRetry) MalWorkerOutcome.Retry else MalWorkerOutcome.Success
         } catch (error: Exception) {
-            markOldestPendingFailure(error.message, retryable = true)
-            MalWorkerOutcome.Retry
+            val willRetry = !isFinalAttempt
+            val failedTitle = markOldestPendingFailure(error.message, retryable = willRetry)
+            failureEvent = MalSyncEvent.Failed(failedTitle, willRetry)
+            if (willRetry) MalWorkerOutcome.Retry else MalWorkerOutcome.Success
         } finally {
+            when {
+                failureEvent != null -> mutableEvents.tryEmit(failureEvent)
+                updatedTitles.isNotEmpty() -> mutableEvents.tryEmit(MalSyncEvent.Updated(updatedTitles))
+            }
             mutableState.update { it.copy(isSyncing = false) }
         }
     }
@@ -264,8 +303,9 @@ class MalSyncManager(
         throw error
     }
 
-    private suspend fun markOldestPendingFailure(message: String?, retryable: Boolean) {
-        val item = mediaDao.getPendingMalSyncQueue(1).firstOrNull() ?: return
+    private suspend fun markOldestPendingFailure(message: String?, retryable: Boolean): String? {
+        val item = mediaDao.getPendingMalSyncQueue(1).firstOrNull() ?: return null
+        val animeTitle = mediaDao.getMediaItem(item.mediaItemId)?.title
         mediaDao.insertMalSyncQueueItem(
             item.copy(
                 state = if (retryable) PendingState else FailedState,
@@ -275,7 +315,12 @@ class MalSyncManager(
             ),
         )
         mutableState.update { it.copy(error = message) }
+        return animeTitle
     }
+
+    private suspend fun oldestPendingTitle(): String? = mediaDao.getPendingMalSyncQueue(1)
+        .firstOrNull()
+        ?.let { mediaDao.getMediaItem(it.mediaItemId)?.title }
 
     private fun initialState(): MalSyncState {
         val tokens = tokenStore.readTokens()
@@ -319,7 +364,11 @@ class MalSyncWorker(
 ) : CoroutineWorker(appContext, workerParameters) {
     override suspend fun doWork(): Result {
         val application = applicationContext as? ContentTrackerApplication ?: return Result.failure()
-        return when (application.malSyncManager.processPending()) {
+        return when (
+            application.malSyncManager.processPending(
+                isFinalAttempt = runAttemptCount >= MaxWorkerRetries,
+            )
+        ) {
             MalWorkerOutcome.Success -> Result.success()
             MalWorkerOutcome.AuthorizationRequired -> Result.success()
             MalWorkerOutcome.Retry -> if (runAttemptCount < MaxWorkerRetries) Result.retry() else Result.failure()

@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -85,6 +86,7 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.mal.MalSyncEvent
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
 import com.nilpo.contenttracker.core.repository.MetadataRefreshField
@@ -676,6 +678,31 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     snackbarHostState.showSnackbar(message)
                 }
             }
+        }
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.malSyncEvents.collect { event ->
+            val message = when (event) {
+                is MalSyncEvent.Updated -> if (event.animeTitles.size == 1) {
+                    "${event.animeTitles.first()} s'ha actualitzat a MyAnimeList."
+                } else {
+                    "${event.animeTitles.size} animes s'han actualitzat a MyAnimeList."
+                }
+
+                is MalSyncEvent.Failed -> buildString {
+                    if (event.animeTitle != null) {
+                        append("No s'ha pogut actualitzar ${event.animeTitle} a MyAnimeList.")
+                    } else {
+                        append("No s'ha pogut actualitzar MyAnimeList.")
+                    }
+                    when {
+                        event.authorizationRequired -> append(" Torna a connectar el compte.")
+                        event.willRetry -> append(" Es tornarà a provar automàticament.")
+                    }
+                }
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
     LaunchedEffect(uiState.allTrackedItems, pendingCreatedMediaId) {

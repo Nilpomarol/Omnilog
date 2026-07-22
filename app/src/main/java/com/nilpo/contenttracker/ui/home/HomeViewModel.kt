@@ -82,6 +82,7 @@ class HomeViewModel(
     val metadataUiState = metadataSearchState.asStateFlow()
     val recommendationUiState = recommendationState.asStateFlow()
     val malSyncState = malSyncManager.state
+    val malSyncEvents = malSyncManager.events
     val events = mutableEvents.asSharedFlow()
 
     fun beginMalAuthorization(): String? = malSyncManager.beginAuthorization()
