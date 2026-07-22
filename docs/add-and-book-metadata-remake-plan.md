@@ -6,6 +6,14 @@ Make adding content fast for every tracking status, while making book metadata e
 
 This is a focused flow and metadata change. It preserves the current local-first repository, Room database, existing sections, and the clear visual distinction between library and API search results.
 
+## Current Status
+
+- Phase 1 search correctness and latency: delivered.
+- Phase 2 status-first add sheet: delivered.
+- Phase 3 book work/edition selection: partially delivered. Provider edition candidates, the edition picker, language filtering, and selected cover/language/page/title/provider identity ship today. Full first-class persistence and detail display of ISBN, format, publisher, and work/edition identity remain open.
+- Phase 4 metadata ownership: partially delivered. Manual field overrides and protected refresh selection ship today; metadata linking still needs the same preview/confirmation flow.
+- Phase 5 verification: open. The debug build and general unit suite pass, but the focused search, edition, import, migration, and override tests listed below have not been added.
+
 ## Decisions Already Made
 
 - Library and API search-result sections remain visually distinct; they are not part of this remake.
@@ -73,7 +81,7 @@ If the user changes a metadata field manually, that field is marked as a local o
 
 ## Implementation Phases
 
-### Phase 1 — Search correctness and latency
+### Phase 1 — Search correctness and latency — Delivered
 
 1. Replace the independent search launches in `HomeViewModel` with a cancellable/latest-only search pipeline.
    - Cancel or ignore earlier requests when the query changes.
@@ -87,7 +95,7 @@ If the user changes a metadata field manually, that field is marked as a local o
 
 **Acceptance:** old results can never replace a newer query, and selecting TV search no longer triggers a details request for every result.
 
-### Phase 2 — Status-first add sheet
+### Phase 2 — Status-first add sheet — Delivered
 
 1. Replace the current review/manual-screen layout with one shared add configuration component.
 2. Implement the status selector and the exact conditional fields in the table above.
@@ -99,7 +107,7 @@ If the user changes a metadata field manually, that field is marked as a local o
 
 **Acceptance:** a planned item requires only selecting the catalog result and pressing `Add as planned`; each other status exposes precisely its agreed tracking fields.
 
-### Phase 3 — Book work and edition model
+### Phase 3 — Book work and edition model — Partial
 
 1. Add domain models that distinguish a book work from a book edition.
    - Edition identity includes provider ID, work ID when available, ISBN-10/ISBN-13, language, format, publisher, publication year, and page count.
@@ -113,7 +121,9 @@ If the user changes a metadata field manually, that field is marked as a local o
 
 **Acceptance:** two editions with different language, cover, or page count are kept separate; the selected edition is identifiable after saving and during refresh.
 
-### Phase 4 — Metadata ownership and refresh safety
+Current implementation keeps provider candidates separate and lets the user choose one, but it persists the selected edition through the existing media metadata fields and provider external id. A dedicated edition identity containing ISBN, format, publisher, and work id—and a matching detail summary—remains open.
+
+### Phase 4 — Metadata ownership and refresh safety — Partial
 
 1. Add a small `media_metadata_overrides` table keyed by media item and metadata field.
 2. Mark a field overridden only when the user changes it in manual metadata editing.
@@ -125,7 +135,9 @@ If the user changes a metadata field manually, that field is marked as a local o
 
 **Acceptance:** manually chosen pages, language, cover, title, or publication year survive refreshes unless the user explicitly elects to replace them.
 
-### Phase 5 — Verification and polish
+Current implementation stores overridden field names on `media_items.metadataOverrideFieldsCsv` rather than in a separate table. Refresh previews label and protect local edits, default them to unselected, and clear the override when the user explicitly accepts the provider value. Metadata linking still applies provider metadata directly and is the remaining safety gap.
+
+### Phase 5 — Verification and polish — Open
 
 1. Add unit tests for latest-only search state, ISBN matching, and no non-ISBN edition merging.
 2. Add repository tests for edition persistence, migration, and protected metadata overrides.

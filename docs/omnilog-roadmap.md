@@ -11,10 +11,10 @@ The app should remain local-first:
 - Imports are additive and skip duplicates.
 - Backup restore is the only destructive replace flow.
 - Metadata refresh/linking must preserve sessions, progress history, personal ratings, reviews, ownership, and collections unless the user explicitly chooses otherwise.
-- Provider-specific import actions stay scoped to their section pages:
-  - Anime: MyAnimeList XML.
-  - Movies/TV: IMDb CSV.
-  - Books: StoryGraph CSV.
+- Provider-specific imports may be exposed in both places where they are useful:
+  - Settings provides one discoverable import hub for MyAnimeList XML, IMDb CSV, and StoryGraph CSV.
+  - The relevant Anime, Cinema i TV, or Books section may also offer its matching import contextually.
+  - Games has no provider import.
 
 Avoid major architecture rewrites unless they are explicitly requested or clearly needed for a focused feature.
 
@@ -35,8 +35,13 @@ The app already has:
 - AniList anime linking that preserves MAL ids where available
 - optional official MyAnimeList API v2 rating enrichment through `MAL_CLIENT_ID`, with Jikan fallback
 - manual external rating management from the detail page overflow menu under `Puntuacions`
+- deterministic primary external ratings stored by id, including migration and deletion fallback
+- a status-first add flow with explicit book-edition selection and manual metadata ownership
+- the refined Stats Home drill-in and yearly recap
+- the content-consumption Timeline, including the Home activity preview and full history screen
+- system, light, and dark themes with theme-aware neutral and accent palettes
 
-The latest known build state from the previous implementation session was healthy: `.\gradlew.bat assembleDebug` passed after heap settings were raised.
+The current build state is healthy as of 2026-07-22: `.\gradlew.bat testDebugUnitTest assembleDebug` passes.
 
 ## Architecture Map
 
@@ -88,18 +93,21 @@ External metadata/data providers:
 
 ### Current Execution Priority
 
-The active implementation order is:
+The product/UX backlog, Stats refinement, Timeline, goals presentation, and theme foundation are delivered. The active implementation order is now:
 
-1. Complete the remaining in-progress and todo items in `docs/omnilog-product-ux-backlog.md`.
-2. Next, implement `docs/omnilog-stats-improvement-plan.md` in its documented order.
-3. Then, implement `docs/omnilog-content-consumption-timeline-plan.md`.
-4. Resume the remaining roadmap work below unless priorities are explicitly changed.
+1. Add overwrite confirmation to metadata linking so it matches metadata refresh safety.
+2. Add targeted import, duplicate-detection, metadata-refresh, and primary-rating tests.
+3. Run focused device/regression QA when those high-risk flows change.
+4. Complete the MAL API follow-up only where real provider behaviour requires it.
+5. Continue goals, theme, and UI improvements opportunistically rather than as dedicated redesign workstreams.
 
-The stats MVP already exists. Its next phase is refinement: trustworthy definitions, a stronger information hierarchy, valid chart comparisons, focused interaction, and visual/accessibility polish. It should not be expanded with optional statistics until the core refinement plan is complete.
+Optional Stats drill-downs, an audit-quality event table, and additional goal-management states remain later additions, not current blockers.
 
 ### 1. Device And Regression QA
 
 Goal: verify the current user-facing flows before adding larger features.
+
+Status: ongoing release practice. The debug build, unit suite, major Home/Profile/Stats/Timeline flows, and many 100%/200% font-scale states have been verified. Repeat the focused checks below when their flows change rather than treating QA as a one-time feature.
 
 Tasks:
 
@@ -107,7 +115,7 @@ Tasks:
 - Open the detail page overflow menu.
 - Verify metadata refresh confirmation can preview, select, and apply overwrites.
 - Verify manual external rating management can add, edit, delete, and set primary ratings.
-- Confirm provider-specific imports still appear only in their relevant section pages.
+- Confirm the Settings import hub exposes MAL, IMDb, and StoryGraph and that contextual section entry points invoke only the matching importer.
 - Check that no import or metadata flow overwrites user sessions/progress/rating data unexpectedly.
 
 Exit criteria:
@@ -117,35 +125,32 @@ Exit criteria:
 
 ### 2. Manual External Ratings Polish
 
-Goal: make the existing first-pass external rating feature feel coherent and reliable.
+Status: delivered.
 
-Tasks:
+Goal: keep manual external rating management coherent and reliable.
+
+What shipped:
 
 - Improve dialog layout density and labels.
 - Show current score formatting clearly in rows.
 - Add source-specific default max scores where appropriate.
-- Decide whether custom/free-text sources are needed beyond the existing enum.
+- Keep sources constrained to the existing media-aware enum; custom/free-text sources are not currently needed.
 - Strengthen validation so score/max score combinations are sensible.
 
-Open questions:
-
-- Should custom rating sources be supported?
-- Should source presets imply a max score?
-- Should provider refresh preserve a user-selected primary external rating by default?
+Source presets imply an appropriate default maximum, and provider refresh preserves a manually selected primary rating by default. Further copy or validation refinements are normal maintenance rather than a dedicated roadmap item.
 
 ### 3. Primary External Rating Model
 
+Status: delivered.
+
 Goal: make primary external rating selection unambiguous.
 
-Current issue:
+What shipped:
 
-- The UI detects the primary external rating by score/max score. If two sources share the same score and max score, multiple rows can appear effectively primary.
-
-Possible direction:
-
-- Store primary external rating source/id explicitly instead of relying on denormalized score matching.
-- Define fallback behavior when the primary rating is deleted.
-- Keep denormalized primary fields on `media_items` only as display/cache fields if still useful.
+- `media_items.primaryExternalRatingId` stores explicit rating identity instead of relying on score/max matching.
+- The Room migration backfills the id for existing data where a matching rating exists.
+- Editing the primary rating keeps it primary; deleting it chooses a deterministic preferred replacement or clears the cached fields.
+- The denormalized score/max/vote fields remain display/cache fields.
 
 Exit criteria:
 
@@ -153,6 +158,8 @@ Exit criteria:
 - Deleting or editing ratings has predictable fallback behavior.
 
 ### 4. Metadata Linking Overwrite Confirmation
+
+Status: open and the highest-priority feature-safety task.
 
 Goal: bring metadata linking up to the same safety standard as metadata refresh.
 
@@ -174,7 +181,7 @@ Exit criteria:
 
 ### 5. Stats Feature Refinement
 
-Status: the StoryGraph-inspired, Omnilog-native stats MVP is implemented as a Home drill-in. This refinement is the next workstream after the product and UX backlog is complete.
+Status: delivered. `STATS-01` through `STATS-03` are complete. The useful low-cost portions of `STATS-04` and `STATS-05` shipped or were absorbed into earlier items; their remaining expansion was explicitly cancelled and moved to optional later additions.
 
 Goal: make the existing stats page trustworthy, selective, interactive, polished, and memorable without turning it into a primary or overly complex app surface.
 
@@ -189,29 +196,29 @@ Required direction:
 - Reconcile title, session, period, and comparison definitions before adding new statistics.
 - Build a concise top-level summary from the strongest existing metrics.
 - Remove visual comparisons between incompatible units such as pages, episodes, minutes, and hours.
-- Make key charts inspectable and connect useful selections to their contributing titles.
+- Make key chart marks inspectable with exact values and accessible semantics.
 - Adapt sections to single-medium filters and sparse data instead of rendering redundant one-category charts.
 - Preserve the existing local-first calculator design and avoid a new chart dependency unless interaction requirements clearly justify one.
 
 Implementation order:
 
-- `STATS-01`: trustworthy definitions, periods, and comparisons.
-- `STATS-02`: concise top-level summary and hierarchy.
-- `STATS-03`: valid and clearer chart forms.
-- `STATS-04`: focused inspection and drill-down interactions.
-- `STATS-05`: filter-aware, sparse-data, and accessibility polish.
+- `STATS-01`: complete — trustworthy definitions, periods, and comparisons.
+- `STATS-02`: complete — concise top-level summary and hierarchy.
+- `STATS-03`: complete — valid and clearer chart forms.
+- `STATS-04`: cancelled remainder — basic chart inspection shipped; per-category title drill-down is optional later.
+- `STATS-05`: cancelled remainder — sparse, single-medium, and large-text behaviour was absorbed by `STATS-02/03`.
 
 Exit criteria:
 
 - Every number and chart has an interpretable unit, population, period, and comparison basis.
 - The first viewport provides a useful summary without requiring a long scroll.
 - No chart implies a comparison between incompatible units.
-- Key chart values and contributing titles can be inspected accessibly.
+- Key monthly and rating chart values can be inspected accessibly.
 - Single-medium, sparse, dense, and 200% font-scale states are verified on a device or emulator.
 
 ### 6. Content Consumption Timeline
 
-Status: planned as the next feature workstream after Stats Feature Refinement.
+Status: delivered. The pure-Kotlin builder, focused tests, Home preview, full Timeline drill-in, filters, configuration, navigation restoration, accessibility, and progress-history editing are implemented without a schema or dependency change.
 
 Goal: make the user's local consumption history readable as a chronological feed of progress, starts, revisits, and completions without treating arbitrary item edits as activity.
 
@@ -229,13 +236,15 @@ Required direction:
 - Preserve timeline filters and scroll position when opening an item and returning from detail.
 - Avoid a Room migration, new event table, or paging dependency unless measured performance or audit-history requirements justify one.
 
-Implementation order:
+Delivered sequence:
 
-- Define and test timeline presentation models and event derivation.
-- Build reusable timeline rows, day groups, filters, and screen states.
-- Add the full Timeline Home drill-in and detail return behavior.
-- Add the compact Home preview after analytics.
-- Complete Catalan copy, accessibility, large-history, and 200% font-scale QA.
+- Defined and tested timeline presentation models and event derivation.
+- Built reusable timeline rows, day groups, filters, and screen states.
+- Added the full Timeline Home drill-in and detail return behavior.
+- Added the compact Home preview after analytics.
+- Completed Catalan copy, accessibility, dense/sparse history, and 200% font-scale QA.
+
+Live empty-library/loading and an on-device unknown-date group were not exercised during the original device pass. They are residual QA scenarios, not a reason to keep the feature marked as planned or incomplete.
 
 Exit criteria:
 
@@ -355,6 +364,8 @@ Exit criteria:
 
 ### 8. Import And Metadata Test Coverage
 
+Status: open.
+
 Goal: reduce regressions in the highest-risk local-first flows.
 
 Tasks:
@@ -372,6 +383,8 @@ Exit criteria:
 
 ### 9. MAL API Follow-Up
 
+Status: partially implemented. Official MAL rating/rank enrichment and the Jikan fallback are active; device confirmation with a configured client id, explicit rate-limit policy, and provider-scope documentation remain follow-up work.
+
 Goal: make official MAL integration behavior clearer and safer.
 
 Tasks:
@@ -388,20 +401,22 @@ Exit criteria:
 
 ### 10. UI System Evolution
 
+Status: continuous improvement. The major planned foundations have shipped; refine individual surfaces when concrete issues are observed rather than dedicating a separate redesign workstream.
+
 Goal: continue the visual direction from `docs/omnilog-ui-design-v1.md` in small, reversible slices.
 
-Likely next slices:
+Shipped foundations:
 
-- refine shared preview/detail metadata hero
-- improve media list rows
-- keep Home dashboard cover-led and scannable
-- move edit/create flows toward modal patterns where appropriate
-- keep Stats consistent with the dashboard visual language
-- defer settings/config until core flows are stable
+- cover-led, scannable Home and collection surfaces
+- improved media rows and responsive large-text behaviour
+- modal add/edit/quick-action flows where appropriate
+- Stats and Timeline aligned with the dashboard visual language
+- system, light, and dark themes with theme-aware accents
+- redesigned Profile, goals, navigation marks, and shared cover scrims
 
 Design guardrails:
 
-- dark-mode-first
+- support system, light, and dark themes; polish theme issues when they are observed
 - soft dark base, not pitch black
 - section accents as highlights
 - cover-led media surfaces
@@ -410,24 +425,23 @@ Design guardrails:
 
 ### 11. Workspace And Release Hygiene
 
+Status: active guardrail. The root `gradle.properties` is local-only and ignored; `gradle.properties.example` documents safe build defaults and blank credential names.
+
 Goal: keep local setup and repository state safe.
 
 Tasks:
 
-- Avoid committing local API keys/client ids from `gradle.properties`.
-- Keep provider credentials in Gradle properties or environment variables only.
+- Never track the root `gradle.properties`.
+- Keep provider credentials in the ignored root file, user-level Gradle properties, or environment variables only.
 - Review unrelated dirty files before commits.
 - Keep old session notes out of the project root.
 - Prefer focused docs in `docs/`.
 
 ## Known Risks
 
-- Manual external rating UI is functional but not polished.
 - Metadata linking still needs overwrite confirmation.
 - Older AniList-linked anime may lack preserved MAL ids until refreshed/relinked.
-- Gradle properties may contain local credentials and should not be committed casually.
-- External rating score/max validation is minimal.
-- Deleting the primary external rating currently falls back to the first remaining rating.
+- Import, metadata refresh/linking, and primary-rating persistence need targeted automated tests.
 - Stats that depend on `finishedAt`, `progressTotal`, genres, creators, or language will be incomplete when those fields are missing.
 - Progress updates store cumulative values, so progress-over-time stats need careful delta calculation.
 - External APIs may rate-limit or omit expected fields.
@@ -436,7 +450,7 @@ Tasks:
 
 - `ContentTrackerApp.kt` coordinates a lot of navigation, dialogs, imports, metadata linking, and back handling. Refactor only when a focused extraction clearly helps a feature.
 - `DetailQuickActionsSection.kt` carries quick actions plus the external ratings dialog.
-- Primary external rating is denormalized on `media_items` instead of modeled by id/source.
+- Primary external rating identity is stored by id; denormalized score/max/vote fields remain as intentional display caches.
 - Refresh diff display uses formatted string comparisons for many fields.
 - Import and metadata flows need automated tests.
 
@@ -447,7 +461,7 @@ Tasks:
 - Preserve current naming conventions.
 - Ask before introducing new frameworks or dependencies.
 - Do not make imports destructive.
-- Do not show provider-specific imports outside their section pages.
+- Keep provider imports available in the Settings import hub; contextual section entry points must invoke only their matching provider import.
 - Do not overwrite user/session/progress/review/ownership/collection data during metadata work.
 - Do not remove Jikan fallback unless explicitly approved.
 - Do not commit local secrets or unrelated dirty files.

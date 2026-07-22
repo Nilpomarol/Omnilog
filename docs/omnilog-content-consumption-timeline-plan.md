@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This document defines a content consumption timeline for Omnilog. It is a planning document, not an implementation record.
+This document defines the delivered content consumption timeline for Omnilog and records the design decisions behind it.
 
 The timeline should make the user's local history readable as a sequence of meaningful consumption events: progress logged, sessions started, revisits begun, and sessions completed. It should not become a generic audit log of metadata edits or duplicate the cover carousels already present on Home.
 
-The feature should be implemented after `docs/omnilog-stats-improvement-plan.md` is complete.
+Status: delivered after `docs/omnilog-stats-improvement-plan.md`.
 
 ## Current App Context
 
@@ -238,7 +238,7 @@ Navigation will require:
 
 ## Risks And Open Decisions
 
-**Implementation note (2026-07-20):** The pure-Kotlin builder, focused derivation tests, shared Home/full-screen rows, filters, navigation, state restoration, Catalan copy, loading/empty treatments, accessibility semantics, deletion-safe dynamic visit numbering, correction suppression, persistent per-media-type visibility controls, and progress-history editing for every media type are implemented without a schema or dependency change. Editing a cumulative progress value or date atomically recalculates the owning session's current progress. The full debug unit suite and debug APK build pass. A connected device verified the dense Home preview, full timeline, media/year filtering, filtered-empty state, sparse history, detail return with filters/position retained, Home bottom-nav selection, the five-type configuration sheet and its persisted selection, a non-book history editor, and layouts at 100% and 200% font scale; the device settings and test selections were restored afterward. Live empty-library/loading and an on-device unknown-date group were not exercised to avoid replacing the device's real library, so this plan is not marked fully complete.
+**Implementation note (2026-07-20):** The pure-Kotlin builder, focused derivation tests, shared Home/full-screen rows, filters, navigation, state restoration, Catalan copy, loading/empty treatments, accessibility semantics, deletion-safe dynamic visit numbering, correction suppression, persistent per-media-type visibility controls, and progress-history editing for every media type are implemented without a schema or dependency change. Editing a cumulative progress value or date atomically recalculates the owning session's current progress. The full debug unit suite and debug APK build pass. A connected device verified the dense Home preview, full timeline, media/year filtering, filtered-empty state, sparse history, detail return with filters/position retained, Home bottom-nav selection, the five-type configuration sheet and its persisted selection, a non-book history editor, and layouts at 100% and 200% font scale; the device settings and test selections were restored afterward. Live empty-library/loading and an on-device unknown-date group were not exercised to avoid replacing the device's real library. Those are residual QA scenarios, not incomplete feature scope.
 
 - Imported sessions may have useful completion dates but synthetic progress-update dates.
 - Exact consumption times are unavailable; most historical data is day-level.

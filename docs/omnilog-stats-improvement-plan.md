@@ -2,13 +2,13 @@
 
 ## Purpose
 
-This document turns the stats feature review into an implementation plan. The existing stats MVP is broad and visually consistent, but its next iteration should make the numbers more trustworthy, the hierarchy more selective, and the charts easier and more rewarding to explore.
+This document records the delivered refinement of Omnilog's Stats feature. It began as an implementation plan for making the numbers more trustworthy, the hierarchy more selective, and the charts easier and more rewarding to explore.
 
 Stats remain a secondary Home drill-in rather than a primary navigation destination. The goal is not to add more reporting for its own sake; it is to make the existing personal history feel clear, polished, interactive, and memorable without introducing unnecessary complexity.
 
-## Execution Order
+## Delivery Status
 
-Start this plan after the remaining tasks in `docs/omnilog-product-ux-backlog.md` are complete. `UX-20` in that backlog is the minimum comparison-clarity requirement; this plan is the broader follow-up for the whole stats experience.
+Delivered after the product/UX backlog's comparison-clarity foundation. `STATS-01` through `STATS-03` are complete; the remaining `STATS-04` and `STATS-05` expansion was explicitly cancelled after its useful portions shipped or were absorbed by earlier items.
 
 ## What Already Works
 

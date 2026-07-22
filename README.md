@@ -74,19 +74,23 @@ OMDB_API_KEY=your-key
 MAL_CLIENT_ID=your-client-id
 ```
 
-The tracked root `gradle.properties` intentionally contains blank credential placeholders only.
+The root `gradle.properties` is local-only and ignored. Copy `gradle.properties.example` when setting up the project, or place credentials in user-level Gradle properties or environment variables.
 
 ## Documentation
 
 - [Roadmap](docs/omnilog-roadmap.md)
+- [Product and UX Delivery Record](docs/omnilog-product-ux-backlog.md)
 - [UI Design Direction](docs/omnilog-ui-design-v1.md)
 - [Stats System Plan](docs/omnilog-stats-system-plan.md)
+- [Stats Improvement Delivery Record](docs/omnilog-stats-improvement-plan.md)
+- [Content Consumption Timeline](docs/omnilog-content-consumption-timeline-plan.md)
+- [Add Flow and Book Metadata Status](docs/add-and-book-metadata-remake-plan.md)
 - [Development Guide](docs/development-guide.md)
 
 ## Project Guardrails
 
 - Keep imports additive; only backup restore may replace data.
 - Preserve sessions, progress history, ratings, reviews, ownership, and collections during metadata work.
-- Keep provider-specific imports scoped to their section pages.
+- Keep provider imports discoverable in the Settings import hub; contextual section actions must invoke only the importer that matches that section.
 - Ask before introducing major new frameworks or dependencies.
 - Keep secrets out of tracked files.

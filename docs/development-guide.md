@@ -40,6 +40,7 @@ Preferred locations:
 
 - environment variables
 - user-level Gradle properties in `~/.gradle/gradle.properties`
+- the ignored root `gradle.properties`, copied from `gradle.properties.example`
 
 Do not put real provider keys in tracked files. If a key was committed or pushed, rotate it with the provider.
 
@@ -50,10 +51,12 @@ Do not put real provider keys in tracked files. If a key was committed or pushed
 - Imports must be additive and skip duplicates.
 - Backup restore is the only destructive replace flow.
 - Metadata refresh/linking must preserve user sessions, progress history, personal ratings, reviews, ownership, and collections unless the user explicitly chooses otherwise.
-- Provider-specific imports stay scoped to their section pages:
+- Provider-specific imports are deliberately available from the Settings import hub.
+- Matching sections may also expose contextual entry points:
   - Anime: MyAnimeList XML.
-  - Movies/TV: IMDb CSV.
+  - Cinema i TV: IMDb CSV.
   - Books: StoryGraph CSV.
+  - Games: no provider import.
 
 ## Important Code Areas
 
@@ -74,25 +77,25 @@ Use [Roadmap](omnilog-roadmap.md) as the standing plan.
 
 Current recommended order:
 
-1. Device and regression QA.
-2. Manual external ratings polish.
-3. Primary external rating model hardening.
-4. Metadata linking overwrite confirmation.
-5. Stats system MVP.
-6. Import and metadata test coverage.
-7. MAL API follow-up.
+1. Metadata linking overwrite confirmation.
+2. Import, duplicate-detection, metadata-refresh, and primary-rating test coverage.
+3. Focused device and regression QA when high-risk flows change.
+4. MAL API follow-up where observed provider behaviour requires it.
+5. Opportunistic goals, theme, and UI improvements.
 
-## Stats Implementation Notes
+The product/UX backlog, manual external-rating polish, explicit primary-rating model, Stats refinement, Timeline, goals presentation, and theme foundation are delivered.
 
-Use [Stats System Plan](omnilog-stats-system-plan.md) for details.
+## Stats Architecture Notes
 
-For the MVP:
+Use [Stats System Plan](omnilog-stats-system-plan.md) for the original model and [Stats Improvement Plan](omnilog-stats-improvement-plan.md) for the delivered refinement record.
+
+Preserve these implementation choices:
 
 - calculate stats in pure Kotlin from existing `TrackedMedia` data
 - avoid a Room schema change
 - avoid a chart dependency
 - add focused unit tests for the calculator
-- expose stats as a Home drill-in before considering a bottom navigation item
+- keep Stats as a Home drill-in rather than a bottom-navigation item
 
 ## Testing Guidance
 
@@ -121,7 +124,7 @@ Before considering a larger feature done:
 - Home loads
 - section navigation works
 - detail page opens and back navigation is predictable
-- add/import flows still work for relevant sections
+- the Settings import hub and contextual section imports launch the correct provider flow
 - metadata refresh confirmation can apply and cancel
 - current session edits save correctly
 - external rating dialog can add, edit, delete, and set primary
@@ -131,6 +134,7 @@ Before considering a larger feature done:
 
 - Keep root session notes out of the repository.
 - Keep durable docs in `docs/`.
+- Keep the root `gradle.properties` untracked; update `gradle.properties.example` when safe shared defaults change.
 - Do not commit real API keys, client ids, keystores, APKs, AABs, or local IDE files.
 - Review `git diff` before staging.
 - Treat unrelated dirty files as user-owned unless explicitly asked to change them.

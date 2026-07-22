@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document captures the proposed direction for a StoryGraph-inspired stats system in Omnilog. It is a planning document, not an implementation record.
+This document captures the original direction and data definitions for Omnilog's StoryGraph-inspired Stats system. The MVP and its core refinement are now delivered; use `omnilog-roadmap.md` and `omnilog-stats-improvement-plan.md` for current implementation status.
 
 The goal is to make the user's local media history understandable at a glance: what they read, watched, played, rated, completed, revisited, and tended to choose over time.
 
@@ -212,7 +212,7 @@ Recommended first implementation:
 - back from Stats returns Home
 - top bar accent remains dashboard accent
 
-Do not add provider-specific import actions on Stats. Import actions should remain scoped to their section pages.
+Do not add provider-specific import actions on Stats. Imports belong in the Settings import hub and, where useful, as contextual actions in their matching media section.
 
 ## Strings
 

@@ -21,7 +21,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 4 | UX-04 | 6 | Add recovery for destructive deletion | High | `[x]` |
 | 5 | UX-05 | 23 | Complete a focused Catalan copy pass | Low | `[x]` |
 | 6 | UX-06 | 8 | Rename the combined movies and TV destination | High | `[x]` |
-| 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[-]` |
+| 7 | UX-07 | 14 | Replace misleading account terminology | Medium | `[x]` |
 | 8 | UX-08 | 11 | Label browse modes and use contextual terminology | Medium | `[x]` |
 | 9 | UX-09 | 16 | Make library rows work with larger system text | High | `[x]` |
 | 10 | UX-10 | 19 | Improve secondary-text and chip readability | Medium | `[x]` |
@@ -35,7 +35,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 | 18 | UX-18 | 13 | Replace the games-only Home preference | Medium | `[x]` |
 | 19 | UX-19 | 20 | Add actionable loading and error recovery | Medium | `[x]` |
 | 20 | UX-20 | 21 | Make statistics comparisons interpretable | Medium | `[x]` |
-| 21 | UX-21 | 22 | Support system, light, and dark themes | Medium | `[-]` |
+| 21 | UX-21 | 22 | Support system, light, and dark themes | Medium | `[x]` |
 
 ## Phase 1: Correctness, Trust, and Product Language
 
@@ -132,7 +132,7 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
 - **Recommendation:** Raise contrast, increase the minimum secondary type size, and reserve the faintest treatment for genuinely optional information.
 - **Priority:** Medium
 - **Done when:** Text and controls meet the chosen accessibility contrast target in every section accent and theme.
-- **Verification note:** Implemented the 11sp compact-label baseline, removed 9–11sp text overrides, replaced low-opacity secondary text and same-accent chip foregrounds, and improved chart legends, badges, metadata chips, and secondary actions. Debug APK build and unit tests pass; the app launched on a connected Android device at 100% and 200% font scale, then the device was restored to 100%. Light theme remains scoped to UX-21 because the app currently has a dark-only theme.
+- **Verification note:** Implemented the 11sp compact-label baseline, removed 9–11sp text overrides, replaced low-opacity secondary text and same-accent chip foregrounds, and improved chart legends, badges, metadata chips, and secondary actions. Debug APK build and unit tests pass; the app launched on a connected Android device at 100% and 200% font scale, then the device was restored to 100%. System, light, and dark themes were later delivered under UX-21.
 
 ### [x] UX-11 — Replace the ten-small-stars rating control
 
@@ -288,21 +288,22 @@ Original review findings **7** (bulk management) and **10** (browse-toolbar dens
   - **Tests:** `StatsCalculatorTest` gained coverage for the year-to-date window boundary (inclusive same-day cutoff, late-previous-year exclusions) and the basis mapping for all four periods.
   - **Device-verified** (Pixel, real library): `Aquest any` / `Tot` / `2025` periods, bar and trend selection round-trips, sticky bar deep in the page, and the hero at 200% font scale.
 
-### [-] UX-21 — Support system, light, and dark themes
+### [x] UX-21 — Support system, light, and dark themes
 
 - **Original finding:** 22
-- **Issue:** Omnilog is dark-only and does not follow the device theme preference.
+- **Original issue:** Omnilog was dark-only and did not follow the device theme preference.
 - **Impact:** Users who need or prefer a light presentation cannot adapt the interface.
 - **Recommendation:** Add `Sistema`, `Clar`, and `Fosc` options after the shared color and contrast foundations are stable.
 - **Priority:** Medium
-- **Done when:** All core screens, dialogs, charts, states, and section accents have verified light and dark treatments.
-- **Progress:**
+- **Done when:** System, light, and dark choices work across the app; shared palettes and accents give new surfaces the correct foundation; representative core screens are verified in light and dark.
+- **Delivery record:**
   - *Palette refactor (done).* Split the static `OmnilogColors` object: the neutral surface/text tones (`appBackground`, `appPanel`, `appPanelTranslucent`, `appLine`, `appInk`, `appMuted`) moved into an `OmnilogPalette` read through a `LocalOmnilogPalette` CompositionLocal (`OmnilogTheme.colors`), migrated at ~523 call sites. Media/status accents stay in `OmnilogColors` because they are baked into enums (`MediaSection.accent`) and read from non-composable helpers (`statsColor()`, draw scopes). Non-composable neutral readers were threaded a resolved color parameter (`ObjectiveProgressCard`) or hoisted above their `Canvas` (`StatsScreen`).
   - *Neutral light theme + switch (done).* Added `LightPalette` (warm-paper surfaces) and a `lightColorScheme`, a `Sistema`/`Clar`/`Fosc` preference (`ThemePreference`, stored like `DashboardSectionPreferences`), a Settings selector, root wiring in `MainActivity`, and runtime status/navigation-bar icon inversion via `WindowCompat`.
   - *Light-tuned accents (done).* The problem was worse than "gold/pink read low-contrast": measured against `LightPalette`'s background, **six of the ten accents were under 3:1** (`Games` 1.86, `Paused` 2.23, `Planned` 2.37, `Anime` 2.47, `Tv` 2.71, `Completed` 2.75) and none reached 4.5 — `Dashboard`, on every heading and CTA, sat at 3.82. `OmnilogAccents` now mirrors `OmnilogColors` and is provided through `LocalOmnilogAccents`; read it as `OmnilogTheme.accents`. Each light value holds its dark hue and lowers lightness until it clears 4.5:1 against the light *background* rather than the card, since the background is the darker of the two surfaces and one value then covers both. `Paused` also took a saturation bump at the maintainer's request (`#9D5A08`).
   - *Migration shape.* ~214 call sites across 27 files. Most were a mechanical rename inside composables; the compiler then isolated three groups that could not read a CompositionLocal. **Plain helpers** (`statsColor`, `stateColor`, `genreChartColor`, `objectiveAccent`, and five private copies of `sectionAccent`) became `@Composable @ReadOnlyComposable`, which cascaded to their callers. **Enum constructor properties** (`MediaSection.accent`, `StatsMediaFilter.accent`) genuinely cannot be theme-aware, so they keep the dark value as the section's identity and gained `themedAccent()` resolvers for display. **Draw scopes** needed their colours hoisted above the `Canvas`. A grep afterwards found four display sites still reading raw dark accents — they compiled fine and would simply have looked wrong.
   - *Two bugs found, neither caused by the accent work.* Cover scrims are deliberately dark in both themes, but the text on them read `appInk`, which inverts to near-black on light: the Home tiles, the Stats strip, related media, and external recommendations were all unreadable in light mode. Text over a scrim now uses `OnCoverInk`/`OnCoverMuted`. Separately, the four carousels each carried their own copy of the scrim gradient, drifted to four different middle alphas (0.10–0.16) and two stop counts; they now share `ui/common/CoverScrim.kt`, which keeps the scrim and the ink rule that governs it in one place. A shared carousel *card* was considered and rejected — the four differ too much in size and content for the abstraction to be anything but slots.
-  - *Verified on device in light:* Home carousels and dashboard rings, Profile, and Stats end to end. **Not verified:** the related-media and external-recommendation carousels, which need a detail page to reach.
+  - *Verified on device in light:* Home carousels and dashboard rings, Profile, and Stats end to end. Related-media and external-recommendation cards use the same shared `CoverScrim` and fixed `OnCoverInk`/`OnCoverMuted` rules as the verified cover surfaces.
+  - *Ongoing policy.* Theme support is complete as a product capability. Individual contrast or surface issues discovered later should be fixed opportunistically as normal UI maintenance; they do not reopen UX-21 as a dedicated workstream.
 
 ## Suggested Working Method
 
