@@ -362,10 +362,14 @@ Exit criteria:
 
 Status: open.
 
+Detailed implementation plan: [Import Enrichment Implementation Plan](omnilog-import-enrichment-implementation-plan.md).
+
 Goal: make imported libraries useful without forcing the user to link or refresh every title individually, then reduce regressions in these high-risk local-first flows.
 
 Tasks:
 
+- Add a direct MyAnimeList account import through the official MAL API, with preview, pagination, token recovery, durable resume, and XML fallback.
+- Keep inbound MAL import separate from the existing outbound sync so importing cannot immediately send the same state back to MAL.
 - Add a post-import batch enrichment flow with visible progress, retry, and cancel.
 - Use MAL ids from MAL XML to fetch anime metadata directly.
 - Resolve IMDb ids through TMDB where possible; batch-review ambiguous title/year matches instead of opening every title.

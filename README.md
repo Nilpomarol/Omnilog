@@ -89,6 +89,7 @@ MAL-only titles are never deleted.
 - [Stats System Plan](docs/omnilog-stats-system-plan.md)
 - [Stats Improvement Delivery Record](docs/omnilog-stats-improvement-plan.md)
 - [Content Consumption Timeline](docs/omnilog-content-consumption-timeline-plan.md)
+- [Import Enrichment Implementation Plan](docs/omnilog-import-enrichment-implementation-plan.md)
 - [Add Flow and Book Metadata Status](docs/add-and-book-metadata-remake-plan.md)
 - [Development Guide](docs/development-guide.md)
 
