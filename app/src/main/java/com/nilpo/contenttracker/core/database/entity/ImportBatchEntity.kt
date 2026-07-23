@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.core.database.entity
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 
 /** Durable lifecycle record for one provider import and its metadata enrichment work. */
 @Entity(
@@ -21,4 +22,6 @@ data class ImportBatchEntity(
     val continuationUrl: String? = null,
     val diagnostic: String? = null,
     val reconnectRequired: Boolean = false,
+    @ColumnInfo(defaultValue = "0")
+    val completionNotified: Boolean = false,
 )

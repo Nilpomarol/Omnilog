@@ -1310,6 +1310,7 @@ private fun TrackedMedia.matchesDashboardQuery(query: String): Boolean {
         item.originalTitle?.contains(query, ignoreCase = true) == true ||
         item.creators.any { it.contains(query, ignoreCase = true) } ||
         item.genres.any { it.contains(query, ignoreCase = true) } ||
+        item.tags.any { it.contains(query, ignoreCase = true) } ||
         collection?.name?.contains(query, ignoreCase = true) == true
 }
 

@@ -219,6 +219,8 @@ private fun JSONObject.toMyAnimeListImportItem(): MyAnimeListImportItem? {
         status = listStatus.optString("status").toMalTrackingStatus(),
         notes = listStatus.optString("comments").takeIf { it.isNotBlank() },
         tags = listStatus.optJSONArray("tags").toStringList(),
+        completedRewatches = listStatus.optInt("num_times_rewatched", 0).coerceAtLeast(0),
+        isRewatching = listStatus.optBoolean("is_rewatching", false),
     )
 }
 

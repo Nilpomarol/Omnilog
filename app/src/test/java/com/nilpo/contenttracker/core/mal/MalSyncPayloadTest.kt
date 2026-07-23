@@ -26,6 +26,8 @@ class MalSyncPayloadTest {
         assertEquals(4, payload.watchedEpisodes)
         assertEquals(8, payload.score)
         assertEquals("Second revisit", payload.comments)
+        assertEquals(listOf("favorite", "rewatch"), payload.tags)
+        assertEquals("favorite,rewatch", payload.toFormFields()["tags"])
         assertTrue(payload.isRewatching)
         assertEquals(1, payload.completedRewatches)
     }
@@ -81,7 +83,12 @@ class MalSyncPayloadTest {
         }
     }
 
-    private fun anime() = MediaItemEntity(type = MediaType.Anime.name, title = "Anime", malId = 1)
+    private fun anime() = MediaItemEntity(
+        type = MediaType.Anime.name,
+        title = "Anime",
+        malId = 1,
+        tagsJson = "[\"favorite\",\"rewatch\"]",
+    )
 
     private fun session(
         number: Int,

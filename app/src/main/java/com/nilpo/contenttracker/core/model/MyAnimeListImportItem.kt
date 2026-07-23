@@ -15,4 +15,6 @@ data class MyAnimeListImportItem(
     val status: TrackingStatus,
     val notes: String?,
     val tags: List<String>,
+    val completedRewatches: Int = 0,
+    val isRewatching: Boolean = false,
 )

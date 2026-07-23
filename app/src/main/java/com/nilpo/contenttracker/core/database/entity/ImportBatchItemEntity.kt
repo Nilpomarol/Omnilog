@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 
 /** One imported title's durable resolution and metadata-application state. */
 @Entity(
@@ -49,4 +50,6 @@ data class ImportBatchItemEntity(
     val updatedAtEpochMillis: Long,
     val lastAttemptAtEpochMillis: Long? = null,
     val completedAtEpochMillis: Long? = null,
+    @ColumnInfo(defaultValue = "0")
+    val coverageDismissed: Boolean = false,
 )

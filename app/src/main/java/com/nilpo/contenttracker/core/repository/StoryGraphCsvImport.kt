@@ -15,6 +15,7 @@ typealias StoryGraphCsvPreview = ProviderImportPreview
 typealias StoryGraphCsvImportResult = ProviderImportResult
 
 internal data class StoryGraphCsvItem(
+    val sourceRowNumber: Int,
     val title: String,
     val authors: List<String>,
     val isbnOrUid: String?,
@@ -22,6 +23,7 @@ internal data class StoryGraphCsvItem(
     val readStatus: TrackingStatus,
     val dateAdded: LocalDate?,
     val lastDateRead: LocalDate?,
+    val readPeriods: List<StoryGraphReadPeriod>,
     val readCount: Int,
     val rating: Int?,
     val review: String?,
@@ -29,23 +31,54 @@ internal data class StoryGraphCsvItem(
     val isOwned: Boolean,
 )
 
-internal fun parseStoryGraphCsv(csv: String): List<StoryGraphCsvItem> {
-    val table = parseStoryGraphCsvTable(csv)
+internal data class StoryGraphReadPeriod(
+    val startedAt: LocalDate?,
+    val finishedAt: LocalDate?,
+)
+
+internal fun parseStoryGraphCsv(csv: String): List<StoryGraphCsvItem> = parseStoryGraphCsvWithReport(csv).rows
+
+internal fun parseStoryGraphCsvWithReport(csv: String): ProviderCsvParseResult<StoryGraphCsvItem> {
+    val table = parseProviderCsvTable(csv)
     if (table.isEmpty()) {
-        return emptyList()
+        throw ProviderCsvValidationException(ProviderCsvValidationIssue.EmptyFile)
     }
 
     val headers = table.first().map { it.normalizedStoryGraphHeader() }
-    if (headers.none { it == "title" } || headers.none { it == "authors" } || headers.none { it == "read status" }) {
-        throw IllegalArgumentException("Not a StoryGraph CSV export")
+    val missingColumns = buildList {
+        if ("title" !in headers) add("Title")
+        if ("authors" !in headers) add("Authors")
+        if ("read status" !in headers) add("Read Status")
     }
+    if (missingColumns.isNotEmpty()) {
+        throw ProviderCsvValidationException(
+            issue = ProviderCsvValidationIssue.MissingRequiredColumns,
+            missingColumns = missingColumns,
+        )
+    }
+    if (table.size == 1) throw ProviderCsvValidationException(ProviderCsvValidationIssue.NoDataRows)
 
-    return table.drop(1).mapNotNull { row ->
+    var invalidRows = 0
+    val rejectedRows = mutableListOf<ProviderRejectedRow>()
+    val items = table.drop(1).mapIndexedNotNull { rowIndex, row ->
         val values = headers.mapIndexed { index, header ->
             header to row.getOrNull(index).orEmpty().trim()
         }.toMap()
-        val title = values.value("title").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val title = values.value("title").takeIf { it.isNotBlank() } ?: run {
+            invalidRows++
+            if (rejectedRows.size < MaxRejectedSamplesPerReason) {
+                rejectedRows += ProviderRejectedRow(
+                    rowNumber = rowIndex + 2,
+                    label = null,
+                    reason = ProviderRejectedReason.MissingTitle,
+                )
+            }
+            return@mapIndexedNotNull null
+        }
+        val readCount = values.value("read count").toIntOrNull()?.coerceAtLeast(0) ?: 0
+        val readPeriods = values.value("dates read").toStoryGraphReadPeriods()
         StoryGraphCsvItem(
+            sourceRowNumber = rowIndex + 2,
             title = title,
             authors = values.value("authors").splitStoryGraphList(),
             isbnOrUid = values.value("isbn/uid").takeIf { it.isNotBlank() },
@@ -53,77 +86,119 @@ internal fun parseStoryGraphCsv(csv: String): List<StoryGraphCsvItem> {
             readStatus = values.value("read status").toStoryGraphStatus(),
             dateAdded = values.value("date added").toStoryGraphDateOrNull(),
             lastDateRead = values.value("last date read").toStoryGraphDateOrNull()
-                ?: values.value("dates read").lastStoryGraphDateOrNull(),
-            readCount = values.value("read count").toIntOrNull() ?: 0,
+                ?: readPeriods.mapNotNull(StoryGraphReadPeriod::finishedAt).maxOrNull(),
+            readPeriods = readPeriods,
+            readCount = readCount,
             rating = values.value("star rating").toOmnilogRatingOrNull(),
             review = values.value("review").takeIf { it.isNotBlank() },
             tags = values.value("tags").splitStoryGraphList(),
             isOwned = values.value("owned?").equals("yes", ignoreCase = true),
         )
     }
+    if (items.isEmpty()) throw ProviderCsvValidationException(ProviderCsvValidationIssue.NoUsableRows)
+    return ProviderCsvParseResult(
+        rows = items,
+        totalRows = table.size - 1,
+        invalidRows = invalidRows,
+        rejectedRows = rejectedRows,
+    )
 }
 
 internal fun StoryGraphCsvItem.toAddTrackedMediaRequest(): AddTrackedMediaRequest {
+    return toAddTrackedMediaRequest(importedSessions().first())
+}
+
+internal fun StoryGraphCsvItem.toAddTrackedMediaRequest(
+    session: ImportedTrackingSession,
+): AddTrackedMediaRequest {
     return AddTrackedMediaRequest(
         type = MediaType.Book,
         title = title,
         progressTotal = null,
-        initialStatus = readStatus,
+        initialStatus = session.status,
         initialProgress = 0,
-        initialRating = rating,
-        initialNotes = review,
-        initialStartedAt = dateAdded.takeIf { readStatus == TrackingStatus.InProgress },
-        initialFinishedAt = lastDateRead,
+        initialRating = session.rating,
+        initialNotes = session.notes,
+        initialStartedAt = session.startedAt,
+        initialFinishedAt = session.finishedAt,
         isOwned = isOwned,
         platformName = format,
         platformType = format.toPlatformType(),
-        genres = tags,
+        tags = tags,
         creators = authors,
         metadataSource = MetadataSource.StoryGraph,
         metadataExternalId = isbnOrUid,
     )
 }
 
-private fun parseStoryGraphCsvTable(csv: String): List<List<String>> {
-    val rows = mutableListOf<List<String>>()
-    val row = mutableListOf<String>()
-    val cell = StringBuilder()
-    var index = 0
-    var inQuotes = false
+/** Builds reading sessions without treating StoryGraph's library-added date as reading activity. */
+internal fun StoryGraphCsvItem.importedSessions(): List<ImportedTrackingSession> {
+    val knownPeriods = readPeriods.sortedWith(
+        compareBy<StoryGraphReadPeriod> { it.finishedAt ?: LocalDate.MAX }
+            .thenBy { it.startedAt ?: LocalDate.MAX },
+    )
 
-    while (index < csv.length) {
-        val char = csv[index]
-        when {
-            char == '"' && inQuotes && csv.getOrNull(index + 1) == '"' -> {
-                cell.append('"')
-                index++
-            }
-            char == '"' -> inQuotes = !inQuotes
-            char == ',' && !inQuotes -> {
-                row += cell.toString()
-                cell.clear()
-            }
-            (char == '\n' || char == '\r') && !inQuotes -> {
-                if (char == '\r' && csv.getOrNull(index + 1) == '\n') {
-                    index++
-                }
-                row += cell.toString()
-                cell.clear()
-                if (row.any { it.isNotBlank() }) {
-                    rows += row.toList()
-                }
-                row.clear()
-            }
-            else -> cell.append(char)
+    val completedPeriods = if (readStatus == TrackingStatus.Completed) {
+        knownPeriods
+    } else {
+        // For an unfinished row, Read Count describes earlier completed reads. Any remaining
+        // date range belongs to the current attempt (for example, a DNF with Read Count 0).
+        knownPeriods.take(readCount)
+    }
+    val currentPeriod = knownPeriods.drop(completedPeriods.size).lastOrNull()
+    val completedSessionCount = if (readStatus == TrackingStatus.Completed) {
+        maxOf(readCount, completedPeriods.size, 1)
+    } else {
+        maxOf(readCount, completedPeriods.size)
+    }
+    val completedSessions = buildList {
+        repeat((completedSessionCount - completedPeriods.size).coerceAtLeast(0)) {
+            add(ImportedTrackingSession(status = TrackingStatus.Completed))
         }
-        index++
+        completedPeriods.forEach { period ->
+            add(
+                ImportedTrackingSession(
+                    status = TrackingStatus.Completed,
+                    startedAt = period.startedAt,
+                    finishedAt = period.finishedAt,
+                ),
+            )
+        }
+    }.toMutableList()
+
+    if (readStatus == TrackingStatus.Completed && lastDateRead != null) {
+        val lastIndex = completedSessions.lastIndex
+        val latest = completedSessions[lastIndex]
+        if (latest.finishedAt == null || lastDateRead > latest.finishedAt) {
+            completedSessions[lastIndex] = latest.copy(finishedAt = lastDateRead)
+        }
     }
 
-    row += cell.toString()
-    if (row.any { it.isNotBlank() }) {
-        rows += row.toList()
+    if (readStatus == TrackingStatus.Completed) {
+        val lastIndex = completedSessions.lastIndex
+        completedSessions[lastIndex] = completedSessions[lastIndex].copy(
+            rating = rating,
+            notes = review,
+        )
+        return completedSessions
     }
-    return rows
+
+    val currentSession = ImportedTrackingSession(
+        status = readStatus,
+        startedAt = currentPeriod?.startedAt.takeIf {
+            readStatus == TrackingStatus.InProgress ||
+                readStatus == TrackingStatus.Paused ||
+                readStatus == TrackingStatus.Dropped
+        },
+        finishedAt = if (readStatus == TrackingStatus.Dropped) {
+            currentPeriod?.finishedAt ?: lastDateRead
+        } else {
+            null
+        },
+        rating = rating,
+        notes = review,
+    )
+    return completedSessions + currentSession
 }
 
 private fun String.normalizedStoryGraphHeader(): String = trim()
@@ -158,10 +233,21 @@ private fun String.toStoryGraphDateOrNull(): LocalDate? {
     }
 }
 
-private fun String.lastStoryGraphDateOrNull(): LocalDate? {
+private fun String.toStoryGraphReadPeriods(): List<StoryGraphReadPeriod> {
     return split(',', ';', '\n')
-        .mapNotNull { it.trim().toStoryGraphDateOrNull() }
-        .maxOrNull()
+        .mapNotNull { entry ->
+            val dates = StoryGraphDatePattern.findAll(entry)
+                .mapNotNull { match -> match.value.toStoryGraphDateOrNull() }
+                .toList()
+            when {
+                dates.size >= 2 -> StoryGraphReadPeriod(
+                    startedAt = minOf(dates.first(), dates.last()),
+                    finishedAt = maxOf(dates.first(), dates.last()),
+                )
+                dates.size == 1 -> StoryGraphReadPeriod(startedAt = null, finishedAt = dates.single())
+                else -> null
+            }
+        }
 }
 
 private fun String.toOmnilogRatingOrNull(): Int? {
@@ -183,3 +269,5 @@ private fun String.splitStoryGraphList(): List<String> {
         .map { it.trim() }
         .filter { it.isNotBlank() }
 }
+
+private val StoryGraphDatePattern = Regex("""\d{4}[/-]\d{1,2}[/-]\d{1,2}""")

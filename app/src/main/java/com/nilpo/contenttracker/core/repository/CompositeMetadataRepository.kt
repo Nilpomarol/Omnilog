@@ -52,6 +52,7 @@ class CompositeMetadataRepository(
         MetadataSearchResult(
             suggestions = results.flatMap { it.suggestions },
             failedSources = results.flatMapTo(mutableSetOf()) { it.failedSources },
+            failures = results.flatMap { it.failures },
         )
     }
 
@@ -74,18 +75,19 @@ class CompositeMetadataRepository(
     ): MetadataSuggestion? {
         return when (source) {
             MetadataSource.Imdb -> tmdb.findByImdbId(externalId, mediaType)
-            MetadataSource.StoryGraph -> {
-                val openLibraryMatch = runCatching { openLibrary.findByIsbn(externalId) }
+            MetadataSource.StoryGraph -> coroutineScope {
+                val openLibraryRequest = async {
+                    captureProviderResult { openLibrary.findByIsbn(externalId) }
+                }
+                val googleBooksRequest = async {
+                    captureProviderResult { googleBooks.findByIsbn(externalId) }
+                }
+                val openLibraryMatch = openLibraryRequest.await()
+                val googleMatch = googleBooksRequest.await()
                 val openLibrarySuggestion = openLibraryMatch.getOrNull()
-                if (openLibrarySuggestion?.progressTotal != null) return openLibrarySuggestion
-
-                // OpenLibrary often identifies the exact edition but omits its page count. In that
-                // case Google Books is still worth consulting; a valid exact match with pages is
-                // more useful than stopping at an incomplete first response.
-                val googleMatch = runCatching { googleBooks.findByIsbn(externalId) }
-                chooseExactBookMatch(openLibrarySuggestion, googleMatch.getOrNull())
-                    ?: openLibraryMatch.exceptionOrNull()?.let { throw it }
-                    ?: googleMatch.exceptionOrNull()?.let { throw it }
+                mergeExactBookMatches(openLibrarySuggestion, googleMatch.getOrNull())
+                    ?: openLibraryMatch.retryableExceptionOrNull()?.let { throw it }
+                    ?: googleMatch.retryableExceptionOrNull()?.let { throw it }
             }
             else -> null
         }
@@ -111,6 +113,7 @@ class CompositeMetadataRepository(
             .sortedByDescending { it.bookQualityScore(request.query) }
             .take(20),
             failedSources = results.flatMapTo(mutableSetOf()) { it.failedSources },
+            failures = results.flatMap { it.failures },
         )
     }
 
@@ -122,26 +125,116 @@ class CompositeMetadataRepository(
             ProviderSearchResult(suggestions = search())
         } catch (exception: CancellationException) {
             throw exception
-        } catch (_: Throwable) {
-            ProviderSearchResult(failedSources = setOf(source))
+        } catch (exception: Throwable) {
+            ProviderSearchResult(
+                failedSources = setOf(source),
+                failures = listOf(exception.toSearchFailure(source)),
+            )
         }
     }
 }
 
-internal fun chooseExactBookMatch(
+internal fun mergeExactBookMatches(
     openLibrary: MetadataSuggestion?,
     googleBooks: MetadataSuggestion?,
-): MetadataSuggestion? = when {
-    openLibrary?.progressTotal != null -> openLibrary
-    googleBooks?.progressTotal != null -> googleBooks
-    openLibrary != null -> openLibrary
-    else -> googleBooks
+): MetadataSuggestion? {
+    val primary = openLibrary ?: return googleBooks
+    val secondary = googleBooks ?: return primary
+    val primaryEdition = primary.bookEdition
+    val secondaryEdition = secondary.bookEdition
+    val mergedEdition = when {
+        primaryEdition != null -> primaryEdition.copy(
+            title = primaryEdition.title ?: secondaryEdition?.title,
+            releaseYear = primaryEdition.releaseYear ?: secondaryEdition?.releaseYear,
+            language = primaryEdition.language ?: secondaryEdition?.language,
+            pageCount = primaryEdition.pageCount ?: secondaryEdition?.pageCount,
+            coverUrl = primaryEdition.coverUrl ?: secondaryEdition?.coverUrl,
+            isbn = primaryEdition.isbn ?: secondaryEdition?.isbn,
+            format = primaryEdition.format ?: secondaryEdition?.format,
+            publisher = primaryEdition.publisher ?: secondaryEdition?.publisher,
+            sourceUrl = primaryEdition.sourceUrl ?: secondaryEdition?.sourceUrl,
+        )
+        else -> secondaryEdition
+    }
+    val exactIsbn = mergedEdition?.isbn
+    return primary.copy(
+        originalTitle = primary.originalTitle ?: secondary.originalTitle,
+        collectionTitle = primary.collectionTitle ?: secondary.collectionTitle,
+        releaseYear = primary.releaseYear ?: secondary.releaseYear,
+        language = primary.language ?: secondary.language,
+        genres = mergeBookLists(primary.genres, secondary.genres),
+        creators = mergeBookLists(primary.creators, secondary.creators),
+        credits = (primary.credits + secondary.credits).distinctBy { credit ->
+            "${credit.roleType.name}:${credit.personName.trim().lowercase()}"
+        },
+        progressTotal = primary.progressTotal ?: secondary.progressTotal,
+        coverUrl = primary.coverUrl ?: secondary.coverUrl,
+        synopsis = primary.synopsis ?: secondary.synopsis,
+        sourceUrl = primary.sourceUrl ?: secondary.sourceUrl,
+        popularityScore = primary.popularityScore ?: secondary.popularityScore,
+        rankingPosition = primary.rankingPosition ?: secondary.rankingPosition,
+        rankingLabel = primary.rankingLabel ?: secondary.rankingLabel,
+        ratingDistributionJson = primary.ratingDistributionJson ?: secondary.ratingDistributionJson,
+        popularityJson = primary.popularityJson ?: secondary.popularityJson,
+        rankingJson = primary.rankingJson ?: secondary.rankingJson,
+        externalRating = primary.externalRating ?: secondary.externalRating,
+        externalRatings = (primary.externalRatings + secondary.externalRatings)
+            .distinctBy { it.source },
+        bookEdition = mergedEdition,
+        bookEditionSuggestions = (primary.bookEditionSuggestions + secondary.bookEditionSuggestions)
+            .distinctBy { it.externalId },
+        subtitle = primary.subtitle ?: secondary.subtitle,
+        publishers = mergeBookLists(
+            listOfNotNull(mergedEdition?.publisher) + primary.publishers,
+            secondary.publishers,
+        ),
+        identifiers = mergeBookLists(
+            listOfNotNull(exactIsbn) + primary.identifiers,
+            secondary.identifiers,
+            normalize = { value -> value.filter(Char::isLetterOrDigit).uppercase() },
+        ),
+    )
 }
+
+private fun mergeBookLists(
+    primary: List<String>,
+    secondary: List<String>,
+    normalize: (String) -> String = { it.trim().lowercase() },
+): List<String> = (primary + secondary)
+    .filter { it.isNotBlank() }
+    .distinctBy(normalize)
 
 private data class ProviderSearchResult(
     val suggestions: List<MetadataSuggestion> = emptyList(),
     val failedSources: Set<MetadataSource> = emptySet(),
+    val failures: List<MetadataSearchFailure> = emptyList(),
 )
+
+private fun Throwable.toSearchFailure(source: MetadataSource): MetadataSearchFailure {
+    val httpError = this as? MetadataProviderHttpException
+    return MetadataSearchFailure(
+        source = source,
+        diagnostic = httpError?.let { "${source.name} returned HTTP ${it.statusCode}" }
+            ?: (message ?: "${source.name} request failed"),
+        retryable = httpError?.statusCode?.let { it == 429 || it >= 500 } ?: true,
+        statusCode = httpError?.statusCode,
+        retryAfterMillis = httpError?.retryAfterMillis,
+    )
+}
+
+private fun Result<*>.retryableExceptionOrNull(): Throwable? = exceptionOrNull()?.takeUnless { error ->
+    error is MetadataProviderHttpException && error.statusCode == 404
+}
+
+private suspend fun <T> captureProviderResult(block: suspend () -> T): Result<T> {
+    return try {
+        Result.success(block())
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Throwable) {
+        Result.failure(error)
+    }
+}
 
 private fun MetadataSuggestion.bookQualityScore(query: String): Int {
     val normalizedQuery = query.normalizedBookKey()

@@ -31,10 +31,14 @@ class MalAccountImportLoaderTest {
         assertEquals(LocalDate.of(2020, 3, 4), completed.finishedAt)
         assertEquals("Imported from the account API", completed.notes)
         assertEquals(listOf("favorites", "rewatch"), completed.tags)
+        assertEquals(2, completed.completedRewatches)
+        assertFalse(completed.isRewatching)
 
         val watching = firstPage.items[1]
         assertEquals(TrackingStatus.InProgress, watching.status)
         assertEquals(12, watching.watchedEpisodes)
+        assertEquals(1, watching.completedRewatches)
+        assertTrue(watching.isRewatching)
         assertNull(watching.rating)
         assertNull(watching.finishedAt)
 

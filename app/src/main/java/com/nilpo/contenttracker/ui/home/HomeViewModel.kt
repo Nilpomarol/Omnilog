@@ -19,6 +19,7 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.mal.MalSyncManager
 import com.nilpo.contenttracker.core.imports.ImportBatchState
+import com.nilpo.contenttracker.core.imports.ImportCompletionSummary
 import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
 import com.nilpo.contenttracker.core.imports.ImportReviewApplyOutcome
 import com.nilpo.contenttracker.core.imports.ImportReviewDraft
@@ -202,10 +203,7 @@ class HomeViewModel(
     }
 
     suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
-        return mediaRepository.importImdbCsv(csv).also {
-            importEnrichmentManager.enqueue(it.importBatchId)
-            synchronizeLibraryCoversInBackground()
-        }
+        return mediaRepository.importImdbCsv(csv).startImportedMediaBackgroundWork()
     }
 
     suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview {
@@ -213,10 +211,7 @@ class HomeViewModel(
     }
 
     suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
-        return mediaRepository.importStoryGraphCsv(csv).also {
-            importEnrichmentManager.enqueue(it.importBatchId)
-            synchronizeLibraryCoversInBackground()
-        }
+        return mediaRepository.importStoryGraphCsv(csv).startImportedMediaBackgroundWork()
     }
 
     suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview {
@@ -224,10 +219,7 @@ class HomeViewModel(
     }
 
     suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
-        return mediaRepository.importMyAnimeListXml(xml).also {
-            importEnrichmentManager.enqueue(it.importBatchId)
-            synchronizeLibraryCoversInBackground()
-        }
+        return mediaRepository.importMyAnimeListXml(xml).startImportedMediaBackgroundWork()
     }
 
     suspend fun previewMyAnimeListAccount(): Result<MyAnimeListAccountImportPreview> {
@@ -242,10 +234,15 @@ class HomeViewModel(
     suspend fun importMyAnimeListAccount(
         preview: MyAnimeListAccountImportPreview,
     ): ProviderImportResult {
-        return mediaRepository.importMyAnimeListAccount(preview.items).also {
-            importEnrichmentManager.enqueue(it.importBatchId)
-            synchronizeLibraryCoversInBackground()
-        }
+        return mediaRepository.importMyAnimeListAccount(preview.items).startImportedMediaBackgroundWork()
+    }
+
+    private fun ProviderImportResult.startImportedMediaBackgroundWork(): ProviderImportResult {
+        // The import is already durable. If WorkManager is temporarily unavailable, startup recovery
+        // will enqueue the persisted batch later; the UI must not misreport a completed import as lost.
+        runCatching { importEnrichmentManager.enqueue(importBatchId) }
+        synchronizeLibraryCoversInBackground()
+        return this
     }
 
     fun toggleImportEnrichment() {
@@ -268,6 +265,36 @@ class HomeViewModel(
     fun retryImportEnrichmentIssues(batchId: Long) {
         viewModelScope.launch { importEnrichmentManager.retryIssues(batchId) }
     }
+
+    suspend fun retryImportEnrichmentIssue(itemId: Long): Result<Unit> =
+        importEnrichmentManager.retryIssue(itemId)
+
+    suspend fun skipImportEnrichmentIssue(itemId: Long): Result<Unit> =
+        importEnrichmentManager.skipIssue(itemId)
+
+    suspend fun dismissImportMetadataCoverage(itemId: Long): Result<Unit> =
+        importEnrichmentManager.dismissCoverage(itemId)
+
+    suspend fun retryImportMetadataCoverage(itemId: Long): Result<Unit> =
+        importEnrichmentManager.retryCoverage(itemId)
+
+    fun currentImportCompletion(batchId: Long): ImportCompletionSummary? =
+        importEnrichmentState.value.pendingCompletion?.takeIf { it.batchId == batchId }
+
+    suspend fun acknowledgeImportCompletion(batchId: Long) {
+        importEnrichmentManager.acknowledgeCompletion(batchId)
+    }
+
+    suspend fun deleteImportHistoryBatch(batchId: Long): Result<Unit> =
+        importEnrichmentManager.deleteHistoryBatch(batchId)
+
+    suspend fun clearFinishedImportHistory(): Result<Int> =
+        importEnrichmentManager.clearFinishedHistory()
+
+    suspend fun completeImportIssueAfterManualLink(
+        itemId: Long,
+        suggestion: MetadataSuggestion,
+    ): Result<Unit> = importEnrichmentManager.completeIssueAfterManualLink(itemId, suggestion)
 
     fun cancelImportEnrichment(batchId: Long) {
         viewModelScope.launch { importEnrichmentManager.cancelEnrichment(batchId) }

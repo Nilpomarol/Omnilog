@@ -11,12 +11,11 @@ import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 
 class OpenLibraryMetadataRepository : MetadataRepository {
@@ -25,18 +24,14 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         if (MediaType.Book !in request.mediaTypes || query.isBlank()) return emptyList()
 
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                val fields = "key,title,author_name,first_publish_year,cover_i,subject,language," +
-                    "number_of_pages_median,ratings_average,ratings_count,edition_key,isbn,publisher"
-                val response = getJson(
-                    "https://openlibrary.org/search.json?q=$encodedQuery" +
-                        "&limit=20&fields=$fields",
-                )
-                val docs = response.optJSONArray("docs") ?: return@withContext emptyList()
-                List(docs.length()) { docs.getJSONObject(it) }
-                    .mapNotNull { it.toMetadataSuggestion() }
-            }.getOrDefault(emptyList())
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val response = getJson(
+                "https://openlibrary.org/search.json?q=$encodedQuery" +
+                    "&limit=20&fields=$OpenLibrarySearchFields",
+            )
+            val docs = response.optJSONArray("docs") ?: return@withContext emptyList()
+            List(docs.length()) { docs.getJSONObject(it) }
+                .mapNotNull { it.toMetadataSuggestion() }
         }
     }
 
@@ -47,10 +42,13 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
             if (suggestion.externalId.startsWith("/books/")) {
-                return@withContext getJson("https://openlibrary.org${suggestion.externalId}.json")
-                    .toEditionMetadata()
-                    ?.toMetadataSuggestion(suggestion)
-                    ?: suggestion
+                val editionJson = getJson("https://openlibrary.org${suggestion.externalId}.json")
+                val expectedIsbn = suggestion.identifiers
+                    .map(String::normalizedOpenLibraryIsbn)
+                    .firstOrNull { it.length == 10 || it.length == 13 }
+                val exactEdition = editionJson.toExactEditionSuggestion(expectedIsbn)
+                    ?: return@withContext suggestion
+                return@withContext mergeExactBookMatches(exactEdition, suggestion) ?: exactEdition
             }
             val work = getJson("https://openlibrary.org${suggestion.externalId}.json")
             val editions = getJson(
@@ -62,31 +60,54 @@ class OpenLibraryMetadataRepository : MetadataRepository {
     }
 
     internal suspend fun findByIsbn(isbn: String): MetadataSuggestion? = withContext(Dispatchers.IO) {
-        val normalized = isbn.filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
+        val normalized = isbn.normalizedOpenLibraryIsbn()
         val editionJson = getJson("https://openlibrary.org/isbn/$normalized.json")
+        editionJson.toExactEditionSuggestion(normalized)
+    }
+
+    private suspend fun JSONObject.toExactEditionSuggestion(expectedIsbn: String?): MetadataSuggestion? {
         val returnedIsbns = listOf("isbn_10", "isbn_13")
-            .flatMap { key -> editionJson.optJSONArray(key).toStringList() }
-            .map { value -> value.filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase() }
-        if (normalized !in returnedIsbns) {
-            return@withContext null
-        }
-        val edition = editionJson.toEditionMetadata()?.copy(isbn = normalized) ?: return@withContext null
-        val workKey = editionJson.optJSONArray("works")
+            .flatMap { key -> optJSONArray(key).toStringList() }
+            .map(String::normalizedOpenLibraryIsbn)
+            .filter { it.isNotBlank() }
+        val normalizedExpected = expectedIsbn?.normalizedOpenLibraryIsbn()
+        if (normalizedExpected != null && normalizedExpected !in returnedIsbns) return null
+        val selectedIsbn = normalizedExpected ?: returnedIsbns.firstOrNull()
+        val edition = toEditionMetadata()?.copy(isbn = selectedIsbn) ?: return null
+        val workKey = optJSONArray("works")
             ?.optJSONObject(0)
             ?.optString("key")
             ?.takeIf { it.startsWith("/works/") }
-        MetadataSuggestion(
+        val work = selectedIsbn?.let { findWorkByIsbn(it, workKey) }
+        val base = work ?: MetadataSuggestion(
             source = MetadataSource.OpenLibrary,
             externalId = workKey ?: edition.externalId,
             mediaType = MediaType.Book,
-            title = edition.title ?: editionJson.optString("title").takeIf { it.isNotBlank() } ?: return@withContext null,
-            releaseYear = edition.releaseYear,
-            language = edition.language,
-            progressTotal = edition.pageCount,
-            coverUrl = edition.coverUrl,
-            sourceUrl = edition.sourceUrl,
-            bookEdition = edition,
+            title = edition.title ?: optString("title").takeIf { it.isNotBlank() } ?: return null,
         )
+        return edition.toMetadataSuggestion(base)
+    }
+
+    private suspend fun findWorkByIsbn(isbn: String, expectedWorkKey: String?): MetadataSuggestion? {
+        return try {
+            val encodedIsbnQuery = URLEncoder.encode("isbn:$isbn", "UTF-8")
+            val response = getJson(
+                "https://openlibrary.org/search.json?q=$encodedIsbnQuery" +
+                    "&limit=5&fields=$OpenLibrarySearchFields",
+            )
+            val docs = response.optJSONArray("docs") ?: return null
+            List(docs.length()) { index -> docs.optJSONObject(index) }
+                .mapNotNull { it?.toMetadataSuggestion() }
+                .firstOrNull { suggestion ->
+                    (expectedWorkKey == null || suggestion.externalId == expectedWorkKey) &&
+                        suggestion.identifiers.any { it.normalizedOpenLibraryIsbn() == isbn }
+                }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            // Edition identity is still useful when optional work-level enrichment is unavailable.
+            null
+        }
     }
 
     private fun JSONObject.toMetadataSuggestion(): MetadataSuggestion? {
@@ -162,13 +183,6 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         return toBookEditionMetadata(externalId)
     }
 
-    private fun getJson(url: String): JSONObject {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.connectTimeout = 15_000
-        connection.readTimeout = 15_000
-        connection.requestMethod = "GET"
-        return connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
-    }
 }
 
 private fun JSONArray?.toStringList(limit: Int = Int.MAX_VALUE): List<String> {
@@ -257,6 +271,13 @@ private fun String.extractYear(): Int? {
         ?.toIntOrNull()
         ?.takeIf { it > 0 }
 }
+
+private fun String.normalizedOpenLibraryIsbn(): String =
+    filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
+
+private const val OpenLibrarySearchFields =
+    "key,title,author_name,first_publish_year,cover_i,subject,language," +
+        "number_of_pages_median,ratings_average,ratings_count,edition_key,isbn,publisher"
 
 private fun coverUrl(coverId: Long): String {
     return "https://covers.openlibrary.org/b/id/$coverId-L.jpg"

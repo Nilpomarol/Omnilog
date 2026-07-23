@@ -35,6 +35,19 @@ interface ImportDao {
     fun observeItems(): Flow<List<ImportBatchItemEntity>>
 
     @Query(
+        "SELECT CASE WHEN :source = 'StoryGraphCsv' " +
+            "AND sourceExternalId IS NOT NULL AND TRIM(sourceExternalId) != '' " +
+            "THEN 'storygraph:' || sourceExternalId " +
+            "WHEN :source = 'ImdbCsv' " +
+            "AND sourceExternalId IS NOT NULL AND TRIM(sourceExternalId) != '' " +
+            "THEN 'imdb:' || sourceExternalId ELSE sourceKey END AS sourceKey " +
+            "FROM import_batch_items " +
+            "INNER JOIN import_batches ON import_batches.id = import_batch_items.batchId " +
+            "WHERE import_batches.source = :source AND import_batch_items.mediaItemId IS NOT NULL",
+    )
+    suspend fun getActiveSourceKeys(source: String): List<String>
+
+    @Query(
         "SELECT import_batch_items.id AS itemId, import_batch_items.batchId AS batchId, " +
             "import_batch_items.mediaItemId AS mediaItemId, media_items.title AS title, " +
             "media_items.type AS mediaType, import_batch_items.matchKind AS matchKind, " +
@@ -47,6 +60,37 @@ interface ImportDao {
             "ORDER BY import_batch_items.batchId DESC, media_items.title COLLATE NOCASE",
     )
     fun observeReviewItems(): Flow<List<ImportReviewRow>>
+
+    @Query(
+        "SELECT import_batch_items.id AS itemId, import_batch_items.batchId AS batchId, " +
+            "import_batch_items.mediaItemId AS mediaItemId, media_items.title AS title, " +
+            "media_items.type AS mediaType, import_batches.source AS importSource, " +
+            "import_batch_items.state AS state, import_batch_items.retryable AS retryable, " +
+            "import_batch_items.attemptCount AS attemptCount, import_batch_items.lastError AS lastError " +
+            "FROM import_batch_items INNER JOIN media_items " +
+            "ON media_items.id = import_batch_items.mediaItemId " +
+            "INNER JOIN import_batches ON import_batches.id = import_batch_items.batchId " +
+            "WHERE import_batch_items.state IN ('Failed', 'Unavailable', 'NoMatch') " +
+            "ORDER BY import_batch_items.batchId DESC, media_items.title COLLATE NOCASE",
+    )
+    fun observeIssueItems(): Flow<List<ImportIssueRow>>
+
+    @Query(
+        "SELECT import_batch_items.id AS itemId, import_batch_items.batchId AS batchId, " +
+            "import_batch_items.mediaItemId AS mediaItemId, media_items.title AS title, " +
+            "media_items.type AS mediaType, import_batches.source AS importSource, " +
+            "media_items.releaseYear AS releaseYear, media_items.progressTotal AS progressTotal, " +
+            "media_items.coverUrl AS coverUrl, media_items.synopsis AS synopsis, " +
+            "media_items.creatorsJson AS creatorsJson, media_items.genresJson AS genresJson " +
+            "FROM import_batch_items INNER JOIN media_items " +
+            "ON media_items.id = import_batch_items.mediaItemId " +
+            "INNER JOIN import_batches ON import_batches.id = import_batch_items.batchId " +
+            "WHERE import_batch_items.state = 'Applied' " +
+            "AND import_batch_items.coverageDismissed = 0 " +
+            "AND import_batches.state != 'Cancelled' " +
+            "ORDER BY import_batch_items.batchId DESC, media_items.title COLLATE NOCASE",
+    )
+    fun observeCoverageItems(): Flow<List<ImportCoverageRow>>
 
     @Query("SELECT * FROM import_batch_items WHERE id = :itemId LIMIT 1")
     suspend fun getItem(itemId: Long): ImportBatchItemEntity?
@@ -93,7 +137,8 @@ interface ImportDao {
         "UPDATE import_batch_items SET state = :state, providerSource = :providerSource, " +
             "providerExternalId = :providerExternalId, matchKind = :matchKind, " +
             "candidateReferencesJson = :candidateReferencesJson, retryable = :retryable, " +
-            "lastError = :lastError, updatedAtEpochMillis = :now, " +
+            "lastError = :lastError, coverageDismissed = CASE WHEN :state = 'Applied' " +
+            "THEN 0 ELSE coverageDismissed END, updatedAtEpochMillis = :now, " +
             "completedAtEpochMillis = :completedAtEpochMillis WHERE id = :itemId " +
             "AND NOT EXISTS (SELECT 1 FROM import_batches " +
             "WHERE import_batches.id = import_batch_items.batchId " +
@@ -111,6 +156,12 @@ interface ImportDao {
         now: Long,
         completedAtEpochMillis: Long?,
     )
+
+    @Query(
+        "UPDATE import_batch_items SET coverageDismissed = 1, updatedAtEpochMillis = :now " +
+            "WHERE id = :itemId AND state = 'Applied'",
+    )
+    suspend fun dismissCoverage(itemId: Long, now: Long): Int
 
     @Query(
         "UPDATE import_batch_items SET providerSource = :providerSource, " +
@@ -145,6 +196,54 @@ interface ImportDao {
     )
     suspend fun resetRetryableFailures(batchId: Long, maxAttempts: Int, now: Long)
 
+    @Query(
+        "UPDATE import_batch_items SET state = 'Pending', retryable = 0, lastError = NULL, " +
+            "attemptCount = 0, completedAtEpochMillis = NULL, updatedAtEpochMillis = :now " +
+            "WHERE id = :itemId AND ((state = 'Failed' AND retryable = 1) " +
+            "OR state IN ('Unavailable', 'NoMatch')) AND EXISTS (" +
+            "SELECT 1 FROM import_batches WHERE import_batches.id = import_batch_items.batchId " +
+            "AND import_batches.state != 'Cancelled')",
+    )
+    suspend fun retryIssue(itemId: Long, now: Long): Int
+
+    @Query(
+        "UPDATE import_batch_items SET state = 'Pending', retryable = 0, lastError = NULL, " +
+            "attemptCount = 0, completedAtEpochMillis = NULL, coverageDismissed = 0, " +
+            "updatedAtEpochMillis = :now WHERE id = :itemId AND state = 'Applied' " +
+            "AND coverageDismissed = 0 AND EXISTS (" +
+            "SELECT 1 FROM import_batches WHERE import_batches.id = import_batch_items.batchId " +
+            "AND import_batches.state != 'Cancelled')",
+    )
+    suspend fun retryCoverage(itemId: Long, now: Long): Int
+
+    @Transaction
+    suspend fun retryIssueAndResumeBatch(itemId: Long, now: Long): Long? {
+        val item = getItem(itemId) ?: return null
+        if (retryIssue(itemId, now) != 1) return null
+        updateBatchState(
+            batchId = item.batchId,
+            state = "Enriching",
+            diagnostic = null,
+            now = now,
+            completedAtEpochMillis = null,
+        )
+        return item.batchId
+    }
+
+    @Transaction
+    suspend fun retryCoverageAndResumeBatch(itemId: Long, now: Long): Long? {
+        val item = getItem(itemId) ?: return null
+        if (retryCoverage(itemId, now) != 1) return null
+        updateBatchState(
+            batchId = item.batchId,
+            state = "Enriching",
+            diagnostic = null,
+            now = now,
+            completedAtEpochMillis = null,
+        )
+        return item.batchId
+    }
+
     @Query("SELECT COUNT(*) FROM import_batch_items WHERE batchId = :batchId AND state = 'Pending'")
     suspend fun pendingCount(batchId: Long): Int
 
@@ -162,6 +261,7 @@ interface ImportDao {
 
     @Query(
         "UPDATE import_batches SET state = :state, diagnostic = :diagnostic, " +
+            "completionNotified = CASE WHEN :state = 'Enriching' THEN 0 ELSE completionNotified END, " +
             "updatedAtEpochMillis = :now, completedAtEpochMillis = :completedAtEpochMillis " +
             "WHERE id = :batchId AND (state != 'Cancelled' OR :state = 'Cancelled')",
     )
@@ -172,6 +272,24 @@ interface ImportDao {
         now: Long,
         completedAtEpochMillis: Long?,
     )
+
+    @Query(
+        "UPDATE import_batches SET completionNotified = 1 " +
+            "WHERE id = :batchId AND state IN ('Completed', 'CompletedWithIssues')",
+    )
+    suspend fun markCompletionNotified(batchId: Long): Int
+
+    @Query(
+        "DELETE FROM import_batches WHERE id = :batchId " +
+            "AND state IN ('Completed', 'Cancelled')",
+    )
+    suspend fun deleteFinishedBatch(batchId: Long): Int
+
+    @Query(
+        "DELETE FROM import_batches WHERE id IN (:batchIds) " +
+            "AND state IN ('Completed', 'Cancelled')",
+    )
+    suspend fun deleteFinishedBatches(batchIds: List<Long>): Int
 
     @Query(
         "UPDATE import_batch_items SET state = 'Cancelled', retryable = 0, lastError = NULL, " +
@@ -195,9 +313,9 @@ interface ImportDao {
 
     @Query(
         "UPDATE import_batch_items SET state = 'Pending', retryable = 0, lastError = NULL, " +
-            "completedAtEpochMillis = NULL, " +
+            "attemptCount = 0, completedAtEpochMillis = NULL, " +
             "updatedAtEpochMillis = :now WHERE batchId = :batchId AND (" +
-            "state IN ('Failed', 'Unavailable', 'NoMatch') OR (" +
+            "(state = 'Failed' AND retryable = 1) OR state IN ('Unavailable', 'NoMatch') OR (" +
             "state = 'Applied' AND EXISTS (" +
             "SELECT 1 FROM import_batches b WHERE b.id = batchId AND b.source = 'StoryGraphCsv'" +
             ") AND EXISTS (" +
@@ -205,7 +323,7 @@ interface ImportDao {
             "AND (m.progressTotal IS NULL OR m.progressTotal <= 0)" +
             ")))",
     )
-    suspend fun retryEligibleIssues(batchId: Long, now: Long)
+    suspend fun retryEligibleIssues(batchId: Long, now: Long): Int
 }
 
 data class UnqueuedImportedMedia(
@@ -225,4 +343,32 @@ data class ImportReviewRow(
     val providerSource: String?,
     val providerExternalId: String?,
     val candidateReferencesJson: String?,
+)
+
+data class ImportIssueRow(
+    val itemId: Long,
+    val batchId: Long,
+    val mediaItemId: Long,
+    val title: String,
+    val mediaType: String,
+    val importSource: String,
+    val state: String,
+    val retryable: Boolean,
+    val attemptCount: Int,
+    val lastError: String?,
+)
+
+data class ImportCoverageRow(
+    val itemId: Long,
+    val batchId: Long,
+    val mediaItemId: Long,
+    val title: String,
+    val mediaType: String,
+    val importSource: String,
+    val releaseYear: Int?,
+    val progressTotal: Int?,
+    val coverUrl: String?,
+    val synopsis: String?,
+    val creatorsJson: String?,
+    val genresJson: String?,
 )

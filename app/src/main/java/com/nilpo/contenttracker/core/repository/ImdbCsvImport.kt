@@ -15,6 +15,7 @@ typealias ImdbCsvPreview = ProviderImportPreview
 typealias ImdbCsvImportResult = ProviderImportResult
 
 internal data class ImdbCsvItem(
+    val sourceRowNumber: Int,
     val type: MediaType?,
     val title: String,
     val originalTitle: String?,
@@ -30,28 +31,52 @@ internal data class ImdbCsvItem(
     val creators: List<String>,
 )
 
-internal fun parseImdbCsv(csv: String): List<ImdbCsvItem> {
-    val table = parseCsvTable(csv)
+internal fun parseImdbCsv(csv: String): List<ImdbCsvItem> = parseImdbCsvWithReport(csv).rows
+
+internal fun parseImdbCsvWithReport(csv: String): ProviderCsvParseResult<ImdbCsvItem> {
+    val table = parseProviderCsvTable(csv)
     if (table.isEmpty()) {
-        return emptyList()
+        throw ProviderCsvValidationException(ProviderCsvValidationIssue.EmptyFile)
     }
 
     val headers = table.first().map { it.normalizedHeader() }
-    if (headers.none { it == "title" } || headers.none { it == "const" || it == "url" }) {
-        throw IllegalArgumentException("Not an IMDb CSV export")
+    val missingColumns = buildList {
+        if ("title" !in headers) add("Title")
+        if ("title type" !in headers) add("Title Type")
+        if (headers.none { it == "const" || it == "url" }) add("Const o URL")
     }
+    if (missingColumns.isNotEmpty()) {
+        throw ProviderCsvValidationException(
+            issue = ProviderCsvValidationIssue.MissingRequiredColumns,
+            missingColumns = missingColumns,
+        )
+    }
+    if (table.size == 1) throw ProviderCsvValidationException(ProviderCsvValidationIssue.NoDataRows)
 
-    return table.drop(1).mapNotNull { row ->
+    var invalidRows = 0
+    val rejectedRows = mutableListOf<ProviderRejectedRow>()
+    val items = table.drop(1).mapIndexedNotNull { rowIndex, row ->
         val values = headers.mapIndexedNotNull { index, header ->
             header to row.getOrNull(index).orEmpty().trim()
         }.toMap()
-        val title = values.value("title").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val title = values.value("title").takeIf { it.isNotBlank() } ?: run {
+            invalidRows++
+            if (rejectedRows.size < MaxRejectedSamplesPerReason) {
+                rejectedRows += ProviderRejectedRow(
+                    rowNumber = rowIndex + 2,
+                    label = null,
+                    reason = ProviderRejectedReason.MissingTitle,
+                )
+            }
+            return@mapIndexedNotNull null
+        }
         val type = values.value("title type").toMediaType()
         val imdbId = values.value("const").takeIf { it.isNotBlank() }
         val sourceUrl = values.value("url").takeIf { it.isNotBlank() }
             ?: imdbId?.let { "https://www.imdb.com/title/$it/" }
 
         ImdbCsvItem(
+            sourceRowNumber = rowIndex + 2,
             type = type,
             title = title,
             originalTitle = values.value("original title").takeIf { it.isNotBlank() && it != title },
@@ -67,19 +92,30 @@ internal fun parseImdbCsv(csv: String): List<ImdbCsvItem> {
             creators = values.value("directors").splitCsvList(),
         )
     }
+    if (items.isEmpty()) throw ProviderCsvValidationException(ProviderCsvValidationIssue.NoUsableRows)
+    return ProviderCsvParseResult(
+        rows = items,
+        totalRows = table.size - 1,
+        invalidRows = invalidRows,
+        rejectedRows = rejectedRows,
+    )
 }
 
 internal fun ImdbCsvItem.toAddTrackedMediaRequest() =
     com.nilpo.contenttracker.core.model.AddTrackedMediaRequest(
         type = requireNotNull(type),
         title = title,
-        progressTotal = runtimeMinutes,
+        // IMDb exports runtime minutes for both films and series. Omnilog tracks films in minutes,
+        // but TV in episodes, so a series must wait for TMDB to supply the episode count.
+        progressTotal = runtimeMinutes.takeIf { type == MediaType.Movie },
         initialStatus = if (userRating != null || dateRated != null) {
             TrackingStatus.Completed
         } else {
             TrackingStatus.Planned
         },
-        initialProgress = if (userRating != null || dateRated != null) {
+        initialProgress = if (
+            type == MediaType.Movie && (userRating != null || dateRated != null)
+        ) {
             runtimeMinutes ?: 0
         } else {
             0
@@ -108,48 +144,6 @@ internal fun ImdbCsvItem.toAddTrackedMediaRequest() =
         metadataExternalId = imdbId,
     )
 
-private fun parseCsvTable(csv: String): List<List<String>> {
-    val rows = mutableListOf<List<String>>()
-    val row = mutableListOf<String>()
-    val cell = StringBuilder()
-    var index = 0
-    var inQuotes = false
-
-    while (index < csv.length) {
-        val char = csv[index]
-        when {
-            char == '"' && inQuotes && csv.getOrNull(index + 1) == '"' -> {
-                cell.append('"')
-                index++
-            }
-            char == '"' -> inQuotes = !inQuotes
-            char == ',' && !inQuotes -> {
-                row += cell.toString()
-                cell.clear()
-            }
-            (char == '\n' || char == '\r') && !inQuotes -> {
-                if (char == '\r' && csv.getOrNull(index + 1) == '\n') {
-                    index++
-                }
-                row += cell.toString()
-                cell.clear()
-                if (row.any { it.isNotBlank() }) {
-                    rows += row.toList()
-                }
-                row.clear()
-            }
-            else -> cell.append(char)
-        }
-        index++
-    }
-
-    row += cell.toString()
-    if (row.any { it.isNotBlank() }) {
-        rows += row.toList()
-    }
-    return rows
-}
-
 private fun String.normalizedHeader(): String = trim()
     .removePrefix("\uFEFF")
     .lowercase()
@@ -159,7 +153,10 @@ private fun Map<String, String>.value(header: String): String = this[header].orE
 private fun String.toMediaType(): MediaType? {
     return when (lowercase()) {
         "movie", "tvmovie", "tv movie", "tvspecial", "tv special", "video", "short" -> MediaType.Movie
-        "tvseries", "tv series", "tvminiseries", "tv mini series", "tvepisode", "tv episode" -> MediaType.TvShow
+        "tvseries", "tv series", "tvminiseries", "tv mini series" -> MediaType.TvShow
+        // An IMDb episode ID resolves to TMDB's episode result, not a TV-series result. Importing it
+        // as a series would create the wrong kind of library item and mix runtime minutes with episodes.
+        "tvepisode", "tv episode" -> null
         else -> null
     }
 }

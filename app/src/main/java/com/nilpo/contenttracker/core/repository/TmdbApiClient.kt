@@ -1,7 +1,6 @@
 package com.nilpo.contenttracker.core.repository
 
 import org.json.JSONObject
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -25,13 +24,22 @@ internal class TmdbApiClient(
             connection.setRequestProperty("Authorization", "Bearer $credential")
         }
 
-        val responseCode = connection.responseCode
-        val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
-        val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (responseCode !in 200..299) {
-            throw IOException("TMDB request failed with HTTP $responseCode")
+        return try {
+            val responseCode = connection.responseCode
+            val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (responseCode !in 200..299) {
+                throw MetadataProviderHttpException(
+                    statusCode = responseCode,
+                    requestUrl = url,
+                    retryAfterMillis = retryAfterDelayMillis(connection.getHeaderField("Retry-After")),
+                    responseDetail = body,
+                )
+            }
+            JSONObject(body)
+        } finally {
+            connection.disconnect()
         }
-        return JSONObject(body)
     }
 }
 

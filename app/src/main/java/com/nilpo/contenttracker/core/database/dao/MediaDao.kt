@@ -440,8 +440,8 @@ interface MediaDao {
     @Query(
         """
         UPDATE tracking_sessions
-        SET progressCurrent = :pageTotal,
-            baselineProgress = :pageTotal
+        SET progressCurrent = :progressTotal,
+            baselineProgress = :progressTotal
         WHERE mediaItemId = :mediaItemId
           AND status = 'Completed'
           AND progressCurrent = 0
@@ -452,7 +452,7 @@ interface MediaDao {
           )
         """,
     )
-    suspend fun reconcileCompletedImportedBookProgress(mediaItemId: Long, pageTotal: Int): Int
+    suspend fun reconcileCompletedImportedProgress(mediaItemId: Long, progressTotal: Int): Int
 
     @Query(
         """

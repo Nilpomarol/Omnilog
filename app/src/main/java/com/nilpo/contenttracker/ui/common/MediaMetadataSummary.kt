@@ -65,6 +65,7 @@ data class MediaMetadataUi(
     val sourceUrl: String? = null,
     val providerCollectionTitle: String? = null,
     val genres: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
     val creators: List<String> = emptyList(),
     val credits: List<MediaCredit> = emptyList(),
     val externalRatingScore: Double? = null,
@@ -270,6 +271,13 @@ fun MediaMetadataSecondary(
             MetadataSection(
                 title = stringResource(R.string.metadata_language),
                 body = languageLabel(language),
+            )
+        }
+
+        if (metadata.tags.isNotEmpty()) {
+            MetadataSection(
+                title = stringResource(R.string.metadata_tags),
+                body = metadata.tags.joinToString(", "),
             )
         }
 
@@ -535,6 +543,7 @@ fun MediaItem.toMediaMetadataUi(credits: List<MediaCredit>): MediaMetadataUi {
         sourceUrl = sourceUrl,
         providerCollectionTitle = providerCollectionTitle,
         genres = genres,
+        tags = tags,
         creators = creators,
         credits = credits,
         externalRatingScore = externalRatingScore,

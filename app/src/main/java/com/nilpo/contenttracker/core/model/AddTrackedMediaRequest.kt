@@ -22,6 +22,7 @@ data class AddTrackedMediaRequest(
     val releaseYear: Int? = null,
     val language: String? = null,
     val genres: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
     val creators: List<String> = emptyList(),
     val credits: List<MediaCredit> = emptyList(),
     val sourceUrl: String? = null,

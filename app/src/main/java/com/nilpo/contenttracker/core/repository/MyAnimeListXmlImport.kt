@@ -7,7 +7,9 @@ import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.w3c.dom.Element
-import java.io.ByteArrayInputStream
+import org.xml.sax.InputSource
+import org.xml.sax.SAXException
+import java.io.StringReader
 import java.time.LocalDate
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.parsers.ParserConfigurationException
@@ -23,8 +25,11 @@ internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> {
         setFeatureIfSupported("http://xml.org/sax/features/external-general-entities", false)
         setFeatureIfSupported("http://xml.org/sax/features/external-parameter-entities", false)
     }
-    val document = factory.newDocumentBuilder()
-        .parse(ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8)))
+    val document = try {
+        factory.newDocumentBuilder().parse(InputSource(StringReader(xml)))
+    } catch (error: SAXException) {
+        throw MalformedProviderXmlException("Malformed MyAnimeList XML", error)
+    }
     val root = document.documentElement
     if (root.nodeName != "myanimelist") {
         throw IllegalArgumentException("Not a MyAnimeList XML export")
@@ -46,6 +51,11 @@ internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> {
                 status = element.text("my_status").toMalStatus(),
                 notes = element.text("my_comments").takeIf { it.isNotBlank() },
                 tags = element.text("my_tags").splitMalList(),
+                completedRewatches = element.textFirst("my_times_watched", "my_times_rewatched")
+                    .toIntOrNull()
+                    ?.coerceAtLeast(0)
+                    ?: 0,
+                isRewatching = element.textFirst("my_rewatching", "my_is_rewatching").toMalBoolean(),
             )
         }
 }
@@ -59,29 +69,65 @@ private fun DocumentBuilderFactory.setFeatureIfSupported(name: String, value: Bo
 }
 
 internal fun MyAnimeListImportItem.toAddTrackedMediaRequest(): AddTrackedMediaRequest {
-    val completedProgress = if (status == TrackingStatus.Completed) {
-        episodeTotal ?: watchedEpisodes
-    } else {
-        watchedEpisodes
-    }
+    return toAddTrackedMediaRequest(importedSessions().last())
+}
+
+internal fun MyAnimeListImportItem.toAddTrackedMediaRequest(
+    session: ImportedTrackingSession,
+): AddTrackedMediaRequest {
     return AddTrackedMediaRequest(
         type = MediaType.Anime,
         title = title,
         progressTotal = episodeTotal,
-        initialStatus = status,
-        initialProgress = completedProgress,
-        initialRating = rating,
-        initialNotes = notes,
-        initialStartedAt = startedAt,
-        initialFinishedAt = finishedAt,
+        initialStatus = session.status,
+        initialProgress = session.progressCurrent,
+        initialRating = session.rating,
+        initialNotes = session.notes,
+        initialStartedAt = session.startedAt,
+        initialFinishedAt = session.finishedAt,
         isOwned = false,
         platformName = seriesType,
         platformType = ConsumptionPlatformType.Other,
-        genres = tags,
+        tags = tags,
         sourceUrl = malId?.let { "https://myanimelist.net/anime/$it" },
         metadataSource = malId?.let { MetadataSource.Jikan },
         metadataExternalId = malId?.toString(),
         malId = malId,
+    )
+}
+
+/** Reconstructs the repeat count MAL stores even though it does not provide dates for older runs. */
+internal fun MyAnimeListImportItem.importedSessions(): List<ImportedTrackingSession> {
+    val completedProgress = episodeTotal ?: watchedEpisodes
+    val historicalCompletedCount = when {
+        isRewatching -> completedRewatches + 1
+        status == TrackingStatus.Completed -> completedRewatches
+        completedRewatches > 0 -> completedRewatches + 1
+        else -> 0
+    }
+    val currentStatus = if (isRewatching && status == TrackingStatus.Completed) {
+        TrackingStatus.InProgress
+    } else {
+        status
+    }
+    val currentProgress = if (currentStatus == TrackingStatus.Completed) {
+        completedProgress
+    } else {
+        watchedEpisodes
+    }
+
+    return List(historicalCompletedCount) {
+        ImportedTrackingSession(
+            status = TrackingStatus.Completed,
+            progressCurrent = completedProgress,
+        )
+    } + ImportedTrackingSession(
+        status = currentStatus,
+        progressCurrent = currentProgress,
+        startedAt = startedAt,
+        finishedAt = finishedAt,
+        rating = rating,
+        notes = notes,
     )
 }
 
@@ -91,6 +137,15 @@ private fun Element.text(tagName: String): String {
         return ""
     }
     return nodes.item(0)?.textContent?.trim().orEmpty()
+}
+
+private fun Element.textFirst(vararg tagNames: String): String {
+    return tagNames.firstNotNullOfOrNull { tagName -> text(tagName).takeIf { it.isNotBlank() } }.orEmpty()
+}
+
+private fun String.toMalBoolean(): Boolean = when (trim().lowercase()) {
+    "1", "true", "yes" -> true
+    else -> false
 }
 
 private fun String.toMalStatus(): TrackingStatus {

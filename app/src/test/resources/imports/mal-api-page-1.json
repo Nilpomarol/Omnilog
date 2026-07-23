@@ -13,6 +13,8 @@
         "num_episodes_watched": 64,
         "start_date": "2020-01-02",
         "finish_date": "2020-03-04",
+        "num_times_rewatched": 2,
+        "is_rewatching": false,
         "comments": "Imported from the account API",
         "tags": ["favorites", "rewatch"]
       }
@@ -29,6 +31,8 @@
         "score": 0,
         "num_episodes_watched": 12,
         "start_date": "2024-01-15",
+        "num_times_rewatched": 1,
+        "is_rewatching": true,
         "tags": ["fantasy"]
       }
     }

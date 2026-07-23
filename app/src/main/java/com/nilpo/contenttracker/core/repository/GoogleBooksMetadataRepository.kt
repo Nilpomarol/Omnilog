@@ -14,8 +14,6 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 
 class GoogleBooksMetadataRepository(
@@ -172,13 +170,6 @@ class GoogleBooksMetadataRepository(
         )
     }
 
-    private fun getJson(url: String): JSONObject {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.connectTimeout = 15_000
-        connection.readTimeout = 15_000
-        connection.requestMethod = "GET"
-        return connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
-    }
 }
 
 private fun String.toGoogleBooksQuery(): String {

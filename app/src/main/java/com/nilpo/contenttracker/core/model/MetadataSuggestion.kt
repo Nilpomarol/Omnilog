@@ -57,6 +57,12 @@ data class BookEditionMetadata(
             sourceUrl = sourceUrl ?: work.sourceUrl,
             bookEdition = this,
             bookEditionSuggestions = emptyList(),
+            publishers = (listOfNotNull(publisher) + work.publishers)
+                .distinctBy { it.trim().lowercase() },
+            identifiers = (listOfNotNull(isbn) + work.identifiers)
+                .distinctBy { value ->
+                    value.filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
+                },
         )
     }
 }

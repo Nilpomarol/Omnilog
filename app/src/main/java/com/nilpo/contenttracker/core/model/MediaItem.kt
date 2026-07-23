@@ -11,6 +11,7 @@ data class MediaItem(
     val releaseYear: Int? = null,
     val language: String? = null,
     val genres: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
     val creators: List<String> = emptyList(),
     val coverUrl: String? = null,
     val synopsis: String? = null,

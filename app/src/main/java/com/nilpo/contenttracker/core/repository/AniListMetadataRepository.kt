@@ -152,14 +152,9 @@ class AniListMetadataRepository(
             delay(JIKAN_MIN_REQUEST_INTERVAL_MILLIS - elapsed)
         }
         try {
-            try {
-                getJson(url)
-            } catch (error: MetadataProviderHttpException) {
-                if (error.statusCode != 429) throw error
-                delay(error.retryAfterMillis?.coerceAtLeast(DefaultJikanRetryAfterMillis)
-                    ?: DefaultJikanRetryAfterMillis)
-                getJson(url)
-            }
+            // Rate limits propagate to the import worker, which schedules durable delayed work.
+            // Waiting here could hold one worker in memory for minutes or hours.
+            getJson(url)
         } finally {
             lastJikanRequestAtEpochMillis = System.currentTimeMillis()
         }
@@ -362,7 +357,6 @@ class AniListMetadataRepository(
         // a full-library import. Staying below one request per second prevents the tail of a large
         // batch from entering a rate-limit window.
         private const val JIKAN_MIN_REQUEST_INTERVAL_MILLIS = 1_100L
-        private const val DefaultJikanRetryAfterMillis = 60_000L
     }
 }
 
@@ -556,35 +550,6 @@ private fun org.json.JSONArray?.toNamedList(): List<String> {
     if (this == null) return emptyList()
     return List(length()) { index -> getJSONObject(index).optString("name") }
         .filter { it.isNotBlank() }
-}
-
-internal fun getJson(url: String): JSONObject {
-    val connection = URL(url).openConnection() as HttpURLConnection
-    return try {
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 10_000
-        connection.requestMethod = "GET"
-        connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "Omnilog/1.0 (Android)")
-        val statusCode = connection.responseCode
-        if (statusCode !in 200..299) {
-            val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }
-            val retryAfterMillis = connection.getHeaderField("Retry-After")
-                ?.trim()
-                ?.toLongOrNull()
-                ?.coerceAtLeast(1L)
-                ?.times(1_000L)
-            throw MetadataProviderHttpException(
-                statusCode = statusCode,
-                requestUrl = url,
-                retryAfterMillis = retryAfterMillis,
-                responseDetail = detail,
-            )
-        }
-        JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-    } finally {
-        connection.disconnect()
-    }
 }
 
 private fun org.json.JSONArray?.firstRank(): Int? {

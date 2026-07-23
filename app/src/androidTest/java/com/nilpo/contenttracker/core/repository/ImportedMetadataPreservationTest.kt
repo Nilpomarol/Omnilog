@@ -12,9 +12,12 @@ import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
+import com.nilpo.contenttracker.core.mal.buildMalSyncPayload
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
+import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,6 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)
 class ImportedMetadataPreservationTest {
@@ -271,5 +275,245 @@ class ImportedMetadataPreservationTest {
         )
         assertTrue(dao.getProgressUpdatesForSession(sessionId).isEmpty())
         assertEquals(statusEventsBefore, dao.getSessionStatusEventsForSession(sessionId))
+    }
+
+    @Test
+    fun completedImdbSeriesReceivesEnrichedEpisodeTotalAsImportedBaseline() = runBlocking {
+        val dao = database.mediaDao()
+        val mediaId = dao.insertMediaItem(
+            MediaItemEntity(
+                type = MediaType.TvShow.name,
+                title = "Imported series",
+                progressTotal = null,
+                metadataSource = MetadataSource.Imdb.name,
+                metadataExternalId = "tt10048342",
+            ),
+        )
+        val sessionId = dao.insertTrackingSession(
+            TrackingSessionEntity(
+                mediaItemId = mediaId,
+                sessionNumber = 1,
+                status = "Completed",
+                progressCurrent = 0,
+                baselineProgress = 0,
+                rating = 8,
+                finishedAtEpochDay = 19_500,
+                updatedAtEpochMillis = 123_456,
+            ),
+        )
+        val repository = OfflineMediaRepository(database)
+        val preview = MetadataRefreshPreview(
+            mediaItemId = mediaId,
+            refreshed = MetadataSuggestion(
+                source = MetadataSource.Tmdb,
+                externalId = "87739",
+                mediaType = MediaType.TvShow,
+                title = "Imported series",
+                progressTotal = 7,
+            ),
+            changes = emptyList(),
+        )
+
+        assertTrue(
+            repository.applyImportedMediaItemMetadataRefresh(
+                preview,
+                setOf(MetadataRefreshField.ProgressTotal),
+            ),
+        )
+
+        assertEquals(7, requireNotNull(dao.getMediaItem(mediaId)).progressTotal)
+        assertEquals(7, requireNotNull(dao.getTrackingSession(sessionId)).progressCurrent)
+        assertEquals(7, requireNotNull(dao.getTrackingSession(sessionId)).baselineProgress)
+        assertTrue(dao.getProgressUpdatesForSession(sessionId).isEmpty())
+    }
+
+    @Test
+    fun storyGraphRereadsBecomeSeparateSessionsWithoutUsingDateAdded() = runBlocking {
+        val repository = OfflineMediaRepository(database)
+        val result = repository.importStoryGraphCsv(
+            """Title,Authors,ISBN/UID,Format,Read Status,Date Added,Last Date Read,Dates Read,Read Count,Star Rating,Review,Tags,Owned?
+                A Reread,Writer,9780441478125,paperback,read,2019/01/01,2024/03/12,"2020/02/01-2020/02/10, 2024/03/01-2024/03/12",2,4.5,Latest review,,yes
+            """.trimIndent(),
+        )
+        val mediaId = result.importedMediaItemIds.single()
+        val sessions = database.mediaDao().getTrackingSessions(mediaId)
+
+        assertEquals(2, sessions.size)
+        assertEquals(listOf(1, 2), sessions.map(TrackingSessionEntity::sessionNumber))
+        assertEquals(listOf("Completed", "Completed"), sessions.map(TrackingSessionEntity::status))
+        assertEquals(LocalDate.of(2020, 2, 1).toEpochDay(), sessions[0].startedAtEpochDay)
+        assertEquals(LocalDate.of(2020, 2, 10).toEpochDay(), sessions[0].finishedAtEpochDay)
+        assertEquals(LocalDate.of(2024, 3, 1).toEpochDay(), sessions[1].startedAtEpochDay)
+        assertEquals(LocalDate.of(2024, 3, 12).toEpochDay(), sessions[1].finishedAtEpochDay)
+        assertEquals(null, sessions[0].rating)
+        assertEquals(9, sessions[1].rating)
+        assertEquals("Latest review", sessions[1].notes)
+        assertFalse(sessions.any { it.startedAtEpochDay == LocalDate.of(2019, 1, 1).toEpochDay() })
+    }
+
+    @Test
+    fun storyGraphReimportRemainsDuplicateAfterEnrichmentReplacesProviderIdentity() = runBlocking {
+        val repository = OfflineMediaRepository(database)
+        val formattedCsv =
+            """Title,Authors,ISBN/UID,Format,Read Status,Read Count
+                Imported Book,Writer,978-0-441-47812-5,paperback,read,1
+            """.trimIndent()
+        val imported = repository.importStoryGraphCsv(formattedCsv)
+        val mediaId = imported.importedMediaItemIds.single()
+
+        assertTrue(
+            repository.applyImportedMediaItemMetadataRefresh(
+                MetadataRefreshPreview(
+                    mediaItemId = mediaId,
+                    refreshed = MetadataSuggestion(
+                        source = MetadataSource.OpenLibrary,
+                        externalId = "/works/OL1W",
+                        mediaType = MediaType.Book,
+                        title = "Imported Book",
+                    ),
+                    changes = emptyList(),
+                ),
+                selectedFields = emptySet(),
+            ),
+        )
+        assertEquals(MetadataSource.OpenLibrary.name, database.mediaDao().getMediaItem(mediaId)?.metadataSource)
+
+        val compactCsv = formattedCsv.replace("978-0-441-47812-5", "9780441478125")
+        val preview = repository.previewStoryGraphCsv(compactCsv)
+        val repeatedImport = repository.importStoryGraphCsv(compactCsv)
+
+        assertEquals(0, preview.importableRows)
+        assertEquals(1, preview.skippedDuplicateRows)
+        assertEquals(0, repeatedImport.importedRows)
+        assertEquals(1, repeatedImport.skippedDuplicateRows)
+        assertEquals(1, database.mediaDao().getMediaItems().size)
+    }
+
+    @Test
+    fun imdbReimportRemainsDuplicateAfterEnrichmentChangesIdentityTitleAndYear() = runBlocking {
+        val repository = OfflineMediaRepository(database)
+        val csv =
+            """Const,Your Rating,Date Rated,Title,Title Type,IMDb Rating,Runtime (mins),Year
+                tt1375666,9,2024-01-31,Imported Movie,Movie,8.8,148,2010
+            """.trimIndent()
+        val imported = repository.importImdbCsv(csv)
+        val mediaId = imported.importedMediaItemIds.single()
+
+        assertTrue(
+            repository.applyImportedMediaItemMetadataRefresh(
+                MetadataRefreshPreview(
+                    mediaItemId = mediaId,
+                    refreshed = MetadataSuggestion(
+                        source = MetadataSource.Tmdb,
+                        externalId = "27205",
+                        mediaType = MediaType.Movie,
+                        title = "Enriched Localized Title",
+                        releaseYear = 2011,
+                    ),
+                    changes = emptyList(),
+                ),
+                selectedFields = setOf(MetadataRefreshField.Title, MetadataRefreshField.ReleaseYear),
+            ),
+        )
+        val enrichedItem = requireNotNull(database.mediaDao().getMediaItem(mediaId))
+        assertEquals(MetadataSource.Tmdb.name, enrichedItem.metadataSource)
+        assertEquals("Enriched Localized Title", enrichedItem.title)
+        assertEquals(2011, enrichedItem.releaseYear)
+
+        val preview = repository.previewImdbCsv(csv.replace("tt1375666", " TT1375666 "))
+        val repeatedImport = repository.importImdbCsv(csv)
+
+        assertEquals(0, preview.importableRows)
+        assertEquals(1, preview.skippedDuplicateRows)
+        assertEquals(0, repeatedImport.importedRows)
+        assertEquals(1, repeatedImport.skippedDuplicateRows)
+        assertEquals(1, database.mediaDao().getMediaItems().size)
+    }
+
+    @Test
+    fun malCompletedRewatchesBecomeSeparateSessionsWithoutOutboundSync() = runBlocking {
+        var outboundMalNotifications = 0
+        val repository = OfflineMediaRepository(database) { outboundMalNotifications += 1 }
+        val result = repository.importMyAnimeListAccount(
+            listOf(
+                MyAnimeListImportItem(
+                    malId = 5114,
+                    title = "Repeated anime",
+                    seriesType = "TV",
+                    episodeTotal = 12,
+                    watchedEpisodes = 12,
+                    startedAt = LocalDate.of(2024, 1, 2),
+                    finishedAt = LocalDate.of(2024, 1, 3),
+                    rating = 9,
+                    status = TrackingStatus.Completed,
+                    notes = "Latest watch",
+                    tags = listOf("favorite", "rewatch"),
+                    completedRewatches = 2,
+                ),
+            ),
+        )
+        val mediaId = result.importedMediaItemIds.single()
+        val sessions = database.mediaDao().getTrackingSessions(mediaId)
+
+        assertTrue(result.importBatchId != null)
+        assertEquals(3, sessions.size)
+        assertEquals(listOf(1, 2, 3), sessions.map(TrackingSessionEntity::sessionNumber))
+        assertTrue(sessions.all { it.status == TrackingStatus.Completed.name })
+        assertEquals(listOf(12, 12, 12), sessions.map(TrackingSessionEntity::progressCurrent))
+        assertEquals(listOf(12, 12, 12), sessions.map(TrackingSessionEntity::baselineProgress))
+        assertEquals(listOf(null, null, 9), sessions.map(TrackingSessionEntity::rating))
+        assertEquals("Latest watch", sessions.last().notes)
+        assertEquals(LocalDate.of(2024, 1, 2).toEpochDay(), sessions.last().startedAtEpochDay)
+        assertEquals(LocalDate.of(2024, 1, 3).toEpochDay(), sessions.last().finishedAtEpochDay)
+        assertEquals(0, outboundMalNotifications)
+
+        val importedItem = requireNotNull(database.mediaDao().getMediaItem(mediaId))
+        assertEquals(null, importedItem.genresJson)
+        assertEquals("[\"favorite\",\"rewatch\"]", importedItem.tagsJson)
+
+        val roundTrip = requireNotNull(
+            buildMalSyncPayload(importedItem, sessions),
+        )
+        assertEquals(2, roundTrip.completedRewatches)
+        assertFalse(roundTrip.isRewatching)
+        assertEquals(listOf("favorite", "rewatch"), roundTrip.tags)
+    }
+
+    @Test
+    fun providerImportRollsBackMediaAndBatchWhenAnyRowFails() = runBlocking {
+        database.openHelper.writableDatabase.execSQL(
+            """
+            CREATE TRIGGER fail_test_import
+            BEFORE INSERT ON media_items
+            WHEN NEW.title = 'Fail import'
+            BEGIN
+                SELECT RAISE(ABORT, 'forced import failure');
+            END
+            """.trimIndent(),
+        )
+        val repository = OfflineMediaRepository(database)
+        fun item(malId: Int, title: String) = MyAnimeListImportItem(
+            malId = malId,
+            title = title,
+            seriesType = "TV",
+            episodeTotal = 12,
+            watchedEpisodes = 0,
+            startedAt = null,
+            finishedAt = null,
+            rating = null,
+            status = TrackingStatus.Planned,
+            notes = null,
+            tags = emptyList(),
+        )
+
+        val failure = runCatching {
+            repository.importMyAnimeListAccount(
+                listOf(item(1, "Inserted first"), item(2, "Fail import")),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure != null)
+        assertTrue(database.mediaDao().getMediaItems().isEmpty())
+        assertTrue(database.importDao().getResumableBatches().isEmpty())
     }
 }

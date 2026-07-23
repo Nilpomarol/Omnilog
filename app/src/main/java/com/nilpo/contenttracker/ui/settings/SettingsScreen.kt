@@ -298,7 +298,8 @@ fun SettingsScreen(
                         SettingsDivider()
                         val enrichment = importEnrichmentState.activeBatch
                             ?: importEnrichmentState.recentBatches.firstOrNull {
-                                it.issueCount > 0 || it.needsReviewCount > 0
+                                it.issueCount > 0 || it.needsReviewCount > 0 ||
+                                    it.coverageGapCount > 0
                             }
                         if (enrichment != null) {
                             val isActive = enrichment.state == ImportBatchState.Enriching ||
@@ -318,6 +319,9 @@ fun SettingsScreen(
                                     }
                                     if (enrichment.issueCount > 0) {
                                         append(" · ${enrichment.issueCount} amb incidències")
+                                    }
+                                    if (enrichment.coverageGapCount > 0) {
+                                        append(" · ${enrichment.coverageGapCount} amb camps buits")
                                     }
                                     when (enrichment.state) {
                                         ImportBatchState.Enriching -> append(". Toca per posar en pausa.")

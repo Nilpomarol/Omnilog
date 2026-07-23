@@ -26,6 +26,15 @@ interface MetadataRepository {
 data class MetadataSearchResult(
     val suggestions: List<MetadataSuggestion>,
     val failedSources: Set<MetadataSource> = emptySet(),
+    val failures: List<MetadataSearchFailure> = emptyList(),
+)
+
+data class MetadataSearchFailure(
+    val source: MetadataSource,
+    val diagnostic: String,
+    val retryable: Boolean,
+    val statusCode: Int? = null,
+    val retryAfterMillis: Long? = null,
 )
 
 class MetadataProviderHttpException(
