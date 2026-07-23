@@ -18,6 +18,11 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.mal.MalSyncManager
+import com.nilpo.contenttracker.core.imports.ImportBatchState
+import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
+import com.nilpo.contenttracker.core.imports.ImportReviewApplyOutcome
+import com.nilpo.contenttracker.core.imports.ImportReviewDraft
+import com.nilpo.contenttracker.core.imports.ProviderReference
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.core.repository.DeletionRecovery
 import com.nilpo.contenttracker.core.repository.DeletionRecoveryStore
@@ -31,6 +36,8 @@ import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.core.repository.RecommendationRepository
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlImportResult
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
+import com.nilpo.contenttracker.core.repository.MyAnimeListAccountImportPreview
+import com.nilpo.contenttracker.core.repository.ProviderImportResult
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvImportResult
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.timeline.TimelineBuilder
@@ -60,6 +67,7 @@ class HomeViewModel(
     private val recommendationRepository: RecommendationRepository,
     private val coverRepository: CoverRepository,
     private val malSyncManager: MalSyncManager,
+    private val importEnrichmentManager: ImportEnrichmentManager,
 ) : ViewModel() {
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
@@ -82,6 +90,7 @@ class HomeViewModel(
     val metadataUiState = metadataSearchState.asStateFlow()
     val recommendationUiState = recommendationState.asStateFlow()
     val malSyncState = malSyncManager.state
+    val importEnrichmentState = importEnrichmentManager.state
     val events = mutableEvents.asSharedFlow()
 
     fun beginMalAuthorization(): String? = malSyncManager.beginAuthorization()
@@ -194,6 +203,7 @@ class HomeViewModel(
 
     suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
         return mediaRepository.importImdbCsv(csv).also {
+            importEnrichmentManager.enqueue(it.importBatchId)
             synchronizeLibraryCoversInBackground()
         }
     }
@@ -204,6 +214,7 @@ class HomeViewModel(
 
     suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
         return mediaRepository.importStoryGraphCsv(csv).also {
+            importEnrichmentManager.enqueue(it.importBatchId)
             synchronizeLibraryCoversInBackground()
         }
     }
@@ -214,9 +225,69 @@ class HomeViewModel(
 
     suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
         return mediaRepository.importMyAnimeListXml(xml).also {
+            importEnrichmentManager.enqueue(it.importBatchId)
             synchronizeLibraryCoversInBackground()
         }
     }
+
+    suspend fun previewMyAnimeListAccount(): Result<MyAnimeListAccountImportPreview> {
+        return malSyncManager.fetchAccountImportRows().mapCatching { items ->
+            MyAnimeListAccountImportPreview(
+                items = items,
+                preview = mediaRepository.previewMyAnimeListAccount(items),
+            )
+        }
+    }
+
+    suspend fun importMyAnimeListAccount(
+        preview: MyAnimeListAccountImportPreview,
+    ): ProviderImportResult {
+        return mediaRepository.importMyAnimeListAccount(preview.items).also {
+            importEnrichmentManager.enqueue(it.importBatchId)
+            synchronizeLibraryCoversInBackground()
+        }
+    }
+
+    fun toggleImportEnrichment() {
+        val batch = importEnrichmentState.value.activeBatch ?: return
+        toggleImportEnrichment(batch.batchId)
+    }
+
+    fun toggleImportEnrichment(batchId: Long) {
+        val batch = importEnrichmentState.value.recentBatches.firstOrNull { it.batchId == batchId }
+            ?: return
+        viewModelScope.launch {
+            if (batch.state == ImportBatchState.Paused) {
+                importEnrichmentManager.resume(batch.batchId)
+            } else {
+                importEnrichmentManager.pause(batch.batchId)
+            }
+        }
+    }
+
+    fun retryImportEnrichmentIssues(batchId: Long) {
+        viewModelScope.launch { importEnrichmentManager.retryIssues(batchId) }
+    }
+
+    fun cancelImportEnrichment(batchId: Long) {
+        viewModelScope.launch { importEnrichmentManager.cancelEnrichment(batchId) }
+    }
+
+    suspend fun prepareImportReview(
+        itemId: Long,
+        reference: ProviderReference?,
+    ): Result<ImportReviewDraft?> = importEnrichmentManager.prepareReview(itemId, reference)
+
+    suspend fun applyImportReview(
+        draft: ImportReviewDraft,
+        selectedFields: Set<MetadataRefreshField>,
+    ): Result<ImportReviewApplyOutcome> = importEnrichmentManager.applyReview(draft, selectedFields)
+
+    suspend fun skipImportReview(itemId: Long): Result<Unit> =
+        importEnrichmentManager.skipReview(itemId)
+
+    suspend fun refreshAnimeTitleLanguage(): Result<Int> =
+        importEnrichmentManager.enqueueAnimeTitleRefresh()
 
     fun selectSection(section: MediaSection) {
         cancelMetadataSearch()
@@ -945,6 +1016,7 @@ class HomeViewModel(
         private val recommendationRepository: RecommendationRepository,
         private val coverRepository: CoverRepository,
         private val malSyncManager: MalSyncManager,
+        private val importEnrichmentManager: ImportEnrichmentManager,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -954,6 +1026,7 @@ class HomeViewModel(
                 recommendationRepository = recommendationRepository,
                 coverRepository = coverRepository,
                 malSyncManager = malSyncManager,
+                importEnrichmentManager = importEnrichmentManager,
             ) as T
         }
     }

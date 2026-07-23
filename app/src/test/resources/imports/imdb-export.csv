@@ -1,0 +1,7 @@
+Const,Your Rating,Date Rated,Title,URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,Directors,Original Title,Description
+tt1375666,9,2024-01-31,"Inception, The Dream",https://www.imdb.com/title/tt1375666/,movie,8.8,148,2010,"Action, Sci-Fi","2,700,001",Christopher Nolan,Inception,"A dream within a dream."
+tt10048342,,,The Queen's Gambit,,tvMiniSeries,8.5,60,2020,Drama,"600,000","Scott Frank, Allan Scott",,"Line one
+line two"
+tt1234567,7,12/05/2023,"An ""Escaped"" Episode",,tvEpisode,7.1,44,2023,Comedy,"1,234",Jane Doe,,
+tt7654321,,,Unsupported Game,,videoGame,9.0,120,2022,Adventure,500,Director Name,,
+tt0000000,,,,,movie,5.0,90,1999,Drama,10,Someone,,

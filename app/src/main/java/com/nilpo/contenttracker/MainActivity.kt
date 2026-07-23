@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
             recommendationRepository = (application as ContentTrackerApplication).recommendationRepository,
             coverRepository = (application as ContentTrackerApplication).coverRepository,
             malSyncManager = (application as ContentTrackerApplication).malSyncManager,
+            importEnrichmentManager = (application as ContentTrackerApplication).importEnrichmentManager,
         )
     }
 

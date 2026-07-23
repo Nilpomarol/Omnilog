@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -92,8 +91,11 @@ import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.defaultSelectedMetadataFields
 import com.nilpo.contenttracker.core.repository.requiresMetadataConfirmation
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
+import com.nilpo.contenttracker.core.repository.MyAnimeListAccountImportPreview
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
+import com.nilpo.contenttracker.core.imports.AnimeTitlePreference
+import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
@@ -113,6 +115,9 @@ import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.home.creatorDetailLabelResId
 import com.nilpo.contenttracker.ui.home.navIconResId
 import com.nilpo.contenttracker.ui.home.themedAccent
+import com.nilpo.contenttracker.ui.imports.ImportHubDialog
+import com.nilpo.contenttracker.ui.imports.ImportProgressBanner
+import com.nilpo.contenttracker.ui.imports.MetadataDiffFieldList
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.profile.ProfileScreen
 import com.nilpo.contenttracker.ui.profile.ProfilePreferences
@@ -145,6 +150,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val metadataUiState by viewModel.metadataUiState.collectAsStateWithLifecycle()
     val recommendationUiState by viewModel.recommendationUiState.collectAsStateWithLifecycle()
     val malSyncState by viewModel.malSyncState.collectAsStateWithLifecycle()
+    val importEnrichmentState by viewModel.importEnrichmentState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -169,6 +175,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var pendingImdbCsvImport by remember { mutableStateOf<PendingImdbCsvImport?>(null) }
     var pendingStoryGraphCsvImport by remember { mutableStateOf<PendingStoryGraphCsvImport?>(null) }
     var pendingMyAnimeListXmlImport by remember { mutableStateOf<PendingMyAnimeListXmlImport?>(null) }
+    var pendingMyAnimeListAccountImport by remember {
+        mutableStateOf<MyAnimeListAccountImportPreview?>(null)
+    }
     var showMalInitialSyncConfirmation by remember { mutableStateOf(false) }
     var metadataLinkTarget by remember { mutableStateOf<TrackedMedia?>(null) }
     var metadataLinkQuery by remember { mutableStateOf("") }
@@ -177,6 +186,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var hasMetadataLinkError by remember { mutableStateOf(false) }
     var metadataLinkSearchRequestId by remember { mutableStateOf(0) }
     var pendingMetadataChange by remember { mutableStateOf<PendingMetadataChange?>(null) }
+    var showImportHub by remember { mutableStateOf(false) }
+    var animeTitlePreference by remember(context) {
+        mutableStateOf(AnimeTitlePreferences.read(context))
+    }
+    var showAnimeTitleBulkConfirmation by remember { mutableStateOf(false) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
     val profileImagePath = remember(context, currentRoute) {
@@ -231,6 +245,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val myAnimeListImportReadErrorMessage = stringResource(R.string.mal_import_read_error)
     val myAnimeListImportInvalidMessage = stringResource(R.string.mal_import_invalid)
     val myAnimeListImportEmptyMessage = stringResource(R.string.mal_import_empty)
+    val myAnimeListAccountImportErrorMessage = stringResource(R.string.mal_account_import_error)
+    val myAnimeListAccountImportEmptyMessage = stringResource(R.string.mal_account_import_empty)
     val metadataRefreshSuccessMessage = stringResource(R.string.metadata_refresh_success)
     val metadataRefreshUnavailableMessage = stringResource(R.string.metadata_refresh_unavailable)
     val metadataRefreshErrorMessage = stringResource(R.string.metadata_refresh_error)
@@ -696,9 +712,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
 
     BackHandler(
-        enabled = pendingPossibleDuplicate != null ||
+        enabled = showImportHub ||
+                showAnimeTitleBulkConfirmation ||
+                pendingPossibleDuplicate != null ||
                 metadataLinkTarget != null ||
                 pendingMetadataChange != null ||
+                pendingMyAnimeListAccountImport != null ||
                 pendingMyAnimeListXmlImport != null ||
                 pendingStoryGraphCsvImport != null ||
                 pendingImdbCsvImport != null ||
@@ -708,9 +727,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 detailActions.isManagingExternalRatings,
     ) {
         when {
+            showImportHub -> showImportHub = false
+            showAnimeTitleBulkConfirmation -> showAnimeTitleBulkConfirmation = false
             pendingPossibleDuplicate != null -> pendingPossibleDuplicate = null
             metadataLinkTarget != null -> metadataLinkTarget = null
             pendingMetadataChange != null -> pendingMetadataChange = null
+            pendingMyAnimeListAccountImport != null -> pendingMyAnimeListAccountImport = null
             pendingMyAnimeListXmlImport != null -> pendingMyAnimeListXmlImport = null
             pendingStoryGraphCsvImport != null -> pendingStoryGraphCsvImport = null
             pendingImdbCsvImport != null -> pendingImdbCsvImport = null
@@ -785,18 +807,31 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             },
             snackbarHost = {},
             bottomBar = {
-                OmnilogBottomBar(
-                    selectedRootRoute = selectedRootRoute,
-                    onHomeClick = {
-                        backStack.selectHome()
-                        viewModel.clearMetadataSearch()
-                    },
-                    onSectionClick = { section ->
-                        backStack.selectSection(section)
-                        viewModel.selectSection(section)
-                        viewModel.clearMetadataSearch()
-                    },
-                )
+                Column {
+                    val visibleImport = importEnrichmentState.activeBatch
+                        ?: importEnrichmentState.recentBatches.firstOrNull { progress ->
+                            progress.needsReviewCount > 0 || progress.issueCount > 0
+                        }
+                    visibleImport?.let { progress ->
+                        ImportProgressBanner(
+                            progress = progress,
+                            onOpen = { showImportHub = true },
+                            onToggle = { viewModel.toggleImportEnrichment(progress.batchId) },
+                        )
+                    }
+                    OmnilogBottomBar(
+                        selectedRootRoute = selectedRootRoute,
+                        onHomeClick = {
+                            backStack.selectHome()
+                            viewModel.clearMetadataSearch()
+                        },
+                        onSectionClick = { section ->
+                            backStack.selectSection(section)
+                            viewModel.selectSection(section)
+                            viewModel.clearMetadataSearch()
+                        },
+                    )
+                }
             },
         ) { innerPadding ->
             NavDisplay(
@@ -923,6 +958,20 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onExportBackup = { backupActions.onExportBackupRequested() },
                                 onImportBackup = { backupActions.onImportBackupRequested() },
                                 onRestoreBackup = { backupActions.onRestoreBackupRequested() },
+                                onImportMyAnimeListAccount = {
+                                    coroutineScope.launch {
+                                        val result = viewModel.previewMyAnimeListAccount()
+                                        val accountImport = result.getOrNull()
+                                        when {
+                                            accountImport == null -> snackbarHostState.showSnackbar(
+                                                myAnimeListAccountImportErrorMessage,
+                                            )
+                                            accountImport.preview.importableRows == 0 ->
+                                                snackbarHostState.showSnackbar(myAnimeListAccountImportEmptyMessage)
+                                            else -> pendingMyAnimeListAccountImport = accountImport
+                                        }
+                                    }
+                                },
                                 onImportMyAnimeListXml = { backupActions.onImportMyAnimeListXmlRequested() },
                                 onImportImdbCsv = { backupActions.onImportImdbCsvRequested() },
                                 onImportStoryGraphCsv = { backupActions.onImportStoryGraphCsvRequested() },
@@ -946,6 +995,17 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     }
                                 },
                                 malSyncState = malSyncState,
+                                importEnrichmentState = importEnrichmentState,
+                                animeTitlePreference = animeTitlePreference,
+                                onAnimeTitlePreferenceChange = { preference ->
+                                    animeTitlePreference = preference
+                                    AnimeTitlePreferences.write(context, preference)
+                                },
+                                onBulkRefreshAnimeTitles = {
+                                    showAnimeTitleBulkConfirmation = true
+                                },
+                                onToggleImportEnrichment = viewModel::toggleImportEnrichment,
+                                onRetryImportEnrichment = viewModel::retryImportEnrichmentIssues,
                                 onConnectMyAnimeList = {
                                     viewModel.beginMalAuthorization()?.let { authorizationUrl ->
                                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authorizationUrl)))
@@ -1510,24 +1570,82 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         )
     }
 
+    pendingMyAnimeListAccountImport?.let { accountImport ->
+        OmnilogAlertDialog(
+            onDismissRequest = { pendingMyAnimeListAccountImport = null },
+            title = stringResource(R.string.mal_account_import_title),
+            text = {
+                MalTitlePreferencePrompt(
+                    summary = stringResource(
+                        R.string.mal_account_import_message_with_summary,
+                        accountImport.preview.importableRows,
+                        accountImport.preview.totalRows,
+                        accountImport.preview.skippedDuplicateRows,
+                        accountImport.preview.unsupportedRows,
+                    ),
+                    preference = animeTitlePreference,
+                    onPreferenceChange = { animeTitlePreference = it },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        AnimeTitlePreferences.write(context, animeTitlePreference)
+                        coroutineScope.launch {
+                            val result = runCatching {
+                                viewModel.importMyAnimeListAccount(accountImport)
+                            }
+                            pendingMyAnimeListAccountImport = null
+                            result.fold(
+                                onSuccess = { importResult ->
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(
+                                            R.string.mal_import_success_with_summary,
+                                            importResult.importedRows,
+                                            importResult.skippedDuplicateRows,
+                                            importResult.unsupportedRows,
+                                        ),
+                                    )
+                                },
+                                onFailure = {
+                                    snackbarHostState.showSnackbar(myAnimeListAccountImportErrorMessage)
+                                },
+                            )
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.mal_import_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMyAnimeListAccountImport = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     pendingMyAnimeListXmlImport?.let { malImport ->
         OmnilogAlertDialog(
             onDismissRequest = { pendingMyAnimeListXmlImport = null },
             title = stringResource(R.string.mal_import_title),
             text = {
-                Text(
-                    text = stringResource(
+                MalTitlePreferencePrompt(
+                    summary = stringResource(
                         R.string.mal_import_message_with_summary,
                         malImport.preview.importableRows,
                         malImport.preview.totalRows,
                         malImport.preview.skippedDuplicateRows,
                         malImport.preview.unsupportedRows,
                     ),
+                    preference = animeTitlePreference,
+                    onPreferenceChange = { animeTitlePreference = it },
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
+                        AnimeTitlePreferences.write(context, animeTitlePreference)
                         coroutineScope.launch {
                             val result = runCatching {
                                 viewModel.importMyAnimeListXml(malImport.xml)
@@ -1612,6 +1730,61 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             if (isLink) metadataLinkErrorMessage else metadataRefreshErrorMessage
                         },
                     )
+                }
+            },
+        )
+    }
+
+    if (showImportHub) {
+        ImportHubDialog(
+            state = importEnrichmentState,
+            onDismiss = { showImportHub = false },
+            onToggle = viewModel::toggleImportEnrichment,
+            onRetry = viewModel::retryImportEnrichmentIssues,
+            onCancel = viewModel::cancelImportEnrichment,
+            onPrepareReview = viewModel::prepareImportReview,
+            onApplyReview = viewModel::applyImportReview,
+            onSkipReview = viewModel::skipImportReview,
+        )
+    }
+
+    if (showAnimeTitleBulkConfirmation) {
+        OmnilogAlertDialog(
+            onDismissRequest = { showAnimeTitleBulkConfirmation = false },
+            title = "Actualitza els títols d'anime?",
+            text = {
+                Text(
+                    text = when (animeTitlePreference) {
+                        AnimeTitlePreference.EnglishWithJapaneseOriginal ->
+                            "S'aplicarà el títol anglès i es desarà el japonès com a títol original. " +
+                                "Els títols editats manualment no es modificaran. El progrés serà visible a la barra d'importació."
+                        AnimeTitlePreference.KeepMalTitle ->
+                            "Es tornarà a enriquir la biblioteca conservant els títols de MyAnimeList. " +
+                                "Els títols editats manualment no es modificaran."
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAnimeTitleBulkConfirmation = false
+                        coroutineScope.launch {
+                            val result = viewModel.refreshAnimeTitleLanguage()
+                            snackbarHostState.showSnackbar(
+                                result.fold(
+                                    onSuccess = { count -> "$count animes en cua per actualitzar els títols." },
+                                    onFailure = { "No s'ha pogut iniciar l'actualització dels títols." },
+                                ),
+                            )
+                        }
+                    },
+                ) {
+                    Text("Actualitza en bloc")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAnimeTitleBulkConfirmation = false }) {
+                    Text(text = stringResource(R.string.cancel))
                 }
             },
         )
@@ -1856,6 +2029,64 @@ private enum class MetadataChangeOperation {
 }
 
 @Composable
+private fun MalTitlePreferencePrompt(
+    summary: String,
+    preference: AnimeTitlePreference,
+    onPreferenceChange: (AnimeTitlePreference) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(summary)
+        Text(
+            text = "Com vols desar els títols?",
+            fontWeight = FontWeight.ExtraBold,
+            color = OmnilogTheme.colors.appInk,
+        )
+        AnimeTitlePreference.entries.forEach { option ->
+            val selected = option == preference
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPreferenceChange(option) },
+                shape = RoundedCornerShape(8.dp),
+                color = if (selected) {
+                    OmnilogTheme.accents.Anime.copy(alpha = 0.12f)
+                } else {
+                    OmnilogTheme.colors.appPanel
+                },
+                border = BorderStroke(
+                    1.dp,
+                    if (selected) OmnilogTheme.accents.Anime else OmnilogTheme.colors.appLine,
+                ),
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = when (option) {
+                            AnimeTitlePreference.EnglishWithJapaneseOriginal -> "Anglès + original japonès"
+                            AnimeTitlePreference.KeepMalTitle -> "Conserva el títol de MAL"
+                        },
+                        fontWeight = FontWeight.Bold,
+                        color = OmnilogTheme.colors.appInk,
+                    )
+                    Text(
+                        text = when (option) {
+                            AnimeTitlePreference.EnglishWithJapaneseOriginal ->
+                                "Usa l'anglès com a títol principal i el japonès com a títol original."
+                            AnimeTitlePreference.KeepMalTitle ->
+                                "Manté exactament el títol retornat per la importació."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OmnilogTheme.colors.appMuted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun MetadataRefreshConfirmationDialog(
     preview: MetadataRefreshPreview,
     onDismiss: () -> Unit,
@@ -1895,69 +2126,12 @@ private fun MetadataRefreshConfirmationDialog(
                     text = stringResource(R.string.metadata_refresh_confirm_message),
                     color = OmnilogTheme.colors.appMuted,
                 )
-                LazyColumn(
+                MetadataDiffFieldList(
+                    changes = preview.changes,
+                    selectedFields = selectedFields,
+                    onSelectionChanged = { selectedFields = it },
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(preview.changes) { change ->
-                        val isSelected = change.field in selectedFields
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = OmnilogTheme.colors.appPanel,
-                            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedFields = if (isSelected) {
-                                            selectedFields - change.field
-                                        } else {
-                                            selectedFields + change.field
-                                        }
-                                    }
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.Top,
-                            ) {
-                                Checkbox(
-                                    checked = isSelected,
-                                    onCheckedChange = { checked ->
-                                        selectedFields = if (checked) {
-                                            selectedFields + change.field
-                                        } else {
-                                            selectedFields - change.field
-                                        }
-                                    },
-                                )
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(
-                                        text = stringResource(change.field.labelResId()),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = OmnilogTheme.colors.appInk,
-                                    )
-                                    if (change.isLocallyOverridden) {
-                                        Text(
-                                            text = stringResource(R.string.metadata_refresh_locally_edited),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.tertiary,
-                                        )
-                                    }
-                                    MetadataChangeValue(
-                                        label = stringResource(R.string.metadata_refresh_current_value),
-                                        value = change.currentValue,
-                                    )
-                                    MetadataChangeValue(
-                                        label = stringResource(R.string.metadata_refresh_new_value),
-                                        value = change.newValue,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -1974,41 +2148,6 @@ private fun MetadataRefreshConfirmationDialog(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun MetadataChangeValue(label: String, value: String) {
-    Text(
-        text = buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) {
-                append(label)
-                append(": ")
-            }
-            append(value)
-        },
-        style = MaterialTheme.typography.bodyMedium,
-        color = OmnilogTheme.colors.appMuted,
-    )
-}
-
-@StringRes
-private fun MetadataRefreshField.labelResId(): Int {
-    return when (this) {
-        MetadataRefreshField.Title -> R.string.metadata_refresh_field_title
-        MetadataRefreshField.OriginalTitle -> R.string.metadata_refresh_field_original_title
-        MetadataRefreshField.ReleaseYear -> R.string.metadata_refresh_field_release_year
-        MetadataRefreshField.Language -> R.string.metadata_refresh_field_language
-        MetadataRefreshField.ProgressTotal -> R.string.metadata_refresh_field_progress_total
-        MetadataRefreshField.Genres -> R.string.metadata_refresh_field_genres
-        MetadataRefreshField.Creators -> R.string.metadata_refresh_field_creators
-        MetadataRefreshField.Credits -> R.string.metadata_refresh_field_credits
-        MetadataRefreshField.Cover -> R.string.metadata_refresh_field_cover
-        MetadataRefreshField.Synopsis -> R.string.metadata_refresh_field_synopsis
-        MetadataRefreshField.SourceUrl -> R.string.metadata_refresh_field_source_url
-        MetadataRefreshField.ExternalRating -> R.string.metadata_refresh_field_external_rating
-        MetadataRefreshField.ExternalRatings -> R.string.metadata_refresh_field_external_ratings
-        MetadataRefreshField.ProviderStats -> R.string.metadata_refresh_field_provider_stats
     }
 }
 

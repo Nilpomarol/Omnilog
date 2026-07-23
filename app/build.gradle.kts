@@ -30,6 +30,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
         buildConfigField("String", "GOOGLE_BOOKS_API_KEY", "\"$googleBooksApiKey\"")
         buildConfigField("String", "RAWG_API_KEY", "\"$rawgApiKey\"")
@@ -62,5 +63,9 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     ksp("androidx.room:room-compiler:2.8.4")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit-ktx:1.3.0")
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
     debugImplementation("androidx.compose.ui:ui-tooling:1.11.2")
 }

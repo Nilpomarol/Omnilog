@@ -19,6 +19,7 @@ import com.nilpo.contenttracker.ContentTrackerApplication
 import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.MalSyncQueueEntity
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
 import com.nilpo.contenttracker.core.model.resolveMyAnimeListId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +40,8 @@ data class MalSyncState(
     val isSyncEnabled: Boolean = false,
     val isAuthorizing: Boolean = false,
     val isSyncing: Boolean = false,
+    val isImporting: Boolean = false,
+    val importFetchedCount: Int = 0,
     val pendingCount: Int = 0,
     val failedCount: Int = 0,
     val lastSuccessAtEpochMillis: Long? = null,
@@ -63,11 +66,14 @@ class MalSyncManager(
     private val clientId: String,
     private val redirectUri: String,
     private val tokenStore: MalTokenStore = MalTokenStore(context),
-    private val apiClient: MalApiClient = MalApiClient(clientId, redirectUri),
+    private val apiClient: MalApiService = MalApiClient(clientId, redirectUri),
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutableState = MutableStateFlow(initialState())
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val authenticatedSession = MalAuthenticatedSession(apiClient, tokenStore)
+    private val accountImportLoader = MalAccountImportLoader(apiClient, authenticatedSession)
+    private var accountImportContinuation: MalAccountImportContinuation? = null
     val state: StateFlow<MalSyncState> = mutableState.asStateFlow()
 
     init {
@@ -128,6 +134,7 @@ class MalSyncManager(
         val exchanged = apiClient.exchangeAuthorizationCode(code, pending.verifier)
         val account = apiClient.getCurrentAccount(exchanged.accessToken)
         tokenStore.saveTokens(exchanged.copy(accountName = account.name))
+        accountImportContinuation = null
         tokenStore.setSyncEnabled(false)
         tokenStore.clearPendingAuthorization()
         mutableState.update {
@@ -148,6 +155,7 @@ class MalSyncManager(
 
     fun disconnect() {
         tokenStore.clear()
+        accountImportContinuation = null
         mutableState.update {
             it.copy(
                 isConnected = false,
@@ -155,6 +163,8 @@ class MalSyncManager(
                 isSyncEnabled = false,
                 isAuthorizing = false,
                 isSyncing = false,
+                isImporting = false,
+                importFetchedCount = 0,
                 error = null,
             )
         }
@@ -163,6 +173,56 @@ class MalSyncManager(
     fun resumePendingSync() {
         if (tokenStore.isSyncEnabled() && tokenStore.readTokens() != null) {
             MalSyncScheduler.enqueue(context)
+        }
+    }
+
+    suspend fun fetchAccountImportRows(): Result<List<MyAnimeListImportItem>> {
+        val state = mutableState.value
+        if (!state.isAvailable) {
+            return Result.failure(IllegalStateException("Falta MAL_CLIENT_ID."))
+        }
+        if (!state.isConnected || tokenStore.readTokens() == null) {
+            return Result.failure(MalAuthorizationRequiredException(message = "Connecta el compte de MAL primer."))
+        }
+        if (state.isSyncing || state.isImporting) {
+            return Result.failure(IllegalStateException("MyAnimeList ja està processant una altra operació."))
+        }
+
+        val continuation = accountImportContinuation ?: MalAccountImportContinuation()
+        mutableState.update {
+            it.copy(
+                isImporting = true,
+                importFetchedCount = continuation.items.size,
+                error = null,
+            )
+        }
+        return try {
+            val rows = accountImportLoader.fetchAll(continuation) { itemCount, _ ->
+                mutableState.update { current -> current.copy(importFetchedCount = itemCount) }
+            }
+            accountImportContinuation = null
+            Result.success(rows)
+        } catch (error: MalAccountImportInterruptedException) {
+            val cause = error.cause ?: error
+            if (cause is MalAuthorizationRequiredException) {
+                accountImportContinuation = null
+                mutableState.update {
+                    it.copy(
+                        isConnected = false,
+                        accountName = null,
+                        isSyncEnabled = false,
+                        error = "Torna a connectar MAL.",
+                    )
+                }
+            } else {
+                accountImportContinuation = error.continuation
+                mutableState.update {
+                    it.copy(error = cause.message ?: "No s'ha pogut llegir la llista de MAL.")
+                }
+            }
+            Result.failure(cause)
+        } finally {
+            mutableState.update { it.copy(isImporting = false) }
         }
     }
 
@@ -503,11 +563,6 @@ private data class MalFailureDiagnostic(
     val detail: String?,
     val willRetry: Boolean,
 )
-
-private class MalAuthorizationRequiredException(
-    val statusCode: Int? = null,
-    message: String? = null,
-) : Exception(message)
 
 private fun secureRandomString(byteCount: Int): String {
     val bytes = ByteArray(byteCount).also(SecureRandom()::nextBytes)

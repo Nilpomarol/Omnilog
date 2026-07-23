@@ -6,7 +6,17 @@ This document defines the implementation plan for making provider imports a comp
 
 The primary experience is a direct MyAnimeList account import through the official MAL API. MAL XML remains a supported fallback. IMDb CSV and StoryGraph CSV continue to provide the other provider entry points, with imported identifiers used to resolve richer metadata in batches.
 
-Status: planned. The current Room database version is 23.
+Status: Phases 1-4 delivered on 2026-07-23. Phase 5 verification remains. The current Room database version is 24.
+
+Deferred UI follow-up: Settings currently exposes too many separate MAL controls. Group connection,
+account import, XML fallback, title-language preference, bulk title refresh, and synchronization under
+one MAL section or nested destination during the dedicated UI-improvement pass. This consolidation is
+not part of Phase 5 verification and must not delay correctness or provider-flow testing.
+
+Accessibility follow-up from 200% font-scale QA: the provider rows remain readable and tappable and
+the MAL XML preview keeps its counts, primary title choice, confirm, and cancel actions reachable. The
+secondary `Conserva el títol de MAL` option truncates its final word, and the `Cinema i TV` bottom-nav
+label truncates. Make these labels wrap or adapt during the deferred UI pass.
 
 ## Outcome
 
@@ -357,6 +367,10 @@ All new user-facing copy is Catalan. Progress and error states must remain reada
 
 ### Phase 1 — Characterization tests and normalized import model
 
+Status: delivered on 2026-07-23.
+
+Implementation note: MAL XML now produces a provider-neutral `MyAnimeListImportItem` with a numeric stable MAL ID, ready for the account API adapter in Phase 2. All three provider imports share one additive planner and preview/result model; results retain inserted media IDs for later batch creation. Provider writes carry an explicit origin, and import-origin writes cannot notify the outbound MAL queue. Realistic MAL XML, IMDb CSV, and StoryGraph CSV fixtures cover mappings, malformed/optional values, multiline and quoted content, stable-ID idempotency, XML entity hardening, and the no-feedback boundary. The full debug unit suite and debug APK build pass.
+
 1. Add MAL XML, IMDb CSV, and StoryGraph CSV fixtures under test resources.
 2. Add parser and mapping tests for real export shapes and edge cases.
 3. Introduce normalized import rows/results shared by MAL API/XML where appropriate.
@@ -366,6 +380,10 @@ All new user-facing copy is Catalan. Progress and error states must remain reada
 Exit: existing import behavior is characterized and MAL API rows can enter the same persistence path as XML rows.
 
 ### Phase 2 — MAL API account import
+
+Status: delivered on 2026-07-23.
+
+Implementation note: Settings now offers the connected MAL account as the primary import path while retaining XML as a separate fallback. The API adapter requests the complete anime list in 100-item pages, maps account fields into the Phase 1 normalized row, validates every continuation URL before attaching a bearer token, and previews the additive import before any library write. Authentication refreshes expired tokens proactively, refreshes and retries once after an HTTP 401, and clears unusable credentials when reconnecting is required. A transient page failure retains the completed rows and continuation in memory so an immediate retry resumes at the failed page. Fixture-backed tests cover field mapping, pagination, progress, proactive and reactive refresh, untrusted continuation URLs, reconnect-required failures, and partial-page resumption. The full debug unit suite and debug APK build pass.
 
 1. Extend the MAL client with paginated list reads and required field selection.
 2. Add preview aggregation without mutating Room.
@@ -377,6 +395,10 @@ Exit: a connected user can preview and import a MAL account without producing an
 
 ### Phase 3 — Resolver and durable queue
 
+Status: delivered on 2026-07-23.
+
+Implementation note: Room 24 now records provider imports as durable batches and item-level enrichment work, with migration/backfill support for titles imported before the queue existed. MAL IDs resolve directly to the throttled Jikan/MAL details path; IMDb IDs use TMDB's external-ID lookup; validated ISBN-10/13 values resolve through OpenLibrary with Google Books fallback. Title-only matches are stored as ranked provider references and never applied automatically. WorkManager processes each batch in restart-safe chunks, persists every item transition, retries bounded transient failures, supports pause/resume/manual retry, and exposes progress in Settings. Exact matches apply only empty, non-overridden fields through the existing metadata-diff pipeline, suppress outbound MAL feedback, and persist fetched covers; populated differences remain `NeedsReview` for Phase 4. The complete 291-test debug suite and APK build pass. A real device upgrade from Room 23 to 24 opened without schema errors, adopted the existing Phase 2 MAL import, and processed successive enrichment chunks successfully.
+
 1. Add resolver outcomes and confidence evidence.
 2. Implement MAL exact-ID, IMDb-to-TMDB, and StoryGraph ISBN resolution.
 3. Add migration 23 to 24, entities, DAO operations, and state invariants.
@@ -387,7 +409,40 @@ Exit: imported titles enrich durably in the background and completed work is not
 
 ### Phase 4 — Safe fills and consolidated review
 
-1. Auto-apply only empty, non-overridden fields for exact matches.
+Status: delivered and device-validated on 2026-07-23.
+
+Implementation note: enrichment progress is now visible throughout the app above the main navigation, with processed/total counts, a progress bar, and direct pause/resume access. Tapping the indicator opens a consolidated import hub with durable batch status, retries, and all `NeedsReview` items. Candidate labels, years, covers, and provider references survive process restart; after the user chooses an uncertain candidate, every import-owned non-overridden field is applied before presenting any genuine manual conflicts. Keeping every current value and skipping are both first-class decisions. Before applying selected replacements, the manager refetches provider details and rebuilds the preview from current Room state; if a selected local or provider value changed while the review was open, the decision is rejected and the refreshed comparison is shown. Automated coverage includes candidate JSON compatibility and stale-review protection.
+
+Ambiguous book matches now retain and display the full search context available before selection:
+cover, title and subtitle, original title, authors, publication year, language, page count, format,
+publishers, ISBNs, genres, provider rating and vote count, synopsis, provider, and provider identifier.
+The richer candidate payload remains backward-compatible with review rows created by earlier builds.
+The import hub is now an action queue rather than a permanent history: successfully completed and
+cancelled batches remain stored for safety and diagnostics but disappear from the visible list as soon
+as they have no remaining action. Active, paused, review, and incident batches remain visible.
+
+Exact enrichment now treats the import file as a temporary provider snapshot rather than user-authored
+metadata. Provider values automatically supersede populated import values—including titles, genres,
+creators, lengths/page totals, ratings, covers, and descriptions—across MAL, IMDb, and StoryGraph.
+Fields edited by the user remain marked as local overrides and are never auto-replaced. Match identity
+remains a separate safety boundary: ambiguous title-only candidates still require selection, and the
+explicit MAL title-language preference continues to control replacement of populated MAL title fields.
+
+Incident batches now expose both retry and cancel actions in the import hub. Cancellation is a durable
+terminal state: WorkManager is stopped, pending lookups and unresolved incident/review rows are marked
+cancelled, and neither process restart nor a late provider response can revive the batch. Imported media
+and metadata already applied remain in the library. Active and paused batches expose the same confirmed
+cancel action. Room guards prevent stale workers from overwriting the cancelled state. The cancellation
+database test compiles with the Android suite and is deferred while the current manual IMDb verification
+database is in use because connected tests clear the app sandbox.
+
+MAL title handling is explicit rather than inferred from either provider. The API/XML confirmation prompts for either English primary titles with Japanese originals or preservation of MAL's returned title, and Settings retains the same preference. The English option automatically applies both title fields only when they have not been manually overridden. Short and slugged MAL URLs with the same numeric ID are treated as one resource. A bulk Settings action durably requeues existing MAL-linked anime, reuses the global progress UI, resumes previous MAL review items under the new policy, and avoids duplicating currently pending work.
+
+Device testing with 178 MAL titles exposed Jikan's sustained public rate limit after 148 successful detail reads. The client now paces full-library enrichment below one request per second, captures non-2xx status and response detail, honors `Retry-After`, and converts a repeated HTTP 429 into batch-level WorkManager backoff instead of consuming the remaining items' retry attempts. HTTP 404 is recorded as a non-retryable no-match, while server errors remain retryable. The import hub distinguishes provider incidents from field-review decisions and exposes an explicit incident action.
+
+The same device run later established that the remaining failures were HTTP 504 responses from Jikan while it could not reach MAL, rather than rate limiting. Exact MAL enrichment no longer depends on Jikan: the official MAL detail response supplies titles, pictures, dates, synopsis, episode totals, genres, studios, ratings, popularity, and rank; AniList is queried by MAL ID for complementary metadata while the stored provider identity and canonical MAL URL remain stable. Jikan is now only a last resort when neither official MAL nor AniList data is available. Retrying the affected batch completed at 178/178 enriched with zero incidents. A database verification of the 30 formerly failed items confirmed covers, synopses, Japanese original titles, release years, episode totals, genres, creators, and canonical MAL URLs for every item. The complete 298-test debug suite and debug APK build pass.
+
+1. Auto-apply exact provider metadata over import-owned fields while preserving manual overrides.
 2. Extract the metadata-diff selector for reuse.
 3. Build batch status and grouped review surfaces.
 4. Support candidate selection, field selection, skip, and retry.
@@ -396,6 +451,34 @@ Exit: imported titles enrich durably in the background and completed work is not
 Exit: a normal import needs no per-title detail-page linking, while every uncertain or destructive decision remains inspectable.
 
 ### Phase 5 — Verification and delivery
+
+Status: in progress on 2026-07-23.
+
+Verification note: the complete 298-test local debug suite and debug APK build pass. A new
+instrumented Room test also passes on the connected Android device and proves that selective
+provider-import metadata application preserves the title override, collection and ordering,
+ownership, manual primary rating, tracking session and its user rating/notes, progress entries,
+status-event history, and the inbound-import MAL synchronization boundary. Remaining device work
+is a clean full MAL account import and complete IMDb/StoryGraph fixture imports. Normal-scale Settings
+shows every intended entry point, and MAL XML, IMDb, and StoryGraph each launch the correct system file
+picker. A real five-item MAL XML preview was opened and cancelled at 200% font scale; the known label
+truncations are recorded in the deferred UI follow-up above.
+
+StoryGraph device verification with 172 imported books exposed two page-progress gaps. OpenLibrary
+exact ISBN results without a page count previously prevented the Google Books fallback from running,
+and a newly enriched total did not reconcile a completed imported session whose baseline and current
+progress were both zero. Exact ISBN resolution now prefers whichever trusted result supplies pages,
+while completed zero-progress StoryGraph sessions adopt that total as their imported baseline without
+creating a reading-progress event or changing user history. Manual batch retry also includes previously
+applied StoryGraph rows that still lack a page total. The import hub now namespaces batch and review-row
+keys; the updated app survived five repeated panel open/close cycles during active enrichment without a
+process restart or Android runtime error. The complete 300-test local debug suite, Android test-source
+compilation, and debug APK build pass. After the reproduction database was intentionally wiped, both
+connected Android database-preservation tests passed on the Pixel device.
+After installing the repair and retrying the same batch, a read-only database verification confirmed that
+all 28 completed books with a discovered page total had matching current and baseline progress, zero
+remained at 0 pages, and no synthetic progress updates were created. Retry also repairs the partial state
+left by older builds before reissuing provider requests.
 
 1. Add repository/integration coverage for selective application and preservation invariants.
 2. Run the full unit suite and debug build.

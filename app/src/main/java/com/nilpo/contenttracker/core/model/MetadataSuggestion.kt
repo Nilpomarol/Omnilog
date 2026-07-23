@@ -28,6 +28,10 @@ data class MetadataSuggestion(
     val bookEdition: BookEditionMetadata? = null,
     val bookEditionSuggestions: List<BookEditionMetadata> = emptyList(),
     val malId: Int? = null,
+    /** Search-result context used to distinguish book candidates before loading one in full. */
+    val subtitle: String? = null,
+    val publishers: List<String> = emptyList(),
+    val identifiers: List<String> = emptyList(),
 )
 
 data class BookEditionMetadata(

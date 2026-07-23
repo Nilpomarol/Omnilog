@@ -2,8 +2,11 @@ package com.nilpo.contenttracker.core.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.nilpo.contenttracker.core.database.dao.ImportDao
 import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
+import com.nilpo.contenttracker.core.database.entity.ImportBatchEntity
+import com.nilpo.contenttracker.core.database.entity.ImportBatchItemEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
@@ -24,10 +27,14 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
         ExternalRatingEntity::class,
         ObjectiveEntity::class,
         MalSyncQueueEntity::class,
+        ImportBatchEntity::class,
+        ImportBatchItemEntity::class,
     ],
-    version = 23,
+    version = 24,
     exportSchema = false,
 )
 abstract class ContentTrackerDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
+
+    abstract fun importDao(): ImportDao
 }

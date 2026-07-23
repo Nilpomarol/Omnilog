@@ -4,6 +4,8 @@ import androidx.room.withTransaction
 import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.database.dao.MediaDao
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
+import com.nilpo.contenttracker.core.database.entity.ImportBatchEntity
+import com.nilpo.contenttracker.core.database.entity.ImportBatchItemEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
@@ -27,6 +29,7 @@ import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
 import com.nilpo.contenttracker.core.model.metadataJsonWithSteamAppId
 import com.nilpo.contenttracker.core.model.normalizeSteamAppId
 import com.nilpo.contenttracker.core.model.steamAppIdFromMetadataJson
@@ -40,6 +43,9 @@ import com.nilpo.contenttracker.core.model.canonicalUnit
 import com.nilpo.contenttracker.core.model.definition
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.imports.ImportBatchState
+import com.nilpo.contenttracker.core.imports.ImportItemState
+import com.nilpo.contenttracker.core.imports.ImportSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -156,163 +162,147 @@ class OfflineMediaRepository(
     override suspend fun previewImdbCsv(csv: String): ImdbCsvPreview {
         val rows = parseImdbCsv(csv)
         val existingKeys = mediaDao.getMediaItems().map { it.importDuplicateKey() }.toMutableSet()
-        var importableRows = 0
-        var skippedDuplicateRows = 0
-        var unsupportedRows = 0
-
-        rows.forEach { item ->
-            val duplicateKey = item.importDuplicateKey()
-            when {
-                item.type == null -> unsupportedRows++
-                duplicateKey in existingKeys -> skippedDuplicateRows++
-                else -> {
-                    existingKeys += duplicateKey
-                    importableRows++
-                }
-            }
-        }
-
-        return ImdbCsvPreview(
-            totalRows = rows.size,
-            importableRows = importableRows,
-            skippedDuplicateRows = skippedDuplicateRows,
-            unsupportedRows = unsupportedRows,
-        )
+        return planProviderImport(
+            rows = rows,
+            existingKeys = existingKeys,
+            duplicateKey = ImdbCsvItem::importDuplicateKey,
+            isSupported = { item -> item.type != null },
+        ).toPreview()
     }
 
     override suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
         val rows = parseImdbCsv(csv)
         val existingKeys = mediaDao.getMediaItems().map { it.importDuplicateKey() }.toMutableSet()
-        var importedRows = 0
-        var skippedDuplicateRows = 0
-        var unsupportedRows = 0
-
-        rows.forEach { item ->
-            val duplicateKey = item.importDuplicateKey()
-            when {
-                item.type == null -> unsupportedRows++
-                duplicateKey in existingKeys -> skippedDuplicateRows++
-                else -> {
-                    addTrackedMedia(item.toAddTrackedMediaRequest())
-                    existingKeys += duplicateKey
-                    importedRows++
-                }
-            }
-        }
-
-        return ImdbCsvImportResult(
-            importedRows = importedRows,
-            skippedDuplicateRows = skippedDuplicateRows,
-            unsupportedRows = unsupportedRows,
+        val plan = planProviderImport(
+            rows = rows,
+            existingKeys = existingKeys,
+            duplicateKey = ImdbCsvItem::importDuplicateKey,
+            isSupported = { item -> item.type != null },
         )
+        val importedIds = plan.importable.map { item ->
+            persistTrackedMedia(item.toAddTrackedMediaRequest(), MediaWriteOrigin.ProviderImport)
+        }
+        val batchId = recordImportBatch(
+            source = ImportSource.ImdbCsv,
+            rows = plan.importable.zip(importedIds),
+            sourceKey = ImdbCsvItem::importDuplicateKey,
+            sourceExternalId = ImdbCsvItem::imdbId,
+        )
+        return plan.toResult(importedIds, batchId)
     }
 
     override suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview {
         val rows = parseStoryGraphCsv(csv)
         val existingKeys = mediaDao.getMediaItems().map { it.storyGraphDuplicateKey() }.toMutableSet()
-        var importableRows = 0
-        var skippedDuplicateRows = 0
-        var unsupportedRows = 0
-
-        rows.forEach { item ->
-            val duplicateKey = item.storyGraphDuplicateKey()
-            when {
-                item.title.isBlank() -> unsupportedRows++
-                duplicateKey in existingKeys -> skippedDuplicateRows++
-                else -> {
-                    existingKeys += duplicateKey
-                    importableRows++
-                }
-            }
-        }
-
-        return StoryGraphCsvPreview(
-            totalRows = rows.size,
-            importableRows = importableRows,
-            skippedDuplicateRows = skippedDuplicateRows,
-            unsupportedRows = unsupportedRows,
-        )
+        return planProviderImport(
+            rows = rows,
+            existingKeys = existingKeys,
+            duplicateKey = StoryGraphCsvItem::storyGraphDuplicateKey,
+            isSupported = { item -> item.title.isNotBlank() },
+        ).toPreview()
     }
 
     override suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
         val rows = parseStoryGraphCsv(csv)
         val existingKeys = mediaDao.getMediaItems().map { it.storyGraphDuplicateKey() }.toMutableSet()
-        var importedRows = 0
-        var skippedDuplicateRows = 0
-        var unsupportedRows = 0
-
-        rows.forEach { item ->
-            val duplicateKey = item.storyGraphDuplicateKey()
-            when {
-                item.title.isBlank() -> unsupportedRows++
-                duplicateKey in existingKeys -> skippedDuplicateRows++
-                else -> {
-                    addTrackedMedia(item.toAddTrackedMediaRequest())
-                    existingKeys += duplicateKey
-                    importedRows++
-                }
-            }
-        }
-
-        return StoryGraphCsvImportResult(
-            importedRows = importedRows,
-            skippedDuplicateRows = skippedDuplicateRows,
-            unsupportedRows = unsupportedRows,
+        val plan = planProviderImport(
+            rows = rows,
+            existingKeys = existingKeys,
+            duplicateKey = StoryGraphCsvItem::storyGraphDuplicateKey,
+            isSupported = { item -> item.title.isNotBlank() },
         )
+        val importedIds = plan.importable.map { item ->
+            persistTrackedMedia(item.toAddTrackedMediaRequest(), MediaWriteOrigin.ProviderImport)
+        }
+        val batchId = recordImportBatch(
+            source = ImportSource.StoryGraphCsv,
+            rows = plan.importable.zip(importedIds),
+            sourceKey = StoryGraphCsvItem::storyGraphDuplicateKey,
+            sourceExternalId = StoryGraphCsvItem::isbnOrUid,
+        )
+        return plan.toResult(importedIds, batchId)
     }
 
     override suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview {
-        val rows = parseMyAnimeListXml(xml)
+        return previewMyAnimeListAccount(parseMyAnimeListXml(xml))
+    }
+
+    override suspend fun previewMyAnimeListAccount(
+        items: List<MyAnimeListImportItem>,
+    ): ProviderImportPreview {
         val existingKeys = mediaDao.getMediaItems().map { it.myAnimeListDuplicateKey() }.toMutableSet()
-        var importableRows = 0
-        var skippedDuplicateRows = 0
-        var unsupportedRows = 0
-
-        rows.forEach { item ->
-            val duplicateKey = item.myAnimeListDuplicateKey()
-            when {
-                item.title.isBlank() -> unsupportedRows++
-                duplicateKey in existingKeys -> skippedDuplicateRows++
-                else -> {
-                    existingKeys += duplicateKey
-                    importableRows++
-                }
-            }
-        }
-
-        return MyAnimeListXmlPreview(
-            totalRows = rows.size,
-            importableRows = importableRows,
-            skippedDuplicateRows = skippedDuplicateRows,
-            unsupportedRows = unsupportedRows,
-        )
+        return planProviderImport(
+            rows = items,
+            existingKeys = existingKeys,
+            duplicateKey = MyAnimeListImportItem::myAnimeListDuplicateKey,
+            isSupported = { item -> item.title.isNotBlank() },
+        ).toPreview()
     }
 
     override suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
-        val rows = parseMyAnimeListXml(xml)
+        return importMyAnimeListRows(parseMyAnimeListXml(xml), ImportSource.MalXml)
+    }
+
+    override suspend fun importMyAnimeListAccount(
+        items: List<MyAnimeListImportItem>,
+    ): ProviderImportResult {
+        return importMyAnimeListRows(items, ImportSource.MalApi)
+    }
+
+    private suspend fun importMyAnimeListRows(
+        items: List<MyAnimeListImportItem>,
+        source: ImportSource,
+    ): ProviderImportResult {
         val existingKeys = mediaDao.getMediaItems().map { it.myAnimeListDuplicateKey() }.toMutableSet()
-        var importedRows = 0
-        var skippedDuplicateRows = 0
-        var unsupportedRows = 0
-
-        rows.forEach { item ->
-            val duplicateKey = item.myAnimeListDuplicateKey()
-            when {
-                item.title.isBlank() -> unsupportedRows++
-                duplicateKey in existingKeys -> skippedDuplicateRows++
-                else -> {
-                    addTrackedMedia(item.toAddTrackedMediaRequest())
-                    existingKeys += duplicateKey
-                    importedRows++
-                }
-            }
-        }
-
-        return MyAnimeListXmlImportResult(
-            importedRows = importedRows,
-            skippedDuplicateRows = skippedDuplicateRows,
-            unsupportedRows = unsupportedRows,
+        val plan = planProviderImport(
+            rows = items,
+            existingKeys = existingKeys,
+            duplicateKey = MyAnimeListImportItem::myAnimeListDuplicateKey,
+            isSupported = { item -> item.title.isNotBlank() },
         )
+        val importedIds = plan.importable.map { item ->
+            persistTrackedMedia(item.toAddTrackedMediaRequest(), MediaWriteOrigin.ProviderImport)
+        }
+        val batchId = recordImportBatch(
+            source = source,
+            rows = plan.importable.zip(importedIds),
+            sourceKey = MyAnimeListImportItem::myAnimeListDuplicateKey,
+            sourceExternalId = { item -> item.malId?.toString() },
+        )
+        return plan.toResult(importedIds, batchId)
+    }
+
+    private suspend fun <T> recordImportBatch(
+        source: ImportSource,
+        rows: List<Pair<T, Long>>,
+        sourceKey: (T) -> String,
+        sourceExternalId: (T) -> String?,
+    ): Long? {
+        if (rows.isEmpty()) return null
+        val now = System.currentTimeMillis()
+        val importDao = database.importDao()
+        val batchId = importDao.insertBatch(
+            ImportBatchEntity(
+                source = source.name,
+                state = ImportBatchState.Enriching.name,
+                totalCount = rows.size,
+                createdAtEpochMillis = now,
+                updatedAtEpochMillis = now,
+            ),
+        )
+        importDao.insertItems(
+            rows.map { (row, mediaItemId) ->
+                ImportBatchItemEntity(
+                    batchId = batchId,
+                    sourceKey = sourceKey(row),
+                    sourceExternalId = sourceExternalId(row),
+                    mediaItemId = mediaItemId,
+                    state = ImportItemState.Pending.name,
+                    updatedAtEpochMillis = now,
+                )
+            },
+        )
+        return batchId
     }
 
     override suspend fun startNewSession(request: AddTrackingSessionRequest) = database.withTransaction {
@@ -364,7 +354,22 @@ class OfflineMediaRepository(
         onMalRelevantChange(request.mediaItemId)
     }
 
-    override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long = database.withTransaction {
+    override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long =
+        persistTrackedMedia(request, MediaWriteOrigin.UserAction)
+
+    private suspend fun persistTrackedMedia(
+        request: AddTrackedMediaRequest,
+        origin: MediaWriteOrigin,
+    ): Long {
+        val mediaItemId = insertTrackedMedia(request, origin)
+        origin.notifyOutboundMalSync(mediaItemId, onMalRelevantChange)
+        return mediaItemId
+    }
+
+    private suspend fun insertTrackedMedia(
+        request: AddTrackedMediaRequest,
+        origin: MediaWriteOrigin,
+    ): Long = database.withTransaction {
         val validTotal = request.progressTotal
             ?.takeUnless { request.type == MediaType.Game }
             ?.coerceAtLeast(0)
@@ -409,7 +414,9 @@ class OfflineMediaRepository(
                 ratingDistributionJson = request.ratingDistributionJson,
                 popularityJson = request.popularityJson,
                 rankingJson = request.rankingJson,
-                metadataLastFetchedAtEpochMillis = request.metadataSource?.let { System.currentTimeMillis() },
+                metadataLastFetchedAtEpochMillis = request.metadataSource
+                    ?.takeIf { origin == MediaWriteOrigin.UserAction }
+                    ?.let { System.currentTimeMillis() },
                 metadataExternalId = request.metadataExternalId,
                 metadataSource = request.metadataSource?.name,
                 malId = resolveMyAnimeListId(
@@ -487,7 +494,6 @@ class OfflineMediaRepository(
                 updatedAtEpochMillis = initialUpdatedAtEpochMillis,
             ),
         )
-        onMalRelevantChange(mediaItemId)
         mediaItemId
     }
 
@@ -1270,6 +1276,17 @@ class OfflineMediaRepository(
     override suspend fun applyMediaItemMetadataRefresh(
         preview: MetadataRefreshPreview,
         selectedFields: Set<MetadataRefreshField>,
+    ): Boolean = applyMediaItemMetadataRefresh(preview, selectedFields, MediaWriteOrigin.UserAction)
+
+    override suspend fun applyImportedMediaItemMetadataRefresh(
+        preview: MetadataRefreshPreview,
+        selectedFields: Set<MetadataRefreshField>,
+    ): Boolean = applyMediaItemMetadataRefresh(preview, selectedFields, MediaWriteOrigin.ProviderImport)
+
+    private suspend fun applyMediaItemMetadataRefresh(
+        preview: MetadataRefreshPreview,
+        selectedFields: Set<MetadataRefreshField>,
+        origin: MediaWriteOrigin,
     ): Boolean {
         val currentItem = mediaDao.getMediaItem(preview.mediaItemId) ?: return false
         val localOverrides = currentItem.metadataOverrideFields()
@@ -1395,6 +1412,19 @@ class OfflineMediaRepository(
             metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
         )
 
+        if (
+            origin == MediaWriteOrigin.ProviderImport &&
+            mediaType == MediaType.Book &&
+            MetadataRefreshField.ProgressTotal in selectedFields &&
+            selectedTotal != null && selectedTotal > 0
+        ) {
+            // StoryGraph has no page-count column. A completed import therefore starts at 0/unknown.
+            // Once the exact edition supplies its total, treat those pages as the imported baseline,
+            // not as new reading activity. Run this even when an earlier enrichment already stored the
+            // total: the DAO guard repairs that earlier partial state while leaving real progress alone.
+            mediaDao.reconcileCompletedImportedBookProgress(preview.mediaItemId, selectedTotal)
+        }
+
         if (MetadataRefreshField.Credits in selectedFields) {
             mediaDao.deleteMediaCreditsForItem(preview.mediaItemId)
             refreshed.credits
@@ -1455,7 +1485,7 @@ class OfflineMediaRepository(
             )
         }
 
-        onMalRelevantChange(preview.mediaItemId)
+        origin.notifyOutboundMalSync(preview.mediaItemId, onMalRelevantChange)
         return true
     }
 
@@ -1908,7 +1938,7 @@ private fun MediaItemEntity.importDuplicateKey(): String {
     }
 }
 
-private fun ImdbCsvItem.importDuplicateKey(): String {
+internal fun ImdbCsvItem.importDuplicateKey(): String {
     return if (!imdbId.isNullOrBlank()) {
         "imdb:${imdbId.trim().lowercase()}"
     } else {
@@ -1924,7 +1954,7 @@ private fun MediaItemEntity.storyGraphDuplicateKey(): String {
     }
 }
 
-private fun StoryGraphCsvItem.storyGraphDuplicateKey(): String {
+internal fun StoryGraphCsvItem.storyGraphDuplicateKey(): String {
     return if (!isbnOrUid.isNullOrBlank()) {
         "storygraph:${isbnOrUid.trim().lowercase()}"
     } else {
@@ -1941,9 +1971,9 @@ private fun MediaItemEntity.myAnimeListDuplicateKey(): String {
     }
 }
 
-private fun MyAnimeListXmlItem.myAnimeListDuplicateKey(): String {
-    return if (!malId.isNullOrBlank()) {
-        "mal:${malId.trim().lowercase()}"
+internal fun MyAnimeListImportItem.myAnimeListDuplicateKey(): String {
+    return if (malId != null) {
+        "mal:$malId"
     } else {
         "anime:${title.normalizedImportTitle()}:${episodeTotal ?: ""}"
     }

@@ -437,6 +437,56 @@ interface MediaDao {
     @Query("UPDATE tracking_sessions SET baselineProgress = :baselineProgress WHERE id = :sessionId")
     suspend fun updateSessionBaseline(sessionId: Long, baselineProgress: Int)
 
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET progressCurrent = :pageTotal,
+            baselineProgress = :pageTotal
+        WHERE mediaItemId = :mediaItemId
+          AND status = 'Completed'
+          AND progressCurrent = 0
+          AND baselineProgress = 0
+          AND NOT EXISTS (
+              SELECT 1 FROM progress_updates
+              WHERE progress_updates.sessionId = tracking_sessions.id
+          )
+        """,
+    )
+    suspend fun reconcileCompletedImportedBookProgress(mediaItemId: Long, pageTotal: Int): Int
+
+    @Query(
+        """
+        UPDATE tracking_sessions
+        SET progressCurrent = (
+                SELECT m.progressTotal FROM media_items m
+                WHERE m.id = tracking_sessions.mediaItemId
+            ),
+            baselineProgress = (
+                SELECT m.progressTotal FROM media_items m
+                WHERE m.id = tracking_sessions.mediaItemId
+            )
+        WHERE status = 'Completed'
+          AND progressCurrent = 0
+          AND baselineProgress = 0
+          AND NOT EXISTS (
+              SELECT 1 FROM progress_updates p
+              WHERE p.sessionId = tracking_sessions.id
+          )
+          AND EXISTS (
+              SELECT 1
+              FROM import_batch_items i
+              JOIN import_batches b ON b.id = i.batchId
+              JOIN media_items m ON m.id = i.mediaItemId
+              WHERE i.batchId = :batchId
+                AND i.mediaItemId = tracking_sessions.mediaItemId
+                AND b.source = 'StoryGraphCsv'
+                AND m.type = 'Book'
+                AND m.progressTotal > 0
+          )
+        """,
+    )
+    suspend fun reconcileCompletedImportedBookProgressForBatch(batchId: Long): Int
+
     @Query("DELETE FROM tracking_sessions WHERE id = :sessionId")
     suspend fun deleteTrackingSession(sessionId: Long)
 

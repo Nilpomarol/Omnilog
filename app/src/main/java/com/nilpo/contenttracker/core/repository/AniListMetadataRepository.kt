@@ -10,7 +10,10 @@ import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -18,6 +21,9 @@ import java.net.URL
 class AniListMetadataRepository(
     private val malClientId: String = "",
 ) : MetadataRepository {
+    private val jikanRequestMutex = Mutex()
+    private var lastJikanRequestAtEpochMillis: Long = 0L
+
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         val query = request.query.trim()
         if (MediaType.Anime !in request.mediaTypes || query.isBlank()) return emptyList()
@@ -65,7 +71,7 @@ class AniListMetadataRepository(
             }
             val officialMalRating = officialMalDetails?.toOfficialMalRating()
             val jikanDetails = if (officialMalRating == null) malId?.let { id ->
-                getJson("https://api.jikan.moe/v4/anime/$id")
+                getJikanJson("https://api.jikan.moe/v4/anime/$id")
                     .optJSONObject("data")
             } else {
                 null
@@ -93,21 +99,36 @@ class AniListMetadataRepository(
     }
 
     private suspend fun getJikanSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
-        // Failures propagate: the caller reports them and offers a retry, rather than silently
-        // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
             val malId = suggestion.externalId.toIntOrNull() ?: return@withContext suggestion
             val officialMalDetails = getOfficialMalAnimeDetails(malId)
-            val baseWithOfficialMal = suggestion.withOfficialMalMetrics(officialMalDetails)
-            (
-                getJson("https://api.jikan.moe/v4/anime/$malId")
-                    .optJSONObject("data")
-                    ?.toJikanMetadataSuggestion(baseWithOfficialMal)
-                    ?: baseWithOfficialMal
-                )
-                .withOfficialMalMetrics(officialMalDetails)
+            val baseWithOfficialMal = officialMalDetails
+                ?.toOfficialMalMetadataSuggestion(suggestion)
+                ?.withOfficialMalMetrics(officialMalDetails)
+                ?: suggestion
+            getAniListSuggestionByMalId(malId)
+                ?.toMalBackedSuggestion(baseWithOfficialMal, malId)
+                ?.withOfficialMalMetrics(officialMalDetails)
+                ?: if (officialMalDetails != null) {
+                    baseWithOfficialMal
+                } else {
+                    getJikanJson("https://api.jikan.moe/v4/anime/$malId")
+                        .optJSONObject("data")
+                        ?.toJikanMetadataSuggestion(baseWithOfficialMal)
+                        ?: baseWithOfficialMal
+                }
         }
     }
+
+    private fun getAniListSuggestionByMalId(malId: Int): MetadataSuggestion? = runCatching {
+        postGraphQL(
+            MAL_DETAILS_QUERY,
+            JSONObject().apply { put("malId", malId) },
+        )
+            .optJSONObject("data")
+            ?.optJSONObject("Media")
+            ?.toMetadataSuggestion()
+    }.getOrNull()
 
     private fun getOfficialMalAnimeDetails(malId: Int): JSONObject? {
         val clientId = malClientId.trim().takeIf { it.isNotBlank() } ?: return null
@@ -125,14 +146,35 @@ class AniListMetadataRepository(
         }.getOrNull()
     }
 
+    private suspend fun getJikanJson(url: String): JSONObject = jikanRequestMutex.withLock {
+        val elapsed = System.currentTimeMillis() - lastJikanRequestAtEpochMillis
+        if (elapsed < JIKAN_MIN_REQUEST_INTERVAL_MILLIS) {
+            delay(JIKAN_MIN_REQUEST_INTERVAL_MILLIS - elapsed)
+        }
+        try {
+            try {
+                getJson(url)
+            } catch (error: MetadataProviderHttpException) {
+                if (error.statusCode != 429) throw error
+                delay(error.retryAfterMillis?.coerceAtLeast(DefaultJikanRetryAfterMillis)
+                    ?: DefaultJikanRetryAfterMillis)
+                getJson(url)
+            }
+        } finally {
+            lastJikanRequestAtEpochMillis = System.currentTimeMillis()
+        }
+    }
+
     private fun JSONObject.toMetadataSuggestion(): MetadataSuggestion? {
         val id = optLong("id", 0L).takeIf { it > 0L } ?: return null
         val malId = optInt("idMal", 0).takeIf { it > 0 }
         val titleObj = optJSONObject("title") ?: return null
         val titleEnglish = titleObj.optString("english").takeIf { it.isNotBlank() }
         val titleRomaji = titleObj.optString("romaji").takeIf { it.isNotBlank() } ?: return null
+        val titleNative = titleObj.optString("native").takeIf { it.isNotBlank() }
         val title = titleEnglish ?: titleRomaji
-        val originalTitle = if (titleEnglish != null && titleRomaji != titleEnglish) titleRomaji else null
+        val originalTitle = titleNative?.takeIf { it != title }
+            ?: titleRomaji.takeIf { titleEnglish != null && it != titleEnglish }
 
         val coverUrl = optJSONObject("coverImage")?.optString("large")?.takeIf { it.isNotBlank() }
         val synopsis = optString("description")
@@ -236,7 +278,7 @@ class AniListMetadataRepository(
                 media(search: ${'$'}search, type: ANIME, sort: SEARCH_MATCH) {
                   id
                   idMal
-                  title { english romaji }
+                  title { english romaji native }
                   coverImage { large }
                   description(asHtml: false)
                   episodes
@@ -264,7 +306,7 @@ class AniListMetadataRepository(
               Media(id: ${'$'}id, type: ANIME) {
                 id
                 idMal
-                title { english romaji }
+                title { english romaji native }
                 coverImage { large }
                 description(asHtml: false)
                 episodes
@@ -286,7 +328,41 @@ class AniListMetadataRepository(
             }
         """.trimIndent()
 
-        private const val MAL_DETAIL_FIELDS = "mean,num_scoring_users,rank,popularity,num_list_users"
+        private val MAL_DETAILS_QUERY = """
+            query (${'$'}malId: Int) {
+              Media(idMal: ${'$'}malId, type: ANIME) {
+                id
+                idMal
+                title { english romaji native }
+                coverImage { large }
+                description(asHtml: false)
+                episodes
+                averageScore
+                popularity
+                rankings { rank type allTime context }
+                stats { scoreDistribution { score amount } }
+                startDate { year }
+                genres
+                studios(isMain: true) { nodes { name } }
+                characters(perPage: 12, sort: ROLE) {
+                  edges {
+                    node { name { full } }
+                    voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } }
+                  }
+                }
+                siteUrl
+              }
+            }
+        """.trimIndent()
+
+        private const val MAL_DETAIL_FIELDS =
+            "title,main_picture,alternative_titles,start_date,synopsis,mean,rank,popularity," +
+                "num_list_users,num_scoring_users,genres,num_episodes,studios"
+        // Jikan permits short bursts, but its sustained public quota is the limiting constraint for
+        // a full-library import. Staying below one request per second prevents the tail of a large
+        // batch from entering a rate-limit window.
+        private const val JIKAN_MIN_REQUEST_INTERVAL_MILLIS = 1_100L
+        private const val DefaultJikanRetryAfterMillis = 60_000L
     }
 }
 
@@ -298,6 +374,78 @@ private fun String?.withMalId(malId: Int?): String? {
             .toString()
     }.getOrDefault(this)
 }
+
+internal fun JSONObject.toOfficialMalMetadataSuggestion(base: MetadataSuggestion): MetadataSuggestion {
+    val malId = optInt("id", 0).takeIf { it > 0 } ?: base.externalId.toIntOrNull()
+    val alternativeTitles = optJSONObject("alternative_titles")
+    val englishTitle = alternativeTitles
+        ?.optString("en")
+        ?.takeIf { it.isNotBlank() }
+    val japaneseTitle = alternativeTitles
+        ?.optString("ja")
+        ?.takeIf { it.isNotBlank() }
+    val mainPicture = optJSONObject("main_picture")
+    val studios = optJSONArray("studios").toNamedList()
+    val genres = optJSONArray("genres").toNamedList()
+    val releaseYear = optString("start_date")
+        .take(4)
+        .toIntOrNull()
+        ?.takeIf { it > 0 }
+    val canonicalMalUrl = malId?.let { "https://myanimelist.net/anime/$it" }
+
+    return base.copy(
+        source = MetadataSource.Jikan,
+        externalId = malId?.toString() ?: base.externalId,
+        malId = malId,
+        title = englishTitle
+            ?: optString("title").takeIf { it.isNotBlank() }
+            ?: base.title,
+        originalTitle = japaneseTitle ?: base.originalTitle,
+        releaseYear = releaseYear ?: base.releaseYear,
+        coverUrl = mainPicture
+            ?.optString("large")
+            ?.takeIf { it.isNotBlank() }
+            ?: mainPicture?.optString("medium")?.takeIf { it.isNotBlank() }
+            ?: base.coverUrl,
+        synopsis = optString("synopsis").takeIf { it.isNotBlank() } ?: base.synopsis,
+        progressTotal = optInt("num_episodes", 0).takeIf { it > 0 } ?: base.progressTotal,
+        genres = genres.ifEmpty { base.genres },
+        creators = studios.ifEmpty { base.creators },
+        credits = studios.mapIndexed { index, studio ->
+            MediaCredit(
+                personName = studio,
+                roleType = MediaCreditRole.Studio,
+                sortOrder = index,
+                metadataSource = MetadataSource.Jikan,
+            )
+        }.ifEmpty { base.credits },
+        sourceUrl = canonicalMalUrl ?: base.sourceUrl,
+        popularityScore = optInt("num_list_users", 0)
+            .takeIf { it > 0 }
+            ?.toDouble()
+            ?: base.popularityScore,
+        rankingPosition = optInt("rank", 0).takeIf { it > 0 } ?: base.rankingPosition,
+        rankingLabel = optInt("rank", 0).takeIf { it > 0 }?.let { "MAL rank" }
+            ?: base.rankingLabel,
+        popularityJson = base.popularityJson.withMalId(malId),
+    )
+}
+
+private fun MetadataSuggestion.toMalBackedSuggestion(
+    officialBase: MetadataSuggestion,
+    malId: Int,
+): MetadataSuggestion = copy(
+    source = MetadataSource.Jikan,
+    externalId = malId.toString(),
+    malId = malId,
+    originalTitle = originalTitle ?: officialBase.originalTitle,
+    sourceUrl = "https://myanimelist.net/anime/$malId",
+    externalRating = officialBase.externalRating ?: externalRating,
+    externalRatings = (officialBase.externalRatings + externalRatings).distinctBy { it.source },
+    rankingPosition = officialBase.rankingPosition ?: rankingPosition,
+    rankingLabel = officialBase.rankingLabel ?: rankingLabel,
+    popularityJson = popularityJson.withMalId(malId),
+)
 
 private fun MetadataSuggestion.withOfficialMalMetrics(malDetails: JSONObject?): MetadataSuggestion {
     val malRating = malDetails?.toOfficialMalRating() ?: return this
@@ -370,7 +518,8 @@ private fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): Meta
         title = optString("title_english").takeIf { it.isNotBlank() }
             ?: optString("title").takeIf { it.isNotBlank() }
             ?: base.title,
-        originalTitle = optString("title").takeIf { it.isNotBlank() && it != base.title },
+        originalTitle = optString("title_japanese").takeIf { it.isNotBlank() }
+            ?: optString("title").takeIf { it.isNotBlank() && it != base.title },
         releaseYear = optJSONObject("aired")
             ?.optJSONObject("prop")
             ?.optJSONObject("from")
@@ -409,12 +558,33 @@ private fun org.json.JSONArray?.toNamedList(): List<String> {
         .filter { it.isNotBlank() }
 }
 
-private fun getJson(url: String): JSONObject {
+internal fun getJson(url: String): JSONObject {
     val connection = URL(url).openConnection() as HttpURLConnection
-    connection.connectTimeout = 10_000
-    connection.readTimeout = 10_000
-    connection.requestMethod = "GET"
-    return JSONObject(connection.inputStream.bufferedReader().readText())
+    return try {
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 10_000
+        connection.requestMethod = "GET"
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("User-Agent", "Omnilog/1.0 (Android)")
+        val statusCode = connection.responseCode
+        if (statusCode !in 200..299) {
+            val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }
+            val retryAfterMillis = connection.getHeaderField("Retry-After")
+                ?.trim()
+                ?.toLongOrNull()
+                ?.coerceAtLeast(1L)
+                ?.times(1_000L)
+            throw MetadataProviderHttpException(
+                statusCode = statusCode,
+                requestUrl = url,
+                retryAfterMillis = retryAfterMillis,
+                responseDetail = detail,
+            )
+        }
+        JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+    } finally {
+        connection.disconnect()
+    }
 }
 
 private fun org.json.JSONArray?.firstRank(): Int? {

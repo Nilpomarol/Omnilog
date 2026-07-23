@@ -18,6 +18,9 @@ import com.nilpo.contenttracker.core.database.ContentTrackerDatabase
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_19_20
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_21_22
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_22_23
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_23_24
+import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
+import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
 import com.nilpo.contenttracker.core.mal.MalSyncManager
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
 import com.nilpo.contenttracker.core.repository.BookRecommendationRepository
@@ -56,6 +59,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
         AutoBackupScheduler.ensureScheduled(this)
         CoverSyncScheduler.enqueue(this)
         malSyncManager.resumePendingSync()
+        importEnrichmentManager.resumePending()
     }
 
     override fun newImageLoader(context: Context): ImageLoader {
@@ -91,6 +95,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
                 MIGRATION_20_21,
                 MIGRATION_21_22,
                 MIGRATION_22_23,
+                MIGRATION_23_24,
             )
             .build()
     }
@@ -121,6 +126,18 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             openLibrary = OpenLibraryMetadataRepository(),
             googleBooks = GoogleBooksMetadataRepository(BuildConfig.GOOGLE_BOOKS_API_KEY),
             rawg = RawgMetadataRepository(BuildConfig.RAWG_API_KEY),
+        )
+    }
+
+    val importEnrichmentManager: ImportEnrichmentManager by lazy {
+        ImportEnrichmentManager(
+            context = applicationContext,
+            importDao = database.importDao(),
+            mediaDao = database.mediaDao(),
+            mediaRepository = mediaRepository,
+            metadataRepository = metadataRepository,
+            coverRepository = coverRepository,
+            animeTitlePreference = { AnimeTitlePreferences.read(applicationContext) },
         )
     }
 

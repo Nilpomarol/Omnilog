@@ -4,6 +4,7 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
+import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
@@ -11,34 +12,11 @@ import java.time.LocalDate
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.parsers.ParserConfigurationException
 
-data class MyAnimeListXmlPreview(
-    val totalRows: Int,
-    val importableRows: Int,
-    val skippedDuplicateRows: Int,
-    val unsupportedRows: Int,
-)
+typealias MyAnimeListXmlPreview = ProviderImportPreview
 
-data class MyAnimeListXmlImportResult(
-    val importedRows: Int,
-    val skippedDuplicateRows: Int,
-    val unsupportedRows: Int,
-)
+typealias MyAnimeListXmlImportResult = ProviderImportResult
 
-internal data class MyAnimeListXmlItem(
-    val malId: String?,
-    val title: String,
-    val seriesType: String?,
-    val episodeTotal: Int?,
-    val watchedEpisodes: Int,
-    val startedAt: LocalDate?,
-    val finishedAt: LocalDate?,
-    val rating: Int?,
-    val status: TrackingStatus,
-    val notes: String?,
-    val tags: List<String>,
-)
-
-internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListXmlItem> {
+internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> {
     val factory = DocumentBuilderFactory.newInstance().apply {
         isExpandEntityReferences = false
         setFeatureIfSupported("http://apache.org/xml/features/disallow-doctype-decl", true)
@@ -56,8 +34,8 @@ internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListXmlItem> {
     return List(animeNodes.length) { index -> animeNodes.item(index) as Element }
         .mapNotNull { element ->
             val title = element.text("series_title").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            MyAnimeListXmlItem(
-                malId = element.text("series_animedb_id").takeIf { it.isNotBlank() && it != "0" },
+            MyAnimeListImportItem(
+                malId = element.text("series_animedb_id").toIntOrNull()?.takeIf { it > 0 },
                 title = title,
                 seriesType = element.text("series_type").takeIf { it.isNotBlank() },
                 episodeTotal = element.text("series_episodes").toIntOrNull()?.takeIf { it > 0 },
@@ -80,7 +58,7 @@ private fun DocumentBuilderFactory.setFeatureIfSupported(name: String, value: Bo
     }
 }
 
-internal fun MyAnimeListXmlItem.toAddTrackedMediaRequest(): AddTrackedMediaRequest {
+internal fun MyAnimeListImportItem.toAddTrackedMediaRequest(): AddTrackedMediaRequest {
     val completedProgress = if (status == TrackingStatus.Completed) {
         episodeTotal ?: watchedEpisodes
     } else {
@@ -102,8 +80,8 @@ internal fun MyAnimeListXmlItem.toAddTrackedMediaRequest(): AddTrackedMediaReque
         genres = tags,
         sourceUrl = malId?.let { "https://myanimelist.net/anime/$it" },
         metadataSource = malId?.let { MetadataSource.Jikan },
-        metadataExternalId = malId,
-        malId = malId?.toIntOrNull(),
+        metadataExternalId = malId?.toString(),
+        malId = malId,
     )
 }
 

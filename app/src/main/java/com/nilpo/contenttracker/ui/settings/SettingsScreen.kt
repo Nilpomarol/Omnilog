@@ -43,6 +43,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
+import com.nilpo.contenttracker.core.imports.ImportBatchState
+import com.nilpo.contenttracker.core.imports.ImportEnrichmentState
+import com.nilpo.contenttracker.core.imports.AnimeTitlePreference
 import com.nilpo.contenttracker.core.mal.MalSyncState
 import com.nilpo.contenttracker.core.mal.MalSyncChange
 import com.nilpo.contenttracker.ui.common.ActiveSectionChips
@@ -89,6 +92,7 @@ fun SettingsScreen(
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onImportMyAnimeListAccount: () -> Unit,
     onImportMyAnimeListXml: () -> Unit,
     onImportImdbCsv: () -> Unit,
     onImportStoryGraphCsv: () -> Unit,
@@ -99,6 +103,12 @@ fun SettingsScreen(
     onAutoBackupFrequencyChange: (AutoBackupFrequency) -> Unit,
     onAutoBackupDisabled: () -> Unit,
     malSyncState: MalSyncState,
+    importEnrichmentState: ImportEnrichmentState,
+    animeTitlePreference: AnimeTitlePreference,
+    onAnimeTitlePreferenceChange: (AnimeTitlePreference) -> Unit,
+    onBulkRefreshAnimeTitles: () -> Unit,
+    onToggleImportEnrichment: () -> Unit,
+    onRetryImportEnrichment: (Long) -> Unit,
     onConnectMyAnimeList: () -> Unit,
     onSyncMyAnimeList: () -> Unit,
     onRetryMyAnimeList: () -> Unit,
@@ -258,9 +268,110 @@ fun SettingsScreen(
                 SettingsSection(title = "Importa d'altres serveis") {
                     SettingsPanel {
                         SettingsActionRow(
-                            title = "MyAnimeList",
-                            description = "Afegeix el teu historial d'anime des d'un fitxer XML.",
+                            title = "Idioma dels títols d'anime",
+                            description = when (animeTitlePreference) {
+                                AnimeTitlePreference.EnglishWithJapaneseOriginal ->
+                                    "Títol principal en anglès i títol original en japonès."
+                                AnimeTitlePreference.KeepMalTitle ->
+                                    "Conserva el títol principal que retorna MyAnimeList."
+                            },
+                            onClick = {
+                                onAnimeTitlePreferenceChange(
+                                    if (animeTitlePreference == AnimeTitlePreference.EnglishWithJapaneseOriginal) {
+                                        AnimeTitlePreference.KeepMalTitle
+                                    } else {
+                                        AnimeTitlePreference.EnglishWithJapaneseOriginal
+                                    },
+                                )
+                            },
+                            iconResId = MediaSection.Anime.navIconResId,
+                            accent = OmnilogTheme.accents.Anime,
+                        )
+                        SettingsDivider()
+                        SettingsActionRow(
+                            title = "Aplica l'idioma a la biblioteca",
+                            description = "Actualitza en bloc els animes vinculats a MAL. Els títols editats manualment continuen protegits.",
+                            onClick = onBulkRefreshAnimeTitles,
+                            iconResId = MediaSection.Anime.navIconResId,
+                            accent = OmnilogTheme.accents.Anime,
+                        )
+                        SettingsDivider()
+                        val enrichment = importEnrichmentState.activeBatch
+                            ?: importEnrichmentState.recentBatches.firstOrNull {
+                                it.issueCount > 0 || it.needsReviewCount > 0
+                            }
+                        if (enrichment != null) {
+                            val isActive = enrichment.state == ImportBatchState.Enriching ||
+                                enrichment.state == ImportBatchState.Paused
+                            SettingsActionRow(
+                                title = when (enrichment.state) {
+                                    ImportBatchState.Enriching -> "Completant metadades…"
+                                    ImportBatchState.Paused -> "Metadades en pausa"
+                                    ImportBatchState.CompletedWithIssues -> "Metadades completades amb avisos"
+                                    else -> "Metadades importades"
+                                },
+                                description = buildString {
+                                    append("${enrichment.processedCount}/${enrichment.totalCount} processats")
+                                    append(" · ${enrichment.appliedCount} completats")
+                                    if (enrichment.needsReviewCount > 0) {
+                                        append(" · ${enrichment.needsReviewCount} per revisar")
+                                    }
+                                    if (enrichment.issueCount > 0) {
+                                        append(" · ${enrichment.issueCount} amb incidències")
+                                    }
+                                    when (enrichment.state) {
+                                        ImportBatchState.Enriching -> append(". Toca per posar en pausa.")
+                                        ImportBatchState.Paused -> append(". Toca per continuar.")
+                                        ImportBatchState.CompletedWithIssues -> if (enrichment.issueCount > 0) {
+                                            append(". Toca per reintentar les incidències.")
+                                        }
+                                        else -> Unit
+                                    }
+                                },
+                                onClick = if (isActive) {
+                                    onToggleImportEnrichment
+                                } else {
+                                    { onRetryImportEnrichment(enrichment.batchId) }
+                                },
+                                enabled = isActive || enrichment.issueCount > 0,
+                                iconResId = MediaSection.Anime.navIconResId,
+                                accent = OmnilogTheme.accents.Anime,
+                            )
+                            SettingsDivider()
+                        }
+                        SettingsActionRow(
+                            title = when {
+                                malSyncState.isImporting -> "Llegint MyAnimeList…"
+                                malSyncState.isConnected -> "Importa des del compte de MyAnimeList"
+                                else -> "Connecta MyAnimeList per importar"
+                            },
+                            description = when {
+                                malSyncState.isImporting ->
+                                    "${malSyncState.importFetchedCount} animes llegits. Pots continuar usant Omnilog."
+                                malSyncState.isConnected ->
+                                    "Previsualitza i afegeix la llista del compte ${malSyncState.accountName.orEmpty()}."
+                                malSyncState.isAvailable ->
+                                    "Connecta el compte per importar la llista sense descarregar cap fitxer."
+                                else -> "Cal configurar MAL_CLIENT_ID; l'importador XML continua disponible."
+                            },
+                            onClick = if (malSyncState.isConnected) {
+                                onImportMyAnimeListAccount
+                            } else {
+                                onConnectMyAnimeList
+                            },
+                            enabled = malSyncState.isAvailable &&
+                                !malSyncState.isAuthorizing &&
+                                !malSyncState.isImporting &&
+                                !malSyncState.isSyncing,
+                            iconResId = MediaSection.Anime.navIconResId,
+                            accent = OmnilogTheme.accents.Anime,
+                        )
+                        SettingsDivider()
+                        SettingsActionRow(
+                            title = "Fitxer XML de MyAnimeList",
+                            description = "Alternativa per a exportacions desades o comptes desconnectats.",
                             onClick = onImportMyAnimeListXml,
+                            enabled = !malSyncState.isImporting,
                             iconResId = MediaSection.Anime.navIconResId,
                             accent = OmnilogTheme.accents.Anime,
                         )

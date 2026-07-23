@@ -22,6 +22,9 @@ class TmdbMetadataRepository(
     private val omdbApiKey: String = "",
 ) : MetadataRepository {
     private val tmdbApi = TmdbApiClient(apiKey)
+    internal val isConfigured: Boolean
+        get() = apiKey.isNotBlank()
+
     override suspend fun searchSuggestions(
         request: MetadataSearchRequest,
     ): List<MetadataSuggestion> {
@@ -73,6 +76,22 @@ class TmdbMetadataRepository(
                 else -> return@withContext suggestion
             }
             tmdbApi.getJson(url).toDetailedSuggestion(suggestion)
+        }
+    }
+
+    internal suspend fun findByImdbId(imdbId: String, mediaType: MediaType): MetadataSuggestion? {
+        if (!isConfigured || mediaType !in setOf(MediaType.Movie, MediaType.TvShow)) return null
+        return withContext(Dispatchers.IO) {
+            val encodedId = URLEncoder.encode(imdbId, "UTF-8")
+            val response = tmdbApi.getJson(
+                "https://api.themoviedb.org/3/find/$encodedId" +
+                    "?external_source=imdb_id&language=en-US",
+            )
+            val arrayName = if (mediaType == MediaType.Movie) "movie_results" else "tv_results"
+            val results = response.optJSONArray(arrayName) ?: return@withContext null
+            List(results.length()) { index -> results.getJSONObject(index).toMetadataSuggestion(mediaType) }
+                .filterNotNull()
+                .singleOrNull()
         }
     }
 

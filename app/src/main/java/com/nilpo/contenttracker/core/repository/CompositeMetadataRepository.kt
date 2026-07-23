@@ -67,6 +67,36 @@ class CompositeMetadataRepository(
         }
     }
 
+    override suspend fun resolveImportedExternalId(
+        source: MetadataSource,
+        externalId: String,
+        mediaType: MediaType,
+    ): MetadataSuggestion? {
+        return when (source) {
+            MetadataSource.Imdb -> tmdb.findByImdbId(externalId, mediaType)
+            MetadataSource.StoryGraph -> {
+                val openLibraryMatch = runCatching { openLibrary.findByIsbn(externalId) }
+                val openLibrarySuggestion = openLibraryMatch.getOrNull()
+                if (openLibrarySuggestion?.progressTotal != null) return openLibrarySuggestion
+
+                // OpenLibrary often identifies the exact edition but omits its page count. In that
+                // case Google Books is still worth consulting; a valid exact match with pages is
+                // more useful than stopping at an incomplete first response.
+                val googleMatch = runCatching { googleBooks.findByIsbn(externalId) }
+                chooseExactBookMatch(openLibrarySuggestion, googleMatch.getOrNull())
+                    ?: openLibraryMatch.exceptionOrNull()?.let { throw it }
+                    ?: googleMatch.exceptionOrNull()?.let { throw it }
+            }
+            else -> null
+        }
+    }
+
+    override fun isImportedSourceAvailable(source: MetadataSource): Boolean = when (source) {
+        MetadataSource.Imdb -> tmdb.isConfigured
+        MetadataSource.StoryGraph -> true // OpenLibrary does not require a credential.
+        else -> true
+    }
+
     private suspend fun bookSuggestions(request: MetadataSearchRequest): ProviderSearchResult = coroutineScope {
         val openLibrarySearch = async {
             searchProvider(MetadataSource.OpenLibrary) { openLibrary.searchSuggestions(request) }
@@ -96,6 +126,16 @@ class CompositeMetadataRepository(
             ProviderSearchResult(failedSources = setOf(source))
         }
     }
+}
+
+internal fun chooseExactBookMatch(
+    openLibrary: MetadataSuggestion?,
+    googleBooks: MetadataSuggestion?,
+): MetadataSuggestion? = when {
+    openLibrary?.progressTotal != null -> openLibrary
+    googleBooks?.progressTotal != null -> googleBooks
+    openLibrary != null -> openLibrary
+    else -> googleBooks
 }
 
 private data class ProviderSearchResult(

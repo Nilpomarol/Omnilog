@@ -12,6 +12,7 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -156,6 +157,10 @@ interface MediaRepository {
 
     suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult
 
+    suspend fun previewMyAnimeListAccount(items: List<MyAnimeListImportItem>): ProviderImportPreview
+
+    suspend fun importMyAnimeListAccount(items: List<MyAnimeListImportItem>): ProviderImportResult
+
     suspend fun startNewSession(request: AddTrackingSessionRequest)
 
     suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long
@@ -263,6 +268,12 @@ interface MediaRepository {
     ): MetadataRefreshPreview?
 
     suspend fun applyMediaItemMetadataRefresh(
+        preview: MetadataRefreshPreview,
+        selectedFields: Set<MetadataRefreshField>,
+    ): Boolean
+
+    /** Applies safe inbound enrichment without queueing the imported state back to MAL. */
+    suspend fun applyImportedMediaItemMetadataRefresh(
         preview: MetadataRefreshPreview,
         selectedFields: Set<MetadataRefreshField>,
     ): Boolean

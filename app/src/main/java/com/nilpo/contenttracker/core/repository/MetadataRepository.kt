@@ -12,9 +12,30 @@ interface MetadataRepository {
     }
 
     suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion
+
+    /** Resolves a stable identifier carried by an import into this app's metadata providers. */
+    suspend fun resolveImportedExternalId(
+        source: MetadataSource,
+        externalId: String,
+        mediaType: com.nilpo.contenttracker.core.model.MediaType,
+    ): MetadataSuggestion? = null
+
+    fun isImportedSourceAvailable(source: MetadataSource): Boolean = true
 }
 
 data class MetadataSearchResult(
     val suggestions: List<MetadataSuggestion>,
     val failedSources: Set<MetadataSource> = emptySet(),
+)
+
+class MetadataProviderHttpException(
+    val statusCode: Int,
+    val requestUrl: String,
+    val retryAfterMillis: Long? = null,
+    responseDetail: String? = null,
+) : Exception(
+    buildString {
+        append("HTTP $statusCode")
+        responseDetail?.takeIf { it.isNotBlank() }?.let { append(": ${it.take(180)}") }
+    },
 )

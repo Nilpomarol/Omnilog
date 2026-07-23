@@ -21,13 +21,16 @@ import java.net.URLEncoder
 class GoogleBooksMetadataRepository(
     private val apiKey: String,
 ) : MetadataRepository {
+    internal val isConfigured: Boolean
+        get() = apiKey.isNotBlank()
+
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         val query = request.query.trim()
         if (apiKey.isBlank() || MediaType.Book !in request.mediaTypes || query.isBlank()) return emptyList()
 
         return withContext(Dispatchers.IO) {
             val encodedQuery = URLEncoder.encode(query.toGoogleBooksQuery(), "UTF-8")
-            val fields = "items(id,volumeInfo(title,authors,description,pageCount," +
+            val fields = "items(id,volumeInfo(title,subtitle,authors,description,pageCount," +
                 "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink," +
                 "industryIdentifiers,publisher,printType))"
             val response = getJson(
@@ -47,7 +50,7 @@ class GoogleBooksMetadataRepository(
         // Failures propagate: the caller reports them and offers a retry, rather than silently
         // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
-            val fields = "id,volumeInfo(title,authors,description,pageCount," +
+            val fields = "id,volumeInfo(title,subtitle,authors,description,pageCount," +
                 "averageRating,ratingsCount,publishedDate,categories,language,imageLinks/thumbnail,infoLink," +
                 "industryIdentifiers,publisher,printType)"
             val detailed = getJson(
@@ -60,6 +63,16 @@ class GoogleBooksMetadataRepository(
                 externalRatings = (suggestion.externalRatings + detailed.externalRatings)
                     .distinctBy { it.source },
             )
+        }
+    }
+
+    internal suspend fun findByIsbn(isbn: String): MetadataSuggestion? {
+        if (!isConfigured) return null
+        val normalized = isbn.normalizedBookIdentifier()
+        return searchSuggestions(
+            MetadataSearchRequest(query = normalized, mediaTypes = setOf(MediaType.Book)),
+        ).firstOrNull { suggestion ->
+            suggestion.bookEdition?.isbn?.normalizedBookIdentifier() == normalized
         }
     }
 
@@ -97,17 +110,16 @@ class GoogleBooksMetadataRepository(
         } else {
             null
         }
-        val isbn = info.optJSONArray("industryIdentifiers")
-            ?.let { identifiers ->
-                List(identifiers.length()) { identifiers.getJSONObject(it) }
-                    .firstOrNull { identifier -> identifier.optString("type") == "ISBN_13" }
-                    ?.optString("identifier")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: List(identifiers.length()) { identifiers.getJSONObject(it) }
-                        .firstOrNull { identifier -> identifier.optString("type") == "ISBN_10" }
-                        ?.optString("identifier")
-                        ?.takeIf { it.isNotBlank() }
+        val identifiers = info.optJSONArray("industryIdentifiers")
+            ?.let { values ->
+                List(values.length()) { values.getJSONObject(it).optString("identifier") }
+                    .filter { it.isNotBlank() }
+                    .distinct()
             }
+            .orEmpty()
+        val isbn = identifiers.firstOrNull { it.filter(Char::isDigit).length == 13 }
+            ?: identifiers.firstOrNull { it.filter(Char::isDigit).length == 10 }
+        val publisher = info.optString("publisher").takeIf { it.isNotBlank() }
         val edition = BookEditionMetadata(
             externalId = id,
             title = title,
@@ -117,7 +129,7 @@ class GoogleBooksMetadataRepository(
             coverUrl = coverUrl,
             isbn = isbn,
             format = info.optString("printType").takeIf { it.isNotBlank() },
-            publisher = info.optString("publisher").takeIf { it.isNotBlank() },
+            publisher = publisher,
             sourceUrl = info.optString("infoLink").takeIf { it.isNotBlank() },
         )
 
@@ -142,6 +154,9 @@ class GoogleBooksMetadataRepository(
             },
             genres = categories.standardBookGenres().ifEmpty { categories.take(3) },
             sourceUrl = info.optString("infoLink").takeIf { it.isNotBlank() },
+            subtitle = info.optString("subtitle").takeIf { it.isNotBlank() },
+            publishers = listOfNotNull(publisher),
+            identifiers = identifiers,
             externalRating = externalRating,
             externalRatings = externalRating?.let {
                 listOf(
@@ -174,3 +189,6 @@ private fun String.toGoogleBooksQuery(): String {
         this
     }
 }
+
+private fun String.normalizedBookIdentifier(): String = filter { it.isDigit() || it == 'X' || it == 'x' }
+    .uppercase()

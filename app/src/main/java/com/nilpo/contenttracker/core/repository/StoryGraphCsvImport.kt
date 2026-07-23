@@ -10,18 +10,9 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import kotlin.math.roundToInt
 
-data class StoryGraphCsvPreview(
-    val totalRows: Int,
-    val importableRows: Int,
-    val skippedDuplicateRows: Int,
-    val unsupportedRows: Int,
-)
+typealias StoryGraphCsvPreview = ProviderImportPreview
 
-data class StoryGraphCsvImportResult(
-    val importedRows: Int,
-    val skippedDuplicateRows: Int,
-    val unsupportedRows: Int,
-)
+typealias StoryGraphCsvImportResult = ProviderImportResult
 
 internal data class StoryGraphCsvItem(
     val title: String,
@@ -174,7 +165,7 @@ private fun String.lastStoryGraphDateOrNull(): LocalDate? {
 }
 
 private fun String.toOmnilogRatingOrNull(): Int? {
-    val rating = toDoubleOrNull() ?: return null
+    val rating = toDoubleOrNull()?.takeIf { it > 0.0 } ?: return null
     return (rating * 2.0).roundToInt().coerceIn(1, 10)
 }
 

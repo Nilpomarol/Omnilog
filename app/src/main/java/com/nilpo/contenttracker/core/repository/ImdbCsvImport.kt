@@ -10,18 +10,9 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
-data class ImdbCsvPreview(
-    val totalRows: Int,
-    val importableRows: Int,
-    val skippedDuplicateRows: Int,
-    val unsupportedRows: Int,
-)
+typealias ImdbCsvPreview = ProviderImportPreview
 
-data class ImdbCsvImportResult(
-    val importedRows: Int,
-    val skippedDuplicateRows: Int,
-    val unsupportedRows: Int,
-)
+typealias ImdbCsvImportResult = ProviderImportResult
 
 internal data class ImdbCsvItem(
     val type: MediaType?,

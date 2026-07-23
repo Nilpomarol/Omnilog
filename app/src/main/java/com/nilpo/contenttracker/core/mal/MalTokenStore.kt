@@ -23,12 +23,20 @@ data class MalPendingAuthorization(
     val state: String,
 )
 
+interface MalCredentialStore {
+    fun readTokens(): MalTokens?
+
+    fun saveTokens(tokens: MalTokens)
+
+    fun clear()
+}
+
 /** Stores MAL credentials encrypted by a non-exportable Android Keystore key. */
-class MalTokenStore(context: Context) {
+class MalTokenStore(context: Context) : MalCredentialStore {
     private val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
 
     @Synchronized
-    fun readTokens(): MalTokens? = decrypt(preferences.getString(TokensKey, null))
+    override fun readTokens(): MalTokens? = decrypt(preferences.getString(TokensKey, null))
         ?.let(::JSONObject)
         ?.let { json ->
             val accessToken = json.optString("access_token").takeIf { it.isNotBlank() } ?: return@let null
@@ -42,7 +50,7 @@ class MalTokenStore(context: Context) {
         }
 
     @Synchronized
-    fun saveTokens(tokens: MalTokens) {
+    override fun saveTokens(tokens: MalTokens) {
         val json = JSONObject()
             .put("access_token", tokens.accessToken)
             .put("refresh_token", tokens.refreshToken)
@@ -81,7 +89,7 @@ class MalTokenStore(context: Context) {
     }
 
     @Synchronized
-    fun clear() {
+    override fun clear() {
         preferences.edit()
             .remove(TokensKey)
             .remove(PendingAuthorizationKey)

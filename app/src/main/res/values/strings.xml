@@ -662,6 +662,10 @@
     <string name="mal_import_read_error">No s\'ha pogut llegir l\'XML de MyAnimeList.</string>
     <string name="mal_import_invalid">Aquest fitxer no sembla una exportació XML de MyAnimeList.</string>
     <string name="mal_import_empty">No hi ha animes nous importables en aquest XML.</string>
+    <string name="mal_account_import_title">Importa el compte de MyAnimeList</string>
+    <string name="mal_account_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades del compte.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d</string>
+    <string name="mal_account_import_error">No s\'ha pogut llegir la llista del compte de MyAnimeList. Torna-ho a provar per continuar des de l\'última pàgina completada.</string>
+    <string name="mal_account_import_empty">No hi ha animes nous per importar des d\'aquest compte.</string>
     <string name="media_type_anime">Anime</string>
     <string name="media_type_book">Llibre</string>
     <string name="media_type_movie">Pel·lícula</string>

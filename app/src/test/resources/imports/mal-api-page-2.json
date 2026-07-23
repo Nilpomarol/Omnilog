@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "node": {
+        "id": 9253,
+        "title": "Steins;Gate",
+        "media_type": "ova",
+        "num_episodes": 24
+      },
+      "list_status": {
+        "status": "on_hold",
+        "score": 6,
+        "num_episodes_watched": 7,
+        "start_date": "not-a-date",
+        "finish_date": "",
+        "comments": "",
+        "tags": []
+      }
+    }
+  ],
+  "paging": {}
+}
