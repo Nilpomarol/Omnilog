@@ -308,7 +308,6 @@
     <string name="progress_unit_minute_compact">min</string>
     <string name="progress_unit_hour_compact">h</string>
     <string name="rating_value">%1$d/10</string>
-    <string name="rating_empty">Sense nota</string>
     <string name="rating_clear">Esborra la nota</string>
     <string name="owned_label">En propietat</string>
     <string name="owned_action_add">En propietat?</string>
@@ -334,21 +333,46 @@
     <string name="back">Enrere</string>
     <string name="detail_current_session">Sessió actual</string>
     <string name="edit_current_session">Edita seguiment</string>
-    <string name="session_planned_prompt">Preparat per començar quan vulguis.</string>
     <string name="session_started_at">Començat: %1$s</string>
     <string name="session_finished_at">Acabat: %1$s</string>
-    <string name="session_finished_watched_at">Vist: %1$s</string>
-    <string name="session_finished_read_at">Llegit: %1$s</string>
-    <string name="session_finished_played_at">Jugat: %1$s</string>
     <string name="session_updated_at">Actualitzat: %1$s</string>
     <string name="session_dates">Dates</string>
     <string name="session_started_label">Data d\'inici</string>
     <string name="session_finished_label">Data de final</string>
-    <string name="session_finished_unknown">Acabat (data desconeguda)</string>
+    <string name="session_date_started">Començat</string>
+    <string name="session_date_finished">Acabat</string>
+    <string name="session_no_dates">Sense dates registrades</string>
+    <string name="session_rating_label">la teva nota</string>
+    <string name="session_progress_of">%1$d de %2$d %3$s</string>
+    <string name="session_progress_of_suffix">de %1$d %2$s</string>
+    <string name="session_progress_plain">%1$d %2$s</string>
+    <plurals name="session_pages_left">
+        <item quantity="one">Queda %1$d pàgina</item>
+        <item quantity="other">Queden %1$d pàgines</item>
+    </plurals>
+    <string name="session_log_episodes">Registra episodi</string>
+    <string name="session_log_pages">Registra pàgines</string>
+    <string name="session_log_minutes">Registra minuts</string>
+    <string name="session_log_hours">Registra hores</string>
+    <string name="session_start_action">Comença</string>
+    <string name="session_resume_action">Reprèn</string>
+    <string name="session_recency_today">avui</string>
+    <string name="session_recency_yesterday">ahir</string>
+    <plurals name="session_recency_days">
+        <item quantity="one">fa %1$d dia</item>
+        <item quantity="other">fa %1$d dies</item>
+    </plurals>
+    <plurals name="session_recency_weeks">
+        <item quantity="one">fa %1$d setmana</item>
+        <item quantity="other">fa %1$d setmanes</item>
+    </plurals>
+    <plurals name="session_recency_months">
+        <item quantity="one">fa %1$d mes</item>
+        <item quantity="other">fa %1$d mesos</item>
+    </plurals>
     <string name="pick_date">Tria</string>
     <string name="clear_date">Buida la data</string>
     <string name="detail_item_details">Dades de l\'element</string>
-    <string name="detail_history">Historial</string>
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
     <string name="detail_external_scores">Puntuacions</string>
     <string name="detail_related_collection_title">Més elements de la col·lecció «%1$s»</string>

@@ -1,23 +1,11 @@
 package com.nilpo.contenttracker.ui.detail
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,11 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
@@ -41,99 +25,74 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.RatingMeterCompact
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
+/**
+ * A session that is over, deliberately demoted.
+ *
+ * This used to be drawn at exactly the weight of the live card — same 12dp panel, same tinted border,
+ * same full-size rating strip — so a title you had been through three times showed four identical
+ * boxes and nothing said which one was happening now. Here the state is a dot rather than a filled
+ * chip, the graphic is the compact variant, and the whole card is a summary you can scan down.
+ *
+ * What it keeps is the state colour, because reading a run of these top to bottom — green, red,
+ * green — is the fastest account of how a title has gone, and that only works if every card is
+ * coloured by its own outcome.
+ */
 @Composable
 fun SessionDetail(
     session: TrackingSession,
     visitNumber: Int,
     progressTotal: Int?,
     mediaType: MediaType,
-    accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onDelete: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     var showDeleteConfirmation by rememberSaveable(session.id) { mutableStateOf(false) }
-    val visualState = session.status.detailVisualState(accent)
+    val visual = sessionStateVisual(session.status)
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
         color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, visualState.color.copy(alpha = 0.30f)),
-        tonalElevation = 0.dp,
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(
-                        text = visitLabel(visitNumber),
-                        color = OmnilogTheme.colors.appInk,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                    StatusChip(
-                        label = visualState.label,
-                        icon = visualState.icon,
-                        color = visualState.color,
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ActivityAction(
-                        updates = session.progressUpdates,
-                        statusEvents = session.statusEvents,
-                        baselineProgress = session.baselineProgress,
-                        sessionStartedAt = session.startedAt,
-                        sessionFinishedAt = session.finishedAt,
-                        sessionStatus = session.status,
-                        progressTotal = progressTotal,
-                        mediaType = mediaType,
-                        accent = visualState.color,
-                        onDeleteProgressUpdate = onDeleteProgressUpdate,
-                        onUpdateProgressUpdate = onUpdateProgressUpdate,
-                        onDeleteStatusEvent = onDeleteStatusEvent,
-                        onUpdateStatusEventDate = onUpdateStatusEventDate,
-                    )
-                    trailingContent?.invoke()
-                    if (onDelete != null) {
-                        TextButton(onClick = { showDeleteConfirmation = true }) {
-                            Text(
-                                text = stringResource(R.string.delete),
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
+                SessionStateDot(
+                    visual = visual,
+                    text = "${visual.label} · ${visitLabel(visitNumber)}",
+                    modifier = Modifier.weight(1f),
+                )
+                session.rating?.let { rating ->
+                    RatingMeterCompact(rating = rating, accent = visual.color)
                 }
             }
 
-            SessionProgress(
-                session = session,
+            SessionProgressGraphic(
+                progressCurrent = session.progressCurrent,
                 progressTotal = progressTotal,
-                color = visualState.color,
+                mediaType = mediaType,
+                progressUpdates = session.progressUpdates,
+                color = visual.color,
+                compact = true,
+                faded = session.status == TrackingStatus.Dropped,
             )
 
-            SessionRating(rating = session.rating, color = visualState.color)
-
-            SessionMetaRow(session = session, mediaType = mediaType)
+            SessionDatesRow(session = session, compact = true)
 
             session.platform?.let { platform ->
                 Text(
@@ -148,10 +107,44 @@ fun SessionDetail(
                 Text(
                     text = notes,
                     color = OmnilogTheme.colors.appInk.copy(alpha = 0.70f),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+
+            // The controls sit under the summary rather than beside the heading. On the old card they
+            // shared the top row with the status and the visit number, which left the state — the one
+            // thing you scan a history for — competing with three buttons for the same line.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ActivityAction(
+                    updates = session.progressUpdates,
+                    statusEvents = session.statusEvents,
+                    baselineProgress = session.baselineProgress,
+                    sessionStartedAt = session.startedAt,
+                    sessionFinishedAt = session.finishedAt,
+                    sessionStatus = session.status,
+                    progressTotal = progressTotal,
+                    mediaType = mediaType,
+                    accent = visual.color,
+                    onDeleteProgressUpdate = onDeleteProgressUpdate,
+                    onUpdateProgressUpdate = onUpdateProgressUpdate,
+                    onDeleteStatusEvent = onDeleteStatusEvent,
+                    onUpdateStatusEventDate = onUpdateStatusEventDate,
+                )
+                trailingContent?.invoke()
+                if (onDelete != null) {
+                    TextButton(onClick = { showDeleteConfirmation = true }) {
+                        Text(
+                            text = stringResource(R.string.delete),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
             }
         }
     }
@@ -186,213 +179,3 @@ private fun visitLabel(visitNumber: Int): String =
         visitNumber <= 1 -> stringResource(R.string.session_first_time)
         else -> stringResource(R.string.session_number, visitNumber)
     }
-
-@Composable
-private fun StatusChip(label: String, icon: ImageVector, color: Color) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = color.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.32f)),
-        contentColor = color,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(13.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SessionProgress(
-    session: TrackingSession,
-    progressTotal: Int?,
-    color: Color,
-) {
-    if (session.status == TrackingStatus.Planned && session.progressCurrent == 0) return
-
-    val progressText = if (progressTotal != null && progressTotal > 0) {
-        stringResource(R.string.progress_with_total, session.progressCurrent.coerceAtMost(progressTotal), progressTotal)
-    } else {
-        stringResource(R.string.progress_value, session.progressCurrent)
-    }
-    val fraction = progressTotal
-        ?.takeIf { it > 0 }
-        ?.let { total -> session.progressCurrent.toFloat().div(total.toFloat()).coerceIn(0f, 1f) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = progressText,
-            color = OmnilogTheme.colors.appInk.copy(alpha = 0.82f),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        if (fraction != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(OmnilogTheme.colors.appLine.copy(alpha = 0.78f)),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(color),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SessionRating(rating: Int?, color: Color) {
-    if (rating == null) return
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.rating_value, rating),
-            color = color,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(end = 4.dp),
-        )
-        repeat(10) { index ->
-            Icon(
-                imageVector = Icons.Filled.Star,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = if (index < rating.coerceIn(0, 10)) {
-                    color
-                } else {
-                    OmnilogTheme.colors.appMuted.copy(alpha = 0.22f)
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun SessionMetaRow(session: TrackingSession, mediaType: MediaType) {
-    val startedAt = session.startedAt?.let { stringResource(R.string.session_started_at, it.formatDate()) }
-    val finishedAt = session.finishedAt?.let {
-        stringResource(
-            if (startedAt == null) mediaType.finishedOnlyDateLabelRes() else R.string.session_finished_at,
-            it.formatDate(),
-        )
-    }
-    val finishedWithoutDate = if (session.status == TrackingStatus.Completed && session.finishedAt == null) {
-        stringResource(R.string.session_finished_unknown)
-    } else {
-        null
-    }
-    val updatedAt = if (finishedAt == null && finishedWithoutDate == null) {
-        session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
-    } else {
-        null
-    }
-    val values = listOfNotNull(startedAt, finishedAt, finishedWithoutDate, updatedAt)
-    if (values.isEmpty()) return
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        values.take(3).forEach { value ->
-            Text(
-                text = value,
-                color = OmnilogTheme.colors.appMuted,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TrackingStatus.label(): String =
-    when (this) {
-        TrackingStatus.Planned -> stringResource(R.string.status_planned)
-        TrackingStatus.InProgress -> stringResource(R.string.status_in_progress)
-        TrackingStatus.Completed -> stringResource(R.string.status_completed)
-        TrackingStatus.Paused -> stringResource(R.string.status_paused)
-        TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
-    }
-
-private data class SessionDetailVisualState(
-    val label: String,
-    val icon: ImageVector,
-    val color: Color,
-)
-
-@Composable
-private fun TrackingStatus.detailVisualState(accent: Color): SessionDetailVisualState =
-    when (this) {
-        TrackingStatus.Planned -> SessionDetailVisualState(
-            label = stringResource(R.string.status_planned),
-            icon = Icons.Filled.Star,
-            color = OmnilogTheme.accents.Planned,
-        )
-        TrackingStatus.InProgress -> SessionDetailVisualState(
-            label = stringResource(R.string.status_in_progress),
-            icon = Icons.Filled.PlayArrow,
-            color = OmnilogTheme.accents.InProgress,
-        )
-        TrackingStatus.Completed -> SessionDetailVisualState(
-            label = stringResource(R.string.status_completed),
-            icon = Icons.Filled.CheckCircle,
-            color = OmnilogTheme.accents.Completed,
-        )
-        TrackingStatus.Paused -> SessionDetailVisualState(
-            label = stringResource(R.string.status_paused),
-            icon = Icons.Filled.Edit,
-            color = OmnilogTheme.accents.Paused,
-        )
-        TrackingStatus.Dropped -> SessionDetailVisualState(
-            label = stringResource(R.string.status_dropped),
-            icon = Icons.Filled.Close,
-            color = OmnilogTheme.accents.Dropped,
-        )
-    }.let { visualState ->
-        if (visualState.color == Color.Unspecified) {
-            visualState.copy(color = accent)
-        } else {
-            visualState
-        }
-    }
-
-private fun TrackingSession.updatedDate(): LocalDate? {
-    if (updatedAtEpochMillis <= 0L) return null
-    return Instant.ofEpochMilli(updatedAtEpochMillis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
-}
-
-private fun MediaType.finishedOnlyDateLabelRes(): Int =
-    when (this) {
-        MediaType.Book -> R.string.session_finished_read_at
-        MediaType.Game -> R.string.session_finished_played_at
-        MediaType.Anime,
-        MediaType.Movie,
-        MediaType.TvShow,
-            -> R.string.session_finished_watched_at
-    }
-
-private fun LocalDate.formatDate(): String =
-    format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))

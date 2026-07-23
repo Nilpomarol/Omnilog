@@ -1164,6 +1164,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     onBack = navigateBack,
                                     onStartNewSession = viewModel::startNewSession,
                                     onUpdateSessionDetails = viewModel::updateSessionDetails,
+                                    // The same two entry points the Home tiles use. Promotion,
+                                    // start-date stamping and the completion undo all live in the
+                                    // view model, so the detail page routes through them rather than
+                                    // assembling its own session update and drifting from Home.
+                                    onQuickCommitProgress = { progress ->
+                                        viewModel.quickCommitProgress(routeMedia, progress)
+                                    },
+                                    onQuickComplete = { progress ->
+                                        viewModel.quickComplete(routeMedia, progress)
+                                    },
                                     onDeletePastSession = viewModel::deletePastSession,
                                     onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
                                     onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -43,10 +42,12 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
+import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatExternalRating
@@ -64,6 +65,8 @@ fun DetailScreen(
     onBack: () -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
+    onQuickCommitProgress: (Int) -> Unit,
+    onQuickComplete: (Int) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
@@ -95,6 +98,7 @@ fun DetailScreen(
         .sortedBy { it.sessionNumber }
     var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var showExternalRatingsManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
+    var showQuickProgress by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var dismissGoodreadsPrompt by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     val context = LocalContext.current
     val skippedGoodreadsPromptIds = remember(context) {
@@ -200,18 +204,57 @@ fun DetailScreen(
                 }
             }
 
-            if (currentSession != null) {
+            if (currentSession != null || pastSessions.isNotEmpty()) {
                 item {
-                    CurrentSessionSection(
-                        session = currentSession,
-                        progressTotal = trackedMedia.item.effectiveProgressTotal(),
-                        mediaType = trackedMedia.item.type,
-                        accent = accent,
-                        onUpdateSessionDetails = onUpdateSessionDetails,
-                        onDeleteProgressUpdate = onDeleteProgressUpdate,
-                        onDeleteStatusEvent = onDeleteStatusEvent,
-                        onUpdateStatusEventDate = onUpdateStatusEventDate,
-                        onUpdateProgressUpdate = onUpdateProgressUpdate,
+                    // The live session and everything before it, on one rail. This replaces the
+                    // separate `Historial` section that used to sit further down the page: a re-read
+                    // is a fact about the session you are looking at, not a footnote to it.
+                    SessionThread(
+                        currentStateColor = currentSession
+                            ?.let { sessionStateVisual(it.status).color }
+                            ?: accent,
+                        current = currentSession?.let { session ->
+                            {
+                                CurrentSessionSection(
+                                    session = session,
+                                    progressTotal = trackedMedia.item.effectiveProgressTotal(),
+                                    mediaType = trackedMedia.item.type,
+                                    accent = accent,
+                                    // Completed and Dropped sessions have nothing left to log, and
+                                    // the sheet behind this button refuses them anyway.
+                                    onLogProgress = if (session.status.endsSession) {
+                                        null
+                                    } else {
+                                        { showQuickProgress = true }
+                                    },
+                                    onUpdateSessionDetails = onUpdateSessionDetails,
+                                    onDeleteProgressUpdate = onDeleteProgressUpdate,
+                                    onDeleteStatusEvent = onDeleteStatusEvent,
+                                    onUpdateStatusEventDate = onUpdateStatusEventDate,
+                                    onUpdateProgressUpdate = onUpdateProgressUpdate,
+                                )
+                            }
+                        },
+                        past = pastSessions.reversed().map { session ->
+                            SessionThreadEntry(
+                                stateColor = sessionStateVisual(session.status).color,
+                                content = {
+                                    PastSessionSection(
+                                        session = session,
+                                        visitNumber = trackedMedia.visitNumber(session),
+                                        progressTotal = trackedMedia.item.effectiveProgressTotal(),
+                                        mediaType = trackedMedia.item.type,
+                                        accent = accent,
+                                        onUpdateSessionDetails = onUpdateSessionDetails,
+                                        onDeleteProgressUpdate = onDeleteProgressUpdate,
+                                        onDeleteStatusEvent = onDeleteStatusEvent,
+                                        onUpdateStatusEventDate = onUpdateStatusEventDate,
+                                        onUpdateProgressUpdate = onUpdateProgressUpdate,
+                                        onDeleteSession = { onDeletePastSession(session.id) },
+                                    )
+                                },
+                            )
+                        },
                     )
                 }
             }
@@ -243,28 +286,6 @@ fun DetailScreen(
                     item = trackedMedia.item,
                     credits = trackedMedia.credits,
                 )
-            }
-
-            if (pastSessions.isNotEmpty()) {
-                item {
-                    DetailSectionTitle(text = stringResource(R.string.detail_history))
-                }
-
-                items(pastSessions) { session ->
-                    PastSessionSection(
-                        session = session,
-                        visitNumber = trackedMedia.visitNumber(session),
-                        progressTotal = trackedMedia.item.effectiveProgressTotal(),
-                        mediaType = trackedMedia.item.type,
-                        accent = accent,
-                        onUpdateSessionDetails = onUpdateSessionDetails,
-                        onDeleteProgressUpdate = onDeleteProgressUpdate,
-                        onDeleteStatusEvent = onDeleteStatusEvent,
-                        onUpdateStatusEventDate = onUpdateStatusEventDate,
-                        onUpdateProgressUpdate = onUpdateProgressUpdate,
-                        onDeleteSession = { onDeletePastSession(session.id) },
-                    )
-                }
             }
 
             if (trackedMedia.externalRatings.size > 1) {
@@ -347,6 +368,25 @@ fun DetailScreen(
                     .apply()
                 dismissGoodreadsPrompt = true
             },
+        )
+    }
+
+    // The same sheet the Home tiles open, reached from the card's own button. Logging progress was
+    // previously impossible from this page without going through the full session editor, which is
+    // what made the card feel like a read-out rather than somewhere to do anything.
+    if (showQuickProgress && currentSession != null) {
+        QuickProgressSheet(
+            trackedMedia = trackedMedia,
+            accent = sessionStateVisual(currentSession.status).color,
+            onCommit = {
+                onQuickCommitProgress(it)
+                showQuickProgress = false
+            },
+            onComplete = {
+                onQuickComplete(it)
+                showQuickProgress = false
+            },
+            onDismiss = { showQuickProgress = false },
         )
     }
 
