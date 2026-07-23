@@ -95,7 +95,7 @@ External metadata/data providers:
 
 The product/UX backlog, Stats refinement, Timeline, goals presentation, theme foundation, and metadata-link overwrite confirmation are delivered. The active implementation order is now:
 
-1. Add targeted import, duplicate-detection, metadata-refresh, and primary-rating tests.
+1. Enrich imported titles in batches, then add targeted import, duplicate-detection, metadata-refresh, and primary-rating tests.
 2. Run focused device/regression QA when those high-risk flows change.
 3. Complete the MAL API follow-up only where real provider behaviour requires it.
 4. Continue goals, theme, and UI improvements opportunistically rather than as dedicated redesign workstreams.
@@ -358,14 +358,20 @@ Exit criteria:
 - Goal progress matches the corresponding Stats definitions for the same period.
 - Home remains compact while Profile provides the complete goals experience.
 
-### 8. Import And Metadata Test Coverage
+### 8. Import Enrichment And Metadata Test Coverage
 
 Status: open.
 
-Goal: reduce regressions in the highest-risk local-first flows.
+Goal: make imported libraries useful without forcing the user to link or refresh every title individually, then reduce regressions in these high-risk local-first flows.
 
 Tasks:
 
+- Add a post-import batch enrichment flow with visible progress, retry, and cancel.
+- Use MAL ids from MAL XML to fetch anime metadata directly.
+- Resolve IMDb ids through TMDB where possible; batch-review ambiguous title/year matches instead of opening every title.
+- Resolve StoryGraph ISBN/UID values through the book providers where possible; batch-review ambiguous matches.
+- Apply unambiguous empty-field fills automatically and group overwrites or uncertain matches into one review flow.
+- Preserve imported sessions, progress, ratings, reviews, ownership, and collections throughout enrichment.
 - Add a MAL XML fixture test using the provided MAL export shape.
 - Test duplicate detection after AniList linking with preserved MAL id.
 - Test metadata refresh diff generation.
@@ -374,6 +380,8 @@ Tasks:
 
 Exit criteria:
 
+- A normal import does not require opening and linking each title one by one to obtain available provider metadata.
+- Batch enrichment can be inspected, cancelled, and safely retried without repeating completed work.
 - Core import/link/refresh behavior is covered by automated tests.
 - Regression risk is lower before future metadata/provider changes.
 
