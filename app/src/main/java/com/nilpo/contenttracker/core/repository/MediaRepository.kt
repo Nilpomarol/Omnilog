@@ -116,6 +116,17 @@ enum class MetadataRefreshField {
     ProviderStats,
 }
 
+internal fun MetadataRefreshPreview.requiresMetadataConfirmation(): Boolean {
+    return changes.any { change -> change.overwritesExistingValue || change.isLocallyOverridden }
+}
+
+internal fun MetadataRefreshPreview.defaultSelectedMetadataFields(): Set<MetadataRefreshField> {
+    return changes
+        .filterNot { change -> change.isLocallyOverridden }
+        .map { change -> change.field }
+        .toSet()
+}
+
 interface MediaRepository {
     fun observeTrackedMedia(types: Set<MediaType>): Flow<List<TrackedMedia>>
 
@@ -257,6 +268,12 @@ interface MediaRepository {
     ): Boolean
 
     suspend fun refreshMediaItemMetadata(mediaItemId: Long, metadataRepository: MetadataRepository): Boolean
+
+    suspend fun previewMediaItemMetadataLink(
+        mediaItemId: Long,
+        suggestion: MetadataSuggestion,
+        metadataRepository: MetadataRepository,
+    ): MetadataRefreshPreview?
 
     suspend fun linkMediaItemMetadata(
         mediaItemId: Long,

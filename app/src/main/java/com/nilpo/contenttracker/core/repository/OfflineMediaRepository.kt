@@ -1478,16 +1478,24 @@ class OfflineMediaRepository(
         suggestion: MetadataSuggestion,
         metadataRepository: MetadataRepository,
     ): Boolean {
-        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return false
-        val currentMediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
+        val preview = previewMediaItemMetadataLink(mediaItemId, suggestion, metadataRepository) ?: return false
+        return applyMediaItemMetadataRefresh(
+            preview = preview,
+            selectedFields = preview.changes.map { change -> change.field }.toSet(),
+        )
+    }
+
+    override suspend fun previewMediaItemMetadataLink(
+        mediaItemId: Long,
+        suggestion: MetadataSuggestion,
+        metadataRepository: MetadataRepository,
+    ): MetadataRefreshPreview? {
+        val currentItem = mediaDao.getMediaItem(mediaItemId) ?: return null
+        val currentMediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return null
         if (currentMediaType != suggestion.mediaType) {
-            return false
+            return null
         }
 
-        val currentPrimaryManualRating = currentItem.primaryExternalRatingId
-            ?.let { primaryId -> mediaDao.getExternalRating(primaryId) }
-            ?.takeIf { it.origin == "Manual" }
-            ?.toPrimaryRating()
         val existingRatings = mediaDao.getExternalRatingsForItem(mediaItemId)
             .filter { it.origin == "Provider" }
             .map { it.toDomain() }
@@ -1500,18 +1508,7 @@ class OfflineMediaRepository(
                     scoreDescriptor = rating.scoreDescriptor,
                 )
             }
-        val existingPrimaryRating = currentItem.externalRatingScore?.let { score ->
-            val maxScore = currentItem.externalRatingMax ?: return@let null
-            if (score > 0.0 && maxScore > 0.0) {
-                MetadataRatingSuggestion(
-                    score = score,
-                    maxScore = maxScore,
-                    voteCount = currentItem.externalRatingVoteCount,
-                )
-            } else {
-                null
-            }
-        }
+        val existingCredits = mediaDao.getMediaCreditsForItem(mediaItemId).map { it.toDomain() }
         val suggestionWithSteamId = if (currentMediaType == MediaType.Game) {
             suggestion.copy(
                 popularityJson = metadataJsonWithSteamAppId(
@@ -1529,74 +1526,30 @@ class OfflineMediaRepository(
             ?.coerceAtLeast(0)
         val linkedRatings = (linked.externalRatings + existingRatings)
             .distinctBy { it.source }
-        val linkedPrimaryRating = currentPrimaryManualRating ?: currentMediaType.preferredPrimaryExternalRating(
-            ratings = linkedRatings,
-            fallback = linked.externalRating ?: existingPrimaryRating,
-        )
-
-        mediaDao.refreshMediaItemMetadata(
-            mediaItemId = mediaItemId,
+        val normalizedLinked = linked.copy(
             title = linked.title.trim().takeIf { it.isNotBlank() } ?: currentItem.title,
             originalTitle = linked.originalTitle?.trim()?.takeIf { it.isNotBlank() },
-            releaseYear = linked.releaseYear,
-            language = ItemLanguage.normalize(linked.language),
+            language = ItemLanguage.normalize(linked.language).takeUnless { currentMediaType == MediaType.Game },
+            genres = linked.genres.cleanMetadataList(),
+            creators = linked.creators.cleanMetadataList(),
             progressTotal = linkedTotal,
-            genresJson = linked.genres.cleanMetadataList().toJsonArrayString(),
-            creatorsJson = linked.creators.cleanMetadataList().toJsonArrayString(),
             coverUrl = linked.coverUrl?.trim()?.takeIf { it.isNotBlank() },
             synopsis = normalizeSynopsis(linked.synopsis),
             sourceUrl = linked.sourceUrl?.trim()?.takeIf { it.isNotBlank() },
-            externalRatingScore = linkedPrimaryRating?.score,
-            externalRatingMax = linkedPrimaryRating?.maxScore,
-            externalRatingVoteCount = linkedPrimaryRating?.voteCount,
-            popularityScore = linked.popularityScore,
-            rankingPosition = linked.rankingPosition,
-            rankingLabel = linked.rankingLabel,
-            providerCollectionTitle = linked.collectionTitle,
-            ratingDistributionJson = linked.ratingDistributionJson,
-            popularityJson = linked.popularityJson,
-            rankingJson = linked.rankingJson,
-            metadataSource = linked.source.name,
-            metadataExternalId = linked.externalId,
-            malId = linked.malId ?: currentItem.toResolvedMalId(),
-            metadataLastFetchedAtEpochMillis = System.currentTimeMillis(),
+            externalRatings = linkedRatings,
         )
 
-        mediaDao.deleteMediaCreditsForItem(mediaItemId)
-        linked.credits
-            .filter { it.personName.isNotBlank() }
-            .mapIndexed { index, credit ->
-                credit.copy(
-                    id = 0,
-                    mediaItemId = mediaItemId,
-                    personName = credit.personName.trim(),
-                    characterName = credit.characterName?.trim()?.takeIf { it.isNotBlank() },
-                    sortOrder = credit.sortOrder.takeIf { it > 0 } ?: index,
-                    metadataSource = credit.metadataSource ?: linked.source,
-                ).toEntity()
-            }
-            .takeIf { it.isNotEmpty() }
-            ?.let { credits -> mediaDao.insertMediaCredits(credits) }
-
-        mediaDao.deleteProviderExternalRatingsForItem(mediaItemId)
-        linkedRatings
-            .filter { it.score > 0.0 && it.maxScore > 0.0 }
-            .forEach { rating ->
-                mediaDao.insertExternalRating(
-                    ExternalRatingEntity(
-                        mediaItemId = mediaItemId,
-                        source = rating.source.name,
-                        score = rating.score,
-                        maxScore = rating.maxScore,
-                        voteCount = rating.voteCount,
-                        scoreDescriptor = rating.scoreDescriptor,
-                        origin = "Provider",
-                    ),
-                )
-            }
-
-        onMalRelevantChange(mediaItemId)
-        return true
+        return MetadataRefreshPreview(
+            mediaItemId = mediaItemId,
+            refreshed = normalizedLinked,
+            changes = buildMetadataRefreshChanges(
+                currentItem = currentItem,
+                currentCredits = existingCredits,
+                currentRatings = existingRatings,
+                refreshed = normalizedLinked,
+                localOverrides = currentItem.metadataOverrideFields(),
+            ),
+        )
     }
 
 }

@@ -824,6 +824,19 @@ class HomeViewModel(
         }
     }
 
+    suspend fun previewMediaItemMetadataLink(
+        mediaItemId: Long,
+        suggestion: MetadataSuggestion,
+    ): Result<MetadataRefreshPreview?> {
+        if (refreshingMetadataItemId.value != null) return Result.success(null)
+        refreshingMetadataItemId.value = mediaItemId
+        val result = runCatching {
+            mediaRepository.previewMediaItemMetadataLink(mediaItemId, suggestion, metadataRepository)
+        }
+        refreshingMetadataItemId.value = null
+        return result
+    }
+
     private fun prefetchCovers(coverUrls: Iterable<String?>) {
         coverRepository.prefetch(coverUrls)
     }

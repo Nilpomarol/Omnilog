@@ -93,13 +93,12 @@ External metadata/data providers:
 
 ### Current Execution Priority
 
-The product/UX backlog, Stats refinement, Timeline, goals presentation, and theme foundation are delivered. The active implementation order is now:
+The product/UX backlog, Stats refinement, Timeline, goals presentation, theme foundation, and metadata-link overwrite confirmation are delivered. The active implementation order is now:
 
-1. Add overwrite confirmation to metadata linking so it matches metadata refresh safety.
-2. Add targeted import, duplicate-detection, metadata-refresh, and primary-rating tests.
-3. Run focused device/regression QA when those high-risk flows change.
-4. Complete the MAL API follow-up only where real provider behaviour requires it.
-5. Continue goals, theme, and UI improvements opportunistically rather than as dedicated redesign workstreams.
+1. Add targeted import, duplicate-detection, metadata-refresh, and primary-rating tests.
+2. Run focused device/regression QA when those high-risk flows change.
+3. Complete the MAL API follow-up only where real provider behaviour requires it.
+4. Continue goals, theme, and UI improvements opportunistically rather than as dedicated redesign workstreams.
 
 Optional Stats drill-downs, an audit-quality event table, and additional goal-management states remain later additions, not current blockers.
 
@@ -159,21 +158,18 @@ Exit criteria:
 
 ### 4. Metadata Linking Overwrite Confirmation
 
-Status: open and the highest-priority feature-safety task.
+Status: delivered.
 
 Goal: bring metadata linking up to the same safety standard as metadata refresh.
 
-Current issue:
+What shipped:
 
-- Metadata refresh has preview/apply with selectable overwrite fields.
-- Metadata linking can still overwrite metadata directly.
-
-Tasks:
-
-- Reuse or adapt the metadata refresh preview model for linking.
-- Show old/new field values before overwriting existing metadata.
-- Apply safe fills directly when there are no overwrites.
-- Preserve user sessions, progress, ratings, reviews, ownership, and collections.
+- Metadata linking reuses the metadata-refresh preview and selective apply model.
+- Existing and provider values are shown before any overwrite.
+- Empty metadata fields are filled directly when no confirmation is needed.
+- Locally edited fields start unchecked, while the user can explicitly select them.
+- Provider identity, MAL ids, Steam ids, manual ratings, sessions, progress, reviews, ownership, and collections are preserved.
+- Focused unit tests cover safe fills, overwrite confirmation, and locally edited default selection.
 
 Exit criteria:
 
@@ -439,7 +435,6 @@ Tasks:
 
 ## Known Risks
 
-- Metadata linking still needs overwrite confirmation.
 - Older AniList-linked anime may lack preserved MAL ids until refreshed/relinked.
 - Import, metadata refresh/linking, and primary-rating persistence need targeted automated tests.
 - Stats that depend on `finishedAt`, `progressTotal`, genres, creators, or language will be incomplete when those fields are missing.

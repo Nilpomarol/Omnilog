@@ -89,6 +89,8 @@ import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
 import com.nilpo.contenttracker.core.repository.MetadataRefreshField
 import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
+import com.nilpo.contenttracker.core.repository.defaultSelectedMetadataFields
+import com.nilpo.contenttracker.core.repository.requiresMetadataConfirmation
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
@@ -175,7 +177,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var isMetadataLinkLoading by remember { mutableStateOf(false) }
     var hasMetadataLinkError by remember { mutableStateOf(false) }
     var metadataLinkSearchRequestId by remember { mutableStateOf(0) }
-    var pendingMetadataRefreshPreview by remember { mutableStateOf<MetadataRefreshPreview?>(null) }
+    var pendingMetadataChange by remember { mutableStateOf<PendingMetadataChange?>(null) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
     val profileImagePath = remember(context, currentRoute) {
@@ -546,8 +548,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             when {
                 result.isFailure -> snackbarHostState.showSnackbar(metadataRefreshErrorMessage)
                 preview == null -> snackbarHostState.showSnackbar(metadataRefreshUnavailableMessage)
-                preview.changes.any { it.overwritesExistingValue || it.isLocallyOverridden } -> {
-                    pendingMetadataRefreshPreview = preview
+                preview.requiresMetadataConfirmation() -> {
+                    pendingMetadataChange = PendingMetadataChange(
+                        preview = preview,
+                        operation = MetadataChangeOperation.Refresh,
+                    )
                 }
 
                 else -> {
@@ -694,7 +699,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     BackHandler(
         enabled = pendingPossibleDuplicate != null ||
                 metadataLinkTarget != null ||
-                pendingMetadataRefreshPreview != null ||
+                pendingMetadataChange != null ||
                 pendingMyAnimeListXmlImport != null ||
                 pendingStoryGraphCsvImport != null ||
                 pendingImdbCsvImport != null ||
@@ -706,7 +711,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         when {
             pendingPossibleDuplicate != null -> pendingPossibleDuplicate = null
             metadataLinkTarget != null -> metadataLinkTarget = null
-            pendingMetadataRefreshPreview != null -> pendingMetadataRefreshPreview = null
+            pendingMetadataChange != null -> pendingMetadataChange = null
             pendingMyAnimeListXmlImport != null -> pendingMyAnimeListXmlImport = null
             pendingStoryGraphCsvImport != null -> pendingStoryGraphCsvImport = null
             pendingImdbCsvImport != null -> pendingImdbCsvImport = null
@@ -1592,19 +1597,20 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         )
     }
 
-    pendingMetadataRefreshPreview?.let { preview ->
+    pendingMetadataChange?.let { pending ->
         MetadataRefreshConfirmationDialog(
-            preview = preview,
-            onDismiss = { pendingMetadataRefreshPreview = null },
+            preview = pending.preview,
+            onDismiss = { pendingMetadataChange = null },
             onConfirm = { selectedFields ->
                 coroutineScope.launch {
-                    val result = viewModel.applyMediaItemMetadataRefresh(preview, selectedFields)
-                    pendingMetadataRefreshPreview = null
+                    val result = viewModel.applyMediaItemMetadataRefresh(pending.preview, selectedFields)
+                    pendingMetadataChange = null
+                    val isLink = pending.operation == MetadataChangeOperation.Link
                     snackbarHostState.showSnackbar(
                         if (result.getOrDefault(false)) {
-                            metadataRefreshSuccessMessage
+                            if (isLink) metadataLinkSuccessMessage else metadataRefreshSuccessMessage
                         } else {
-                            metadataRefreshErrorMessage
+                            if (isLink) metadataLinkErrorMessage else metadataRefreshErrorMessage
                         },
                     )
                 }
@@ -1718,20 +1724,46 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     showSourceChip = false,
                                     onClick = {
                                         coroutineScope.launch {
-                                            val result = runCatching {
-                                                viewModel.linkMediaItemMetadata(
-                                                    target.item.id,
-                                                    suggestion
-                                                )
-                                            }
-                                            metadataLinkTarget = null
-                                            snackbarHostState.showSnackbar(
-                                                if (result.getOrDefault(false)) {
-                                                    metadataLinkSuccessMessage
-                                                } else {
-                                                    metadataLinkErrorMessage
-                                                },
+                                            isMetadataLinkLoading = true
+                                            val result = viewModel.previewMediaItemMetadataLink(
+                                                target.item.id,
+                                                suggestion,
                                             )
+                                            isMetadataLinkLoading = false
+                                            if (metadataLinkTarget?.item?.id != target.item.id) {
+                                                return@launch
+                                            }
+                                            val preview = result.getOrNull()
+                                            when {
+                                                result.isFailure || preview == null -> {
+                                                    snackbarHostState.showSnackbar(metadataLinkErrorMessage)
+                                                }
+
+                                                preview.requiresMetadataConfirmation() -> {
+                                                    metadataLinkTarget = null
+                                                    pendingMetadataChange = PendingMetadataChange(
+                                                        preview = preview,
+                                                        operation = MetadataChangeOperation.Link,
+                                                    )
+                                                }
+
+                                                else -> {
+                                                    val applyResult = viewModel.applyMediaItemMetadataRefresh(
+                                                        preview = preview,
+                                                        selectedFields = preview.defaultSelectedMetadataFields(),
+                                                    )
+                                                    if (applyResult.getOrDefault(false)) {
+                                                        metadataLinkTarget = null
+                                                    }
+                                                    snackbarHostState.showSnackbar(
+                                                        if (applyResult.getOrDefault(false)) {
+                                                            metadataLinkSuccessMessage
+                                                        } else {
+                                                            metadataLinkErrorMessage
+                                                        },
+                                                    )
+                                                }
+                                            }
                                         }
                                     },
                                 )
@@ -1814,6 +1846,16 @@ private data class PendingMyAnimeListXmlImport(
     val preview: MyAnimeListXmlPreview,
 )
 
+private data class PendingMetadataChange(
+    val preview: MetadataRefreshPreview,
+    val operation: MetadataChangeOperation,
+)
+
+private enum class MetadataChangeOperation {
+    Refresh,
+    Link,
+}
+
 @Composable
 private fun MetadataRefreshConfirmationDialog(
     preview: MetadataRefreshPreview,
@@ -1822,10 +1864,7 @@ private fun MetadataRefreshConfirmationDialog(
 ) {
     var selectedFields by remember(preview) {
         mutableStateOf(
-            preview.changes
-                .filterNot { change -> change.isLocallyOverridden }
-                .map { change -> change.field }
-                .toSet(),
+            preview.defaultSelectedMetadataFields(),
         )
     }
 
