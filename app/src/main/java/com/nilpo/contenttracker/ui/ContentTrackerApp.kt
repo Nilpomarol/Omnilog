@@ -2629,23 +2629,12 @@ private fun OmnilogNavItem(
 }
 
 /**
- * The scrim disc behind a bar control while the bar itself is transparent.
+ * The scrim disc behind the back arrow while the bar itself is transparent.
  *
  * Smaller than the 48dp touch target it sits in: the target has to stay a thumb wide, but a disc
  * that wide would read as a button on the artwork rather than as a shadow under an icon.
  */
 private val ControlDisc = 38.dp
-
-/**
- * How far the back control moves to sit properly on the cover, while the bar is transparent.
- *
- * At the bar's own position the disc straddles the cover's top-left corner — half on artwork, half
- * on the blurred backdrop — which reads as a blob rather than as a button. These nudge it inside the
- * corner with a margin on both sides. Both unwind to zero as the bar becomes a surface, because a
- * back arrow indented from the edge of a solid bar would just look misplaced.
- */
-private val BackNudgeX = 26.dp
-private val BackNudgeY = 12.dp
 
 @DrawableRes
 @OptIn(ExperimentalMaterial3Api::class)
@@ -2695,13 +2684,7 @@ private fun OmnilogTopBar(
         ),
         navigationIcon = {
             if (showBackNavigation) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.offset(
-                        x = BackNudgeX * (1f - opacity),
-                        y = BackNudgeY * (1f - opacity),
-                    ),
-                ) {
+                IconButton(onClick = onBack) {
                     Box(
                         modifier = Modifier
                             .size(ControlDisc)
@@ -2755,18 +2738,14 @@ private fun OmnilogTopBar(
             if (showDetailActions) {
                 Box {
                     IconButton(onClick = { detailActions.isMenuExpanded = true }) {
-                        Box(
-                            modifier = Modifier
-                                .size(ControlDisc)
-                                .background(controlScrim, CircleShape),
-                            contentAlignment = androidx.compose.ui.Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.MoreVert,
-                                contentDescription = null,
-                                tint = barMuted,
-                            )
-                        }
+                        // No disc under this one. It sits on the blurred backdrop rather than on
+                        // the sharp cover, which is dark enough under the scrim that the dots hold
+                        // on their own.
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = null,
+                            tint = barMuted,
+                        )
                         Text(
                             text = "⋮",
                             color = Color.Transparent,
