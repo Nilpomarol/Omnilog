@@ -42,7 +42,7 @@ fun SessionCardArtwork(
 ) {
     val art = mediaType.artworkRes()
     val onDark = OmnilogTheme.colors.appBackground.luminance() < 0.5f
-    val alpha = if (onDark) mediaType.artAlphaOnDark else mediaType.artAlphaOnLight
+    val alpha = mediaType.artAlpha.let { if (onDark) it.dark else it.light }
 
     Image(
         painter = painterResource(art),
@@ -91,27 +91,31 @@ private const val SaturationBoost = 1.5f
 private const val ArtWidthFraction = 0.82f
 
 /**
- * How much the artwork stands out — the one lever that actually controls that.
+ * How much each medium's artwork stands out — the one lever that actually controls that, and the
+ * only numbers here worth touching.
  *
- * Two tiers, because the five drawings are not equally dense. The sakura and the games spread is
- * filled work covering a fifth of the frame; books, series and film are open line art covering an
- * eighth. At one alpha the sparse three read as a whisper next to the other two, so they get
- * roughly the ratio of that difference back.
+ * One entry per medium rather than a rule, because the drawings are not interchangeable: what the
+ * value has to answer is how much ink this particular one puts on the panel. The sakura and the
+ * games spread are filled work covering about a fifth of the frame; books, series and film are open
+ * line art covering an eighth, so they need roughly that much more to carry the same weight. A new
+ * drawing gets its own number rather than inheriting someone else's.
  *
- * Light runs lower throughout because its accents are darker: the same value there is close to
- * twice the contrast against the page, the asymmetry the two accent sets exist for. Past about a
+ * Light runs lower throughout. Its accents are darker colours, so the same value lands at close to
+ * twice the contrast against the page — the asymmetry the two accent sets exist for. Past about a
  * third of full strength a *filled* drawing stops being a ground and starts competing with the text
- * over it, which is the ceiling the dense tier is sitting under.
+ * over it; line work has more room before it does.
  */
-private val MediaType.artAlphaOnDark: Float
-    get() = if (isDenseArtwork) 0.24f else 0.34f
+private val MediaType.artAlpha: ArtAlpha
+    get() = when (this) {
+        MediaType.Anime -> ArtAlpha(dark = 0.24f, light = 0.15f)
+        MediaType.Book -> ArtAlpha(dark = 0.34f, light = 0.21f)
+        MediaType.Movie -> ArtAlpha(dark = 0.34f, light = 0.21f)
+        MediaType.TvShow -> ArtAlpha(dark = 0.34f, light = 0.21f)
+        MediaType.Game -> ArtAlpha(dark = 0.24f, light = 0.15f)
+    }
 
-private val MediaType.artAlphaOnLight: Float
-    get() = if (isDenseArtwork) 0.15f else 0.21f
-
-/** True for the drawings that are filled shapes rather than open line work. */
-private val MediaType.isDenseArtwork: Boolean
-    get() = this == MediaType.Anime || this == MediaType.Game
+/** A medium's artwork strength in each theme. 0 is invisible, 1 is the accent at full force. */
+private data class ArtAlpha(val dark: Float, val light: Float)
 
 /**
  * How far the artwork reaches from its corner before it has faded out entirely, as a fraction of
