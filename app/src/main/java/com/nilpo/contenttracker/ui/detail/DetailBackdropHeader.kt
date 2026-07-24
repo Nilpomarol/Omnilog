@@ -66,16 +66,13 @@ import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 private val BarPaddingReclaim = 8.dp
 
 /**
- * Clearance below the header's last row, on top of whatever the session card overlaps by.
+ * The header's rhythm: title block to genres, and genres to whatever follows the header.
  *
- * This strip is also exactly where the artwork fades into the page, so it is doing two jobs: it
- * keeps the session card off the header, and it gives the fade somewhere to happen that is not on
- * top of any text.
+ * One value rather than two, so the session card sits as far below the genres as the genres sit
+ * below the cover. The lower of the two is also exactly where the artwork fades into the page, so it
+ * is doing a second job: giving that fade somewhere to happen that is not on top of any text.
  */
-private val CardClearance = 28.dp
-
-/** Seam between the title block and the genres, which belong to it. */
-private val GenreGap = 14.dp
+private val HeaderSeam = 14.dp
 
 /** Ink on the collection pill. Fixed, because the pill is an accent fill in both themes. */
 private val PillInk = Color(0xFF15120F)
@@ -163,7 +160,7 @@ fun DetailBackdropHeader(
                     // height moves with the title's line count. An earlier pass ran this 138dp up
                     // from the bottom, which laid background over the figures row and washed it
                     // out — invisible on dark, obvious on light.
-                    .height(overlap + CardClearance)
+                    .height(overlap + HeaderSeam)
                     .background(
                         Brush.verticalGradient(
                             0.00f to Color.Transparent,
@@ -184,7 +181,7 @@ fun DetailBackdropHeader(
                 modifier = Modifier.padding(horizontal = DetailGutter),
             )
             if (metadata.genres.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(GenreGap))
+                Spacer(modifier = Modifier.height(HeaderSeam))
                 DetailGenreRow(
                     genres = metadata.genres,
                     accent = if (hasArt) {
@@ -201,7 +198,7 @@ fun DetailBackdropHeader(
             }
             // Whatever the session card rides up by, plus enough that it lands below the genres
             // rather than on them.
-            Spacer(modifier = Modifier.height(overlap + CardClearance))
+            Spacer(modifier = Modifier.height(overlap + HeaderSeam))
         }
     }
 }
