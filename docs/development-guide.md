@@ -57,7 +57,7 @@ Do not put real provider keys in tracked files. If a key was committed or pushed
 - Metadata refresh/linking must preserve user sessions, progress history, personal ratings, reviews, ownership, and collections unless the user explicitly chooses otherwise.
 - Provider-specific imports are deliberately available from the Settings import hub.
 - Matching sections may also expose contextual entry points:
-  - Anime: MyAnimeList XML.
+  - Anime: MyAnimeList account import or XML fallback.
   - Cinema i TV: IMDb CSV.
   - Books: StoryGraph CSV.
   - Games: no provider import.
@@ -81,11 +81,11 @@ Use [Roadmap](omnilog-roadmap.md) as the standing plan.
 
 Current recommended order:
 
-1. Metadata linking overwrite confirmation.
-2. Import, duplicate-detection, metadata-refresh, and primary-rating test coverage.
-3. Focused device and regression QA when high-risk flows change.
-4. MAL API follow-up where observed provider behaviour requires it.
-5. Opportunistic goals, theme, and UI improvements.
+1. Run the [Import and Enrichment Release Readiness](omnilog-import-enrichment-release-readiness.md) checklist against
+   a signed release candidate.
+2. Focused device and regression QA when high-risk flows change.
+3. Provider follow-up only where observed live behavior requires it.
+4. Opportunistic goals, theme, and UI improvements.
 
 The product/UX backlog, manual external-rating polish, explicit primary-rating model, Stats refinement, Timeline, goals presentation, and theme foundation are delivered.
 

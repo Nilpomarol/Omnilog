@@ -93,11 +93,12 @@ External metadata/data providers:
 
 ### Current Execution Priority
 
-The product/UX backlog, Stats refinement, Timeline, goals presentation, theme foundation, and metadata-link overwrite confirmation are delivered. The active implementation order is now:
+The product/UX backlog, Stats refinement, Timeline, goals presentation, theme foundation, metadata-link overwrite
+confirmation, and import enrichment are delivered. The active implementation order is now:
 
-1. Enrich imported titles in batches, then add targeted import, duplicate-detection, metadata-refresh, and primary-rating tests.
-2. Run focused device/regression QA when those high-risk flows change.
-3. Complete the MAL API follow-up only where real provider behaviour requires it.
+1. Run the import/enrichment release checklist against a signed release candidate.
+2. Run focused device/regression QA when high-risk local-first flows change.
+3. Address MAL or other provider regressions only when real provider behaviour exposes them.
 4. Continue goals, theme, and UI improvements opportunistically rather than as dedicated redesign workstreams.
 
 Optional Stats drill-downs, an audit-quality event table, and additional goal-management states remain later additions, not current blockers.
@@ -360,7 +361,9 @@ Exit criteria:
 
 ### 8. Import Enrichment And Metadata Test Coverage
 
-Status: open.
+Status: delivered on 2026-07-24. See the
+[release-readiness record](omnilog-import-enrichment-release-readiness.md) for verification evidence and remaining
+production-release gates.
 
 Detailed implementation plan: [Import Enrichment Implementation Plan](omnilog-import-enrichment-implementation-plan.md).
 
@@ -391,16 +394,18 @@ Exit criteria:
 
 ### 9. MAL API Follow-Up
 
-Status: partially implemented. Official MAL rating/rank enrichment and the Jikan fallback are active; device confirmation with a configured client id, explicit rate-limit policy, and provider-scope documentation remain follow-up work.
+Status: delivered on 2026-07-23. A configured account import was verified with 178 titles. Official MAL is the primary
+detail source, AniList supplies complementary metadata, and Jikan is a last fallback. Provider pacing, `Retry-After`,
+HTTP 429, and transient-failure handling are explicit. The app remains usable without `MAL_CLIENT_ID` through XML.
 
 Goal: make official MAL integration behavior clearer and safer.
 
-Tasks:
+Delivered behavior:
 
-- Confirm official MAL API behavior with a configured client id on device.
-- Add conservative handling for `429` or other rate-limit responses if needed.
-- Decide whether Jikan remains a permanent fallback.
-- Confirm whether MAL should be preferred only for anime score/user count or for more metadata fields.
+- Official MAL account pagination and enrichment were confirmed on a physical device.
+- Conservative request pacing and durable retry/backoff handle rate limits and transient failures.
+- Official MAL details are preferred for MAL-linked anime; AniList complements them and Jikan remains last-resort.
+- Missing client configuration leaves the XML fallback available and does not block the app.
 
 Exit criteria:
 

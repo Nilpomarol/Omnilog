@@ -6,7 +6,9 @@ This document defines the implementation plan for making provider imports a comp
 
 The primary experience is a direct MyAnimeList account import through the official MAL API. MAL XML remains a supported fallback. IMDb CSV and StoryGraph CSV continue to provide the other provider entry points, with imported identifiers used to resolve richer metadata in batches.
 
-Status: Phases 1-4 delivered on 2026-07-23. Phase 5 verification remains. The current Room database version is 24.
+Status: Phases 1-5 delivered on 2026-07-24. The current Room database version is 27. See the
+[Import and Enrichment Release Readiness](omnilog-import-enrichment-release-readiness.md) record for the final device
+results, known limits, and production-release checklist.
 
 Deferred UI follow-up: Settings currently exposes too many separate MAL controls. Group connection,
 account import, XML fallback, title-language preference, bulk title refresh, and synchronization under
@@ -452,7 +454,8 @@ Exit: a normal import needs no per-title detail-page linking, while every uncert
 
 ### Phase 5 — Verification and delivery
 
-Status: in progress on 2026-07-23.
+Status: delivered on 2026-07-24. The final verification result and remaining production-release gates are recorded in
+[Import and Enrichment Release Readiness](omnilog-import-enrichment-release-readiness.md).
 
 Verification note: the complete 298-test local debug suite and debug APK build pass. A new
 instrumented Room test also passes on the connected Android device and proves that selective
