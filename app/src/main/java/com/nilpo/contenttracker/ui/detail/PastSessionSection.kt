@@ -38,7 +38,6 @@ fun PastSessionSection(
         visitNumber = visitNumber,
         progressTotal = progressTotal,
         mediaType = mediaType,
-        accent = accent,
         onDeleteProgressUpdate = onDeleteProgressUpdate,
         onDeleteStatusEvent = onDeleteStatusEvent,
         onUpdateStatusEventDate = onUpdateStatusEventDate,

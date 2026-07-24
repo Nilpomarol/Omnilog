@@ -1,14 +1,7 @@
 package com.nilpo.contenttracker.ui.detail
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,39 +9,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,16 +36,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
@@ -73,18 +48,15 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.endsSession
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import com.nilpo.contenttracker.ui.theme.OmnilogTheme
-import com.nilpo.contenttracker.ui.common.progressUnitLabel
+import com.nilpo.contenttracker.ui.common.RatingMeter
 import com.nilpo.contenttracker.ui.common.TrackingDateRange
 import com.nilpo.contenttracker.ui.common.TrackingNotesField
 import com.nilpo.contenttracker.ui.common.TrackingProgressField
 import com.nilpo.contenttracker.ui.common.TrackingRatingSelector
 import com.nilpo.contenttracker.ui.common.TrackingStatusSelector
-import java.time.Instant
+import com.nilpo.contenttracker.ui.common.progressUnitLabel
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 // ─────────────────────────────────────────────────────────────
 // Entry point — swaps between read card and full edit screen
@@ -96,11 +68,13 @@ fun CurrentSessionSection(
     progressTotal: Int?,
     mediaType: MediaType,
     accent: Color,
+    onLogProgress: (() -> Unit)?,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }
 
@@ -108,12 +82,13 @@ fun CurrentSessionSection(
         session = session,
         progressTotal = progressTotal,
         mediaType = mediaType,
-        accent = accent,
+        onLogProgress = onLogProgress,
         onEditClick = { showEditor = true },
         onDeleteProgressUpdate = onDeleteProgressUpdate,
         onDeleteStatusEvent = onDeleteStatusEvent,
         onUpdateStatusEventDate = onUpdateStatusEventDate,
         onUpdateProgressUpdate = onUpdateProgressUpdate,
+        modifier = modifier,
     )
 
     if (showEditor) {
@@ -134,46 +109,56 @@ fun CurrentSessionSection(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Read-only session card
+// The card
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * The live session, and the page's centre of gravity.
+ *
+ * Three things changed from the card this replaces, and they are all the same change: the state is
+ * the card's subject, so the state gets the colour. The status chip is filled rather than washed, the
+ * progress graphic and the button are drawn in the same accent, and the tinted border that used to
+ * outline the whole panel is gone — a border spends a colour on the shape of the card rather than on
+ * anything the card is saying.
+ *
+ * The panel itself is flat `appPanel` at 18dp with no elevation, which is what every surface built
+ * since already does: `TimelineRecapCard`, and the library panel inside `ProfileHeroCard`.
+ *
+ * There is one hero slot rather than a layout per status. What fills it is decided by the data — a
+ * rating if there is one, the progress figure if there is not — and that is what let the five
+ * per-status summary composables this file used to carry collapse into a single arrangement.
+ */
 @Composable
 private fun SessionCard(
     session: TrackingSession,
     progressTotal: Int?,
     mediaType: MediaType,
-    accent: Color,
+    onLogProgress: (() -> Unit)?,
     onEditClick: () -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val visualState = session.visualState(accent = accent)
-    val progressFraction = session.progressFraction(progressTotal)
+    val visual = sessionStateVisual(session.status)
+    val state = visual.color
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, visualState.color.copy(alpha = 0.30f)),
-        tonalElevation = 2.dp,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = OmnilogTheme.colors.appPanel,
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // Header row: status pill + edit button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                StatusPill(
-                    label = visualState.label,
-                    icon = visualState.icon,
-                    color = visualState.color,
-                )
+                SessionStateChip(visual = visual)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -187,7 +172,7 @@ private fun SessionCard(
                         sessionStatus = session.status,
                         progressTotal = progressTotal,
                         mediaType = mediaType,
-                        accent = visualState.color,
+                        accent = state,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                         onUpdateProgressUpdate = onUpdateProgressUpdate,
                         onDeleteStatusEvent = onDeleteStatusEvent,
@@ -206,37 +191,189 @@ private fun SessionCard(
                 }
             }
 
-            when (session.status) {
-                TrackingStatus.Planned -> PlannedSummary(
-                    session = session,
-                    mediaType = mediaType,
-                    color = visualState.color,
-                )
-                TrackingStatus.InProgress,
-                TrackingStatus.Paused,
-                    -> ProgressSummary(
-                    session = session,
-                    progressTotal = progressTotal,
-                    mediaType = mediaType,
-                    progressFraction = progressFraction,
-                    color = visualState.color,
-                )
-                TrackingStatus.Completed -> CompletedSummary(
+            // The hero slot. A rating is a verdict and a progress figure is a position; when both
+            // exist the verdict is the more interesting of the two, so it takes the slot and the
+            // position drops to the caption under its own graphic.
+            val rating = session.rating
+            if (rating != null) {
+                RatingMeter(rating = rating, accent = state)
+            } else {
+                ProgressFigure(
                     session = session,
                     progressTotal = progressTotal,
                     mediaType = mediaType,
-                    color = visualState.color,
+                    color = state,
                 )
-                TrackingStatus.Dropped -> DroppedSummary(
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SessionProgressGraphic(
+                    progressCurrent = session.progressCurrent,
+                    progressTotal = progressTotal,
+                    mediaType = mediaType,
+                    progressUpdates = session.progressUpdates,
+                    color = state,
+                    faded = session.status == TrackingStatus.Dropped,
+                )
+                progressCaption(
                     session = session,
                     progressTotal = progressTotal,
                     mediaType = mediaType,
-                    progressFraction = progressFraction,
-                    color = visualState.color,
+                    ratingHasHero = rating != null,
+                )?.let { caption ->
+                    Text(
+                        text = caption,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OmnilogTheme.colors.appMuted,
+                    )
+                }
+            }
+
+            if (session.startedAt != null || session.finishedAt != null) {
+                SessionDatesRow(session = session, trailing = sessionRecencyLabel(session))
+            } else if (session.status.endsSession) {
+                // Finished with nothing recorded. One quiet line, rather than a dates row made
+                // entirely of em-dashes.
+                Text(
+                    text = stringResource(R.string.session_no_dates),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
                 )
+            }
+
+            session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
+                Text(
+                    text = notes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appInk.copy(alpha = 0.72f),
+                )
+            }
+
+            // The card's one saturated object, and the reason the card is worth tapping. Everything
+            // else here is accent-at-low-alpha or muted ink, so the eye lands on the action.
+            onLogProgress?.let { log ->
+                Button(
+                    onClick = log,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = state,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                ) {
+                    Text(
+                        text = logActionLabel(status = session.status, mediaType = mediaType),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
             }
         }
     }
+}
+
+/**
+ * Where the session has got to, as the largest thing on the card.
+ *
+ * The figure is the count on its own; the unit and the total are the caption beside it. The old card
+ * set the whole sentence — "12 / 28 episodis" — at one weight, which made the number as hard to find
+ * as everything around it.
+ */
+@Composable
+private fun ProgressFigure(
+    session: TrackingSession,
+    progressTotal: Int?,
+    mediaType: MediaType,
+    color: Color,
+) {
+    val total = progressTotal?.takeIf { it > 0 }
+    val current = if (total != null) {
+        session.progressCurrent.coerceAtMost(total)
+    } else {
+        session.progressCurrent
+    }
+    val unit = progressUnitLabel(mediaType = mediaType, value = total ?: current)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(
+            text = current.toString(),
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = color,
+        )
+        Text(
+            text = if (total != null) {
+                stringResource(R.string.session_progress_of_suffix, total, unit)
+            } else {
+                unit
+            },
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp, bottom = 5.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = OmnilogTheme.colors.appMuted,
+        )
+        if (total != null && total > 0) {
+            Text(
+                text = "${current * 100 / total}%",
+                modifier = Modifier.padding(bottom = 5.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = color,
+            )
+        }
+    }
+}
+
+/**
+ * The line under the graphic, or nothing when the figure above has already said it.
+ *
+ * Books get one either way: pages remaining is the number a reader actually wants, and the fore-edge
+ * can show the proportion but cannot say how many are left.
+ */
+@Composable
+private fun progressCaption(
+    session: TrackingSession,
+    progressTotal: Int?,
+    mediaType: MediaType,
+    ratingHasHero: Boolean,
+): String? {
+    val total = progressTotal?.takeIf { it > 0 }
+
+    if (mediaType == MediaType.Book && total != null) {
+        val left = (total - session.progressCurrent).coerceAtLeast(0)
+        if (left > 0) return pluralStringResource(R.plurals.session_pages_left, left, left)
+    }
+    if (!ratingHasHero) return null
+
+    val current = if (total != null) {
+        session.progressCurrent.coerceAtMost(total)
+    } else {
+        session.progressCurrent
+    }
+    val unit = progressUnitLabel(mediaType = mediaType, value = total ?: current)
+    return if (total != null) {
+        stringResource(R.string.session_progress_of, current, total, unit)
+    } else {
+        stringResource(R.string.session_progress_plain, current, unit)
+    }
+}
+
+/**
+ * What the button offers, which depends on where the session is and not only on what it holds.
+ *
+ * Planned and Paused are both "tell me where you are" as far as the sheet behind this is concerned,
+ * but they are not the same invitation, and a button reading `Registra episodi` on something you have
+ * not started is asking the wrong question.
+ */
+@Composable
+private fun logActionLabel(status: TrackingStatus, mediaType: MediaType): String = when (status) {
+    TrackingStatus.Planned -> stringResource(R.string.session_start_action)
+    TrackingStatus.Paused -> stringResource(R.string.session_resume_action)
+    else -> logProgressLabel(mediaType)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -343,7 +480,7 @@ fun SessionEditorScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        val stateColor = statusVisualState(status = draftStatus, accent = accent).color
+        val stateColor = sessionStateVisual(draftStatus).color
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -448,786 +585,6 @@ private fun EditSectionDivider() {
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
     )
 }
-
-// ── Status selector ──────────────────────────────────────────
-
-@Composable
-private fun StatusSelectorRow(
-    selectedStatus: TrackingStatus,
-    accent: Color,
-    onStatusSelected: (TrackingStatus) -> Unit,
-) {
-    val statuses = TrackingStatus.entries.toList()
-
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 4.dp),
-    ) {
-        items(statuses) { status ->
-            val isSelected = status == selectedStatus
-            val visualState = statusVisualState(status = status, accent = accent)
-            Surface(
-                onClick = { onStatusSelected(status) },
-                shape = RoundedCornerShape(8.dp),
-                color = if (isSelected) visualState.color.copy(alpha = 0.18f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
-                border = BorderStroke(
-                    width = if (isSelected) 1.5.dp else 1.dp,
-                    color = if (isSelected) visualState.color.copy(alpha = 0.70f)
-                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.28f),
-                ),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = visualState.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp),
-                        tint = if (isSelected) visualState.color
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                    )
-                    Text(
-                        text = visualState.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isSelected) visualState.color
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ── Progress editor ──────────────────────────────────────────
-
-@Composable
-private fun ProgressEditorRow(
-    progressCurrent: Int,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    accent: Color,
-    onProgressChange: (Int) -> Unit,
-) {
-    var rawInput by rememberSaveable(progressCurrent, progressTotal) {
-        mutableStateOf(progressCurrent.toString())
-    }
-    val current = rawInput.toIntOrNull() ?: progressCurrent
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            // Decrement
-            FilledTonalIconButton(
-                onClick = {
-                    val next = (current - 1).coerceAtLeast(0)
-                    rawInput = next.toString()
-                    onProgressChange(next)
-                },
-                modifier = Modifier.size(40.dp),
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = accent.copy(alpha = 0.14f),
-                    contentColor = accent,
-                ),
-            ) {
-                Text(text = "−", fontSize = 20.sp, fontWeight = FontWeight.Light)
-            }
-
-            // Number input + context label
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                OutlinedTextField(
-                    value = rawInput,
-                    onValueChange = { value ->
-                        val digits = value.filter { it.isDigit() }
-                        rawInput = digits
-                        digits.toIntOrNull()?.let {
-                            val max = progressTotal ?: Int.MAX_VALUE
-                            onProgressChange(it.coerceIn(0, max))
-                        }
-                    },
-                    textStyle = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        color = accent,
-                    ),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = accent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                        cursorColor = accent,
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (progressTotal != null && progressTotal > 0) {
-                    Text(
-                        text = "de $progressTotal ${progressUnitLabel(mediaType, progressTotal)}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-            }
-
-            // Increment
-            FilledTonalIconButton(
-                onClick = {
-                    val max = progressTotal ?: Int.MAX_VALUE
-                    val next = (current + 1).coerceAtMost(max)
-                    rawInput = next.toString()
-                    onProgressChange(next)
-                },
-                modifier = Modifier.size(40.dp),
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = accent.copy(alpha = 0.14f),
-                    contentColor = accent,
-                ),
-            ) {
-                Text(text = "+", fontSize = 20.sp, fontWeight = FontWeight.Light)
-            }
-        }
-    }
-}
-
-// ── Rating editor ─────────────────────────────────────────────
-
-@Composable
-private fun RatingEditorRow(
-    currentRating: Int?,
-    accent: Color,
-    onRatingSelected: (Int?) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            (1..10).forEach { n ->
-                val isSelected = n == currentRating
-                val isActive = currentRating != null && n <= currentRating
-                Surface(
-                    onClick = { onRatingSelected(if (isSelected) null else n) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isActive) accent.copy(alpha = 0.20f)
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
-                    border = BorderStroke(
-                        width = if (isSelected) 1.5.dp else 1.dp,
-                        color = if (isActive) accent.copy(alpha = if (isSelected) 0.80f else 0.42f)
-                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f),
-                    ),
-                ) {
-                    Text(
-                        text = n.toString(),
-                        modifier = Modifier
-                            .padding(vertical = 10.dp)
-                            .fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isActive) accent
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                    )
-                }
-            }
-        }
-
-        // Tap selected again = clear; also show explicit clear link
-        if (currentRating != null) {
-            Text(
-                text = stringResource(R.string.rating_clear),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.error.copy(alpha = 0.70f),
-                modifier = Modifier
-                    .clickable { onRatingSelected(null) }
-                    .padding(vertical = 4.dp),
-            )
-        }
-    }
-}
-
-// ── Notes editor ─────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DateField(
-    label: String,
-    value: String,
-    accent: Color,
-    onValueChange: (String) -> Unit,
-) {
-    var showPicker by rememberSaveable(label) { mutableStateOf(false) }
-    val selectedMillis = value.toLocalDateOrNull()
-        ?.atStartOfDay(ZoneId.systemDefault())
-        ?.toInstant()
-        ?.toEpochMilli()
-    OutlinedTextField(
-        value = value,
-        onValueChange = { onValueChange(it.take(10)) },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text(text = label) },
-        placeholder = { Text(text = "YYYY-MM-DD") },
-        singleLine = true,
-        trailingIcon = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (value.isNotBlank()) {
-                    IconButton(onClick = { onValueChange("") }) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.clear_date),
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.72f),
-                        )
-                    }
-                }
-                TextButton(onClick = { showPicker = true }) {
-                    Text(text = stringResource(R.string.pick_date))
-                }
-            }
-        },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = accent,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-            cursorColor = accent,
-        ),
-        shape = RoundedCornerShape(12.dp),
-    )
-
-    if (showPicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
-        DatePickerDialog(
-            onDismissRequest = { showPicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            onValueChange(
-                                Instant.ofEpochMilli(millis)
-                                    .atZone(ZoneId.systemDefault())
-                                    .toLocalDate()
-                                    .toString(),
-                            )
-                        }
-                        showPicker = false
-                    },
-                ) {
-                    Text(text = stringResource(R.string.save))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPicker = false }) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-            },
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
-}
-
-@Composable
-private fun NotesEditorField(
-    currentNotes: String,
-    accent: Color,
-    onValueChange: (String) -> Unit,
-) {
-    OutlinedTextField(
-        value = currentNotes,
-        onValueChange = onValueChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(140.dp),
-        placeholder = {
-            Text(
-                text = stringResource(R.string.notes_placeholder),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f),
-            )
-        },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = accent,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-            cursorColor = accent,
-        ),
-        shape = RoundedCornerShape(12.dp),
-        textStyle = MaterialTheme.typography.bodyMedium,
-        maxLines = 6,
-    )
-}
-
-// ─────────────────────────────────────────────────────────────
-// Read card sub-composables
-// ─────────────────────────────────────────────────────────────
-
-@Composable
-private fun PlannedSummary(session: TrackingSession, mediaType: MediaType, color: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.session_planned_prompt),
-            color = OmnilogTheme.colors.appMuted,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        QuickHintRow(
-            values = listOf(
-                stringResource(R.string.status_in_progress),
-                stringResource(R.string.field_progress),
-                stringResource(R.string.field_rating),
-            ),
-            color = color,
-        )
-        InlineRatingDisplay(rating = session.rating, color = color)
-        SessionDates(session = session, mediaType = mediaType)
-    }
-}
-
-@Composable
-private fun ProgressSummary(
-    session: TrackingSession,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    progressFraction: Float,
-    color: Color,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = progressText(session, progressTotal, mediaType),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            if (progressTotal != null && progressTotal > 0) {
-                Text(
-                    text = "· ${(progressFraction * 100).toInt()}%",
-                    color = color.copy(alpha = 0.70f),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 2.dp),
-                )
-            }
-        }
-        if (progressTotal != null && progressTotal > 0) {
-            ThickProgressBar(fraction = progressFraction, color = color)
-        }
-        InlineRatingDisplay(rating = session.rating, color = color)
-        SessionDates(
-            session = session,
-            mediaType = mediaType,
-            highlightedStartedAt = true,
-            highlightColor = color,
-        )
-        session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
-            Text(
-                text = notes,
-                color = OmnilogTheme.colors.appMuted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CompletedSummary(
-    session: TrackingSession,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    color: Color,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RatingDisplay(rating = session.rating, color = color)
-        if (progressTotal != null && progressTotal > 0) {
-            ThickProgressBar(fraction = 1f, color = color)
-        }
-        Text(
-            text = progressText(session, progressTotal, mediaType),
-            color = OmnilogTheme.colors.appMuted,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        SessionDates(session = session, mediaType = mediaType)
-    }
-}
-
-@Composable
-private fun DroppedSummary(
-    session: TrackingSession,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    progressFraction: Float,
-    color: Color,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (session.rating != null) {
-            RatingDisplay(rating = session.rating, color = color)
-        } else {
-            Text(
-                text = progressText(session, progressTotal, mediaType),
-                color = OmnilogTheme.colors.appMuted,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        // Faded bar signals "abandoned" vs a solid completed bar
-        if (progressTotal != null && progressTotal > 0) {
-            ThickProgressBar(fraction = progressFraction, color = color.copy(alpha = 0.40f))
-        }
-        if (session.rating != null) {
-            Text(
-                text = progressText(session, progressTotal, mediaType),
-                color = OmnilogTheme.colors.appMuted,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        SessionDates(session = session, mediaType = mediaType)
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Shared display components
-// ─────────────────────────────────────────────────────────────
-
-@Composable
-private fun ThickProgressBar(fraction: Float, color: Color) {
-    val animated by animateFloatAsState(
-        targetValue = fraction.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 500),
-        label = "progressBar",
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(animated)
-                .height(6.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color),
-        )
-    }
-}
-
-@Composable
-private fun RatingDisplay(rating: Int?, color: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = stringResource(R.string.field_rating),
-                color = if (rating != null) color
-                else OmnilogTheme.colors.appMuted,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = if (rating != null) {
-                    stringResource(R.string.rating_value, rating)
-                } else {
-                    stringResource(R.string.rating_empty)
-                },
-                color = if (rating != null) color
-                else OmnilogTheme.colors.appMuted,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            val clampedRating = rating?.coerceIn(0, 10) ?: 0
-            repeat(10) { index ->
-                Icon(
-                    imageVector = Icons.Filled.Star,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = if (index < clampedRating) {
-                        color
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.26f)
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InlineRatingDisplay(rating: Int?, color: Color) {
-    if (rating == null) return
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.rating_value, rating),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = color,
-        )
-        Row(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            repeat(10) { index ->
-                Icon(
-                    imageVector = Icons.Filled.Star,
-                    contentDescription = null,
-                    modifier = Modifier.size(13.dp),
-                    tint = if (index < rating.coerceIn(0, 10)) {
-                        color
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f)
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SessionDates(
-    session: TrackingSession,
-    mediaType: MediaType,
-    highlightedStartedAt: Boolean = false,
-    highlightColor: Color = MaterialTheme.colorScheme.primary,
-) {
-    val startedAt = session.startedAt?.let { stringResource(R.string.session_started_at, it.formatDate()) }
-    val finishedAt = session.finishedAt?.let {
-        stringResource(
-            if (startedAt == null) mediaType.finishedOnlyDateLabelRes() else R.string.session_finished_at,
-            it.formatDate(),
-        )
-    }
-    val finishedWithoutDate = if (session.status == TrackingStatus.Completed && session.finishedAt == null) {
-        stringResource(R.string.session_finished_unknown)
-    } else {
-        null
-    }
-    val updatedAt = if (finishedAt == null && finishedWithoutDate == null) {
-        session.updatedDate()?.let { stringResource(R.string.session_updated_at, it.formatDate()) }
-    } else {
-        null
-    }
-    if (startedAt == null && finishedAt == null && finishedWithoutDate == null && updatedAt == null) return
-
-    val primaryDateColor = if (highlightedStartedAt && startedAt != null) {
-        highlightColor
-    } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        startedAt?.let { label ->
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (highlightedStartedAt) FontWeight.Bold else FontWeight.SemiBold,
-                color = primaryDateColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        finishedAt?.let { label ->
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        finishedWithoutDate?.let { label ->
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        updatedAt?.let { label ->
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = OmnilogTheme.colors.appMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun QuickHintRow(values: List<String>, color: Color) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        values.forEachIndexed { index, value ->
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = color.copy(alpha = 0.12f),
-                contentColor = color,
-            ) {
-                Text(
-                    text = value,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-            if (index < values.lastIndex) {
-                Text(
-                    text = "→",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = color.copy(alpha = 0.42f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatusPill(label: String, icon: ImageVector, color: Color) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = color.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.32f)),
-        contentColor = color,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Visual state helpers
-// ─────────────────────────────────────────────────────────────
-
-private data class SessionVisualState(
-    val label: String,
-    val icon: ImageVector,
-    val color: Color,
-)
-
-@Composable
-private fun TrackingSession.visualState(accent: Color): SessionVisualState =
-    statusVisualState(status = status, accent = accent)
-
-// Extracted so both the card and the status selector share the same mapping
-@Composable
-private fun statusVisualState(status: TrackingStatus, accent: Color): SessionVisualState =
-    when (status) {
-        TrackingStatus.Planned -> SessionVisualState(
-            label = stringResource(R.string.status_planned),
-            icon = Icons.Filled.Star,
-            color = OmnilogTheme.accents.Planned,
-        )
-        TrackingStatus.InProgress -> SessionVisualState(
-            label = stringResource(R.string.status_in_progress),
-            icon = Icons.Filled.PlayArrow,
-            color = OmnilogTheme.accents.InProgress,
-        )
-        TrackingStatus.Completed -> SessionVisualState(
-            label = stringResource(R.string.status_completed),
-            icon = Icons.Filled.CheckCircle,
-            color = OmnilogTheme.accents.Completed,
-        )
-        TrackingStatus.Paused -> SessionVisualState(
-            label = stringResource(R.string.status_paused),
-            icon = Icons.Filled.Edit,
-            color = OmnilogTheme.accents.Paused,
-        )
-        TrackingStatus.Dropped -> SessionVisualState(
-            label = stringResource(R.string.status_dropped),
-            icon = Icons.Filled.Close,
-            color = OmnilogTheme.accents.Dropped,
-        )
-    }
-
-// ─────────────────────────────────────────────────────────────
-// Pure helpers (no Compose)
-// ─────────────────────────────────────────────────────────────
-
-@Composable
-private fun progressText(
-    session: TrackingSession,
-    progressTotal: Int?,
-    mediaType: MediaType,
-): String {
-    val unit = progressUnitLabel(mediaType = mediaType, value = progressTotal ?: session.progressCurrent)
-    return if (progressTotal != null && progressTotal > 0) {
-        "${session.progressCurrent.coerceAtMost(progressTotal)} / $progressTotal $unit"
-    } else {
-        "${session.progressCurrent} $unit"
-    }
-}
-
-private fun TrackingSession.progressFraction(progressTotal: Int?): Float {
-    if (progressTotal == null || progressTotal <= 0) return 0f
-    return progressCurrent.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
-}
-
-private fun TrackingSession.updatedDate(): LocalDate? {
-    if (updatedAtEpochMillis <= 0L) return null
-    return Instant.ofEpochMilli(updatedAtEpochMillis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
-}
-
-private fun MediaType.finishedOnlyDateLabelRes(): Int =
-    when (this) {
-        MediaType.Book -> R.string.session_finished_read_at
-        MediaType.Game -> R.string.session_finished_played_at
-        MediaType.Anime,
-        MediaType.Movie,
-        MediaType.TvShow,
-            -> R.string.session_finished_watched_at
-    }
-
-private fun LocalDate.formatDate(): String =
-    format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
 private fun String.toLocalDateOrNull(): LocalDate? =
     trim().takeIf { it.isNotBlank() }?.let { value ->
