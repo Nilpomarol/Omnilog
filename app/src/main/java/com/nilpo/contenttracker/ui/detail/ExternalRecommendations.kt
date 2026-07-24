@@ -50,14 +50,26 @@ internal fun ExternalRecommendationsSection(
     hasError: Boolean,
     onRefresh: () -> Unit,
     onRecommendationClick: (MetadataSuggestion) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DetailSectionTitle(text = stringResource(R.string.detail_external_recommendations))
+    // Everything but the carousel keeps the page gutter; the carousel spends it as content padding
+    // so the cards run off the screen edge.
+    val gutter = Modifier.padding(horizontal = DetailGutter)
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        DetailSectionTitle(
+            text = stringResource(R.string.detail_external_recommendations),
+            modifier = gutter,
+        )
 
         if (isLoading) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().then(gutter))
             Text(
                 text = stringResource(R.string.detail_external_recommendation_loading),
+                modifier = gutter,
                 style = MaterialTheme.typography.bodySmall,
                 color = OmnilogTheme.colors.appMuted,
             )
@@ -65,7 +77,7 @@ internal fun ExternalRecommendationsSection(
 
         if (hasError && recommendations.isEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().then(gutter),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -84,7 +96,7 @@ internal fun ExternalRecommendationsSection(
         if (recommendations.isNotEmpty()) {
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(end = 4.dp),
+                contentPadding = PaddingValues(horizontal = DetailGutter),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(

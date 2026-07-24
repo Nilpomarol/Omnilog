@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,7 +45,6 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.DetailHeaderActions
-import com.nilpo.contenttracker.ui.common.MediaMetadataHero
 import com.nilpo.contenttracker.ui.common.MediaMetadataHeroGenres
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
@@ -55,6 +55,9 @@ import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
+
+/** How far the session card rides up over the tail of the backdrop's fade. */
+private val SessionOverlap = 34.dp
 
 @Composable
 fun DetailScreen(
@@ -90,6 +93,7 @@ fun DetailScreen(
     onRefreshExternalRecommendations: () -> Unit = {},
     onExternalRecommendationClick: (MetadataSuggestion) -> Unit = {},
     askForGoodreadsRating: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier,
 ) {
     val currentSession = trackedMedia.currentSession
@@ -174,7 +178,8 @@ fun DetailScreen(
             onUpdateExternalRating = onUpdateExternalRating,
             onSetPrimary = onSetPrimaryExternalRating,
             onDelete = onDeleteExternalRating,
-            modifier = modifier,
+            // This page has no backdrop, so it takes the app bar's inset back as ordinary padding.
+            modifier = modifier.padding(contentPadding),
         )
         return
     }
@@ -183,84 +188,89 @@ fun DetailScreen(
         modifier = modifier,
         color = MaterialTheme.colorScheme.background,
     ) {
+        // The 24dp gutter used to live on the LazyColumn, which meant nothing on this page could
+        // reach the screen edge. It now belongs to each item, so the backdrop can bleed.
+        val gutter = Modifier.padding(horizontal = 24.dp)
+
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxSize(),
             state = detailListState,
+            contentPadding = PaddingValues(
+                bottom = contentPadding.calculateBottomPadding() + 24.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
-                MediaMetadataHero(
-                    metadata = metadata,
-                    onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
-                    onCreatorClick = onAuthorClick,
-                )
-            }
+                // The header and the live session are one composition, not two rows: the negative
+                // spacing is what lets the card sit over the tail of the artwork instead of below
+                // a hard edge. With no sessions at all there is only one child and it does nothing.
+                Column(verticalArrangement = Arrangement.spacedBy(-SessionOverlap)) {
+                    DetailBackdropHeader(
+                        metadata = metadata,
+                        topInset = contentPadding.calculateTopPadding(),
+                        onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
+                        onCreatorClick = onAuthorClick,
+                    )
 
-            if (metadata.genres.isNotEmpty()) {
-                item {
-                    MediaMetadataHeroGenres(metadata = metadata)
-                }
-            }
-
-            if (currentSession != null || pastSessions.isNotEmpty()) {
-                item {
-                    // The live session and everything before it, on one rail. This replaces the
-                    // separate `Historial` section that used to sit further down the page: a re-read
-                    // is a fact about the session you are looking at, not a footnote to it.
-                    SessionThread(
-                        currentStateColor = currentSession
-                            ?.let { sessionStateVisual(it.status).color }
-                            ?: accent,
-                        current = currentSession?.let { session ->
-                            {
-                                CurrentSessionSection(
-                                    session = session,
-                                    progressTotal = trackedMedia.item.effectiveProgressTotal(),
-                                    mediaType = trackedMedia.item.type,
-                                    accent = accent,
-                                    // Completed and Dropped sessions have nothing left to log, and
-                                    // the sheet behind this button refuses them anyway.
-                                    onLogProgress = if (session.status.endsSession) {
-                                        null
-                                    } else {
-                                        { showQuickProgress = true }
-                                    },
-                                    onUpdateSessionDetails = onUpdateSessionDetails,
-                                    onDeleteProgressUpdate = onDeleteProgressUpdate,
-                                    onDeleteStatusEvent = onDeleteStatusEvent,
-                                    onUpdateStatusEventDate = onUpdateStatusEventDate,
-                                    onUpdateProgressUpdate = onUpdateProgressUpdate,
-                                )
-                            }
-                        },
-                        past = pastSessions.reversed().map { session ->
-                            SessionThreadEntry(
-                                stateColor = sessionStateVisual(session.status).color,
-                                content = {
-                                    PastSessionSection(
+                    if (currentSession != null || pastSessions.isNotEmpty()) {
+                        // The live session and everything before it, on one rail. This replaces the
+                        // separate `Historial` section that used to sit further down the page: a
+                        // re-read is a fact about the session you are looking at, not a footnote.
+                        SessionThread(
+                            modifier = gutter,
+                            currentStateColor = currentSession
+                                ?.let { sessionStateVisual(it.status).color }
+                                ?: accent,
+                            current = currentSession?.let { session ->
+                                {
+                                    CurrentSessionSection(
                                         session = session,
-                                        visitNumber = trackedMedia.visitNumber(session),
                                         progressTotal = trackedMedia.item.effectiveProgressTotal(),
                                         mediaType = trackedMedia.item.type,
                                         accent = accent,
+                                        // Completed and Dropped sessions have nothing left to log,
+                                        // and the sheet behind this button refuses them anyway.
+                                        onLogProgress = if (session.status.endsSession) {
+                                            null
+                                        } else {
+                                            { showQuickProgress = true }
+                                        },
                                         onUpdateSessionDetails = onUpdateSessionDetails,
                                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                                         onDeleteStatusEvent = onDeleteStatusEvent,
                                         onUpdateStatusEventDate = onUpdateStatusEventDate,
                                         onUpdateProgressUpdate = onUpdateProgressUpdate,
-                                        onDeleteSession = { onDeletePastSession(session.id) },
                                     )
-                                },
-                            )
-                        },
-                    )
+                                }
+                            },
+                            past = pastSessions.reversed().map { session ->
+                                SessionThreadEntry(
+                                    stateColor = sessionStateVisual(session.status).color,
+                                    content = {
+                                        PastSessionSection(
+                                            session = session,
+                                            visitNumber = trackedMedia.visitNumber(session),
+                                            progressTotal = trackedMedia.item.effectiveProgressTotal(),
+                                            mediaType = trackedMedia.item.type,
+                                            accent = accent,
+                                            onUpdateSessionDetails = onUpdateSessionDetails,
+                                            onDeleteProgressUpdate = onDeleteProgressUpdate,
+                                            onDeleteStatusEvent = onDeleteStatusEvent,
+                                            onUpdateStatusEventDate = onUpdateStatusEventDate,
+                                            onUpdateProgressUpdate = onUpdateProgressUpdate,
+                                            onDeleteSession = { onDeletePastSession(session.id) },
+                                        )
+                                    },
+                                )
+                            },
+                        )
+                    }
                 }
             }
 
             item {
                 DetailQuickActionsSection(
+                    modifier = gutter,
                     item = trackedMedia.item,
                     collection = trackedMedia.collection,
                     library = allTrackedMedia,
@@ -281,22 +291,33 @@ fun DetailScreen(
                 )
             }
 
+            if (metadata.genres.isNotEmpty()) {
+                item {
+                    MediaMetadataHeroGenres(metadata = metadata, modifier = gutter)
+                }
+            }
+
             item {
                 ItemDetailsSection(
                     item = trackedMedia.item,
                     credits = trackedMedia.credits,
+                    modifier = gutter,
                 )
             }
 
             if (trackedMedia.externalRatings.size > 1) {
                 item {
-                    DetailSectionTitle(text = stringResource(R.string.detail_external_scores))
+                    DetailSectionTitle(
+                        text = stringResource(R.string.detail_external_scores),
+                        modifier = gutter,
+                    )
                 }
                 item {
                     ExternalScoreTiles(
                         ratings = trackedMedia.externalRatings,
                         mediaType = trackedMedia.item.type,
                         accent = accent,
+                        modifier = gutter,
                     )
                 }
             }
@@ -457,8 +478,12 @@ private fun ExternalScoreTiles(
     ratings: List<ExternalRating>,
     mediaType: MediaType,
     accent: Color,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         ratings.chunked(3).forEach { rowRatings ->
             Row(
                 modifier = Modifier.fillMaxWidth(),

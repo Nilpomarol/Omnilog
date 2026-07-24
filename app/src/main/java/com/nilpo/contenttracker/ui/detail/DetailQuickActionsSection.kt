@@ -73,11 +73,15 @@ fun DetailQuickActionsSection(
     accent: Color,
     onSaveItemDetails: (String, Long?, String?, Double?, Int?, Boolean) -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var showCollectionDialog by rememberSaveable(item.id) { mutableStateOf(false) }
     var showNewSessionDialog by rememberSaveable(item.id) { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

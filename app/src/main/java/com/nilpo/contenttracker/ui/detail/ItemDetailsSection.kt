@@ -24,8 +24,12 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 fun ItemDetailsSection(
     item: MediaItem,
     credits: List<MediaCredit>,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,

@@ -151,6 +151,8 @@ import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.timeline.TimelineScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.OnCoverInk
+import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -884,6 +886,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     showHomeSettingsAction = currentRoute == AppRoute.Home,
                     showTimelineSettingsAction = currentRoute == AppRoute.Timeline,
                     profileImagePath = profileImagePath,
+                    // Only the detail page draws artwork under the bar, and only while it is
+                    // actually showing that page — the external-ratings page it can swap to has an
+                    // ordinary background and needs the bar's own surface back.
+                    overCover = currentRoute is AppRoute.MediaDetail &&
+                            !detailActions.isManagingExternalRatings,
                     detailActions = detailActions,
                     onProfileRequested = openProfile,
                     onProfileEditRequested = { profileHeaderActions.onEditRequested() },
@@ -1386,9 +1393,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     },
                                     onExternalRecommendationClick = openExternalRecommendation,
                                     askForGoodreadsRating = askForGoodreadsRating,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(innerPadding),
+                                    // Not `.padding(innerPadding)`: the backdrop has to reach up
+                                    // behind the transparent app bar, so the screen takes the
+                                    // insets as content padding and spends them itself.
+                                    contentPadding = innerPadding,
+                                    modifier = Modifier.fillMaxSize(),
                                 )
                             }
                         }
@@ -2618,6 +2627,7 @@ private fun OmnilogTopBar(
     showHomeSettingsAction: Boolean,
     showTimelineSettingsAction: Boolean,
     profileImagePath: String?,
+    overCover: Boolean,
     detailActions: DetailHeaderActions,
     onProfileRequested: () -> Unit,
     onProfileEditRequested: () -> Unit,
@@ -2628,12 +2638,18 @@ private fun OmnilogTopBar(
     onTimelineSettingsRequested: () -> Unit,
     onBack: () -> Unit,
 ) {
+    // Over the detail page's backdrop the bar has no surface of its own: the artwork shows through
+    // and the header's own scrim is what keeps these icons legible. That scrim stays dark in both
+    // themes, so the ink on it does too — the reasoning `OnCoverInk` exists for.
+    val barInk = if (overCover) OnCoverInk else OmnilogTheme.colors.appInk
+    val barMuted = if (overCover) OnCoverMuted else OmnilogTheme.colors.appMuted
+
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = OmnilogTheme.colors.appBackground,
-            titleContentColor = OmnilogTheme.colors.appInk,
-            navigationIconContentColor = OmnilogTheme.colors.appInk,
-            actionIconContentColor = OmnilogTheme.colors.appInk,
+            containerColor = if (overCover) Color.Transparent else OmnilogTheme.colors.appBackground,
+            titleContentColor = barInk,
+            navigationIconContentColor = barInk,
+            actionIconContentColor = barInk,
         ),
         navigationIcon = {
             if (showBackNavigation) {
@@ -2641,7 +2657,7 @@ private fun OmnilogTopBar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
-                        tint = OmnilogTheme.colors.appInk,
+                        tint = barInk,
                     )
                     Text(
                         text = "‹",
@@ -2687,7 +2703,7 @@ private fun OmnilogTopBar(
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
                             contentDescription = null,
-                            tint = OmnilogTheme.colors.appMuted,
+                            tint = barMuted,
                         )
                         Text(
                             text = "⋮",

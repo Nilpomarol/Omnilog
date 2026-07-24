@@ -2,7 +2,6 @@ package com.nilpo.contenttracker.ui.common
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -104,8 +103,6 @@ fun MediaMetadataHero(
     modifier: Modifier = Modifier,
     isLoadingDetails: Boolean = false,
     loadingAccent: Color = OmnilogTheme.colors.appMuted,
-    onCollectionClick: (() -> Unit)? = null,
-    onCreatorClick: ((String) -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -143,11 +140,6 @@ fun MediaMetadataHero(
                 metadata.collectionDisplayName()?.let { collectionName ->
                     Text(
                         text = collectionName,
-                        modifier = if (onCollectionClick != null) {
-                            Modifier.clickable(onClick = onCollectionClick)
-                        } else {
-                            Modifier
-                        },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = OmnilogTheme.colors.appMuted,
@@ -186,9 +178,6 @@ fun MediaMetadataHero(
                         metadata.creators.forEach { creator ->
                             Text(
                                 text = creator,
-                                modifier = if (onCreatorClick != null) {
-                                    Modifier.clickable { onCreatorClick(creator) }
-                                } else Modifier,
                                 style = MaterialTheme.typography.titleSmall,
                                 color = OmnilogTheme.colors.appInk.copy(alpha = 0.84f),
                                 maxLines = 1,

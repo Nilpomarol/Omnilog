@@ -118,12 +118,21 @@ internal fun RelatedMediaSection(
     relatedMedia: List<RelatedMediaMatch>,
     accent: Color,
     onMediaClick: (TrackedMedia) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DetailSectionTitle(text = title)
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // The title keeps the gutter; the row spends it as content padding instead, so the covers
+        // run off the screen edge rather than stopping short of it.
+        DetailSectionTitle(
+            text = title,
+            modifier = Modifier.padding(horizontal = DetailGutter),
+        )
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(end = 4.dp),
+            contentPadding = PaddingValues(horizontal = DetailGutter),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(
