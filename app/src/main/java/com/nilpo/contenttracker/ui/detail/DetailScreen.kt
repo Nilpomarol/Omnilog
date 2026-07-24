@@ -203,16 +203,21 @@ fun DetailScreen(
             item {
                 // The header and the live session are one composition, not two rows: the negative
                 // spacing is what lets the card sit over the tail of the artwork instead of below
-                // a hard edge. With no sessions at all there is only one child and it does nothing.
-                Column(verticalArrangement = Arrangement.spacedBy(-SessionOverlap)) {
+                // a hard edge. The header reserves the same distance under its title block, so the
+                // card rides up into empty artwork rather than onto the title.
+                val hasSessions = currentSession != null || pastSessions.isNotEmpty()
+                val overlap = if (hasSessions) SessionOverlap else 0.dp
+
+                Column(verticalArrangement = Arrangement.spacedBy(-overlap)) {
                     DetailBackdropHeader(
                         metadata = metadata,
                         topInset = contentPadding.calculateTopPadding(),
+                        overlap = overlap,
                         onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
                         onCreatorClick = onAuthorClick,
                     )
 
-                    if (currentSession != null || pastSessions.isNotEmpty()) {
+                    if (hasSessions) {
                         // The live session and everything before it, on one rail. This replaces the
                         // separate `Historial` section that used to sit further down the page: a
                         // re-read is a fact about the session you are looking at, not a footnote.

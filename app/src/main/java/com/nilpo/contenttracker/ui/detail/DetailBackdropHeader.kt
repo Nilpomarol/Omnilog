@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,8 +43,21 @@ import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
-/** How much artwork sits below the app bar before the fade completes. */
-private val BackdropHeight = 300.dp
+/**
+ * Clear artwork between the app bar and the title block.
+ *
+ * Deliberately small. The header used to be a fixed 300dp with the title pushed to its bottom edge,
+ * which left everything between the bar and the title as dead space. The artwork's real estate is
+ * the band behind the transparent bar and status bar — this is only the seam below it.
+ */
+private val ArtworkBand = 36.dp
+
+/**
+ * Clearance below the title block, on top of whatever the session card overlaps by.
+ *
+ * Without it the card lands on the title rather than below it.
+ */
+private val CardClearance = 16.dp
 
 /** The sharp cover that sits on the blurred one. */
 private val CoverWidth = 104.dp
@@ -84,35 +97,41 @@ fun DetailBackdropHeader(
     metadata: MediaMetadataUi,
     topInset: Dp,
     modifier: Modifier = Modifier,
+    overlap: Dp = 0.dp,
     onCollectionClick: (() -> Unit)? = null,
     onCreatorClick: ((String) -> Unit)? = null,
 ) {
     val background = OmnilogTheme.colors.appBackground
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(topInset + BackdropHeight),
-    ) {
+    // The fade finishes exactly where the title block starts, so the title always has a flat ground
+    // to sit on and can keep ordinary `appInk`. Measured in pixels rather than as a fraction of the
+    // header because the header's height depends on how tall the title runs, and a fraction would
+    // slide the fade around whenever the title wrapped to another line.
+    val fadeEndPx = with(LocalDensity.current) { (topInset + ArtworkBand).toPx() }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        // matchParentSize, not fillMaxSize: these take their size from the Box rather than giving
+        // it one, so the column below is what decides how tall the header is. fillMaxSize would
+        // also be unbounded here, since a LazyColumn item is measured with infinite max height.
         BackdropArt(
             coverUrl = metadata.coverUrl,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.matchParentSize(),
         )
 
-        // The fade to the page. Ends fully opaque so the title block below has a flat ground.
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .background(
-                    // Still short of opaque where the session card lands, so the artwork stays
-                    // faintly present around and behind the card's top edge rather than stopping
-                    // dead above it. Fully opaque only at the very bottom.
+                    // Weighted to stay out of the way. An earlier pass had this at 44% background
+                    // by mid-band, which washed the artwork to mush and made the band read as
+                    // empty space rather than as a backdrop. It now holds the cover almost clean
+                    // through the bar and spends the whole fade in the last stretch.
                     Brush.verticalGradient(
-                        0.00f to background.copy(alpha = 0.08f),
-                        0.32f to background.copy(alpha = 0.44f),
-                        0.66f to background.copy(alpha = 0.76f),
-                        0.88f to background.copy(alpha = 0.92f),
+                        0.00f to Color.Transparent,
+                        0.52f to background.copy(alpha = 0.08f),
                         1.00f to background,
+                        startY = 0f,
+                        endY = fadeEndPx,
                     ),
                 ),
         )
@@ -131,18 +150,17 @@ fun DetailBackdropHeader(
                 ),
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = topInset),
-        ) {
-            Spacer(modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.height(topInset + ArtworkBand))
             TitleBlock(
                 metadata = metadata,
                 onCollectionClick = onCollectionClick,
                 onCreatorClick = onCreatorClick,
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp),
+                modifier = Modifier.padding(horizontal = DetailGutter),
             )
+            // Whatever the session card rides up by, plus enough that it lands below the title
+            // rather than on it.
+            Spacer(modifier = Modifier.height(overlap + CardClearance))
         }
     }
 }
