@@ -242,48 +242,27 @@ fun DetailScreen(
                 // a hard edge. The header reserves the same distance under its title block, so the
                 // card rides up into empty artwork rather than onto the title.
                 val hasSessions = currentSession != null || pastSessions.isNotEmpty()
-                val overlap = if (hasSessions || metadata.genres.isNotEmpty()) {
-                    SessionOverlap
-                } else {
-                    0.dp
-                }
+                val overlap = if (hasSessions) SessionOverlap else 0.dp
 
                 Column(verticalArrangement = Arrangement.spacedBy(-overlap)) {
                     DetailBackdropHeader(
                         metadata = metadata,
                         topInset = contentPadding.calculateTopPadding(),
                         overlap = overlap,
-                        // The genres belong to the title block, so they sit closer to it than a
-                        // session card would.
-                        clearance = if (metadata.genres.isNotEmpty()) {
-                            DetailGenreClearance
-                        } else {
-                            DetailCardClearance
-                        },
                         onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
                         onCreatorClick = onAuthorClick,
                     )
 
-                    // Whatever comes first here is what rides up into the artwork's foot — the
-                    // genres if the item has any, the session card otherwise.
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        DetailGenreRow(
-                            genres = metadata.genres,
-                            accent = accent,
+                    if (hasSessions) {
+                        // The live session and everything before it, on one rail. This replaces the
+                        // separate `Historial` section that used to sit further down the page: a
+                        // re-read is a fact about the session you are looking at, not a footnote.
+                        SessionThread(
                             modifier = gutter,
-                        )
-
-                        if (hasSessions) {
-                            // The live session and everything before it, on one rail. This replaces
-                            // the separate `Historial` section that used to sit further down the
-                            // page: a re-read is a fact about the session you are looking at, not a
-                            // footnote.
-                            SessionThread(
-                                modifier = gutter,
-                                currentStateColor = currentSession
-                                    ?.let { sessionStateVisual(it.status).color }
-                                    ?: accent,
-                                current = currentSession?.let { session ->
+                            currentStateColor = currentSession
+                                ?.let { sessionStateVisual(it.status).color }
+                                ?: accent,
+                            current = currentSession?.let { session ->
                                 {
                                     CurrentSessionSection(
                                         session = session,
@@ -305,7 +284,7 @@ fun DetailScreen(
                                     )
                                 }
                             },
-                                past = pastSessions.reversed().map { session ->
+                            past = pastSessions.reversed().map { session ->
                                 SessionThreadEntry(
                                     stateColor = sessionStateVisual(session.status).color,
                                     content = {
@@ -325,8 +304,7 @@ fun DetailScreen(
                                     },
                                 )
                             },
-                            )
-                        }
+                        )
                     }
                 }
             }

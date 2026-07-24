@@ -48,6 +48,7 @@ import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
 import com.nilpo.contenttracker.ui.common.logoRes
 import com.nilpo.contenttracker.ui.theme.DarkAccents
+import com.nilpo.contenttracker.ui.theme.DarkPalette
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.theme.OnCoverInk
@@ -65,21 +66,16 @@ import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 private val BarPaddingReclaim = 8.dp
 
 /**
- * Default clearance below the title block, on top of whatever the next row overlaps by.
+ * Clearance below the header's last row, on top of whatever the session card overlaps by.
  *
  * This strip is also exactly where the artwork fades into the page, so it is doing two jobs: it
- * keeps the session card off the title, and it gives the fade somewhere to happen that is not on
- * top of any text. A caller whose next row is lighter than a card can ask for less.
+ * keeps the session card off the header, and it gives the fade somewhere to happen that is not on
+ * top of any text.
  */
-val DetailCardClearance = 28.dp
+private val CardClearance = 28.dp
 
-/**
- * Clearance when the genres are what follows, which is closer.
- *
- * A row of pills belongs to the title block in a way a session card does not, and it is short
- * enough that the fade still has somewhere to finish underneath it.
- */
-val DetailGenreClearance = 12.dp
+/** Seam between the title block and the genres, which belong to it. */
+private val GenreGap = 14.dp
 
 /** Ink on the collection pill. Fixed, because the pill is an accent fill in both themes. */
 private val PillInk = Color(0xFF15120F)
@@ -120,8 +116,8 @@ private val BlurRadius = 18.dp
  * ink. A black band over nothing would be worse than no backdrop at all.
  *
  * [topInset] is the space the app bar and status bar occupy; the artwork fills it. [overlap] is how
- * far the next row will ride up into the foot, which the header reserves so that row lands below the
- * title rather than on it, and [clearance] is how much of a gap is left once it has.
+ * far the session card will ride up into the foot, which the header reserves so the card lands
+ * below the header rather than on it.
  */
 @Composable
 fun DetailBackdropHeader(
@@ -129,7 +125,6 @@ fun DetailBackdropHeader(
     topInset: Dp,
     modifier: Modifier = Modifier,
     overlap: Dp = 0.dp,
-    clearance: Dp = DetailCardClearance,
     onCollectionClick: (() -> Unit)? = null,
     onCreatorClick: ((String) -> Unit)? = null,
 ) {
@@ -168,7 +163,7 @@ fun DetailBackdropHeader(
                     // height moves with the title's line count. An earlier pass ran this 138dp up
                     // from the bottom, which laid background over the figures row and washed it
                     // out — invisible on dark, obvious on light.
-                    .height(overlap + clearance)
+                    .height(overlap + CardClearance)
                     .background(
                         Brush.verticalGradient(
                             0.00f to Color.Transparent,
@@ -188,9 +183,25 @@ fun DetailBackdropHeader(
                 onCreatorClick = onCreatorClick,
                 modifier = Modifier.padding(horizontal = DetailGutter),
             )
-            // Whatever the session card rides up by, plus enough that it lands below the title
-            // rather than on it.
-            Spacer(modifier = Modifier.height(overlap + clearance))
+            if (metadata.genres.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(GenreGap))
+                DetailGenreRow(
+                    genres = metadata.genres,
+                    accent = if (hasArt) {
+                        metadata.mediaType.headerAccent()
+                    } else {
+                        metadata.mediaType.themeAccent()
+                    },
+                    // On artwork the pills are on the same dark scrim in both themes, so they take
+                    // the dark theme's panel as their base whatever the theme — the reasoning
+                    // [headerAccent] gives. Off artwork they are on the page and take the page's.
+                    panel = if (hasArt) DarkPalette.appPanel else OmnilogTheme.colors.appPanel,
+                    modifier = Modifier.padding(horizontal = DetailGutter),
+                )
+            }
+            // Whatever the session card rides up by, plus enough that it lands below the genres
+            // rather than on them.
+            Spacer(modifier = Modifier.height(overlap + CardClearance))
         }
     }
 }
@@ -549,6 +560,16 @@ private fun MediaType.headerAccent(): Color = when (this) {
     MediaType.Movie -> OmnilogColors.Movie
     MediaType.TvShow -> OmnilogColors.Series
     MediaType.Game -> OmnilogColors.Games
+}
+
+/** The same accent resolved for the active theme, for the parts of the header not on artwork. */
+@Composable
+private fun MediaType.themeAccent(): Color = when (this) {
+    MediaType.Anime -> OmnilogTheme.accents.Anime
+    MediaType.Book -> OmnilogTheme.accents.Books
+    MediaType.Movie -> OmnilogTheme.accents.Movie
+    MediaType.TvShow -> OmnilogTheme.accents.Series
+    MediaType.Game -> OmnilogTheme.accents.Games
 }
 
 @StringRes
