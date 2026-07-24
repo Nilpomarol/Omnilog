@@ -46,6 +46,7 @@ import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.formatCompactCount
 import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
+import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.logoRes
 import com.nilpo.contenttracker.ui.theme.DarkAccents
 import com.nilpo.contenttracker.ui.theme.DarkPalette
@@ -433,9 +434,25 @@ private fun HeaderFigures(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
+        if (rating != null) {
+            RatingFigure(
+                value = rating,
+                source = metadata.externalRatingSource,
+                fallbackLabel = metadata.externalRatingSourceName
+                    ?: metadata.sourceName
+                    ?: stringResource(R.string.field_rating),
+                verdict = localizedSteamScoreDescriptor(
+                    mediaType = metadata.mediaType,
+                    source = metadata.externalRatingSource,
+                    descriptor = metadata.externalRatingScoreDescriptor,
+                ),
+                ink = ratingTint(ratingFraction, onArtwork) ?: ink,
+                muted = muted,
+            )
+        }
         minor.forEach { (label, value) ->
             Column {
                 Text(
@@ -456,21 +473,6 @@ private fun HeaderFigures(
                 )
             }
         }
-        // A weighted spacer rather than SpaceBetween: the score has to land on the right edge even
-        // when it is the only figure the item has, and SpaceBetween would leave a lone child at the
-        // start.
-        Spacer(modifier = Modifier.weight(1f))
-        if (rating != null) {
-            RatingFigure(
-                value = rating,
-                source = metadata.externalRatingSource,
-                fallbackLabel = metadata.externalRatingSourceName
-                    ?: metadata.sourceName
-                    ?: stringResource(R.string.field_rating),
-                ink = ratingTint(ratingFraction, onArtwork) ?: ink,
-                muted = muted,
-            )
-        }
     }
 }
 
@@ -484,17 +486,21 @@ private fun HeaderFigures(
  * The denominator is gone. Every source is normalised onto ten before it reaches here, so "/10"
  * said the same thing on every item. Steam percent sign survives inside the formatter, where it
  * still distinguishes 87% approval from 8,7 out of 10.
+ *
+ * [verdict] is Steam's own words for the percentage — "Molt positives" under 87%. Steam is the one
+ * source whose figure is a share of reviews rather than a mark out of ten, and the phrase is how
+ * Steam itself makes that readable. Nothing else supplies one.
  */
 @Composable
 private fun RatingFigure(
     value: String,
     source: ExternalRatingSource?,
     fallbackLabel: String,
+    verdict: String?,
     ink: Color,
     muted: Color,
 ) {
-    // End, so the mark and the figure share the right edge they are both pinned to.
-    Column(horizontalAlignment = Alignment.End) {
+    Column {
         if (source?.logoRes() != null) {
             ProviderLogo(source = source, height = LogoHeight)
             Spacer(modifier = Modifier.height(4.dp))
@@ -516,6 +522,16 @@ private fun RatingFigure(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        verdict?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
