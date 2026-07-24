@@ -21,7 +21,6 @@ import androidx.compose.ui.res.painterResource
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
-import kotlin.math.sqrt
 
 /**
  * The medium's own artwork, behind the session card.
@@ -74,35 +73,35 @@ fun SessionCardArtwork(
 }
 
 /**
- * The accent, pushed further from grey before it is laid down at a tenth of its strength.
+ * The accent, pushed a little further from grey.
  *
- * Most of an accent's chroma is spent on the panel underneath at these alphas, and what came back
- * was closer to neutral than to the colour the medium is supposed to have. Saturating first costs
- * nothing in legibility — the alpha is what keeps the drawing behind the text, not the hue — and
- * hands the artwork back the colour it is meant to be read in.
+ * Some of an accent's chroma is spent on the panel underneath at these alphas, and what came back
+ * was nearer neutral than the colour the medium is supposed to have. This is a small correction and
+ * deliberately stays one: how much the artwork *stands out* is [ArtAlphaOnDark]'s job, not this
+ * one's. Pushing saturation instead only makes a drawing more purple, never more present.
  */
 private fun Color.saturated(): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(toArgb(), hsv)
     hsv[1] = (hsv[1] * SaturationBoost).coerceAtMost(1f)
-
-    // Saturating holds V but loses lightness: in HSV the extra chroma is bought by pulling the
-    // weaker channels down, and for Books that halved the drawing's luminance at the very moment it
-    // gained colour, sinking it into the panel. Lifting V back towards the accent's own luminance
-    // buys the chroma without paying for it in presence. Square-rooted so a hue that cannot get
-    // there — a deep violet has nowhere left to go — lands part of the way rather than clipping.
-    val pure = Color(android.graphics.Color.HSVToColor(hsv))
-    hsv[2] = (hsv[2] * sqrt(luminance() / pure.luminance().coerceAtLeast(0.001f))).coerceAtMost(1f)
     return Color(android.graphics.Color.HSVToColor(hsv))
 }
 
-private const val SaturationBoost = 2.2f
+private const val SaturationBoost = 1.5f
 
 /** How much of the card's width the artwork spans, anchored to the top-right corner. */
 private const val ArtWidthFraction = 0.82f
 
-private const val ArtAlphaOnDark = 0.16f
-private const val ArtAlphaOnLight = 0.10f
+/**
+ * How much the artwork stands out — the one lever that actually controls that.
+ *
+ * Light runs lower because its accents are darker: the same value there is roughly twice the
+ * contrast against the page, the asymmetry the two accent sets exist for. Beyond about a third the
+ * drawing stops being a ground and starts competing with the text on top of it, and games — bright,
+ * dense and gold — is the one that hits that first.
+ */
+private const val ArtAlphaOnDark = 0.24f
+private const val ArtAlphaOnLight = 0.15f
 
 /**
  * How far the artwork reaches from its corner before it has faded out entirely, as a fraction of
