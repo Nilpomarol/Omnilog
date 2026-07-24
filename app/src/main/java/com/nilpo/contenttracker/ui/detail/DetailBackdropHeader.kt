@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -52,8 +55,20 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 
-/** Seam between the app bar and the title block. The artwork runs through it and past it. */
-private val ArtworkBand = 6.dp
+/**
+ * How far the cover rises past the app bar's bottom edge, into the bar's own band.
+ *
+ * The cover is the one part of the header allowed up there. It buys its extra height from space the
+ * bar was already occupying, so the text column beside it keeps the room it needs, and the back
+ * arrow lands on the artwork rather than above it.
+ */
+private val CoverRise = 44.dp
+
+/** Seam between the app bar's bottom edge and the top of the text column. */
+private val TextGap = 4.dp
+
+/** Never let the cover reach the status bar, however short the app bar turns out to be. */
+private val MinCoverTop = 6.dp
 
 /**
  * Clearance below the title block, on top of whatever the session card overlaps by.
@@ -68,11 +83,11 @@ private val CardClearance = 28.dp
 private val PillInk = Color(0xFF15120F)
 
 /** Height of the provider mark above the score. */
-private val LogoHeight = 19.dp
+private val LogoHeight = 17.dp
 
 /** The sharp cover that sits on the blurred one. */
-private val CoverWidth = 124.dp
-private val CoverHeight = 186.dp
+private val CoverWidth = 160.dp
+private val CoverHeight = 240.dp
 
 /**
  * The source is decoded at this width and stretched to fill the screen.
@@ -161,11 +176,18 @@ fun DetailBackdropHeader(
             )
         }
 
+        // The rise is what the cover actually gets, not what it asked for: on a device whose app
+        // bar is shorter than CoverRise the cover would otherwise climb into the status bar.
+        val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val coverTop = (topInset - CoverRise).coerceAtLeast(statusBar + MinCoverTop)
+        val rise = topInset - coverTop
+
         Column(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.height(topInset + ArtworkBand))
+            Spacer(modifier = Modifier.height(coverTop))
             TitleBlock(
                 metadata = metadata,
                 onArtwork = hasArt,
+                coverRise = rise,
                 onCollectionClick = onCollectionClick,
                 onCreatorClick = onCreatorClick,
                 modifier = Modifier.padding(horizontal = DetailGutter),
@@ -233,6 +255,7 @@ private fun BackdropArt(
 private fun TitleBlock(
     metadata: MediaMetadataUi,
     onArtwork: Boolean,
+    coverRise: Dp,
     onCollectionClick: (() -> Unit)?,
     onCreatorClick: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
@@ -244,7 +267,9 @@ private fun TitleBlock(
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.Top,
+        // Bottom, so the extra height the cover gains by rising is spent upwards. Both columns still
+        // end on the same line.
+        verticalAlignment = Alignment.Bottom,
     ) {
         MetadataCoverImage(
             coverUrl = metadata.coverUrl,
@@ -269,10 +294,10 @@ private fun TitleBlock(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .height(CoverHeight),
+                .height(CoverHeight - coverRise - TextGap),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 formatCollectionDisplayName(
                     metadata.collectionName,
                     metadata.collectionSortOrder,
@@ -384,9 +409,11 @@ private fun HeaderFigures(
         ?.takeUnless { metadata.mediaType == MediaType.Game }
         ?.toString()
 
+    // Length is deliberately not here. It is the most duplicated figure on the page — the session
+    // card underneath already says "752 de 752 pàgines" — and dropping it is what buys the score
+    // the width to be the size it now is.
     val minor = listOfNotNull(
         audience?.let { stringResource(R.string.metadata_users) to it },
-        length?.let { stringResource(metadata.totalUnitLabelRes()) to it },
     )
     if (rating == null && minor.isEmpty()) return
 
@@ -451,7 +478,7 @@ private fun RatingFigure(
     Column {
         if (source?.logoRes() != null) {
             ProviderLogo(source = source, height = LogoHeight)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
         } else {
             Text(
                 text = fallbackLabel,
@@ -464,7 +491,7 @@ private fun RatingFigure(
         }
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.ExtraBold,
             color = ink,
             maxLines = 1,

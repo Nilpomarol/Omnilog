@@ -29,7 +29,7 @@ fun ExternalRatingSource.logoRes(): Int? = when (this) {
     ExternalRatingSource.Mal -> R.drawable.mal_logo
     ExternalRatingSource.Imdb -> R.drawable.imdb_logo
     ExternalRatingSource.Metacritic -> R.drawable.metacritic_logo
-    ExternalRatingSource.Goodreads -> R.drawable.goodreads_logo_1
+    ExternalRatingSource.Goodreads -> R.drawable.goodreads_logo
     ExternalRatingSource.GoogleBooks -> R.drawable.googlebooks_logo
     ExternalRatingSource.OpenLibrary -> R.drawable.openlibrary_logo
     ExternalRatingSource.Tmdb -> R.drawable.tmdb_logo
@@ -57,6 +57,8 @@ fun ExternalRatingSource.logoIsSilhouette(): Boolean = when (this) {
 
 /** The pale chip a silhouette mark sits on. Warm rather than white, to match the app's ink. */
 private val ChipPaper = Color(0xFFF2E9DD)
+
+private val ChipPadding = 3.dp
 
 /**
  * A provider mark at a fixed height, keeping its own proportions.
@@ -90,12 +92,19 @@ fun ProviderLogo(
     }
 
     if (source.logoIsSilhouette()) {
+        // The chip wraps the mark rather than boxing it into a square: these run from StoryGraph's
+        // square glyph to the Goodreads wordmark at 4:1, and a square would crush the wordmark to
+        // nothing.
         Surface(
-            modifier = modifier.size(height),
+            modifier = modifier,
             shape = RoundedCornerShape(4.dp),
             color = ChipPaper,
         ) {
-            mark(Modifier.padding(2.dp))
+            mark(
+                Modifier
+                    .padding(horizontal = ChipPadding * 2, vertical = ChipPadding)
+                    .height(height - ChipPadding * 2),
+            )
         }
     } else {
         mark(modifier.height(height))
