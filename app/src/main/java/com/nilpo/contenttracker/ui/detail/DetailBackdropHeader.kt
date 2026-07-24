@@ -2,7 +2,6 @@ package com.nilpo.contenttracker.ui.detail
 
 import android.os.Build
 import androidx.annotation.StringRes
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,13 +37,16 @@ import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import com.nilpo.contenttracker.ContentTrackerApplication
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.ui.common.MediaMetadataUi
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.formatCompactCount
-import com.nilpo.contenttracker.ui.common.formatExternalRating
+import com.nilpo.contenttracker.ui.common.ProviderLogo
+import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
+import com.nilpo.contenttracker.ui.common.logoRes
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.theme.OnCoverInk
@@ -61,6 +63,12 @@ private val ArtworkBand = 6.dp
  * top of any text.
  */
 private val CardClearance = 28.dp
+
+/** Ink on the collection pill. Fixed, because the pill is an accent fill in both themes. */
+private val PillInk = Color(0xFF15120F)
+
+/** Height of the provider mark above the score. */
+private val LogoHeight = 19.dp
 
 /** The sharp cover that sits on the blurred one. */
 private val CoverWidth = 124.dp
@@ -329,9 +337,10 @@ private fun CollectionPill(
     Surface(
         modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
         shape = RoundedCornerShape(999.dp),
-        color = accent.copy(alpha = 0.22f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.65f)),
-        contentColor = accent,
+        // Solid, not a wash. At 22% over artwork the fill picked up whatever was behind it and the
+        // label went with it; a pill has to be its own surface to read as one.
+        color = accent,
+        contentColor = PillInk,
     ) {
         Text(
             text = text,
@@ -359,7 +368,7 @@ private fun HeaderFigures(
 ) {
     val rating = metadata.externalRatingScore?.let { score ->
         metadata.externalRatingMax?.let { maxScore ->
-            formatExternalRating(
+            formatExternalRatingCompact(
                 score = score,
                 maxScore = maxScore,
                 mediaType = metadata.mediaType,
@@ -375,23 +384,30 @@ private fun HeaderFigures(
         ?.takeUnless { metadata.mediaType == MediaType.Game }
         ?.toString()
 
-    val figures = listOfNotNull(
-        rating?.let {
-            metadata.externalRatingSourceName
-                ?: metadata.sourceName
-                ?: stringResource(R.string.field_rating)
-        }?.let { label -> label to rating },
+    val minor = listOfNotNull(
         audience?.let { stringResource(R.string.metadata_users) to it },
         length?.let { stringResource(metadata.totalUnitLabelRes()) to it },
     )
-    if (figures.isEmpty()) return
+    if (rating == null && minor.isEmpty()) return
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        verticalAlignment = Alignment.Bottom,
     ) {
-        figures.forEach { (label, value) ->
-            Column(modifier = Modifier.weight(1f)) {
+        if (rating != null) {
+            RatingFigure(
+                value = rating,
+                source = metadata.externalRatingSource,
+                fallbackLabel = metadata.externalRatingSourceName
+                    ?: metadata.sourceName
+                    ?: stringResource(R.string.field_rating),
+                ink = ink,
+                muted = muted,
+            )
+        }
+        minor.forEach { (label, value) ->
+            Column {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
@@ -410,6 +426,50 @@ private fun HeaderFigures(
                 )
             }
         }
+    }
+}
+
+/**
+ * The external score, given the weight of the header baseline.
+ *
+ * It carries the provider mark instead of the provider name, which is both smaller and quicker to
+ * recognise, and the figure runs a size larger than the counts beside it: this is the one number in
+ * the header that is a judgement rather than a measurement.
+ *
+ * The denominator is gone. Every source is normalised onto ten before it reaches here, so "/10"
+ * said the same thing on every item. Steam percent sign survives inside the formatter, where it
+ * still distinguishes 87% approval from 8,7 out of 10.
+ */
+@Composable
+private fun RatingFigure(
+    value: String,
+    source: ExternalRatingSource?,
+    fallbackLabel: String,
+    ink: Color,
+    muted: Color,
+) {
+    Column {
+        if (source?.logoRes() != null) {
+            ProviderLogo(source = source, height = LogoHeight)
+            Spacer(modifier = Modifier.height(4.dp))
+        } else {
+            Text(
+                text = fallbackLabel,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

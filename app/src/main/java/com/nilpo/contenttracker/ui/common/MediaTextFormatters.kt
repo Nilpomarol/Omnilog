@@ -153,6 +153,27 @@ fun formatExternalRating(
     return formatExternalRatingOnTen(score, maxScore)
 }
 
+/**
+ * The same figure as [formatExternalRating], without the denominator.
+ *
+ * Every source is normalised onto ten before display, so "/10" repeats on every row and tells the
+ * reader nothing they cannot already assume. Steam's game score keeps its percent sign, because
+ * there the unit is the difference between 87% approval and 8.7 out of 10.
+ */
+fun formatExternalRatingCompact(
+    score: Double,
+    maxScore: Double,
+    mediaType: MediaType,
+    source: ExternalRatingSource?,
+): String {
+    if (mediaType == MediaType.Game && source == ExternalRatingSource.Steam) {
+        val percentage = if (maxScore > 0.0) score / maxScore * 100.0 else score
+        return "${percentage.roundToInt()}%"
+    }
+    val normalizedScore = if (maxScore > 0.0) score / maxScore * 10.0 else score
+    return formatDecimal(normalizedScore)
+}
+
 @Composable
 fun localizedSteamScoreDescriptor(
     mediaType: MediaType,
