@@ -696,7 +696,8 @@ private fun formatDecimal(value: Double): String {
     }
 }
 
-private fun formatCompactCount(value: Double): String {
+/** "1,4M", "89,1k". Shared with the detail page, which shows the same figures. */
+fun formatCompactCount(value: Double): String {
     val absValue = kotlin.math.abs(value)
     return when {
         absValue >= 1_000_000_000 -> "${formatDecimal(value / 1_000_000_000)}B"

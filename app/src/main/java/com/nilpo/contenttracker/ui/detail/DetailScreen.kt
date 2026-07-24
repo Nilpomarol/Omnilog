@@ -56,6 +56,7 @@ import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.formatCompactCount
 import com.nilpo.contenttracker.ui.common.formatExternalRating
 import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
@@ -614,24 +615,6 @@ private fun ExternalScoreTile(
     }
 }
 
-private fun formatScore(value: Double): String {
-    return if (value % 1.0 == 0.0) {
-        value.toInt().toString()
-    } else {
-        "%.1f".format(value)
-    }
-}
-
 private fun MediaItem.effectiveProgressTotal(): Int? {
     return progressTotal.takeUnless { type == MediaType.Game }
-}
-
-private fun formatCompactCount(value: Double): String {
-    val absValue = kotlin.math.abs(value)
-    return when {
-        absValue >= 1_000_000_000 -> "${formatScore(value / 1_000_000_000)}B"
-        absValue >= 1_000_000 -> "${formatScore(value / 1_000_000)}M"
-        absValue >= 1_000 -> "${formatScore(value / 1_000)}k"
-        else -> formatScore(value)
-    }
 }

@@ -1,7 +1,8 @@
 package com.nilpo.contenttracker.ui.detail
 
 import android.os.Build
-import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -26,7 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -41,32 +43,28 @@ import com.nilpo.contenttracker.ui.common.MediaMetadataUi
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
-import com.nilpo.contenttracker.ui.common.languageLabel
+import com.nilpo.contenttracker.ui.common.formatCompactCount
+import com.nilpo.contenttracker.ui.common.formatExternalRating
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 
 /** Seam between the app bar and the title block. The artwork runs through it and past it. */
-private val ArtworkBand = 14.dp
+private val ArtworkBand = 6.dp
 
 /**
  * Clearance below the title block, on top of whatever the session card overlaps by.
  *
- * Without it the card lands on the title rather than below it.
+ * This strip is also exactly where the artwork fades into the page, so it is doing two jobs: it
+ * keeps the session card off the title, and it gives the fade somewhere to happen that is not on
+ * top of any text.
  */
-private val CardClearance = 20.dp
-
-/**
- * How much of the header's foot is spent fading the artwork out into the page.
- *
- * Anchored to the bottom rather than expressed as a fraction of the header, because the header's
- * height moves with the title's line count and a fraction would drag the fade up into the text.
- */
-private val FootFade = 104.dp
+private val CardClearance = 28.dp
 
 /** The sharp cover that sits on the blurred one. */
-private val CoverWidth = 104.dp
-private val CoverHeight = 156.dp
+private val CoverWidth = 124.dp
+private val CoverHeight = 186.dp
 
 /**
  * The source is decoded at this width and stretched to fill the screen.
@@ -128,9 +126,9 @@ fun DetailBackdropHeader(
                     .matchParentSize()
                     .background(
                         Brush.verticalGradient(
-                            0.00f to Color.Black.copy(alpha = 0.42f),
-                            0.38f to Color.Black.copy(alpha = 0.26f),
-                            1.00f to Color.Black.copy(alpha = 0.55f),
+                            0.00f to Color.Black.copy(alpha = 0.44f),
+                            0.34f to Color.Black.copy(alpha = 0.28f),
+                            1.00f to Color.Black.copy(alpha = 0.62f),
                         ),
                     ),
             )
@@ -139,7 +137,12 @@ fun DetailBackdropHeader(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(FootFade + overlap)
+                    // Exactly the strip reserved below the title block, never a pixel more. Sized
+                    // from the header's foot rather than as a fraction of it, because the header's
+                    // height moves with the title's line count. An earlier pass ran this 138dp up
+                    // from the bottom, which laid background over the figures row and washed it
+                    // out — invisible on dark, obvious on light.
+                    .height(overlap + CardClearance)
                     .background(
                         Brush.verticalGradient(
                             0.00f to Color.Transparent,
@@ -206,6 +209,18 @@ private fun BackdropArt(
     )
 }
 
+/**
+ * Cover on the left, everything else on the right, and the right column is exactly as tall as the
+ * cover.
+ *
+ * The height is fixed rather than wrapped so the two sides always end on the same line. That budget
+ * is what caps the title at two lines and the creators at one: an item whose title needs four lines
+ * gets an ellipsis, not a column that outgrows the artwork beside it.
+ *
+ * Within that height the identity — collection, title, original title, creator — is packed at the
+ * top, and the figures that describe the work rather than name it sit on the baseline. So the two
+ * columns line up at the bottom whether the title runs to one line or two.
+ */
 @Composable
 private fun TitleBlock(
     metadata: MediaMetadataUi,
@@ -221,7 +236,7 @@ private fun TitleBlock(
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.Bottom,
+        verticalAlignment = Alignment.Top,
     ) {
         MetadataCoverImage(
             coverUrl = metadata.coverUrl,
@@ -242,64 +257,154 @@ private fun TitleBlock(
                 )
                 .size(width = CoverWidth, height = CoverHeight),
         )
+
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier
+                .weight(1f)
+                .height(CoverHeight),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            formatCollectionDisplayName(
-                metadata.collectionName,
-                metadata.collectionSortOrder,
-            )?.let { collectionName ->
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                formatCollectionDisplayName(
+                    metadata.collectionName,
+                    metadata.collectionSortOrder,
+                )?.let { collectionName ->
+                    CollectionPill(
+                        text = collectionName,
+                        accent = metadata.mediaType.headerAccent(),
+                        onClick = onCollectionClick,
+                    )
+                }
                 Text(
-                    text = collectionName,
-                    modifier = if (onCollectionClick != null) {
-                        Modifier.clickable(onClick = onCollectionClick)
-                    } else {
-                        Modifier
-                    },
-                    style = MaterialTheme.typography.labelMedium,
+                    text = displayMediaTitle(metadata.title),
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = muted,
-                    maxLines = 1,
+                    color = ink,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                metadata.originalTitle?.let { originalTitle ->
+                    Text(
+                        text = originalTitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                metadata.creators.firstOrNull()?.let { creator ->
+                    Text(
+                        text = creator,
+                        modifier = if (onCreatorClick != null) {
+                            Modifier.clickable { onCreatorClick(creator) }
+                        } else {
+                            Modifier
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                        color = ink.copy(alpha = 0.88f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Text(
-                text = displayMediaTitle(metadata.title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = ink,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
+
+            HeaderFigures(metadata = metadata, ink = ink, muted = muted)
+        }
+    }
+}
+
+/**
+ * The collection, as a pill rather than a line of small caps.
+ *
+ * It is the one piece of the header that is a link, and on artwork a bare label had nothing to say
+ * so. The accent is the media type's, which is also what makes the pill legible as a category at a
+ * glance rather than as another line of text.
+ */
+@Composable
+private fun CollectionPill(
+    text: String,
+    accent: Color,
+    onClick: (() -> Unit)?,
+) {
+    Surface(
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+        shape = RoundedCornerShape(999.dp),
+        color = accent.copy(alpha = 0.22f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.65f)),
+        contentColor = accent,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * Score, audience, length — the three figures that sit on the header's baseline.
+ *
+ * Only what the item actually has is drawn, so a book with no vote count shows two columns rather
+ * than a dash in the third. Games skip length because their total is tracked in hours played, which
+ * is a fact about the session rather than about the work.
+ */
+@Composable
+private fun HeaderFigures(
+    metadata: MediaMetadataUi,
+    ink: Color,
+    muted: Color,
+) {
+    val rating = metadata.externalRatingScore?.let { score ->
+        metadata.externalRatingMax?.let { maxScore ->
+            formatExternalRating(
+                score = score,
+                maxScore = maxScore,
+                mediaType = metadata.mediaType,
+                source = metadata.externalRatingSource,
             )
-            metadata.originalTitle?.let { originalTitle ->
+        }
+    }
+    val audience = (metadata.externalRatingVoteCount?.toDouble() ?: metadata.popularityScore)
+        ?.let(::formatCompactCount)
+    // Bare number against a unit label, not "752 pàgines" as one value: three equal columns cannot
+    // hold the long form, and it truncated to "752 pàgi…" on a real title.
+    val length = metadata.progressTotal
+        ?.takeUnless { metadata.mediaType == MediaType.Game }
+        ?.toString()
+
+    val figures = listOfNotNull(
+        rating?.let {
+            metadata.externalRatingSourceName
+                ?: metadata.sourceName
+                ?: stringResource(R.string.field_rating)
+        }?.let { label -> label to rating },
+        audience?.let { stringResource(R.string.metadata_users) to it },
+        length?.let { stringResource(metadata.totalUnitLabelRes()) to it },
+    )
+    if (figures.isEmpty()) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        figures.forEach { (label, value) ->
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = originalTitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
                     color = muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            metadata.creators.take(2).forEach { creator ->
                 Text(
-                    text = creator,
-                    modifier = if (onCreatorClick != null) {
-                        Modifier.clickable { onCreatorClick(creator) }
-                    } else {
-                        Modifier
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    color = ink.copy(alpha = 0.88f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            metadata.subtitleLine()?.let { subtitle ->
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = muted,
+                    text = value,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = ink,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -309,36 +414,29 @@ private fun TitleBlock(
 }
 
 /**
- * The one-line "year · studio · length" strip under the creators.
+ * The media type's accent, taken from the theme-invariant set on purpose.
  *
- * Deliberately built from whatever is present rather than from a fixed set: an item with no release
- * year and no language should show a shorter line, not a line with gaps in it.
+ * The header's scrim is dark in both themes, so the pill drawn on it needs the values tuned for
+ * dark — `OmnilogTheme.accents` would hand back the light-tuned ones on a paper theme and darken a
+ * pill that is still sitting on artwork.
  */
-@Composable
-private fun MediaMetadataUi.subtitleLine(): String? {
-    val parts = buildList {
-        releaseYear?.let { add(it.toString()) }
-        language
-            ?.takeUnless { mediaType == MediaType.Game }
-            ?.let { add(languageLabel(it)) }
-        progressTotal
-            ?.takeUnless { mediaType == MediaType.Game }
-            ?.let { total ->
-                add(pluralStringResource(totalUnitSummaryRes(), total, total))
-            }
-    }
-    return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
+private fun MediaType.headerAccent(): Color = when (this) {
+    MediaType.Anime -> OmnilogColors.Anime
+    MediaType.Book -> OmnilogColors.Books
+    MediaType.Movie -> OmnilogColors.Movie
+    MediaType.TvShow -> OmnilogColors.Series
+    MediaType.Game -> OmnilogColors.Games
 }
 
-@PluralsRes
-private fun MediaMetadataUi.totalUnitSummaryRes(): Int {
+@StringRes
+private fun MediaMetadataUi.totalUnitLabelRes(): Int {
     return when (mediaType) {
         MediaType.Anime,
         MediaType.TvShow,
-        -> R.plurals.backdrop_total_episodes
+        -> R.string.metadata_total_episodes
 
-        MediaType.Book -> R.plurals.backdrop_total_pages
-        MediaType.Movie -> R.plurals.backdrop_total_minutes
-        MediaType.Game -> R.plurals.backdrop_total_hours
+        MediaType.Book -> R.string.metadata_total_pages
+        MediaType.Movie -> R.string.metadata_total_minutes
+        MediaType.Game -> R.string.metadata_total_hours
     }
 }

@@ -370,22 +370,6 @@
         <item quantity="one">fa %1$d mes</item>
         <item quantity="other">fa %1$d mesos</item>
     </plurals>
-    <plurals name="backdrop_total_episodes">
-        <item quantity="one">%1$d episodi</item>
-        <item quantity="other">%1$d episodis</item>
-    </plurals>
-    <plurals name="backdrop_total_pages">
-        <item quantity="one">%1$d pàgina</item>
-        <item quantity="other">%1$d pàgines</item>
-    </plurals>
-    <plurals name="backdrop_total_minutes">
-        <item quantity="one">%1$d minut</item>
-        <item quantity="other">%1$d minuts</item>
-    </plurals>
-    <plurals name="backdrop_total_hours">
-        <item quantity="one">%1$d hora</item>
-        <item quantity="other">%1$d hores</item>
-    </plurals>
     <string name="pick_date">Tria</string>
     <string name="clear_date">Buida la data</string>
     <string name="detail_item_details">Dades de l\'element</string>
