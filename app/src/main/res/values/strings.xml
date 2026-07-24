@@ -671,12 +671,12 @@
     <string name="mal_import_title">Importa MyAnimeList XML</string>
     <string name="mal_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d\nEntrades invàlides ignorades: %5$d\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
     <string name="mal_import_confirm">Importa animes</string>
-    <string name="mal_import_success_with_summary">%1$d animes importats. Duplicats ignorats: %2$d. No compatibles: %3$d. Les metadades es continuen completant en segon pla.</string>
+    <string name="mal_import_success_with_summary">%1$d animes importats. Duplicats ignorats: %2$d. No compatibles: %3$d. Entrades invàlides ignorades: %4$d. Les metadades es continuen completant en segon pla.</string>
     <string name="mal_import_read_error">No s\'ha pogut llegir l\'XML de MyAnimeList.</string>
     <string name="mal_import_invalid">Aquest fitxer no sembla una exportació XML de MyAnimeList.</string>
     <string name="mal_import_empty">No hi ha animes nous importables en aquest XML.</string>
     <string name="mal_account_import_title">Importa el compte de MyAnimeList</string>
-    <string name="mal_account_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades del compte.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
+    <string name="mal_account_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades del compte.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d\nEntrades invàlides ignorades: %5$d\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
     <string name="mal_account_import_error">No s\'ha pogut llegir la llista del compte de MyAnimeList. Torna-ho a provar per continuar des de l\'última pàgina completada.</string>
     <string name="provider_import_encoding_error">No s\'ha pogut llegir la codificació del fitxer. Torna\'l a exportar com a UTF-8 o UTF-16.</string>
     <string name="provider_import_too_large">El fitxer supera el límit de 25 MB.</string>

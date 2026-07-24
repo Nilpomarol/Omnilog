@@ -1144,7 +1144,7 @@ private fun ImportBatchProgress.summary(): String = buildString {
     if (issueCount > 0) append(" · $issueCount incidències")
     if (coverageGapCount > 0) append(" · $coverageGapCount incomplets")
     if (optionalMetadataGapCount > 0) {
-        append(" · $optionalMetadataGapCount amb metadades opcionals pendents")
+        append(" · $optionalMetadataGapCount amb metadades opcionals parcials")
     }
     if (cancelledCount > 0) append(" · $cancelledCount cancel·lats")
 }

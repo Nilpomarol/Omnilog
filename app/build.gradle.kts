@@ -69,3 +69,7 @@ dependencies {
     androidTestImplementation("androidx.room:room-testing:2.8.4")
     debugImplementation("androidx.compose.ui:ui-tooling:1.11.2")
 }
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}

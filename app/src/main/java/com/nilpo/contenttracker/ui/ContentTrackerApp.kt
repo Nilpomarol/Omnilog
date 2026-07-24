@@ -436,15 +436,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val readResult = runCatching {
-                    withContext(Dispatchers.IO) {
-                        checkNotNull(context.contentResolver.openInputStream(uri)) {
-                            "Could not open IMDb CSV source"
-                        }.use { inputStream ->
-                            inputStream.readProviderImportText()
-                        }
-                    }
-                }
+                val readResult = context.readProviderImportText(uri)
                 val csv = readResult.getOrNull()
                 if (csv == null) {
                     snackbarHostState.showSnackbar(
@@ -490,15 +482,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val readResult = runCatching {
-                    withContext(Dispatchers.IO) {
-                        checkNotNull(context.contentResolver.openInputStream(uri)) {
-                            "Could not open StoryGraph CSV source"
-                        }.use { inputStream ->
-                            inputStream.readProviderImportText()
-                        }
-                    }
-                }
+                val readResult = context.readProviderImportText(uri)
                 val csv = readResult.getOrNull()
                 if (csv == null) {
                     snackbarHostState.showSnackbar(
@@ -544,15 +528,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
-                val readResult = runCatching {
-                    withContext(Dispatchers.IO) {
-                        checkNotNull(context.contentResolver.openInputStream(uri)) {
-                            "Could not open MyAnimeList XML source"
-                        }.use { inputStream ->
-                            inputStream.readProviderImportText()
-                        }
-                    }
-                }
+                val readResult = context.readProviderImportText(uri)
                 val xml = readResult.getOrNull()
                 if (xml == null) {
                     snackbarHostState.showSnackbar(
@@ -1763,6 +1739,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                                 importResult.importedRows,
                                                 importResult.skippedDuplicateRows,
                                                 importResult.unsupportedRows,
+                                                importResult.invalidRows,
                                             ),
                                         )
                                     },
@@ -1837,6 +1814,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                                 importResult.importedRows,
                                                 importResult.skippedDuplicateRows,
                                                 importResult.unsupportedRows,
+                                                importResult.invalidRows,
                                             ),
                                         )
                                     },
@@ -2886,6 +2864,16 @@ private fun providerImportReadErrorMessage(
     is ProviderImportEncodingException -> encodingError
     is ProviderImportFileTooLargeException -> tooLarge
     else -> fallback
+}
+
+private suspend fun Context.readProviderImportText(uri: Uri): Result<String> = runCatching {
+    withContext(Dispatchers.IO) {
+        checkNotNull(contentResolver.openInputStream(uri)) {
+            "Could not open provider import source"
+        }.use { inputStream ->
+            inputStream.readProviderImportText()
+        }
+    }
 }
 
 private data class ProviderCsvValidationMessages(

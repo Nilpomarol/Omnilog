@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
@@ -160,6 +162,18 @@ sealed interface ImportWorkerOutcome {
     data class Retry(val delayMillis: Long) : ImportWorkerOutcome
 }
 
+/**
+ * One process-wide lane for remote enrichment work.
+ *
+ * Import batches keep their own durable state and controls, but providers are contacted one item
+ * at a time so concurrently resumed batches cannot create avoidable request bursts.
+ */
+internal object ImportEnrichmentExecutionGate {
+    private val mutex = Mutex()
+
+    suspend fun <T> run(block: suspend () -> T): T = mutex.withLock { block() }
+}
+
 /** Coordinates durable post-import metadata resolution and safe field application. */
 class ImportEnrichmentManager(
     private val context: Context,
@@ -174,6 +188,10 @@ class ImportEnrichmentManager(
     private val resolver: ImportedMetadataResolver = ImportedMetadataResolver(metadataRepository),
 ) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val adoptionPreferences = context.getSharedPreferences(
+        LegacyImportAdoptionPreferences,
+        Context.MODE_PRIVATE,
+    )
 
     val state: StateFlow<ImportEnrichmentState> = combine(
         importDao.observeBatches(),
@@ -238,11 +256,17 @@ class ImportEnrichmentManager(
 
     fun resumePending() {
         scope.launch {
-            adoptUnqueuedImports()
+            adoptLegacyImportsOnce()
             importDao.getResumableBatches()
                 .filter { it.state == ImportBatchState.Enriching.name }
                 .forEach { ImportEnrichmentScheduler.enqueue(context, it.id) }
         }
+    }
+
+    private suspend fun adoptLegacyImportsOnce() {
+        if (adoptionPreferences.getBoolean(LegacyImportAdoptionCompleteKey, false)) return
+        adoptUnqueuedImports()
+        adoptionPreferences.edit().putBoolean(LegacyImportAdoptionCompleteKey, true).apply()
     }
 
     private suspend fun adoptUnqueuedImports() {
@@ -552,7 +576,9 @@ class ImportEnrichmentManager(
             if (importDao.claimPendingItem(item.id, System.currentTimeMillis()) == 0) continue
             val currentAttempt = item.attemptCount + 1
             try {
-                val delay = processItem(batch, item, currentAttempt)
+                val delay = ImportEnrichmentExecutionGate.run {
+                    processItem(batch, item, currentAttempt)
+                }
                 if (delay != null) {
                     retryDelayMillis = maxOf(retryDelayMillis ?: 0L, delay)
                     break
@@ -996,6 +1022,8 @@ private const val BatchIdKey = "import_batch_id"
 private const val ItemsPerWorkerRun = 10
 private const val MaxItemAttempts = 3
 private const val MaxStoredErrorLength = 300
+private const val LegacyImportAdoptionPreferences = "omnilog_import_enrichment"
+private const val LegacyImportAdoptionCompleteKey = "legacy_import_adoption_complete"
 private const val BaseRetryDelayMillis = 60_000L
 private const val MaxRetryDelayMillis = 6 * 60 * 60 * 1_000L
 

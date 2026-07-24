@@ -31,7 +31,7 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
         ImportBatchItemEntity::class,
     ],
     version = 28,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class ContentTrackerDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
