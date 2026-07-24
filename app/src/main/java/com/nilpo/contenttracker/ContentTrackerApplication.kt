@@ -22,6 +22,7 @@ import com.nilpo.contenttracker.core.database.migration.MIGRATION_23_24
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_24_25
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_25_26
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_26_27
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_27_28
 import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
 import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
 import com.nilpo.contenttracker.core.mal.MalSyncManager
@@ -102,6 +103,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
                 MIGRATION_24_25,
                 MIGRATION_25_26,
                 MIGRATION_26_27,
+                MIGRATION_27_28,
             )
             .build()
     }
@@ -110,6 +112,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
         MalSyncManager(
             context = applicationContext,
             mediaDao = database.mediaDao(),
+            importDao = database.importDao(),
             clientId = BuildConfig.MAL_CLIENT_ID,
             redirectUri = BuildConfig.MAL_REDIRECT_URI,
         )

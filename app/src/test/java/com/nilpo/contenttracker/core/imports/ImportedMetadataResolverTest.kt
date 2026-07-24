@@ -19,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 class ImportedMetadataResolverTest {
     @Test
@@ -236,7 +237,7 @@ class ImportedMetadataResolverTest {
     }
 
     @Test
-    fun `title matches always require review and provider failures remain retryable`() = runBlocking {
+    fun `title matches require review and only transient provider failures are retryable`() = runBlocking {
         val candidates = FakeMetadataRepository().apply {
             searchResult = MetadataSearchResult(
                 suggestions = listOf(
@@ -253,8 +254,43 @@ class ImportedMetadataResolverTest {
         val failure = ImportedMetadataResolver(failing).resolve(
             input(ImportSource.ImdbCsv, MediaType.Movie, externalId = "tt0133093"),
         ) as ImportedResolution.Failed
-        assertTrue(failure.retryable)
+        assertFalse(failure.retryable)
         assertTrue(failure.diagnostic.contains("offline"))
+
+        val offline = FakeMetadataRepository().apply { identityFailure = IOException("offline") }
+        val transient = ImportedMetadataResolver(offline).resolve(
+            input(ImportSource.ImdbCsv, MediaType.Movie, externalId = "tt0133093"),
+        ) as ImportedResolution.Failed
+        assertTrue(transient.retryable)
+    }
+
+    @Test
+    fun `StoryGraph matching supports Japanese titles and authors`() = runBlocking {
+        val repository = FakeMetadataRepository().apply {
+            searchResult = MetadataSearchResult(
+                suggestions = listOf(
+                    suggestion(
+                        MetadataSource.GoogleBooks,
+                        "jp-volume",
+                        MediaType.Book,
+                        title = "進撃の巨人",
+                        creators = listOf("諫山 創"),
+                    ),
+                ),
+            )
+        }
+
+        val result = ImportedMetadataResolver(repository).resolve(
+            input(
+                source = ImportSource.StoryGraphCsv,
+                mediaType = MediaType.Book,
+                externalId = "storygraph-jp",
+                title = "進撃の巨人",
+                creators = listOf("諫山 創"),
+            ),
+        ) as ImportedResolution.Candidates
+
+        assertEquals("jp-volume", result.references.single().externalId)
     }
 
     @Test

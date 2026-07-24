@@ -669,7 +669,7 @@
     <string name="storygraph_import_unsupported_only">Aquest CSV no conté cap fila de StoryGraph compatible amb Omnilog.</string>
     <string name="storygraph_import_duplicates_only">Tots els llibres compatibles d\'aquest CSV de StoryGraph ja són a la biblioteca.</string>
     <string name="mal_import_title">Importa MyAnimeList XML</string>
-    <string name="mal_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
+    <string name="mal_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d\nEntrades invàlides ignorades: %5$d\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
     <string name="mal_import_confirm">Importa animes</string>
     <string name="mal_import_success_with_summary">%1$d animes importats. Duplicats ignorats: %2$d. No compatibles: %3$d. Les metadades es continuen completant en segon pla.</string>
     <string name="mal_import_read_error">No s\'ha pogut llegir l\'XML de MyAnimeList.</string>

@@ -73,7 +73,9 @@ class MalAccountImportLoaderTest {
 
         val rows = loader.fetchAll { itemCount, pageCount -> progress += itemCount to pageCount }
 
-        assertEquals(listOf(5114, 52991, 9253), rows.map { it.malId })
+        assertEquals(listOf(5114, 52991, 9253), rows.items.map { it.malId })
+        assertEquals(3, rows.totalRows)
+        assertEquals(0, rows.invalidRows)
         assertEquals(listOf(2 to 1, 3 to 2), progress)
         assertEquals(listOf(null, NextPageUrl), api.pageCalls.map { it.second })
         assertFalse(store.wasCleared)
@@ -106,7 +108,7 @@ class MalAccountImportLoaderTest {
 
         val rows = loader(api, store).fetchAll()
 
-        assertEquals(listOf(9253), rows.map { it.malId })
+        assertEquals(listOf(9253), rows.items.map { it.malId })
         assertEquals(1, api.refreshCalls)
         assertEquals(listOf("old-access", "renewed-access"), api.pageCalls.map { it.first })
     }
@@ -148,9 +150,54 @@ class MalAccountImportLoaderTest {
         api.enqueuePage(NextPageUrl, page("mal-api-page-2.json"))
         val resumed = loader.fetchAll(interrupted.continuation)
 
-        assertEquals(listOf(5114, 52991, 9253), resumed.map { it.malId })
+        assertEquals(listOf(5114, 52991, 9253), resumed.items.map { it.malId })
         assertEquals(1, api.pageCalls.count { it.second == null })
         assertEquals(2, api.pageCalls.count { it.second == NextPageUrl })
+    }
+
+    @Test
+    fun `account pages count malformed entries instead of silently shrinking the import`() = runBlocking {
+        val page = JSONObject(
+            """{
+                "data": [
+                    {},
+                    {"node":{"id":1,"title":"Valid"},"list_status":{}}
+                ]
+            }""".trimIndent(),
+        ).toMalAnimeListPage()
+        val api = FakeMalApiService().apply { enqueuePage(null, Result.success(page)) }
+        val loaded = loader(api, FakeMalCredentialStore(validTokens())).fetchAll()
+
+        assertEquals(2, loaded.totalRows)
+        assertEquals(1, loaded.items.size)
+        assertEquals(1, loaded.invalidRows)
+    }
+
+    @Test
+    fun `normalized MAL account rows survive staging serialization`() {
+        val original = JSONObject(fixture("mal-api-page-1.json"))
+            .toMalAnimeListPage()
+            .items
+            .first()
+
+        assertEquals(original, original.toStagingJson().toStagedMalImportItem())
+    }
+
+    @Test
+    fun `loader checkpoints each completed page with its next continuation`() = runBlocking {
+        val api = FakeMalApiService().apply {
+            enqueuePage(null, page("mal-api-page-1.json"))
+            enqueuePage(NextPageUrl, page("mal-api-page-2.json"))
+        }
+        val checkpoints = mutableListOf<MalAccountImportContinuation>()
+
+        loader(api, FakeMalCredentialStore(validTokens())).fetchAll(
+            onPageLoaded = { _, continuation -> checkpoints += continuation },
+        )
+
+        assertEquals(listOf(NextPageUrl, null), checkpoints.map { it.nextPageUrl })
+        assertEquals(listOf(2, 3), checkpoints.map { it.items.size })
+        assertEquals(listOf(2, 3), checkpoints.map { it.totalRows })
     }
 
     @Test

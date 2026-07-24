@@ -168,7 +168,7 @@ class ProviderImportCharacterizationTest {
         assertNull(archiveOnly.malId)
         assertNull(archiveOnly.episodeTotal)
         assertEquals(0, archiveOnly.watchedEpisodes)
-        assertEquals(10, archiveOnly.rating)
+        assertNull(archiveOnly.rating)
         assertEquals(TrackingStatus.Paused, archiveOnly.status)
         assertNull(archiveOnly.startedAt)
         assertNull(archiveOnly.toAddTrackedMediaRequest().metadataSource)
@@ -243,10 +243,46 @@ class ProviderImportCharacterizationTest {
         val episode = rows[2]
         assertEquals("An \"Escaped\" Episode", episode.title)
         assertNull(episode.type)
-        // This ambiguous fixture pins the parser's documented month/day-first order.
-        assertEquals(LocalDate.of(2023, 12, 5), episode.dateRated)
+        // Locale-dependent dates are deliberately ignored instead of being guessed.
+        assertNull(episode.dateRated)
 
         assertNull(rows[3].type)
+    }
+
+    @Test
+    fun `IMDb ignores out-of-range ratings and ambiguous dates`() {
+        val rows = parseImdbCsv(
+            """Title,Title Type,Const,Your Rating,Date Rated
+                Zero,Movie,tt0000001,0,03/04/2024
+                Too high,Movie,tt0000002,99,2024-04-03
+                Valid,Movie,tt0000003,8,2024-05-06
+            """.trimIndent(),
+        )
+
+        assertNull(rows[0].userRating)
+        assertNull(rows[0].dateRated)
+        assertNull(rows[1].userRating)
+        assertEquals(LocalDate.of(2024, 4, 3), rows[1].dateRated)
+        assertEquals(8, rows[2].userRating)
+        assertEquals(LocalDate.of(2024, 5, 6), rows[2].dateRated)
+    }
+
+    @Test
+    fun `MAL XML preview report retains malformed row counts and samples`() {
+        val parsed = parseMyAnimeListXmlWithReport(
+            """<myanimelist>
+                <anime><series_animedb_id>1</series_animedb_id><series_title>Valid</series_title></anime>
+                <anime><series_animedb_id>2</series_animedb_id><series_title> </series_title></anime>
+            </myanimelist>""".trimIndent(),
+        )
+
+        assertEquals(2, parsed.totalRows)
+        assertEquals(1, parsed.rows.size)
+        assertEquals(1, parsed.invalidRows)
+        assertEquals(
+            listOf(ProviderRejectedRow(2, null, ProviderRejectedReason.MissingTitle)),
+            parsed.rejectedRows,
+        )
     }
 
     @Test

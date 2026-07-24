@@ -211,14 +211,13 @@ private data class ProviderSearchResult(
 )
 
 private fun Throwable.toSearchFailure(source: MetadataSource): MetadataSearchFailure {
-    val httpError = this as? MetadataProviderHttpException
+    val failure = toMetadataFailureDetails(source.name)
     return MetadataSearchFailure(
         source = source,
-        diagnostic = httpError?.let { "${source.name} returned HTTP ${it.statusCode}" }
-            ?: (message ?: "${source.name} request failed"),
-        retryable = httpError?.statusCode?.let { it == 429 || it >= 500 } ?: true,
-        statusCode = httpError?.statusCode,
-        retryAfterMillis = httpError?.retryAfterMillis,
+        diagnostic = failure.diagnostic,
+        retryable = failure.retryable,
+        statusCode = failure.statusCode,
+        retryAfterMillis = failure.retryAfterMillis,
     )
 }
 
@@ -252,8 +251,5 @@ private fun MetadataSuggestion.bookQualityScore(query: String): Int {
 }
 
 private fun String.normalizedBookKey(): String {
-    return lowercase()
-        .replace(Regex("""\([^)]*\)"""), "")
-        .replace(Regex("""[^a-z0-9]+"""), " ")
-        .trim()
+    return normalizedMetadataMatchText(removeParenthetical = true)
 }

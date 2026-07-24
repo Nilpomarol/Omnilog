@@ -41,6 +41,19 @@ class ImportMetadataCoverageTest {
         assertNull(row(mediaType = "Game", progressTotal = null).toCoverageItem())
     }
 
+    @Test
+    fun `optional metadata gaps do not create an action item`() {
+        assertNull(
+            row(
+                releaseYear = null,
+                coverUrl = null,
+                synopsis = null,
+                creatorsJson = "[]",
+                genresJson = "[]",
+            ).toCoverageItem(),
+        )
+    }
+
     private fun row(
         mediaType: String = "Book",
         releaseYear: Int? = 2020,

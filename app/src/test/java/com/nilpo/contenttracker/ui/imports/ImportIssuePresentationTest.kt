@@ -41,7 +41,20 @@ class ImportIssuePresentationTest {
         )
 
         assertEquals(
-            "El proveïdor ha rebutjat la consulta i no es repetirà automàticament.",
+            "S'ha produït un error que no es pot reintentar automàticament.",
+            issue.userFacingReason(),
+        )
+    }
+
+    @Test
+    fun `authorization failures explain the required user action`() {
+        val issue = issue(
+            state = ImportItemState.Unavailable,
+            lastError = "Provider authorization failed (HTTP 401)",
+        )
+
+        assertEquals(
+            "No s'ha pogut autenticar amb el proveïdor de metadades.",
             issue.userFacingReason(),
         )
     }

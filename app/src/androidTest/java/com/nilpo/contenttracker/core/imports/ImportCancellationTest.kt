@@ -55,7 +55,7 @@ class ImportCancellationTest {
         dao.cancelBatch(batchId, now = 500)
 
         assertEquals(ImportBatchState.Cancelled.name, dao.getBatch(batchId)?.state)
-        assertEquals(500, dao.getBatch(batchId)?.completedAtEpochMillis)
+        assertEquals(500L, dao.getBatch(batchId)?.completedAtEpochMillis)
         itemIds.take(4).forEach { itemId ->
             assertEquals(ImportItemState.Cancelled.name, dao.getItem(itemId)?.state)
         }

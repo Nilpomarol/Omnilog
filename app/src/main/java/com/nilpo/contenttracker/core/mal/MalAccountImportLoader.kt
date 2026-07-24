@@ -55,7 +55,16 @@ internal data class MalAccountImportContinuation(
     val items: List<MyAnimeListImportItem> = emptyList(),
     val nextPageUrl: String? = null,
     val completedPages: Int = 0,
+    val totalRows: Int = items.size,
 )
+
+data class MalAccountImportLoadResult(
+    val items: List<MyAnimeListImportItem>,
+    val totalRows: Int,
+) {
+    val invalidRows: Int
+        get() = (totalRows - items.size).coerceAtLeast(0)
+}
 
 internal class MalAccountImportInterruptedException(
     val continuation: MalAccountImportContinuation,
@@ -69,11 +78,16 @@ internal class MalAccountImportLoader(
 ) {
     suspend fun fetchAll(
         continuation: MalAccountImportContinuation = MalAccountImportContinuation(),
+        onPageLoaded: suspend (
+            page: MalAnimeListPage,
+            continuation: MalAccountImportContinuation,
+        ) -> Unit = { _, _ -> },
         onProgress: (itemCount: Int, completedPages: Int) -> Unit = { _, _ -> },
-    ): List<MyAnimeListImportItem> {
+    ): MalAccountImportLoadResult {
         val items = continuation.items.toMutableList()
         var nextPageUrl = continuation.nextPageUrl
         var completedPages = continuation.completedPages
+        var totalRows = continuation.totalRows
         val requestedPages = mutableSetOf<String>()
 
         while (true) {
@@ -91,16 +105,27 @@ internal class MalAccountImportLoader(
                         items = items.toList(),
                         nextPageUrl = nextPageUrl,
                         completedPages = completedPages,
+                        totalRows = totalRows,
                     ),
                     cause = error,
                 )
             }
 
             items += page.items
+            totalRows += page.totalRows
             completedPages++
             nextPageUrl = page.nextPageUrl
+            val checkpoint = MalAccountImportContinuation(
+                items = items.toList(),
+                nextPageUrl = nextPageUrl,
+                completedPages = completedPages,
+                totalRows = totalRows,
+            )
+            onPageLoaded(page, checkpoint)
             onProgress(items.size, completedPages)
-            if (nextPageUrl == null) return items
+            if (nextPageUrl == null) {
+                return MalAccountImportLoadResult(items = items, totalRows = totalRows)
+            }
         }
     }
 }

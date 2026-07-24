@@ -91,6 +91,21 @@ data class MyAnimeListAccountImportPreview(
     val preview: ProviderImportPreview,
 )
 
+class PreparedImdbCsvImport internal constructor(
+    internal val parsed: ProviderCsvParseResult<ImdbCsvItem>,
+    val preview: ImdbCsvPreview,
+)
+
+class PreparedStoryGraphCsvImport internal constructor(
+    internal val parsed: ProviderCsvParseResult<StoryGraphCsvItem>,
+    val preview: StoryGraphCsvPreview,
+)
+
+class PreparedMyAnimeListXmlImport internal constructor(
+    internal val parsed: MyAnimeListXmlParseResult,
+    val preview: MyAnimeListXmlPreview,
+)
+
 /**
  * Why a media item is being written.
  *

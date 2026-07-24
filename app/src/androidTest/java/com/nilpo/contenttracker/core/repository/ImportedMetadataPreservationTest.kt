@@ -13,6 +13,8 @@ import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
 import com.nilpo.contenttracker.core.database.entity.SessionStatusEventEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.mal.buildMalSyncPayload
+import com.nilpo.contenttracker.core.mal.toStagedMalImportItem
+import com.nilpo.contenttracker.core.mal.toStagingJson
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
@@ -43,6 +45,154 @@ class ImportedMetadataPreservationTest {
     @After
     fun closeDatabase() {
         database.close()
+    }
+
+    @Test
+    fun malAccountPageCheckpointSurvivesReloadAndCanBeDiscarded() = runBlocking {
+        val importDao = database.importDao()
+        val now = 123_456L
+        val batchId = importDao.insertBatch(
+            ImportBatchEntity(
+                source = "MalApi",
+                state = "Previewing",
+                totalCount = 0,
+                createdAtEpochMillis = now,
+                updatedAtEpochMillis = now,
+            ),
+        )
+        val item = MyAnimeListImportItem(
+            malId = 5114,
+            title = "Fullmetal Alchemist: Brotherhood",
+            seriesType = "TV",
+            episodeTotal = 64,
+            watchedEpisodes = 64,
+            startedAt = LocalDate.of(2020, 1, 2),
+            finishedAt = LocalDate.of(2020, 3, 4),
+            rating = 10,
+            status = TrackingStatus.Completed,
+            notes = "Imported",
+            tags = listOf("favorite"),
+        )
+
+        importDao.saveMalAccountStagingPage(
+            batchId = batchId,
+            items = listOf(
+                ImportBatchItemEntity(
+                    batchId = batchId,
+                    sourceKey = "mal:5114",
+                    sourceExternalId = "5114",
+                    normalizedPayloadJson = item.toStagingJson(),
+                    state = "Staged",
+                    updatedAtEpochMillis = now,
+                ),
+            ),
+            totalCount = 1,
+            continuationUrl = "https://api.myanimelist.net/v2/users/@me/animelist?offset=100",
+            now = now,
+        )
+
+        val reloadedBatch = requireNotNull(importDao.getMalAccountStagingBatch())
+        val reloadedItem = importDao.getItemsForBatch(reloadedBatch.id)
+            .single()
+            .normalizedPayloadJson
+            ?.toStagedMalImportItem()
+        assertEquals("Previewing", reloadedBatch.state)
+        assertEquals(1, reloadedBatch.totalCount)
+        assertEquals(item, reloadedItem)
+
+        importDao.saveMalAccountStagingPage(
+            batchId = batchId,
+            items = emptyList(),
+            totalCount = 1,
+            continuationUrl = null,
+            now = now + 1,
+        )
+        assertEquals("ReadyToImport", requireNotNull(importDao.getMalAccountStagingBatch()).state)
+        assertEquals(1, importDao.deleteMalAccountStagingBatches())
+        assertEquals(null, importDao.getMalAccountStagingBatch())
+    }
+
+    @Test
+    fun providerIdentitySurvivesEnrichmentAndHistoryDeletion() = runBlocking {
+        val repository = OfflineMediaRepository(database)
+        val importDao = database.importDao()
+        val mediaDao = database.mediaDao()
+
+        val imdbCsv = """Title,Title Type,Const
+            Original IMDb title,Movie,tt1375666
+        """.trimIndent()
+        val imdbImport = repository.importPreparedImdbCsv(repository.prepareImdbCsv(imdbCsv))
+        val imdbMediaId = imdbImport.importedMediaItemIds.single()
+        val imdbBatchId = requireNotNull(imdbImport.importBatchId)
+        assertEquals("tt1375666", requireNotNull(mediaDao.getMediaItem(imdbMediaId)).imdbId)
+
+        assertTrue(
+            repository.applyImportedMediaItemMetadataRefresh(
+                MetadataRefreshPreview(
+                    mediaItemId = imdbMediaId,
+                    refreshed = MetadataSuggestion(
+                        source = MetadataSource.Tmdb,
+                        externalId = "27205",
+                        mediaType = MediaType.Movie,
+                        title = "Enriched IMDb title",
+                    ),
+                    changes = emptyList(),
+                ),
+                emptySet(),
+            ),
+        )
+        importDao.updateBatchState(imdbBatchId, "Completed", null, 2L, 2L)
+        assertEquals(1, importDao.deleteFinishedBatch(imdbBatchId))
+        assertEquals(MetadataSource.Tmdb.name, requireNotNull(mediaDao.getMediaItem(imdbMediaId)).metadataSource)
+        assertEquals(0, repository.previewImdbCsv(imdbCsv).importableRows)
+        assertEquals(1, repository.previewImdbCsv(imdbCsv).skippedDuplicateRows)
+
+        val storyGraphCsv = """Title,Authors,Read Status,ISBN/UID
+            Original book,Writer,read,9780441478125
+        """.trimIndent()
+        val storyGraphImport = repository.importPreparedStoryGraphCsv(
+            repository.prepareStoryGraphCsv(storyGraphCsv),
+        )
+        val storyGraphMediaId = storyGraphImport.importedMediaItemIds.single()
+        val storyGraphBatchId = requireNotNull(storyGraphImport.importBatchId)
+        assertEquals(
+            "9780441478125",
+            requireNotNull(mediaDao.getMediaItem(storyGraphMediaId)).storyGraphId,
+        )
+
+        assertTrue(
+            repository.applyImportedMediaItemMetadataRefresh(
+                MetadataRefreshPreview(
+                    mediaItemId = storyGraphMediaId,
+                    refreshed = MetadataSuggestion(
+                        source = MetadataSource.GoogleBooks,
+                        externalId = "volume-1",
+                        mediaType = MediaType.Book,
+                        title = "Enriched book title",
+                    ),
+                    changes = emptyList(),
+                ),
+                emptySet(),
+            ),
+        )
+        importDao.updateBatchState(storyGraphBatchId, "Completed", null, 3L, 3L)
+        assertEquals(1, importDao.deleteFinishedBatch(storyGraphBatchId))
+        assertEquals(
+            MetadataSource.GoogleBooks.name,
+            requireNotNull(mediaDao.getMediaItem(storyGraphMediaId)).metadataSource,
+        )
+        assertEquals(0, repository.previewStoryGraphCsv(storyGraphCsv).importableRows)
+        assertEquals(1, repository.previewStoryGraphCsv(storyGraphCsv).skippedDuplicateRows)
+
+        val backup = repository.exportBackupJson()
+        repository.importBackupJson(backup)
+        assertEquals("tt1375666", requireNotNull(mediaDao.getMediaItem(imdbMediaId)).imdbId)
+        assertEquals(
+            "9780441478125",
+            requireNotNull(mediaDao.getMediaItem(storyGraphMediaId)).storyGraphId,
+        )
+        assertEquals(0, repository.previewImdbCsv(imdbCsv).importableRows)
+        assertEquals(0, repository.previewStoryGraphCsv(storyGraphCsv).importableRows)
     }
 
     @Test

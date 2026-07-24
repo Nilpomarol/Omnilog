@@ -29,18 +29,18 @@ import com.nilpo.contenttracker.core.repository.DeletionRecovery
 import com.nilpo.contenttracker.core.repository.DeletionRecoveryStore
 import com.nilpo.contenttracker.core.repository.BackupPreview
 import com.nilpo.contenttracker.core.repository.ImdbCsvImportResult
-import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
 import com.nilpo.contenttracker.core.repository.MediaRepository
 import com.nilpo.contenttracker.core.repository.MetadataRefreshField
 import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.core.repository.RecommendationRepository
 import com.nilpo.contenttracker.core.repository.MyAnimeListXmlImportResult
-import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
 import com.nilpo.contenttracker.core.repository.MyAnimeListAccountImportPreview
 import com.nilpo.contenttracker.core.repository.ProviderImportResult
+import com.nilpo.contenttracker.core.repository.PreparedImdbCsvImport
+import com.nilpo.contenttracker.core.repository.PreparedMyAnimeListXmlImport
+import com.nilpo.contenttracker.core.repository.PreparedStoryGraphCsvImport
 import com.nilpo.contenttracker.core.repository.StoryGraphCsvImportResult
-import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.timeline.TimelineBuilder
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
@@ -198,35 +198,34 @@ class HomeViewModel(
         synchronizeLibraryCoversInBackground()
     }
 
-    suspend fun previewImdbCsv(csv: String): ImdbCsvPreview {
-        return mediaRepository.previewImdbCsv(csv)
-    }
+    suspend fun prepareImdbCsv(csv: String): PreparedImdbCsvImport = mediaRepository.prepareImdbCsv(csv)
 
-    suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
-        return mediaRepository.importImdbCsv(csv).startImportedMediaBackgroundWork()
-    }
+    suspend fun importPreparedImdbCsv(prepared: PreparedImdbCsvImport): ImdbCsvImportResult =
+        mediaRepository.importPreparedImdbCsv(prepared).startImportedMediaBackgroundWork()
 
-    suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview {
-        return mediaRepository.previewStoryGraphCsv(csv)
-    }
+    suspend fun prepareStoryGraphCsv(csv: String): PreparedStoryGraphCsvImport =
+        mediaRepository.prepareStoryGraphCsv(csv)
 
-    suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
-        return mediaRepository.importStoryGraphCsv(csv).startImportedMediaBackgroundWork()
-    }
+    suspend fun importPreparedStoryGraphCsv(prepared: PreparedStoryGraphCsvImport): StoryGraphCsvImportResult =
+        mediaRepository.importPreparedStoryGraphCsv(prepared).startImportedMediaBackgroundWork()
 
-    suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview {
-        return mediaRepository.previewMyAnimeListXml(xml)
-    }
+    suspend fun prepareMyAnimeListXml(xml: String): PreparedMyAnimeListXmlImport =
+        mediaRepository.prepareMyAnimeListXml(xml)
 
-    suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
-        return mediaRepository.importMyAnimeListXml(xml).startImportedMediaBackgroundWork()
-    }
+    suspend fun importPreparedMyAnimeListXml(
+        prepared: PreparedMyAnimeListXmlImport,
+    ): MyAnimeListXmlImportResult =
+        mediaRepository.importPreparedMyAnimeListXml(prepared).startImportedMediaBackgroundWork()
 
     suspend fun previewMyAnimeListAccount(): Result<MyAnimeListAccountImportPreview> {
-        return malSyncManager.fetchAccountImportRows().mapCatching { items ->
+        return malSyncManager.fetchAccountImportRows().mapCatching { loaded ->
+            val preview = mediaRepository.previewMyAnimeListAccount(loaded.items)
             MyAnimeListAccountImportPreview(
-                items = items,
-                preview = mediaRepository.previewMyAnimeListAccount(items),
+                items = loaded.items,
+                preview = preview.copy(
+                    totalRows = loaded.totalRows,
+                    invalidRows = loaded.invalidRows,
+                ),
             )
         }
     }
@@ -234,7 +233,13 @@ class HomeViewModel(
     suspend fun importMyAnimeListAccount(
         preview: MyAnimeListAccountImportPreview,
     ): ProviderImportResult {
-        return mediaRepository.importMyAnimeListAccount(preview.items).startImportedMediaBackgroundWork()
+        val result = mediaRepository.importMyAnimeListAccount(preview.items).startImportedMediaBackgroundWork()
+        malSyncManager.discardAccountImportStage()
+        return result
+    }
+
+    suspend fun discardMyAnimeListAccountImport() {
+        malSyncManager.discardAccountImportStage()
     }
 
     private fun ProviderImportResult.startImportedMediaBackgroundWork(): ProviderImportResult {

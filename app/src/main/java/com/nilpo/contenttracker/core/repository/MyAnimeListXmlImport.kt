@@ -18,7 +18,17 @@ typealias MyAnimeListXmlPreview = ProviderImportPreview
 
 typealias MyAnimeListXmlImportResult = ProviderImportResult
 
-internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> {
+internal data class MyAnimeListXmlParseResult(
+    val rows: List<MyAnimeListImportItem>,
+    val totalRows: Int,
+    val invalidRows: Int,
+    val rejectedRows: List<ProviderRejectedRow>,
+)
+
+internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> =
+    parseMyAnimeListXmlWithReport(xml).rows
+
+internal fun parseMyAnimeListXmlWithReport(xml: String): MyAnimeListXmlParseResult {
     val factory = DocumentBuilderFactory.newInstance().apply {
         isExpandEntityReferences = false
         setFeatureIfSupported("http://apache.org/xml/features/disallow-doctype-decl", true)
@@ -36,9 +46,21 @@ internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> {
     }
 
     val animeNodes = root.getElementsByTagName("anime")
-    return List(animeNodes.length) { index -> animeNodes.item(index) as Element }
-        .mapNotNull { element ->
-            val title = element.text("series_title").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+    var invalidRows = 0
+    val rejectedRows = mutableListOf<ProviderRejectedRow>()
+    val rows = List(animeNodes.length) { index -> animeNodes.item(index) as Element }
+        .mapIndexedNotNull { index, element ->
+            val title = element.text("series_title").takeIf { it.isNotBlank() } ?: run {
+                invalidRows++
+                if (rejectedRows.size < MaxRejectedSamplesPerReason) {
+                    rejectedRows += ProviderRejectedRow(
+                        rowNumber = index + 1,
+                        label = null,
+                        reason = ProviderRejectedReason.MissingTitle,
+                    )
+                }
+                return@mapIndexedNotNull null
+            }
             MyAnimeListImportItem(
                 malId = element.text("series_animedb_id").toIntOrNull()?.takeIf { it > 0 },
                 title = title,
@@ -47,7 +69,7 @@ internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> {
                 watchedEpisodes = element.text("my_watched_episodes").toIntOrNull()?.coerceAtLeast(0) ?: 0,
                 startedAt = element.text("my_start_date").toMalDateOrNull(),
                 finishedAt = element.text("my_finish_date").toMalDateOrNull(),
-                rating = element.text("my_score").toIntOrNull()?.takeIf { it > 0 }?.coerceIn(1, 10),
+                rating = element.text("my_score").toIntOrNull()?.takeIf { it in 1..10 },
                 status = element.text("my_status").toMalStatus(),
                 notes = element.text("my_comments").takeIf { it.isNotBlank() },
                 tags = element.text("my_tags").splitMalList(),
@@ -58,6 +80,12 @@ internal fun parseMyAnimeListXml(xml: String): List<MyAnimeListImportItem> {
                 isRewatching = element.textFirst("my_rewatching", "my_is_rewatching").toMalBoolean(),
             )
         }
+    return MyAnimeListXmlParseResult(
+        rows = rows,
+        totalRows = animeNodes.length,
+        invalidRows = invalidRows,
+        rejectedRows = rejectedRows,
+    )
 }
 
 private fun DocumentBuilderFactory.setFeatureIfSupported(name: String, value: Boolean) {

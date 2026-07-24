@@ -107,8 +107,7 @@ fun SettingsScreen(
     animeTitlePreference: AnimeTitlePreference,
     onAnimeTitlePreferenceChange: (AnimeTitlePreference) -> Unit,
     onBulkRefreshAnimeTitles: () -> Unit,
-    onToggleImportEnrichment: () -> Unit,
-    onRetryImportEnrichment: (Long) -> Unit,
+    onOpenImportActivity: () -> Unit,
     onConnectMyAnimeList: () -> Unit,
     onSyncMyAnimeList: () -> Unit,
     onRetryMyAnimeList: () -> Unit,
@@ -296,53 +295,12 @@ fun SettingsScreen(
                             accent = OmnilogTheme.accents.Anime,
                         )
                         SettingsDivider()
-                        val enrichment = importEnrichmentState.activeBatch
-                            ?: importEnrichmentState.recentBatches.firstOrNull {
-                                it.issueCount > 0 || it.needsReviewCount > 0 ||
-                                    it.coverageGapCount > 0
-                            }
-                        if (enrichment != null) {
-                            val isActive = enrichment.state == ImportBatchState.Enriching ||
-                                enrichment.state == ImportBatchState.Paused
-                            SettingsActionRow(
-                                title = when (enrichment.state) {
-                                    ImportBatchState.Enriching -> "Completant metadades…"
-                                    ImportBatchState.Paused -> "Metadades en pausa"
-                                    ImportBatchState.CompletedWithIssues -> "Metadades completades amb avisos"
-                                    else -> "Metadades importades"
-                                },
-                                description = buildString {
-                                    append("${enrichment.processedCount}/${enrichment.totalCount} processats")
-                                    append(" · ${enrichment.appliedCount} completats")
-                                    if (enrichment.needsReviewCount > 0) {
-                                        append(" · ${enrichment.needsReviewCount} per revisar")
-                                    }
-                                    if (enrichment.issueCount > 0) {
-                                        append(" · ${enrichment.issueCount} amb incidències")
-                                    }
-                                    if (enrichment.coverageGapCount > 0) {
-                                        append(" · ${enrichment.coverageGapCount} amb camps buits")
-                                    }
-                                    when (enrichment.state) {
-                                        ImportBatchState.Enriching -> append(". Toca per posar en pausa.")
-                                        ImportBatchState.Paused -> append(". Toca per continuar.")
-                                        ImportBatchState.CompletedWithIssues -> if (enrichment.issueCount > 0) {
-                                            append(". Toca per reintentar les incidències.")
-                                        }
-                                        else -> Unit
-                                    }
-                                },
-                                onClick = if (isActive) {
-                                    onToggleImportEnrichment
-                                } else {
-                                    { onRetryImportEnrichment(enrichment.batchId) }
-                                },
-                                enabled = isActive || enrichment.issueCount > 0,
-                                iconResId = MediaSection.Anime.navIconResId,
-                                accent = OmnilogTheme.accents.Anime,
-                            )
-                            SettingsDivider()
-                        }
+                        SettingsActionRow(
+                            title = "Activitat d'importació",
+                            description = importActivityDescription(importEnrichmentState),
+                            onClick = onOpenImportActivity,
+                        )
+                        SettingsDivider()
                         SettingsActionRow(
                             title = when {
                                 malSyncState.isImporting -> "Llegint MyAnimeList…"
@@ -940,6 +898,34 @@ private fun malSyncChangeDescription(change: MalSyncChange): String = if (change
     }
 } else {
     "Pendent · MAL #${change.malId}"
+}
+
+internal fun importActivityDescription(state: ImportEnrichmentState): String {
+    val active = state.activeBatches.ifEmpty { listOfNotNull(state.activeBatch) }
+    if (active.isNotEmpty()) {
+        val processed = active.sumOf { it.processedCount }
+        val total = active.sumOf { it.totalCount }
+        val activity = when {
+            active.size > 1 -> "${active.size} importacions en curs o en pausa"
+            active.single().state == ImportBatchState.Paused -> "1 importació en pausa"
+            else -> "1 importació en curs"
+        }
+        return "$activity · $processed/$total processats. Obre per veure i gestionar cada importació."
+    }
+
+    val reviewCount = state.reviewItems.size
+    val issueCount = state.issueItems.size
+    val coverageCount = state.coverageItems.size
+    if (reviewCount + issueCount + coverageCount > 0) {
+        return buildString {
+            append("Hi ha accions pendents")
+            if (reviewCount > 0) append(" · $reviewCount per revisar")
+            if (issueCount > 0) append(" · $issueCount incidències")
+            if (coverageCount > 0) append(" · $coverageCount totals de seguiment")
+            append('.')
+        }
+    }
+    return "Consulta el progrés, les decisions pendents i l'historial de les importacions."
 }
 
 /**

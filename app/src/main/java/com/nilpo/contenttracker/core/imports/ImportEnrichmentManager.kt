@@ -25,7 +25,7 @@ import com.nilpo.contenttracker.core.repository.MediaRepository
 import com.nilpo.contenttracker.core.repository.MetadataRefreshField
 import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.MetadataRepository
-import com.nilpo.contenttracker.core.repository.MetadataProviderHttpException
+import com.nilpo.contenttracker.core.repository.toMetadataFailureDetails
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
@@ -49,6 +50,7 @@ data class ImportBatchProgress(
     val issueCount: Int,
     val retryableIssueCount: Int,
     val coverageGapCount: Int,
+    val optionalMetadataGapCount: Int = 0,
     val pendingCount: Int,
     val cancelledCount: Int,
     val createdAtEpochMillis: Long = 0L,
@@ -60,6 +62,7 @@ data class ImportBatchProgress(
 
 data class ImportEnrichmentState(
     val activeBatch: ImportBatchProgress? = null,
+    val activeBatches: List<ImportBatchProgress> = emptyList(),
     val recentBatches: List<ImportBatchProgress> = emptyList(),
     val historyBatches: List<ImportBatchProgress> = emptyList(),
     val reviewItems: List<ImportReviewItem> = emptyList(),
@@ -169,7 +172,7 @@ class ImportEnrichmentManager(
         AnimeTitlePreference.EnglishWithJapaneseOriginal
     },
     private val resolver: ImportedMetadataResolver = ImportedMetadataResolver(metadataRepository),
-) {
+) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val state: StateFlow<ImportEnrichmentState> = combine(
@@ -179,12 +182,25 @@ class ImportEnrichmentManager(
         importDao.observeIssueItems(),
         importDao.observeCoverageItems(),
     ) { batches, items, reviewRows, issueRows, coverageRows ->
-        val coverageItems = coverageRows.mapNotNull(ImportCoverageRow::toCoverageItem)
-        val progress = batches.mapNotNull { batch ->
+        val itemsByBatch = items.groupBy(ImportBatchItemEntity::batchId)
+        val coverageByBatch = coverageRows
+            .mapNotNull { row -> row.metadataGaps()?.let { gaps -> row to gaps } }
+            .groupBy { (row) -> row.batchId }
+        val coverageItems = coverageByBatch.values
+            .flatten()
+            .mapNotNull { (row, gaps) -> row.toCoverageItem(gaps) }
+        val progress = batches
+            .filter { it.state in VisibleEnrichmentBatchStateNames }
+            .mapNotNull { batch ->
+            val batchCoverage = coverageByBatch[batch.id].orEmpty()
             batch.toProgress(
-                items = items.filter { it.batchId == batch.id },
-                coverageGapCount = coverageItems.count { it.batchId == batch.id },
+                items = itemsByBatch[batch.id].orEmpty(),
+                coverageGapCount = batchCoverage.count { (_, gaps) -> gaps.actionable.isNotEmpty() },
+                optionalMetadataGapCount = batchCoverage.count { (_, gaps) -> gaps.optional.isNotEmpty() },
             )
+        }
+        val activeBatches = progress.filter {
+            it.state == ImportBatchState.Enriching || it.state == ImportBatchState.Paused
         }
         val pendingCompletion = batches
             .asSequence()
@@ -197,7 +213,8 @@ class ImportEnrichmentManager(
             ?.let { batch -> progress.firstOrNull { it.batchId == batch.id } }
             ?.toCompletionSummary()
         ImportEnrichmentState(
-            activeBatch = progress.firstOrNull { it.state == ImportBatchState.Enriching || it.state == ImportBatchState.Paused },
+            activeBatch = activeBatches.firstOrNull(),
+            activeBatches = activeBatches,
             // The hub is an action queue, not an import history. Terminal batches stay in Room for
             // diagnostics and idempotency, but disappear once they have nothing left for the user.
             recentBatches = progress
@@ -209,6 +226,10 @@ class ImportEnrichmentManager(
             pendingCompletion = pendingCompletion,
         )
     }.stateIn(scope, SharingStarted.Eagerly, ImportEnrichmentState())
+
+    override fun close() {
+        scope.cancel()
+    }
 
     fun enqueue(batchId: Long?) {
         if (batchId == null) return
@@ -541,40 +562,22 @@ class ImportEnrichmentManager(
                     importDao.resetInterruptedItems(batchId, System.currentTimeMillis())
                 }
                 throw error
-            } catch (error: MetadataProviderHttpException) {
-                val retryable = error.statusCode == 429 || error.statusCode >= 500
+            } catch (error: Throwable) {
+                val failure = error.toMetadataFailureDetails()
                 finishItem(
                     item = item,
-                    state = when (error.statusCode) {
+                    state = when (failure.statusCode) {
                         401, 403 -> ImportItemState.Unavailable
                         404 -> ImportItemState.NoMatch
                         else -> ImportItemState.Failed
                     },
-                    retryable = retryable,
-                    error = when (error.statusCode) {
-                        401, 403 -> "Provider authorization failed (HTTP ${error.statusCode})"
-                        429 -> "Provider rate limit (HTTP 429)"
-                        else -> error.message
-                    },
+                    retryable = failure.retryable,
+                    error = failure.diagnostic,
                 )
-                if (retryable && currentAttempt < MaxItemAttempts) {
+                if (failure.retryable && currentAttempt < MaxItemAttempts) {
                     retryDelayMillis = maxOf(
                         retryDelayMillis ?: 0L,
-                        enrichmentRetryDelayMillis(currentAttempt, error.retryAfterMillis),
-                    )
-                    break
-                }
-            } catch (error: Throwable) {
-                finishItem(
-                    item = item,
-                    state = ImportItemState.Failed,
-                    retryable = true,
-                    error = error.message ?: error::class.simpleName,
-                )
-                if (currentAttempt < MaxItemAttempts) {
-                    retryDelayMillis = maxOf(
-                        retryDelayMillis ?: 0L,
-                        enrichmentRetryDelayMillis(currentAttempt),
+                        enrichmentRetryDelayMillis(currentAttempt, failure.retryAfterMillis),
                     )
                     break
                 }
@@ -833,6 +836,7 @@ class ImportEnrichmentWorker(
 private fun ImportBatchEntity.toProgress(
     items: List<ImportBatchItemEntity>,
     coverageGapCount: Int,
+    optionalMetadataGapCount: Int,
 ): ImportBatchProgress? {
     val source = runCatching { ImportSource.valueOf(source) }.getOrNull() ?: return null
     val state = runCatching { ImportBatchState.valueOf(state) }.getOrNull() ?: return null
@@ -856,6 +860,7 @@ private fun ImportBatchEntity.toProgress(
                 (item.state == ImportItemState.Failed.name && item.retryable)
         },
         coverageGapCount = coverageGapCount,
+        optionalMetadataGapCount = optionalMetadataGapCount,
         pendingCount = items.count { it.state == ImportItemState.Pending.name || it.state == ImportItemState.Resolving.name },
         cancelledCount = items.count { it.state == ImportItemState.Cancelled.name },
         createdAtEpochMillis = createdAtEpochMillis,
@@ -916,27 +921,50 @@ private fun ImportIssueRow.toIssueItem(): ImportIssueItem? {
 }
 
 internal fun ImportCoverageRow.toCoverageItem(): ImportCoverageItem? {
-    val parsedMediaType = runCatching { MediaType.valueOf(mediaType) }.getOrNull() ?: return null
-    val parsedSource = runCatching { ImportSource.valueOf(importSource) }.getOrNull() ?: return null
-    val missingFields = buildSet {
-        if (coverUrl.isNullOrBlank()) add(ImportMetadataGap.Cover)
-        if (synopsis.isNullOrBlank()) add(ImportMetadataGap.Synopsis)
-        if (releaseYear == null || releaseYear <= 0) add(ImportMetadataGap.ReleaseYear)
-        if (!creatorsJson.hasJsonValues()) add(ImportMetadataGap.Creators)
-        if (!genresJson.hasJsonValues()) add(ImportMetadataGap.Genres)
-        if (parsedMediaType != MediaType.Game && (progressTotal == null || progressTotal <= 0)) {
-            add(ImportMetadataGap.ProgressTotal)
-        }
-    }
-    if (missingFields.isEmpty()) return null
+    val gaps = metadataGaps() ?: return null
+    return toCoverageItem(gaps)
+}
+
+private fun ImportCoverageRow.toCoverageItem(gaps: ImportMetadataGaps): ImportCoverageItem? {
+    if (gaps.actionable.isEmpty()) return null
     return ImportCoverageItem(
         itemId = itemId,
         batchId = batchId,
         mediaItemId = mediaItemId,
         title = title,
+        mediaType = gaps.mediaType,
+        importSource = gaps.importSource,
+        missingFields = gaps.actionable + gaps.optional,
+    )
+}
+
+private data class ImportMetadataGaps(
+    val mediaType: MediaType,
+    val importSource: ImportSource,
+    val actionable: Set<ImportMetadataGap>,
+    val optional: Set<ImportMetadataGap>,
+)
+
+private fun ImportCoverageRow.metadataGaps(): ImportMetadataGaps? {
+    val parsedMediaType = runCatching { MediaType.valueOf(mediaType) }.getOrNull() ?: return null
+    val parsedSource = runCatching { ImportSource.valueOf(importSource) }.getOrNull() ?: return null
+    val optional = buildSet {
+        if (coverUrl.isNullOrBlank()) add(ImportMetadataGap.Cover)
+        if (synopsis.isNullOrBlank()) add(ImportMetadataGap.Synopsis)
+        if (releaseYear == null || releaseYear <= 0) add(ImportMetadataGap.ReleaseYear)
+        if (!creatorsJson.hasJsonValues()) add(ImportMetadataGap.Creators)
+        if (!genresJson.hasJsonValues()) add(ImportMetadataGap.Genres)
+    }
+    val actionable = buildSet {
+        if (parsedMediaType != MediaType.Game && (progressTotal == null || progressTotal <= 0)) {
+            add(ImportMetadataGap.ProgressTotal)
+        }
+    }
+    return ImportMetadataGaps(
         mediaType = parsedMediaType,
         importSource = parsedSource,
-        missingFields = missingFields,
+        actionable = actionable,
+        optional = optional,
     )
 }
 
@@ -990,6 +1018,14 @@ private val IssueItemStateNames = setOf(
 private val CompletionBatchStateNames = setOf(
     ImportBatchState.Completed.name,
     ImportBatchState.CompletedWithIssues.name,
+)
+
+private val VisibleEnrichmentBatchStateNames = setOf(
+    ImportBatchState.Enriching.name,
+    ImportBatchState.Paused.name,
+    ImportBatchState.Completed.name,
+    ImportBatchState.CompletedWithIssues.name,
+    ImportBatchState.Cancelled.name,
 )
 
 private val TerminalBatchStates = setOf(

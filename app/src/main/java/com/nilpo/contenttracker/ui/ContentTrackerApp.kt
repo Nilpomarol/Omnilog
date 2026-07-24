@@ -93,6 +93,9 @@ import com.nilpo.contenttracker.core.repository.ProviderCsvValidationException
 import com.nilpo.contenttracker.core.repository.ProviderCsvValidationIssue
 import com.nilpo.contenttracker.core.repository.ProviderNoImportableReason
 import com.nilpo.contenttracker.core.repository.ProviderImportPreview
+import com.nilpo.contenttracker.core.repository.PreparedImdbCsvImport
+import com.nilpo.contenttracker.core.repository.PreparedMyAnimeListXmlImport
+import com.nilpo.contenttracker.core.repository.PreparedStoryGraphCsvImport
 import com.nilpo.contenttracker.core.repository.ProviderRejectedReason
 import com.nilpo.contenttracker.core.repository.noImportableReason
 import com.nilpo.contenttracker.core.repository.rejectedGroups
@@ -456,10 +459,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 }
 
                 val previewResult = runCatching {
-                    PendingImdbCsvImport(
-                        csv = csv,
-                        preview = viewModel.previewImdbCsv(csv),
-                    )
+                    PendingImdbCsvImport(viewModel.prepareImdbCsv(csv))
                 }
                 val pendingCsv = previewResult.getOrNull()
                 if (pendingCsv == null) {
@@ -513,10 +513,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 }
 
                 val previewResult = runCatching {
-                    PendingStoryGraphCsvImport(
-                        csv = csv,
-                        preview = viewModel.previewStoryGraphCsv(csv),
-                    )
+                    PendingStoryGraphCsvImport(viewModel.prepareStoryGraphCsv(csv))
                 }
                 val pendingCsv = previewResult.getOrNull()
                 if (pendingCsv == null) {
@@ -570,10 +567,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 }
 
                 val previewResult = runCatching {
-                    PendingMyAnimeListXmlImport(
-                        xml = xml,
-                        preview = viewModel.previewMyAnimeListXml(xml),
-                    )
+                    PendingMyAnimeListXmlImport(viewModel.prepareMyAnimeListXml(xml))
                 }
                 val pendingXml = previewResult.getOrNull()
                 if (pendingXml == null) {
@@ -857,7 +851,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 metadataLinkImportIssueId = null
             }
             pendingMetadataChange != null -> pendingMetadataChange = null
-            pendingMyAnimeListAccountImport != null && !isProviderImporting -> pendingMyAnimeListAccountImport = null
+            pendingMyAnimeListAccountImport != null && !isProviderImporting -> {
+                pendingMyAnimeListAccountImport = null
+                coroutineScope.launch { viewModel.discardMyAnimeListAccountImport() }
+            }
             pendingMyAnimeListXmlImport != null && !isProviderImporting -> pendingMyAnimeListXmlImport = null
             pendingStoryGraphCsvImport != null && !isProviderImporting -> pendingStoryGraphCsvImport = null
             pendingImdbCsvImport != null && !isProviderImporting -> pendingImdbCsvImport = null
@@ -941,6 +938,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     visibleImport?.let { progress ->
                         ImportProgressBanner(
                             progress = progress,
+                            concurrentImportCount = importEnrichmentState.activeBatches.size,
                             onOpen = { showImportHub = true },
                             onToggle = { viewModel.toggleImportEnrichment(progress.batchId) },
                         )
@@ -1130,8 +1128,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onBulkRefreshAnimeTitles = {
                                     showAnimeTitleBulkConfirmation = true
                                 },
-                                onToggleImportEnrichment = viewModel::toggleImportEnrichment,
-                                onRetryImportEnrichment = viewModel::retryImportEnrichmentIssues,
+                                onOpenImportActivity = { showImportHub = true },
                                 onConnectMyAnimeList = {
                                     viewModel.beginMalAuthorization()?.let { authorizationUrl ->
                                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authorizationUrl)))
@@ -1614,7 +1611,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             isProviderImporting = true
                             coroutineScope.launch {
                                 val result = runCatching {
-                                    viewModel.importImdbCsv(imdbImport.csv)
+                                    viewModel.importPreparedImdbCsv(imdbImport.prepared)
                                 }
                                 pendingImdbCsvImport = null
                                 isProviderImporting = false
@@ -1679,7 +1676,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             isProviderImporting = true
                             coroutineScope.launch {
                                 val result = runCatching {
-                                    viewModel.importStoryGraphCsv(storyGraphImport.csv)
+                                    viewModel.importPreparedStoryGraphCsv(storyGraphImport.prepared)
                                 }
                                 pendingStoryGraphCsvImport = null
                                 isProviderImporting = false
@@ -1724,7 +1721,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
 
     pendingMyAnimeListAccountImport?.let { accountImport ->
         OmnilogAlertDialog(
-            onDismissRequest = { if (!isProviderImporting) pendingMyAnimeListAccountImport = null },
+            onDismissRequest = {
+                if (!isProviderImporting) {
+                    pendingMyAnimeListAccountImport = null
+                    coroutineScope.launch { viewModel.discardMyAnimeListAccountImport() }
+                }
+            },
             title = stringResource(R.string.mal_account_import_title),
             text = {
                 MalTitlePreferencePrompt(
@@ -1734,6 +1736,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         accountImport.preview.totalRows,
                         accountImport.preview.skippedDuplicateRows,
                         accountImport.preview.unsupportedRows,
+                        accountImport.preview.invalidRows,
                     ),
                     preference = animeTitlePreference,
                     onPreferenceChange = { animeTitlePreference = it },
@@ -1782,7 +1785,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             dismissButton = {
                 TextButton(
                     enabled = !isProviderImporting,
-                    onClick = { if (!isProviderImporting) pendingMyAnimeListAccountImport = null },
+                    onClick = {
+                        if (!isProviderImporting) {
+                            pendingMyAnimeListAccountImport = null
+                            coroutineScope.launch { viewModel.discardMyAnimeListAccountImport() }
+                        }
+                    },
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
@@ -1802,6 +1810,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         malImport.preview.totalRows,
                         malImport.preview.skippedDuplicateRows,
                         malImport.preview.unsupportedRows,
+                        malImport.preview.invalidRows,
                     ),
                     preference = animeTitlePreference,
                     onPreferenceChange = { animeTitlePreference = it },
@@ -1816,7 +1825,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             AnimeTitlePreferences.write(context, animeTitlePreference)
                             coroutineScope.launch {
                                 val result = runCatching {
-                                    viewModel.importMyAnimeListXml(malImport.xml)
+                                    viewModel.importPreparedMyAnimeListXml(malImport.prepared)
                                 }
                                 pendingMyAnimeListXmlImport = null
                                 isProviderImporting = false
@@ -2308,19 +2317,22 @@ private fun ProviderImportPreviewSummary(
 }
 
 private data class PendingImdbCsvImport(
-    val csv: String,
-    val preview: ImdbCsvPreview,
-)
+    val prepared: PreparedImdbCsvImport,
+) {
+    val preview: ImdbCsvPreview get() = prepared.preview
+}
 
 private data class PendingStoryGraphCsvImport(
-    val csv: String,
-    val preview: StoryGraphCsvPreview,
-)
+    val prepared: PreparedStoryGraphCsvImport,
+) {
+    val preview: StoryGraphCsvPreview get() = prepared.preview
+}
 
 private data class PendingMyAnimeListXmlImport(
-    val xml: String,
-    val preview: MyAnimeListXmlPreview,
-)
+    val prepared: PreparedMyAnimeListXmlImport,
+) {
+    val preview: MyAnimeListXmlPreview get() = prepared.preview
+}
 
 private data class PendingMetadataChange(
     val preview: MetadataRefreshPreview,

@@ -10,8 +10,6 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 class AniListRecommendationRepository : RecommendationProvider {
     override suspend fun getRecommendations(item: MediaItem): List<MetadataSuggestion> {
@@ -23,7 +21,7 @@ class AniListRecommendationRepository : RecommendationProvider {
         val aniListId = externalId.toIntOrNull() ?: return emptyList()
         return withContext(Dispatchers.IO) {
             runCatching {
-                val response = postGraphQL(
+                val response = postAniListGraphQL(
                     RECOMMENDATIONS_QUERY,
                     JSONObject().apply {
                         put("id", aniListId)
@@ -52,11 +50,14 @@ class AniListRecommendationRepository : RecommendationProvider {
         val originalTitle = romajiTitle.takeIf { englishTitle != null && it != englishTitle }
         val averageScore = optInt("averageScore", 0)
         val popularity = optInt("popularity", 0)
+        val ratingVoteCount = optJSONObject("stats")
+            ?.optJSONArray("scoreDistribution")
+            ?.scoreDistributionVoteCount()
         val rating = averageScore.takeIf { it > 0 }?.let {
             MetadataRatingSuggestion(
                 score = it / 10.0,
                 maxScore = 10.0,
-                voteCount = popularity.takeIf { count -> count > 0 },
+                voteCount = ratingVoteCount,
             )
         }
         val genres = optJSONArray("genres")?.let { array ->
@@ -97,21 +98,6 @@ class AniListRecommendationRepository : RecommendationProvider {
         )
     }
 
-    private fun postGraphQL(query: String, variables: JSONObject): JSONObject {
-        val connection = URL("https://graphql.anilist.co").openConnection() as HttpURLConnection
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 10_000
-        connection.requestMethod = "POST"
-        connection.setRequestProperty("Content-Type", "application/json")
-        connection.setRequestProperty("Accept", "application/json")
-        connection.doOutput = true
-        val body = JSONObject()
-            .put("query", query)
-            .put("variables", variables)
-        connection.outputStream.bufferedWriter().use { writer -> writer.write(body.toString()) }
-        return connection.inputStream.bufferedReader().use { reader -> JSONObject(reader.readText()) }
-    }
-
     private companion object {
         val RECOMMENDATIONS_QUERY = """
             query (${ '$' }id: Int, ${ '$' }perPage: Int) {
@@ -126,6 +112,7 @@ class AniListRecommendationRepository : RecommendationProvider {
                       episodes
                       averageScore
                       popularity
+                      stats { scoreDistribution { amount } }
                       startDate { year }
                       genres
                       siteUrl

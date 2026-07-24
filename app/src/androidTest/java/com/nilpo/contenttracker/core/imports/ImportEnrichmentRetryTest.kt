@@ -29,6 +29,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ImportEnrichmentRetryTest {
     private lateinit var database: ContentTrackerDatabase
+    private var enrichmentManager: ImportEnrichmentManager? = null
 
     @Before
     fun createDatabase() {
@@ -40,6 +41,7 @@ class ImportEnrichmentRetryTest {
 
     @After
     fun closeDatabase() {
+        enrichmentManager?.close()
         database.close()
     }
 
@@ -73,7 +75,7 @@ class ImportEnrichmentRetryTest {
             mediaRepository = mediaRepository,
             metadataRepository = metadataRepository,
             coverRepository = CoverRepository(context, ImageLoader.Builder(context).build()),
-        )
+        ).also { enrichmentManager = it }
 
         val first = manager.processBatch(batchId)
         val second = manager.processBatch(batchId)

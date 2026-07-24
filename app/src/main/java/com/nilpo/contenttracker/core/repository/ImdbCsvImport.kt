@@ -84,7 +84,7 @@ internal fun parseImdbCsvWithReport(csv: String): ProviderCsvParseResult<ImdbCsv
             runtimeMinutes = values.value("runtime (mins)").toIntOrNull()?.coerceAtLeast(0),
             imdbId = imdbId,
             sourceUrl = sourceUrl,
-            userRating = values.value("your rating").toIntOrNull()?.coerceIn(1, 10),
+            userRating = values.value("your rating").toIntOrNull()?.takeIf { it in 1..10 },
             dateRated = values.value("date rated").toLocalDateOrNull(),
             imdbRating = values.value("imdb rating").toDoubleOrNull(),
             imdbVoteCount = values.value("num votes").toIntWithSeparatorsOrNull(),
@@ -165,18 +165,10 @@ private fun String.toLocalDateOrNull(): LocalDate? {
     if (isBlank()) {
         return null
     }
-    return listOf(
-        DateTimeFormatter.ISO_LOCAL_DATE,
-        DateTimeFormatter.ofPattern("M/d/yyyy"),
-        DateTimeFormatter.ofPattern("MM/dd/yyyy"),
-        DateTimeFormatter.ofPattern("d/M/yyyy"),
-        DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-    ).firstNotNullOfOrNull { formatter ->
-        try {
-            LocalDate.parse(this, formatter)
-        } catch (_: DateTimeParseException) {
-            null
-        }
+    return try {
+        LocalDate.parse(this, DateTimeFormatter.ISO_LOCAL_DATE)
+    } catch (_: DateTimeParseException) {
+        null
     }
 }
 

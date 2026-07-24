@@ -15,7 +15,11 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.SET_NULL,
         ),
     ],
-    indices = [Index("collectionId")],
+    indices = [
+        Index("collectionId"),
+        Index("imdbId"),
+        Index("storyGraphId"),
+    ],
 )
 data class MediaItemEntity(
     @PrimaryKey(autoGenerate = true)
@@ -49,6 +53,8 @@ data class MediaItemEntity(
     val metadataExternalId: String? = null,
     val metadataSource: String? = null,
     val malId: Int? = null,
+    val imdbId: String? = null,
+    val storyGraphId: String? = null,
     val metadataOverrideFieldsCsv: String? = null,
     val isOwned: Boolean = false,
     // Retained only for compatibility with existing on-device databases. Ownership is now

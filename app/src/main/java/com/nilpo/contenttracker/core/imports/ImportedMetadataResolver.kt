@@ -13,12 +13,11 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.core.repository.MetadataProviderHttpException
 import com.nilpo.contenttracker.core.repository.MetadataSearchResult
+import com.nilpo.contenttracker.core.repository.normalizedMetadataMatchText
+import com.nilpo.contenttracker.core.repository.toMetadataFailureDetails
 import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.Normalizer
-import java.io.IOException
-import java.util.Locale
 
 enum class ImportSource {
     MalApi,
@@ -174,15 +173,12 @@ class ImportedMetadataResolver(
             throw error
         } catch (error: MetadataProviderHttpException) {
             error.toImportedResolution()
-        } catch (error: IOException) {
-            ImportedResolution.Failed(
-                retryable = true,
-                diagnostic = error.message ?: "Network request failed",
-            )
         } catch (error: Throwable) {
+            val failure = error.toMetadataFailureDetails()
             ImportedResolution.Failed(
-                retryable = true,
-                diagnostic = error.message ?: error::class.simpleName.orEmpty().ifBlank { "Provider request failed" },
+                retryable = failure.retryable,
+                diagnostic = failure.diagnostic,
+                retryAfterMillis = failure.retryAfterMillis,
             )
         }
     }
@@ -678,16 +674,10 @@ private fun MetadataSuggestion.storyGraphCandidateKey(): String {
     return editionIsbn?.let { "isbn:$it" } ?: "${source.name}:$externalId"
 }
 
-private fun String.normalizedBookEvidence(): String = Normalizer.normalize(this, Normalizer.Form.NFD)
-    .replace(Regex("\\p{M}+"), "")
-    .lowercase(Locale.ROOT)
-    .replace(Regex("""\([^)]*\)"""), " ")
-    .replace(Regex("[^a-z0-9]+"), " ")
-    .trim()
+private fun String.normalizedBookEvidence(): String =
+    normalizedMetadataMatchText(removeParenthetical = true)
 
-private fun String.normalizedTitle(): String = lowercase()
-    .replace(Regex("[^a-z0-9]+"), " ")
-    .trim()
+private fun String.normalizedTitle(): String = normalizedMetadataMatchText()
 
 private val ImdbIdPattern = Regex("tt[0-9]{7,10}")
 private const val MaxCandidates = 5

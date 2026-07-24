@@ -21,6 +21,7 @@ data class MalApiResponse(
 data class MalAnimeListPage(
     val items: List<MyAnimeListImportItem>,
     val nextPageUrl: String?,
+    val totalRows: Int,
 )
 
 class MalApiException(
@@ -199,7 +200,11 @@ internal fun JSONObject.toMalAnimeListPage(): MalAnimeListPage {
         ?.optString("next")
         ?.takeIf { it.isNotBlank() }
         ?.validatedMalContinuationUrl()
-    return MalAnimeListPage(items = items, nextPageUrl = nextPageUrl)
+    return MalAnimeListPage(
+        items = items,
+        nextPageUrl = nextPageUrl,
+        totalRows = data.length(),
+    )
 }
 
 private fun JSONObject.toMyAnimeListImportItem(): MyAnimeListImportItem? {
@@ -215,7 +220,7 @@ private fun JSONObject.toMyAnimeListImportItem(): MyAnimeListImportItem? {
         watchedEpisodes = listStatus.optInt("num_episodes_watched", 0).coerceAtLeast(0),
         startedAt = listStatus.optString("start_date").toMalLocalDateOrNull(),
         finishedAt = listStatus.optString("finish_date").toMalLocalDateOrNull(),
-        rating = listStatus.optInt("score", 0).takeIf { it > 0 }?.coerceIn(1, 10),
+        rating = listStatus.optInt("score", 0).takeIf { it in 1..10 },
         status = listStatus.optString("status").toMalTrackingStatus(),
         notes = listStatus.optString("comments").takeIf { it.isNotBlank() },
         tags = listStatus.optJSONArray("tags").toStringList(),

@@ -29,7 +29,7 @@ class AniListMetadataRepository(
         if (MediaType.Anime !in request.mediaTypes || query.isBlank()) return emptyList()
 
         return withContext(Dispatchers.IO) {
-            val response = postGraphQL(
+            val response = postAniListGraphQL(
                 SEARCH_QUERY,
                 JSONObject().apply {
                     put("search", query)
@@ -56,7 +56,7 @@ class AniListMetadataRepository(
         // handing back the un-enriched suggestion as if the details had loaded.
         return withContext(Dispatchers.IO) {
             val aniListId = suggestion.externalId.toLongOrNull() ?: return@withContext suggestion
-            val detailed = postGraphQL(
+            val detailed = postAniListGraphQL(
                     DETAILS_QUERY,
                 JSONObject().apply { put("id", aniListId) },
             )
@@ -121,7 +121,7 @@ class AniListMetadataRepository(
     }
 
     private fun getAniListSuggestionByMalId(malId: Int): MetadataSuggestion? = runCatching {
-        postGraphQL(
+        postAniListGraphQL(
             MAL_DETAILS_QUERY,
             JSONObject().apply { put("malId", malId) },
         )
@@ -180,6 +180,7 @@ class AniListMetadataRepository(
         val popularity = optInt("popularity", 0)
         val rankings = optJSONArray("rankings")
         val ratingDistribution = optJSONObject("stats")?.optJSONArray("scoreDistribution")
+        val ratingVoteCount = ratingDistribution?.scoreDistributionVoteCount()
         val releaseYear = optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
         val genres = optJSONArray("genres")?.let { arr ->
             List(arr.length()) { arr.getString(it) }.filter { it.isNotBlank() }
@@ -205,7 +206,7 @@ class AniListMetadataRepository(
             MetadataRatingSuggestion(
                 score = averageScore / 10.0,
                 maxScore = 10.0,
-                voteCount = popularity.takeIf { it > 0 },
+                voteCount = ratingVoteCount,
             )
         } else {
             null
@@ -247,23 +248,6 @@ class AniListMetadataRepository(
                 )
             }.orEmpty(),
         )
-    }
-
-    private fun postGraphQL(query: String, variables: JSONObject): JSONObject {
-        val connection = URL("https://graphql.anilist.co").openConnection() as HttpURLConnection
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 10_000
-        connection.requestMethod = "POST"
-        connection.setRequestProperty("Content-Type", "application/json")
-        connection.setRequestProperty("Accept", "application/json")
-        connection.doOutput = true
-
-        val body = JSONObject().apply {
-            put("query", query)
-            put("variables", variables)
-        }
-        connection.outputStream.bufferedWriter().use { it.write(body.toString()) }
-        return JSONObject(connection.inputStream.bufferedReader().readText())
     }
 
     companion object {

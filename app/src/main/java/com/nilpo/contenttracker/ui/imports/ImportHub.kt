@@ -64,6 +64,7 @@ internal fun ImportProgressBanner(
     onOpen: () -> Unit,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    concurrentImportCount: Int = 1,
 ) {
     val active = progress.state == ImportBatchState.Enriching || progress.state == ImportBatchState.Paused
     Surface(
@@ -84,18 +85,26 @@ internal fun ImportProgressBanner(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = progress.statusTitle(),
+                        text = if (concurrentImportCount > 1) {
+                            "$concurrentImportCount importacions en curs o en pausa"
+                        } else {
+                            progress.statusTitle()
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = OmnilogTheme.colors.appInk,
                     )
                     Text(
-                        text = progress.summary(),
+                        text = if (concurrentImportCount > 1) {
+                            "Obre l'activitat per veure i gestionar cada importació."
+                        } else {
+                            progress.summary()
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = OmnilogTheme.colors.appMuted,
                     )
                 }
-                if (active) {
+                if (active && concurrentImportCount <= 1) {
                     TextButton(onClick = onToggle) {
                         Text(if (progress.state == ImportBatchState.Paused) "Continua" else "Pausa")
                     }
@@ -103,6 +112,7 @@ internal fun ImportProgressBanner(
                     TextButton(onClick = onOpen) {
                         Text(
                             when {
+                                concurrentImportCount > 1 -> "Obre"
                                 progress.needsReviewCount > 0 -> "Revisa"
                                 progress.issueCount > 0 -> "Incidències"
                                 progress.coverageGapCount > 0 -> "Completa"
@@ -112,12 +122,14 @@ internal fun ImportProgressBanner(
                     }
                 }
             }
-            LinearProgressIndicator(
-                progress = { progress.fraction() },
-                modifier = Modifier.fillMaxWidth(),
-                color = OmnilogTheme.accents.Anime,
-                trackColor = OmnilogTheme.colors.appLine,
-            )
+            if (concurrentImportCount <= 1) {
+                LinearProgressIndicator(
+                    progress = { progress.fraction() },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = OmnilogTheme.accents.Anime,
+                    trackColor = OmnilogTheme.colors.appLine,
+                )
+            }
         }
     }
 }
@@ -616,7 +628,7 @@ private fun ImportOverview(
         if (state.coverageItems.isNotEmpty()) {
             item {
                 Text(
-                    text = "Metadades incompletes (${state.coverageItems.size})",
+                    text = "Totals de seguiment pendents (${state.coverageItems.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = OmnilogTheme.colors.appInk,
@@ -625,7 +637,7 @@ private fun ImportOverview(
             }
             item {
                 Text(
-                    text = "La coincidència és correcta, però el proveïdor no ha retornat tots els camps útils.",
+                    text = "Falten pàgines, minuts o episodis necessaris per mesurar el progrés.",
                     style = MaterialTheme.typography.bodySmall,
                     color = OmnilogTheme.colors.appMuted,
                 )
@@ -962,8 +974,13 @@ private fun IssueRow(
 
 internal fun ImportIssueItem.userFacingReason(): String = when (state) {
     ImportItemState.NoMatch -> "No s'ha trobat cap coincidència prou segura."
-    ImportItemState.Unavailable ->
-        "El proveïdor de metadades no està disponible en aquesta versió."
+    ImportItemState.Unavailable -> when {
+        lastError.orEmpty().contains("authorization", ignoreCase = true) ->
+            "No s'ha pogut autenticar amb el proveïdor de metadades."
+        lastError.orEmpty().contains("not configured", ignoreCase = true) ->
+            "Falta configurar el proveïdor de metadades."
+        else -> "El proveïdor de metadades no està disponible ara mateix."
+    }
     ImportItemState.Failed -> when {
         lastError.orEmpty().contains("429", ignoreCase = true) ||
             lastError.orEmpty().contains("rate limit", ignoreCase = true) ||
@@ -973,7 +990,7 @@ internal fun ImportIssueItem.userFacingReason(): String = when (state) {
             val attempts = if (attemptCount == 1) "1 intent" else "$attemptCount intents"
             "La consulta ha fallat temporalment després de $attempts."
         }
-        else -> "El proveïdor ha rebutjat la consulta i no es repetirà automàticament."
+        else -> "S'ha produït un error que no es pot reintentar automàticament."
     }
     else -> "No s'han pogut completar les metadades."
 }
@@ -1126,6 +1143,9 @@ private fun ImportBatchProgress.summary(): String = buildString {
     if (needsReviewCount > 0) append(" · $needsReviewCount per revisar")
     if (issueCount > 0) append(" · $issueCount incidències")
     if (coverageGapCount > 0) append(" · $coverageGapCount incomplets")
+    if (optionalMetadataGapCount > 0) {
+        append(" · $optionalMetadataGapCount amb metadades opcionals pendents")
+    }
     if (cancelledCount > 0) append(" · $cancelledCount cancel·lats")
 }
 

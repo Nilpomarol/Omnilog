@@ -164,10 +164,14 @@ class OfflineMediaRepository(
     }
 
     override suspend fun previewImdbCsv(csv: String): ImdbCsvPreview {
+        return prepareImdbCsv(csv).preview
+    }
+
+    override suspend fun prepareImdbCsv(csv: String): PreparedImdbCsvImport {
         val parsed = parseImdbCsvWithReport(csv)
         val rows = parsed.rows
         val existingKeys = imdbExistingKeys()
-        return planProviderImport(
+        val preview = planProviderImport(
             rows = rows,
             existingKeys = existingKeys,
             duplicateKey = ImdbCsvItem::importDuplicateKey,
@@ -178,6 +182,7 @@ class OfflineMediaRepository(
             sourceRowNumber = ImdbCsvItem::sourceRowNumber,
             displayLabel = ImdbCsvItem::title,
         ).toPreview()
+        return PreparedImdbCsvImport(parsed, preview)
     }
 
     private suspend fun imdbExistingKeys(): Set<String> = buildSet {
@@ -188,7 +193,11 @@ class OfflineMediaRepository(
     }
 
     override suspend fun importImdbCsv(csv: String): ImdbCsvImportResult {
-        val parsed = parseImdbCsvWithReport(csv)
+        return importPreparedImdbCsv(prepareImdbCsv(csv))
+    }
+
+    override suspend fun importPreparedImdbCsv(prepared: PreparedImdbCsvImport): ImdbCsvImportResult {
+        val parsed = prepared.parsed
         val rows = parsed.rows
         return importProviderRows(
             rows = rows,
@@ -246,10 +255,14 @@ class OfflineMediaRepository(
     }
 
     override suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview {
+        return prepareStoryGraphCsv(csv).preview
+    }
+
+    override suspend fun prepareStoryGraphCsv(csv: String): PreparedStoryGraphCsvImport {
         val parsed = parseStoryGraphCsvWithReport(csv)
         val rows = parsed.rows
         val existingKeys = storyGraphExistingKeys()
-        return planProviderImport(
+        val preview = planProviderImport(
             rows = rows,
             existingKeys = existingKeys,
             duplicateKey = StoryGraphCsvItem::storyGraphDuplicateKey,
@@ -260,6 +273,7 @@ class OfflineMediaRepository(
             sourceRowNumber = StoryGraphCsvItem::sourceRowNumber,
             displayLabel = StoryGraphCsvItem::title,
         ).toPreview()
+        return PreparedStoryGraphCsvImport(parsed, preview)
     }
 
     private suspend fun storyGraphExistingKeys(): Set<String> = buildSet {
@@ -270,7 +284,13 @@ class OfflineMediaRepository(
     }
 
     override suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult {
-        val parsed = parseStoryGraphCsvWithReport(csv)
+        return importPreparedStoryGraphCsv(prepareStoryGraphCsv(csv))
+    }
+
+    override suspend fun importPreparedStoryGraphCsv(
+        prepared: PreparedStoryGraphCsvImport,
+    ): StoryGraphCsvImportResult {
+        val parsed = prepared.parsed
         val rows = parsed.rows
         return importProviderRows(
             rows = rows,
@@ -297,7 +317,22 @@ class OfflineMediaRepository(
     }
 
     override suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview {
-        return previewMyAnimeListAccount(parseMyAnimeListXml(xml))
+        return prepareMyAnimeListXml(xml).preview
+    }
+
+    override suspend fun prepareMyAnimeListXml(xml: String): PreparedMyAnimeListXmlImport {
+        val parsed = parseMyAnimeListXmlWithReport(xml)
+        val existingKeys = mediaDao.getMediaItems().map { it.myAnimeListDuplicateKey() }
+        val preview = planProviderImport(
+            rows = parsed.rows,
+            existingKeys = existingKeys,
+            duplicateKey = MyAnimeListImportItem::myAnimeListDuplicateKey,
+            isSupported = { item -> item.title.isNotBlank() },
+            totalRows = parsed.totalRows,
+            invalidRows = parsed.invalidRows,
+            initialRejectedRows = parsed.rejectedRows,
+        ).toPreview()
+        return PreparedMyAnimeListXmlImport(parsed, preview)
     }
 
     override suspend fun previewMyAnimeListAccount(
@@ -313,7 +348,20 @@ class OfflineMediaRepository(
     }
 
     override suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult {
-        return importMyAnimeListRows(parseMyAnimeListXml(xml), ImportSource.MalXml)
+        return importPreparedMyAnimeListXml(prepareMyAnimeListXml(xml))
+    }
+
+    override suspend fun importPreparedMyAnimeListXml(
+        prepared: PreparedMyAnimeListXmlImport,
+    ): MyAnimeListXmlImportResult {
+        val parsed = prepared.parsed
+        return importMyAnimeListRows(
+            items = parsed.rows,
+            source = ImportSource.MalXml,
+            totalRows = parsed.totalRows,
+            invalidRows = parsed.invalidRows,
+            rejectedRows = parsed.rejectedRows,
+        )
     }
 
     override suspend fun importMyAnimeListAccount(
@@ -325,6 +373,9 @@ class OfflineMediaRepository(
     private suspend fun importMyAnimeListRows(
         items: List<MyAnimeListImportItem>,
         source: ImportSource,
+        totalRows: Int = items.size,
+        invalidRows: Int = 0,
+        rejectedRows: List<ProviderRejectedRow> = emptyList(),
     ): ProviderImportResult {
         return importProviderRows(
             rows = items,
@@ -337,6 +388,9 @@ class OfflineMediaRepository(
                 persistImportedSessions(item.toAddTrackedMediaRequest(sessions.first()), sessions)
             },
             sourceExternalId = { item -> item.malId?.toString() },
+            totalRows = totalRows,
+            invalidRows = invalidRows,
+            initialRejectedRows = rejectedRows,
         )
     }
 
@@ -534,6 +588,12 @@ class OfflineMediaRepository(
                     popularityJson = request.popularityJson,
                     sourceUrl = request.sourceUrl,
                 ),
+                imdbId = request.metadataExternalId
+                    ?.takeIf { request.metadataSource == MetadataSource.Imdb }
+                    ?.canonicalImdbIdentifier(),
+                storyGraphId = request.metadataExternalId
+                    ?.takeIf { request.metadataSource == MetadataSource.StoryGraph }
+                    ?.canonicalStoryGraphIdentifier(),
                 isOwned = request.isOwned,
             ),
         )
@@ -2039,9 +2099,12 @@ private suspend fun MediaDao.applyProgressTarget(
 }
 
 private fun MediaItemEntity.importDuplicateKey(): String {
-    val imdbId = metadataExternalId?.canonicalImdbIdentifier()
-    return if (metadataSource == MetadataSource.Imdb.name && imdbId != null) {
-        "imdb:$imdbId"
+    val stableImdbId = imdbId?.canonicalImdbIdentifier()
+        ?: metadataExternalId
+            ?.takeIf { metadataSource == MetadataSource.Imdb.name }
+            ?.canonicalImdbIdentifier()
+    return if (stableImdbId != null) {
+        "imdb:$stableImdbId"
     } else {
         "${type.lowercase()}:${title.normalizedImportTitle()}:${releaseYear ?: ""}"
     }
@@ -2057,8 +2120,12 @@ internal fun ImdbCsvItem.importDuplicateKey(): String {
 }
 
 private fun MediaItemEntity.storyGraphDuplicateKey(): String {
-    return if (metadataSource == MetadataSource.StoryGraph.name && !metadataExternalId.isNullOrBlank()) {
-        "storygraph:${metadataExternalId.canonicalStoryGraphIdentifier()}"
+    val stableStoryGraphId = storyGraphId?.takeIf(String::isNotBlank)
+        ?: metadataExternalId?.takeIf {
+            metadataSource == MetadataSource.StoryGraph.name && it.isNotBlank()
+        }
+    return if (stableStoryGraphId != null) {
+        "storygraph:${stableStoryGraphId.canonicalStoryGraphIdentifier()}"
     } else {
         "book:${title.normalizedImportTitle()}:${creatorsJson.toStringList().normalizedImportPeople()}"
     }
@@ -2139,7 +2206,7 @@ private val CanonicalImdbIdPattern = Regex("tt[0-9]{7,10}")
  * taken before an upgrade could only be restored by an app version that no longer exists, which
  * turns the one safety net into a dead end exactly when it is needed.
  */
-private const val BackupSchemaVersion = 11
+private const val BackupSchemaVersion = 12
 
 /** The first version whose progress values are increments rather than cumulative totals. */
 private const val FirstIncrementBackupSchemaVersion = 8
@@ -2409,6 +2476,8 @@ private fun MediaItemEntity.toJson(): JSONObject {
         .putNullable("metadataExternalId", metadataExternalId)
         .putNullable("metadataSource", metadataSource)
         .putNullable("malId", malId)
+        .putNullable("imdbId", imdbId)
+        .putNullable("storyGraphId", storyGraphId)
         .putNullable("metadataOverrideFieldsCsv", metadataOverrideFieldsCsv)
         .put("isOwned", isOwned)
 }
@@ -2518,6 +2587,8 @@ private fun JSONObject.toMediaItemEntity(): MediaItemEntity {
         metadataExternalId = optNullableString("metadataExternalId") ?: optNullableString("externalId"),
         metadataSource = optNullableString("metadataSource") ?: optNullableString("sourceApi"),
         malId = optNullableInt("malId"),
+        imdbId = optNullableString("imdbId"),
+        storyGraphId = optNullableString("storyGraphId"),
         metadataOverrideFieldsCsv = optNullableString("metadataOverrideFieldsCsv"),
         isOwned = if (has("isOwned")) {
             optBoolean("isOwned", false)

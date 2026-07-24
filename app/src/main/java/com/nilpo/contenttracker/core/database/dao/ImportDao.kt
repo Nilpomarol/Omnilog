@@ -28,6 +28,51 @@ interface ImportDao {
     @Query("SELECT * FROM import_batches WHERE id = :batchId LIMIT 1")
     suspend fun getBatch(batchId: Long): ImportBatchEntity?
 
+    @Query(
+        "SELECT * FROM import_batches WHERE source = 'MalApi' " +
+            "AND state IN ('Previewing', 'ReadyToImport') ORDER BY id DESC LIMIT 1",
+    )
+    suspend fun getMalAccountStagingBatch(): ImportBatchEntity?
+
+    @Query("SELECT * FROM import_batch_items WHERE batchId = :batchId ORDER BY id")
+    suspend fun getItemsForBatch(batchId: Long): List<ImportBatchItemEntity>
+
+    @Query(
+        "UPDATE import_batches SET state = :state, totalCount = :totalCount, " +
+            "continuationUrl = :continuationUrl, updatedAtEpochMillis = :now WHERE id = :batchId",
+    )
+    suspend fun updateMalAccountStagingBatch(
+        batchId: Long,
+        state: String,
+        totalCount: Int,
+        continuationUrl: String?,
+        now: Long,
+    )
+
+    @Query(
+        "DELETE FROM import_batches WHERE source = 'MalApi' " +
+            "AND state IN ('Previewing', 'ReadyToImport')",
+    )
+    suspend fun deleteMalAccountStagingBatches(): Int
+
+    @Transaction
+    suspend fun saveMalAccountStagingPage(
+        batchId: Long,
+        items: List<ImportBatchItemEntity>,
+        totalCount: Int,
+        continuationUrl: String?,
+        now: Long,
+    ) {
+        insertItems(items)
+        updateMalAccountStagingBatch(
+            batchId = batchId,
+            state = if (continuationUrl == null) "ReadyToImport" else "Previewing",
+            totalCount = totalCount,
+            continuationUrl = continuationUrl,
+            now = now,
+        )
+    }
+
     @Query("SELECT * FROM import_batches ORDER BY createdAtEpochMillis DESC, id DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>
 

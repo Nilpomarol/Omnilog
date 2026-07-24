@@ -147,13 +147,25 @@ interface MediaRepository {
 
     suspend fun previewImdbCsv(csv: String): ImdbCsvPreview
 
+    suspend fun prepareImdbCsv(csv: String): PreparedImdbCsvImport
+
+    suspend fun importPreparedImdbCsv(prepared: PreparedImdbCsvImport): ImdbCsvImportResult
+
     suspend fun importImdbCsv(csv: String): ImdbCsvImportResult
 
     suspend fun previewStoryGraphCsv(csv: String): StoryGraphCsvPreview
 
+    suspend fun prepareStoryGraphCsv(csv: String): PreparedStoryGraphCsvImport
+
+    suspend fun importPreparedStoryGraphCsv(prepared: PreparedStoryGraphCsvImport): StoryGraphCsvImportResult
+
     suspend fun importStoryGraphCsv(csv: String): StoryGraphCsvImportResult
 
     suspend fun previewMyAnimeListXml(xml: String): MyAnimeListXmlPreview
+
+    suspend fun prepareMyAnimeListXml(xml: String): PreparedMyAnimeListXmlImport
+
+    suspend fun importPreparedMyAnimeListXml(prepared: PreparedMyAnimeListXmlImport): MyAnimeListXmlImportResult
 
     suspend fun importMyAnimeListXml(xml: String): MyAnimeListXmlImportResult
 
