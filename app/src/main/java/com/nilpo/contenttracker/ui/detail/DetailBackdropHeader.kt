@@ -19,12 +19,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,22 +43,26 @@ import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.OnCoverInk
+import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 
-/**
- * Clear artwork between the app bar and the title block.
- *
- * Deliberately small. The header used to be a fixed 300dp with the title pushed to its bottom edge,
- * which left everything between the bar and the title as dead space. The artwork's real estate is
- * the band behind the transparent bar and status bar — this is only the seam below it.
- */
-private val ArtworkBand = 36.dp
+/** Seam between the app bar and the title block. The artwork runs through it and past it. */
+private val ArtworkBand = 14.dp
 
 /**
  * Clearance below the title block, on top of whatever the session card overlaps by.
  *
  * Without it the card lands on the title rather than below it.
  */
-private val CardClearance = 16.dp
+private val CardClearance = 20.dp
+
+/**
+ * How much of the header's foot is spent fading the artwork out into the page.
+ *
+ * Anchored to the bottom rather than expressed as a fraction of the header, because the header's
+ * height moves with the title's line count and a fraction would drag the fade up into the text.
+ */
+private val FootFade = 104.dp
 
 /** The sharp cover that sits on the blurred one. */
 private val CoverWidth = 104.dp
@@ -76,21 +81,24 @@ private const val BackdropSampleWidth = 56
 
 private val BlurRadius = 18.dp
 
-/** How far the app bar's dark scrim reaches past the bar itself. */
-private val BarScrimDepth = 92.dp
-
 /**
  * The item's own artwork, as the page's ground rather than as a picture on it.
  *
- * The cover is drawn twice: once sampled down and stretched behind everything, once sharp at
- * [CoverWidth]. Between them sits a veil that starts as a thin dark scrim — enough for the app bar's
- * icons, which is why the bar switches to [com.nilpo.contenttracker.ui.theme.OnCoverInk] over this
- * header — and finishes as opaque `appBackground`. The title block therefore sits on the page's own
- * background colour, not on artwork, so it uses ordinary `appInk` and stays legible in both themes
- * whatever the cover happens to be.
+ * The cover is drawn twice: once sampled down and stretched across the whole header, once sharp at
+ * [CoverWidth] with a shadow, because the near copy and the far copy are the same picture and
+ * nothing else would separate them.
  *
- * [topInset] is the space the app bar and status bar occupy. The artwork fills it; the text starts
- * below it.
+ * The title sits *on* the artwork rather than below it, which is what the scrim is for: it stays
+ * dark in both themes, because it exists to darken artwork and a pale one would not, and the text
+ * on it is [OnCoverInk] for the same reason. Only the foot fades to `appBackground`, and that fade
+ * is anchored to the bottom edge so it cannot ride up into the text when a long title wraps.
+ *
+ * An item with no cover gets no scrim and no fade — just the page's own background and ordinary
+ * ink. A black band over nothing would be worse than no backdrop at all.
+ *
+ * [topInset] is the space the app bar and status bar occupy; the artwork fills it. [overlap] is how
+ * far the session card will ride up into the foot, which the header reserves so the card lands
+ * below the title rather than on it.
  */
 @Composable
 fun DetailBackdropHeader(
@@ -102,58 +110,51 @@ fun DetailBackdropHeader(
     onCreatorClick: ((String) -> Unit)? = null,
 ) {
     val background = OmnilogTheme.colors.appBackground
-
-    // The fade finishes exactly where the title block starts, so the title always has a flat ground
-    // to sit on and can keep ordinary `appInk`. Measured in pixels rather than as a fraction of the
-    // header because the header's height depends on how tall the title runs, and a fraction would
-    // slide the fade around whenever the title wrapped to another line.
-    val fadeEndPx = with(LocalDensity.current) { (topInset + ArtworkBand).toPx() }
+    val hasArt = !metadata.coverUrl.isNullOrBlank()
 
     Box(modifier = modifier.fillMaxWidth()) {
-        // matchParentSize, not fillMaxSize: these take their size from the Box rather than giving
-        // it one, so the column below is what decides how tall the header is. fillMaxSize would
-        // also be unbounded here, since a LazyColumn item is measured with infinite max height.
-        BackdropArt(
-            coverUrl = metadata.coverUrl,
-            modifier = Modifier.matchParentSize(),
-        )
+        if (hasArt) {
+            // matchParentSize, not fillMaxSize: these take their size from the Box rather than
+            // giving it one, so the column below is what decides how tall the header is.
+            // fillMaxSize would also be unbounded here — a LazyColumn item is measured with
+            // infinite max height.
+            BackdropArt(
+                coverUrl = metadata.coverUrl,
+                modifier = Modifier.matchParentSize(),
+            )
 
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    // Weighted to stay out of the way. An earlier pass had this at 44% background
-                    // by mid-band, which washed the artwork to mush and made the band read as
-                    // empty space rather than as a backdrop. It now holds the cover almost clean
-                    // through the bar and spends the whole fade in the last stretch.
-                    Brush.verticalGradient(
-                        0.00f to Color.Transparent,
-                        0.52f to background.copy(alpha = 0.08f),
-                        1.00f to background,
-                        startY = 0f,
-                        endY = fadeEndPx,
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.00f to Color.Black.copy(alpha = 0.42f),
+                            0.38f to Color.Black.copy(alpha = 0.26f),
+                            1.00f to Color.Black.copy(alpha = 0.55f),
+                        ),
                     ),
-                ),
-        )
+            )
 
-        // A separate scrim for the app bar only. The bar's icons are pale in both themes, so this
-        // one stays dark in both themes — the same reasoning `OnCoverInk` is built on.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(topInset + BarScrimDepth)
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.38f),
-                        1f to Color.Transparent,
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(FootFade + overlap)
+                    .background(
+                        Brush.verticalGradient(
+                            0.00f to Color.Transparent,
+                            0.55f to background.copy(alpha = 0.55f),
+                            1.00f to background,
+                        ),
                     ),
-                ),
-        )
+            )
+        }
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.height(topInset + ArtworkBand))
             TitleBlock(
                 metadata = metadata,
+                onArtwork = hasArt,
                 onCollectionClick = onCollectionClick,
                 onCreatorClick = onCreatorClick,
                 modifier = Modifier.padding(horizontal = DetailGutter),
@@ -208,10 +209,15 @@ private fun BackdropArt(
 @Composable
 private fun TitleBlock(
     metadata: MediaMetadataUi,
+    onArtwork: Boolean,
     onCollectionClick: (() -> Unit)?,
     onCreatorClick: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    // With a cover this text is on a dark scrim in both themes; without one it is on the page.
+    val ink = if (onArtwork) OnCoverInk else OmnilogTheme.colors.appInk
+    val muted = if (onArtwork) OnCoverMuted else OmnilogTheme.colors.appMuted
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -219,7 +225,22 @@ private fun TitleBlock(
     ) {
         MetadataCoverImage(
             coverUrl = metadata.coverUrl,
-            modifier = Modifier.size(width = CoverWidth, height = CoverHeight),
+            // The sharp cover and the blurred one are the same picture, so without a shadow the
+            // near one has nothing to separate it from the far one.
+            modifier = Modifier
+                .then(
+                    if (onArtwork) {
+                        Modifier.shadow(
+                            elevation = 16.dp,
+                            shape = RoundedCornerShape(10.dp),
+                            ambientColor = Color.Black,
+                            spotColor = Color.Black,
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .size(width = CoverWidth, height = CoverHeight),
         )
         Column(
             modifier = Modifier.weight(1f),
@@ -238,7 +259,7 @@ private fun TitleBlock(
                     },
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appMuted,
+                    color = muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -247,7 +268,7 @@ private fun TitleBlock(
                 text = displayMediaTitle(metadata.title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
+                color = ink,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -255,7 +276,7 @@ private fun TitleBlock(
                 Text(
                     text = originalTitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
+                    color = muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -269,7 +290,7 @@ private fun TitleBlock(
                         Modifier
                     },
                     style = MaterialTheme.typography.titleSmall,
-                    color = OmnilogTheme.colors.appInk.copy(alpha = 0.84f),
+                    color = ink.copy(alpha = 0.88f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -278,7 +299,7 @@ private fun TitleBlock(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
+                    color = muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

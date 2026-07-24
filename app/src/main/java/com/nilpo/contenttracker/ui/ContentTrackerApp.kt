@@ -53,6 +53,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -150,6 +151,7 @@ import com.nilpo.contenttracker.ui.settings.SettingsScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.timeline.TimelineScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import androidx.compose.ui.graphics.lerp
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import com.nilpo.contenttracker.ui.theme.OnCoverMuted
@@ -2472,6 +2474,17 @@ private data class PendingPossibleDuplicate(
 )
 
 class DetailHeaderActions {
+    /**
+     * How opaque the top bar should be, 0 while the detail page's backdrop is still behind it and 1
+     * once the page has scrolled out from under it.
+     *
+     * The bar goes transparent over the backdrop, which means scrolled content would otherwise run
+     * straight into it and into the status bar. The screen owns the scroll position and the bar
+     * owns its own colour, so the screen publishes this and the bar reads it — the same arrangement
+     * as the callbacks below.
+     */
+    var barOpacity by mutableFloatStateOf(0f)
+
     var isEditingItemDetails by mutableStateOf(false)
     var isMenuExpanded by mutableStateOf(false)
     var isRefreshingMetadata by mutableStateOf(false)
@@ -2641,12 +2654,16 @@ private fun OmnilogTopBar(
     // Over the detail page's backdrop the bar has no surface of its own: the artwork shows through
     // and the header's own scrim is what keeps these icons legible. That scrim stays dark in both
     // themes, so the ink on it does too — the reasoning `OnCoverInk` exists for.
-    val barInk = if (overCover) OnCoverInk else OmnilogTheme.colors.appInk
-    val barMuted = if (overCover) OnCoverMuted else OmnilogTheme.colors.appMuted
+    // Over the backdrop the bar fades in with the scroll rather than switching: it is transparent
+    // while artwork is behind it and solid once the page has moved past, so content never collides
+    // with the bar or the status bar on the way up.
+    val opacity = if (overCover) detailActions.barOpacity else 1f
+    val barInk = lerp(OnCoverInk, OmnilogTheme.colors.appInk, opacity)
+    val barMuted = lerp(OnCoverMuted, OmnilogTheme.colors.appMuted, opacity)
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = if (overCover) Color.Transparent else OmnilogTheme.colors.appBackground,
+            containerColor = OmnilogTheme.colors.appBackground.copy(alpha = opacity),
             titleContentColor = barInk,
             navigationIconContentColor = barInk,
             actionIconContentColor = barInk,
