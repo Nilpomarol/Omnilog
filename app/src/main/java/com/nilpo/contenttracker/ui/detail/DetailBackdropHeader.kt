@@ -433,20 +433,9 @@ private fun HeaderFigures(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        if (rating != null) {
-            RatingFigure(
-                value = rating,
-                source = metadata.externalRatingSource,
-                fallbackLabel = metadata.externalRatingSourceName
-                    ?: metadata.sourceName
-                    ?: stringResource(R.string.field_rating),
-                ink = ratingTint(ratingFraction, onArtwork) ?: ink,
-                muted = muted,
-            )
-        }
         minor.forEach { (label, value) ->
             Column {
                 Text(
@@ -466,6 +455,21 @@ private fun HeaderFigures(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+        // A weighted spacer rather than SpaceBetween: the score has to land on the right edge even
+        // when it is the only figure the item has, and SpaceBetween would leave a lone child at the
+        // start.
+        Spacer(modifier = Modifier.weight(1f))
+        if (rating != null) {
+            RatingFigure(
+                value = rating,
+                source = metadata.externalRatingSource,
+                fallbackLabel = metadata.externalRatingSourceName
+                    ?: metadata.sourceName
+                    ?: stringResource(R.string.field_rating),
+                ink = ratingTint(ratingFraction, onArtwork) ?: ink,
+                muted = muted,
+            )
         }
     }
 }
@@ -489,7 +493,8 @@ private fun RatingFigure(
     ink: Color,
     muted: Color,
 ) {
-    Column {
+    // End, so the mark and the figure share the right edge they are both pinned to.
+    Column(horizontalAlignment = Alignment.End) {
         if (source?.logoRes() != null) {
             ProviderLogo(source = source, height = LogoHeight)
             Spacer(modifier = Modifier.height(4.dp))
