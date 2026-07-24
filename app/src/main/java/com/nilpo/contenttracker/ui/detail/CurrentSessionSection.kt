@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -149,123 +150,131 @@ private fun SessionCard(
         shape = RoundedCornerShape(18.dp),
         color = OmnilogTheme.colors.appPanel,
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+        // The artwork is behind the content and clipped by the Surface's own shape, so it bleeds
+        // off the corner rather than sitting inside a frame of its own.
+        Box {
+            SessionCardArtwork(
+                mediaType = mediaType,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                SessionStateChip(visual = visual)
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ActivityAction(
-                        updates = session.progressUpdates,
-                        statusEvents = session.statusEvents,
-                        baselineProgress = session.baselineProgress,
-                        sessionStartedAt = session.startedAt,
-                        sessionFinishedAt = session.finishedAt,
-                        sessionStatus = session.status,
+                    SessionStateChip(visual = visual)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ActivityAction(
+                            updates = session.progressUpdates,
+                            statusEvents = session.statusEvents,
+                            baselineProgress = session.baselineProgress,
+                            sessionStartedAt = session.startedAt,
+                            sessionFinishedAt = session.finishedAt,
+                            sessionStatus = session.status,
+                            progressTotal = progressTotal,
+                            mediaType = mediaType,
+                            accent = state,
+                            onDeleteProgressUpdate = onDeleteProgressUpdate,
+                            onUpdateProgressUpdate = onUpdateProgressUpdate,
+                            onDeleteStatusEvent = onDeleteStatusEvent,
+                            onUpdateStatusEventDate = onUpdateStatusEventDate,
+                        )
+                        FilledTonalIconButton(
+                            onClick = onEditClick,
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = stringResource(R.string.edit),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+
+                // The hero slot. A rating is a verdict and a progress figure is a position; when both
+                // exist the verdict is the more interesting of the two, so it takes the slot and the
+                // position drops to the caption under its own graphic.
+                val rating = session.rating
+                if (rating != null) {
+                    RatingMeter(rating = rating, accent = state)
+                } else {
+                    ProgressFigure(
+                        session = session,
                         progressTotal = progressTotal,
                         mediaType = mediaType,
-                        accent = state,
-                        onDeleteProgressUpdate = onDeleteProgressUpdate,
-                        onUpdateProgressUpdate = onUpdateProgressUpdate,
-                        onDeleteStatusEvent = onDeleteStatusEvent,
-                        onUpdateStatusEventDate = onUpdateStatusEventDate,
+                        color = state,
                     )
-                    FilledTonalIconButton(
-                        onClick = onEditClick,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = stringResource(R.string.edit),
-                            modifier = Modifier.size(16.dp),
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SessionProgressGraphic(
+                        progressCurrent = session.progressCurrent,
+                        progressTotal = progressTotal,
+                        mediaType = mediaType,
+                        progressUpdates = session.progressUpdates,
+                        color = state,
+                        faded = session.status == TrackingStatus.Dropped,
+                    )
+                    progressCaption(
+                        session = session,
+                        progressTotal = progressTotal,
+                        mediaType = mediaType,
+                        ratingHasHero = rating != null,
+                    )?.let { caption ->
+                        Text(
+                            text = caption,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
-            }
 
-            // The hero slot. A rating is a verdict and a progress figure is a position; when both
-            // exist the verdict is the more interesting of the two, so it takes the slot and the
-            // position drops to the caption under its own graphic.
-            val rating = session.rating
-            if (rating != null) {
-                RatingMeter(rating = rating, accent = state)
-            } else {
-                ProgressFigure(
-                    session = session,
-                    progressTotal = progressTotal,
-                    mediaType = mediaType,
-                    color = state,
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SessionProgressGraphic(
-                    progressCurrent = session.progressCurrent,
-                    progressTotal = progressTotal,
-                    mediaType = mediaType,
-                    progressUpdates = session.progressUpdates,
-                    color = state,
-                    faded = session.status == TrackingStatus.Dropped,
-                )
-                progressCaption(
-                    session = session,
-                    progressTotal = progressTotal,
-                    mediaType = mediaType,
-                    ratingHasHero = rating != null,
-                )?.let { caption ->
+                if (session.startedAt != null || session.finishedAt != null) {
+                    SessionDatesRow(session = session, trailing = sessionRecencyLabel(session))
+                } else if (session.status.endsSession) {
+                    // Finished with nothing recorded. One quiet line, rather than a dates row made
+                    // entirely of em-dashes.
                     Text(
-                        text = caption,
+                        text = stringResource(R.string.session_no_dates),
                         style = MaterialTheme.typography.bodySmall,
                         color = OmnilogTheme.colors.appMuted,
                     )
                 }
-            }
 
-            if (session.startedAt != null || session.finishedAt != null) {
-                SessionDatesRow(session = session, trailing = sessionRecencyLabel(session))
-            } else if (session.status.endsSession) {
-                // Finished with nothing recorded. One quiet line, rather than a dates row made
-                // entirely of em-dashes.
-                Text(
-                    text = stringResource(R.string.session_no_dates),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-
-            session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
-                Text(
-                    text = notes,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appInk.copy(alpha = 0.72f),
-                )
-            }
-
-            // The card's one saturated object, and the reason the card is worth tapping. Everything
-            // else here is accent-at-low-alpha or muted ink, so the eye lands on the action.
-            onLogProgress?.let { log ->
-                Button(
-                    onClick = log,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = state,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                ) {
+                session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
                     Text(
-                        text = logActionLabel(status = session.status, mediaType = mediaType),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.ExtraBold,
+                        text = notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OmnilogTheme.colors.appInk.copy(alpha = 0.72f),
                     )
+                }
+
+                // The card's one saturated object, and the reason the card is worth tapping. Everything
+                // else here is accent-at-low-alpha or muted ink, so the eye lands on the action.
+                onLogProgress?.let { log ->
+                    Button(
+                        onClick = log,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = state,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    ) {
+                        Text(
+                            text = logActionLabel(status = session.status, mediaType = mediaType),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
                 }
             }
         }
