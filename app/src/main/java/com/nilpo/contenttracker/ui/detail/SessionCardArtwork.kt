@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.nilpo.contenttracker.R
@@ -32,14 +33,14 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
  * repainted its branches. The type is a fact about the work and does not move.
  *
  * A single flat silhouette, tinted at draw time — which is why the asset carries no colour of its
- * own. One file per medium; a medium without one simply gets no artwork.
+ * own. One file per medium, all five drawn in the same hand.
  */
 @Composable
 fun SessionCardArtwork(
     mediaType: MediaType,
     modifier: Modifier = Modifier,
 ) {
-    val art = mediaType.artworkRes() ?: return
+    val art = mediaType.artworkRes()
     // The light theme's accents are darker and read roughly twice as strong at the same alpha, the
     // same asymmetry the accent sets themselves exist for.
     val onDark = OmnilogTheme.colors.appBackground.luminance() < 0.5f
@@ -67,9 +68,26 @@ fun SessionCardArtwork(
         alignment = Alignment.TopEnd,
         contentScale = ContentScale.FillWidth,
         alpha = alpha,
-        colorFilter = ColorFilter.tint(mediaType.typeAccent()),
+        colorFilter = ColorFilter.tint(mediaType.typeAccent().saturated()),
     )
 }
+
+/**
+ * The accent, pushed further from grey before it is laid down at a tenth of its strength.
+ *
+ * Most of an accent's chroma is spent on the panel underneath at these alphas, and what came back
+ * was closer to neutral than to the colour the medium is supposed to have. Saturating first costs
+ * nothing in legibility — the alpha is what keeps the drawing behind the text, not the hue — and
+ * hands the artwork back the colour it is meant to be read in.
+ */
+private fun Color.saturated(): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(toArgb(), hsv)
+    hsv[1] = (hsv[1] * SaturationBoost).coerceAtMost(1f)
+    return Color(android.graphics.Color.HSVToColor(hsv))
+}
+
+private const val SaturationBoost = 1.5f
 
 /** How much of the card's width the artwork spans, anchored to the top-right corner. */
 private const val ArtWidthFraction = 0.82f
@@ -88,13 +106,12 @@ private const val ArtAlphaOnLight = 0.10f
 private const val FadeRadiusFactor = 0.78f
 
 @DrawableRes
-private fun MediaType.artworkRes(): Int? = when (this) {
+private fun MediaType.artworkRes(): Int = when (this) {
     MediaType.Anime -> R.drawable.art_anime
-    MediaType.Book,
-    MediaType.Movie,
-    MediaType.TvShow,
-    MediaType.Game,
-    -> null
+    MediaType.Book -> R.drawable.art_books
+    MediaType.Movie -> R.drawable.art_movie
+    MediaType.TvShow -> R.drawable.art_series
+    MediaType.Game -> R.drawable.art_games
 }
 
 @Composable
