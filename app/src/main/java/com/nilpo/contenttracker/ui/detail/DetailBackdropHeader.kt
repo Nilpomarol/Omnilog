@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +51,7 @@ import com.nilpo.contenttracker.ui.common.formatCompactCount
 import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
 import com.nilpo.contenttracker.ui.common.logoRes
+import com.nilpo.contenttracker.ui.theme.DarkAccents
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.theme.OnCoverInk
@@ -64,11 +66,18 @@ import com.nilpo.contenttracker.ui.theme.OnCoverMuted
  */
 private val CoverRise = 44.dp
 
-/** Seam between the app bar's bottom edge and the top of the text column. */
-private val TextGap = 4.dp
-
 /** Never let the cover reach the status bar, however short the app bar turns out to be. */
 private val MinCoverTop = 6.dp
+
+/**
+ * Width kept clear at the end of the collection pill's line, for the context menu.
+ *
+ * The text column starts level with the cover, which puts its first line up in the app bar's band —
+ * so the pill shares that line with the kebab. Reserved as space rather than as a width cap because
+ * the kebab's position is a function of the screen, not a number this file can know. A collection
+ * name too long for what is left ellipses, which is the intended outcome.
+ */
+private val ContextMenuClearance = 44.dp
 
 /**
  * Clearance below the title block, on top of whatever the session card overlaps by.
@@ -83,7 +92,7 @@ private val CardClearance = 28.dp
 private val PillInk = Color(0xFF15120F)
 
 /** Height of the provider mark above the score. */
-private val LogoHeight = 17.dp
+private val LogoHeight = 22.dp
 
 /** The sharp cover that sits on the blurred one. */
 private val CoverWidth = 160.dp
@@ -180,14 +189,12 @@ fun DetailBackdropHeader(
         // bar is shorter than CoverRise the cover would otherwise climb into the status bar.
         val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val coverTop = (topInset - CoverRise).coerceAtLeast(statusBar + MinCoverTop)
-        val rise = topInset - coverTop
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.height(coverTop))
             TitleBlock(
                 metadata = metadata,
                 onArtwork = hasArt,
-                coverRise = rise,
                 onCollectionClick = onCollectionClick,
                 onCreatorClick = onCreatorClick,
                 modifier = Modifier.padding(horizontal = DetailGutter),
@@ -249,13 +256,12 @@ private fun BackdropArt(
  *
  * Within that height the identity — collection, title, original title, creator — is packed at the
  * top, and the figures that describe the work rather than name it sit on the baseline. So the two
- * columns line up at the bottom whether the title runs to one line or two.
+ * columns line up at both ends whether the title runs to one line or two.
  */
 @Composable
 private fun TitleBlock(
     metadata: MediaMetadataUi,
     onArtwork: Boolean,
-    coverRise: Dp,
     onCollectionClick: (() -> Unit)?,
     onCreatorClick: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
@@ -267,9 +273,10 @@ private fun TitleBlock(
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        // Bottom, so the extra height the cover gains by rising is spent upwards. Both columns still
-        // end on the same line.
-        verticalAlignment = Alignment.Bottom,
+        // Level with the cover, which means the text rises into the app bar's band with it: the
+        // collection pill ends up sharing that line with the context menu, which is why it reserves
+        // room for it.
+        verticalAlignment = Alignment.Top,
     ) {
         MetadataCoverImage(
             coverUrl = metadata.coverUrl,
@@ -294,7 +301,7 @@ private fun TitleBlock(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .height(CoverHeight - coverRise - TextGap),
+                .height(CoverHeight),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -302,11 +309,15 @@ private fun TitleBlock(
                     metadata.collectionName,
                     metadata.collectionSortOrder,
                 )?.let { collectionName ->
-                    CollectionPill(
-                        text = collectionName,
-                        accent = metadata.mediaType.headerAccent(),
-                        onClick = onCollectionClick,
-                    )
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        CollectionPill(
+                            text = collectionName,
+                            accent = metadata.mediaType.headerAccent(),
+                            onClick = onCollectionClick,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Spacer(modifier = Modifier.width(ContextMenuClearance))
+                    }
                 }
                 Text(
                     text = displayMediaTitle(metadata.title),
@@ -341,7 +352,12 @@ private fun TitleBlock(
                 }
             }
 
-            HeaderFigures(metadata = metadata, ink = ink, muted = muted)
+            HeaderFigures(
+                metadata = metadata,
+                onArtwork = onArtwork,
+                ink = ink,
+                muted = muted,
+            )
         }
     }
 }
@@ -358,9 +374,10 @@ private fun CollectionPill(
     text: String,
     accent: Color,
     onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+        modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier,
         shape = RoundedCornerShape(999.dp),
         // Solid, not a wash. At 22% over artwork the fill picked up whatever was behind it and the
         // label went with it; a pill has to be its own surface to read as one.
@@ -388,6 +405,7 @@ private fun CollectionPill(
 @Composable
 private fun HeaderFigures(
     metadata: MediaMetadataUi,
+    onArtwork: Boolean,
     ink: Color,
     muted: Color,
 ) {
@@ -400,6 +418,11 @@ private fun HeaderFigures(
                 source = metadata.externalRatingSource,
             )
         }
+    }
+    // Every source arrives on its own scale, so the tint is decided on the fraction rather than on
+    // the printed figure: 8,1 out of 10 and 4,3 out of 5 are the same verdict.
+    val ratingFraction = metadata.externalRatingScore?.let { score ->
+        metadata.externalRatingMax?.takeIf { it > 0.0 }?.let { maxScore -> score / maxScore }
     }
     val audience = (metadata.externalRatingVoteCount?.toDouble() ?: metadata.popularityScore)
         ?.let(::formatCompactCount)
@@ -429,7 +452,7 @@ private fun HeaderFigures(
                 fallbackLabel = metadata.externalRatingSourceName
                     ?: metadata.sourceName
                     ?: stringResource(R.string.field_rating),
-                ink = ink,
+                ink = ratingTint(ratingFraction, onArtwork) ?: ink,
                 muted = muted,
             )
         }
@@ -478,7 +501,7 @@ private fun RatingFigure(
     Column {
         if (source?.logoRes() != null) {
             ProviderLogo(source = source, height = LogoHeight)
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(4.dp))
         } else {
             Text(
                 text = fallbackLabel,
@@ -491,7 +514,7 @@ private fun RatingFigure(
         }
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineLarge,
+            style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.ExtraBold,
             color = ink,
             maxLines = 1,
@@ -499,6 +522,36 @@ private fun RatingFigure(
         )
     }
 }
+
+/**
+ * The score's own colour, or null to leave it in plain ink.
+ *
+ * Borrowed from the status accents rather than invented, because the app has already taught these
+ * three: green is a thing gone well, amber a thing left hanging, red a thing abandoned. A score
+ * reads on the same scale without a legend.
+ *
+ * The bands are deliberately wide and the top one deliberately generous — most external scores for
+ * things a person chose to track land above 7,5, so amber and red carry real information when they
+ * do appear. [GoodScore] and [FairScore] are fractions of the source's own maximum, so a 4,3 out of
+ * 5 and an 8,6 out of 10 get the same colour.
+ *
+ * On artwork the dark-tuned accents are used whatever the theme, for the reason [headerAccent]
+ * gives: the scrim under this text is dark in both. Off artwork the text is on the page, so the
+ * theme's own set applies — the light values are the ones that clear 4.5:1 on paper.
+ */
+@Composable
+private fun ratingTint(fraction: Double?, onArtwork: Boolean): Color? {
+    if (fraction == null) return null
+    val accents = if (onArtwork) DarkAccents else OmnilogTheme.accents
+    return when {
+        fraction >= GoodScore -> accents.Completed
+        fraction >= FairScore -> accents.Paused
+        else -> accents.Dropped
+    }
+}
+
+private const val GoodScore = 0.75
+private const val FairScore = 0.55
 
 /**
  * The media type's accent, taken from the theme-invariant set on purpose.
