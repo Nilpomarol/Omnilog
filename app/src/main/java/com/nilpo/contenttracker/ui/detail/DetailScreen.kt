@@ -253,6 +253,13 @@ fun DetailScreen(
                         metadata = metadata,
                         topInset = contentPadding.calculateTopPadding(),
                         overlap = overlap,
+                        // The genres belong to the title block, so they sit closer to it than a
+                        // session card would.
+                        clearance = if (metadata.genres.isNotEmpty()) {
+                            DetailGenreClearance
+                        } else {
+                            DetailCardClearance
+                        },
                         onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
                         onCreatorClick = onAuthorClick,
                     )
