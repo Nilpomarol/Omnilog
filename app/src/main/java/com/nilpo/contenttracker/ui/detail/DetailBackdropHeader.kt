@@ -54,13 +54,15 @@ import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 
 /**
- * Seam between the app bar's bottom edge and the top of the title block.
+ * How far the title block reaches back up into the app bar's own bottom padding.
  *
- * The cover used to rise past this line into the bar's band, which put the collection pill on the
- * same row as the context menu. It sits below the bar instead: the back arrow and the kebab get a
- * row to themselves, and nothing in the title block has to dodge them.
+ * The bar is a 64dp box around a 24dp glyph, so a seam measured from the box arrives on screen with
+ * some 20dp of the bar's padding already in it. Measuring from the box is what made the gap look
+ * twice what it was asked for; this claws part of that padding back, so what is left below the
+ * arrow is a real gap rather than an accounting one. It stops well short of the glyphs themselves —
+ * the back arrow and the kebab keep the row to themselves.
  */
-private val BarGap = 10.dp
+private val BarPaddingReclaim = 8.dp
 
 /**
  * Clearance below the title block, on top of whatever the session card overlaps by.
@@ -169,7 +171,7 @@ fun DetailBackdropHeader(
         }
 
         Column(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.height(topInset + BarGap))
+            Spacer(modifier = Modifier.height(topInset - BarPaddingReclaim))
             TitleBlock(
                 metadata = metadata,
                 onArtwork = hasArt,
