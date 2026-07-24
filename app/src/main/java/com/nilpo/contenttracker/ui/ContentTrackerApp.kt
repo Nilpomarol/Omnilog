@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -2628,14 +2627,6 @@ private fun OmnilogNavItem(
     }
 }
 
-/**
- * The scrim disc behind the back arrow while the bar itself is transparent.
- *
- * Smaller than the 48dp touch target it sits in: the target has to stay a thumb wide, but a disc
- * that wide would read as a button on the artwork rather than as a shadow under an icon.
- */
-private val ControlDisc = 38.dp
-
 @DrawableRes
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -2669,11 +2660,6 @@ private fun OmnilogTopBar(
     val opacity = if (overCover) detailActions.barOpacity else 1f
     val barInk = lerp(OnCoverInk, OmnilogTheme.colors.appInk, opacity)
     val barMuted = lerp(OnCoverMuted, OmnilogTheme.colors.appMuted, opacity)
-    // A disc under each control for as long as the bar has no surface of its own. The back arrow
-    // lands on the sharp cover, which is arbitrary artwork and can be pale, busy, or both — ink
-    // alone cannot be relied on there. It fades out exactly as the bar fades in, so the disc is
-    // gone by the time the bar is a surface and would be drawing a circle on a flat colour.
-    val controlScrim = Color.Black.copy(alpha = 0.32f * (1f - opacity))
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -2685,18 +2671,11 @@ private fun OmnilogTopBar(
         navigationIcon = {
             if (showBackNavigation) {
                 IconButton(onClick = onBack) {
-                    Box(
-                        modifier = Modifier
-                            .size(ControlDisc)
-                            .background(controlScrim, CircleShape),
-                        contentAlignment = androidx.compose.ui.Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = barInk,
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        tint = barInk,
+                    )
                     Text(
                         text = "‹",
                         color = Color.Transparent,

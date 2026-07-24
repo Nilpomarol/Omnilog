@@ -9,14 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,26 +54,13 @@ import com.nilpo.contenttracker.ui.theme.OnCoverInk
 import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 
 /**
- * How far the cover rises past the app bar's bottom edge, into the bar's own band.
+ * Seam between the app bar's bottom edge and the top of the title block.
  *
- * The cover is the one part of the header allowed up there. It buys its extra height from space the
- * bar was already occupying, so the text column beside it keeps the room it needs, and the back
- * arrow lands on the artwork rather than above it.
+ * The cover used to rise past this line into the bar's band, which put the collection pill on the
+ * same row as the context menu. It sits below the bar instead: the back arrow and the kebab get a
+ * row to themselves, and nothing in the title block has to dodge them.
  */
-private val CoverRise = 44.dp
-
-/** Never let the cover reach the status bar, however short the app bar turns out to be. */
-private val MinCoverTop = 6.dp
-
-/**
- * Width kept clear at the end of the collection pill's line, for the context menu.
- *
- * The text column starts level with the cover, which puts its first line up in the app bar's band —
- * so the pill shares that line with the kebab. Reserved as space rather than as a width cap because
- * the kebab's position is a function of the screen, not a number this file can know. A collection
- * name too long for what is left ellipses, which is the intended outcome.
- */
-private val ContextMenuClearance = 44.dp
+private val BarGap = 10.dp
 
 /**
  * Clearance below the title block, on top of whatever the session card overlaps by.
@@ -185,13 +168,8 @@ fun DetailBackdropHeader(
             )
         }
 
-        // The rise is what the cover actually gets, not what it asked for: on a device whose app
-        // bar is shorter than CoverRise the cover would otherwise climb into the status bar.
-        val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        val coverTop = (topInset - CoverRise).coerceAtLeast(statusBar + MinCoverTop)
-
         Column(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.height(coverTop))
+            Spacer(modifier = Modifier.height(topInset + BarGap))
             TitleBlock(
                 metadata = metadata,
                 onArtwork = hasArt,
@@ -273,9 +251,7 @@ private fun TitleBlock(
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        // Level with the cover, which means the text rises into the app bar's band with it: the
-        // collection pill ends up sharing that line with the context menu, which is why it reserves
-        // room for it.
+        // Level with the cover, so the collection pill starts on the cover's own top edge.
         verticalAlignment = Alignment.Top,
     ) {
         MetadataCoverImage(
@@ -309,15 +285,11 @@ private fun TitleBlock(
                     metadata.collectionName,
                     metadata.collectionSortOrder,
                 )?.let { collectionName ->
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        CollectionPill(
-                            text = collectionName,
-                            accent = metadata.mediaType.headerAccent(),
-                            onClick = onCollectionClick,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        Spacer(modifier = Modifier.width(ContextMenuClearance))
-                    }
+                    CollectionPill(
+                        text = collectionName,
+                        accent = metadata.mediaType.headerAccent(),
+                        onClick = onCollectionClick,
+                    )
                 }
                 Text(
                     text = displayMediaTitle(metadata.title),
