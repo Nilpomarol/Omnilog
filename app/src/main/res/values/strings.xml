@@ -360,9 +360,6 @@
     <string name="session_log_hours">Registra hores</string>
     <string name="session_start_action">Comença</string>
     <string name="session_resume_action">Reprèn</string>
-    <!-- "A la llista %1$s" — %1$s is a recency phrase already lowercase ("fa 3 dies", "avui"),
-         so this reads as one sentence: "A la llista fa 3 dies". -->
-    <string name="session_planned_added">A la llista %1$s</string>
     <string name="session_recency_today">avui</string>
     <string name="session_recency_yesterday">ahir</string>
     <plurals name="session_recency_days">

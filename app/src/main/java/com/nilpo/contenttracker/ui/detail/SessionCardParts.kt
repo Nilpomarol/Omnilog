@@ -33,7 +33,6 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.common.OmnilogLocale
-import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -359,23 +358,3 @@ fun logProgressLabel(mediaType: MediaType): String = stringResource(
         MediaType.Game -> R.string.session_log_hours
     },
 )
-
-/**
- * What a planned session has to say before you have started it: how much there is, and how long
- * it has been waiting.
- *
- * A planned card has no progress and no dates, which is most of what fills every other card — so
- * without this it was a chip and a button with nothing between them. `updatedAtEpochMillis` is not
- * only a progress timestamp; a session that has never logged anything still has one, stamped when
- * it joined the list, so [sessionRecencyLabel] doubles as "how long it's been waiting" here.
- *
- * Either half can be missing — an item with no known total, or one just added — and the row drops
- * out entirely rather than print half a sentence.
- */
-@Composable
-fun plannedMetaLabel(session: TrackingSession, progressTotal: Int?, mediaType: MediaType): String? {
-    val total = progressTotal?.takeIf { it > 0 }
-    val count = total?.let { "$it ${progressUnitLabel(mediaType = mediaType, value = it)}" }
-    val waiting = sessionRecencyLabel(session)?.let { stringResource(R.string.session_planned_added, it) }
-    return listOfNotNull(count, waiting).takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
-}

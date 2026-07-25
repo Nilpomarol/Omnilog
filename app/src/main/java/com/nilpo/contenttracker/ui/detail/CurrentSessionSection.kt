@@ -1,6 +1,11 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,11 +16,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,15 +40,18 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
@@ -163,19 +173,48 @@ private fun SessionCard(
             // different weights, and none of them needed a gap to be told apart from its neighbour.
             verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            // Planned is two rows, not a short card and not the full anatomy either. A single row
-            // — chip, spacer, start button, edit disc — was shorter still, but left the card's
-            // whole middle as bare artwork with nothing to say. The second row fills that with the
-            // one thing a planned item actually has: how much of it there is, and how long it has
-            // been waiting. When neither is known the row drops itself and the card stays one line.
+            // The whole row is the button: no rectangle drawn inside it, just the eyebrow, the
+            // action's own name, and a triangle that acts as the handle. Every other option this
+            // was tried against either grew a second row for a fact the artwork could already
+            // imply, or kept a chip and a button naming the same thing twice. The edit disc still
+            // needs its own tap target, but Compose gives the innermost clickable the touch before
+            // the row's, so the two never fight over the same gesture.
             if (session.status == TrackingStatus.Planned) {
+                val log = onLogProgress
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (log != null) {
+                                Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = LocalIndication.current,
+                                    onClick = log,
+                                )
+                            } else {
+                                Modifier
+                            },
+                        ),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SessionStateChip(visual = visual)
-                    Spacer(modifier = Modifier.weight(1f))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = visual.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = logActionLabel(status = session.status, mediaType = mediaType),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = state,
+                            maxLines = 1,
+                        )
+                    }
                     FilledTonalIconButton(
                         onClick = onEditClick,
                         modifier = Modifier.size(32.dp),
@@ -186,28 +225,20 @@ private fun SessionCard(
                             modifier = Modifier.size(16.dp),
                         )
                     }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    plannedMetaLabel(session = session, progressTotal = progressTotal, mediaType = mediaType)
-                        ?.let { meta ->
-                            Text(
-                                text = meta,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = OmnilogTheme.colors.appMuted,
-                                maxLines = 1,
-                            )
-                        } ?: Spacer(modifier = Modifier.weight(1f))
-                    StartAction(
-                        session = session,
-                        mediaType = mediaType,
-                        onLogProgress = onLogProgress,
-                        fillWidth = false,
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(state),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(19.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
                 }
                 return@Column
             }
@@ -306,7 +337,7 @@ private fun SessionCard(
                 )
             }
 
-            StartAction(session = session, mediaType = mediaType, onLogProgress = onLogProgress)
+            StartAction(session = session, mediaType = mediaType, onLogProgress = onLogProgress, accent = state)
         }
     }
 }
@@ -317,31 +348,25 @@ private fun SessionCard(
  * Everything else on the card is accent-at-low-alpha, muted ink or artwork, so the eye lands here
  * without the button having to be large. It was a slab: full width at the default button height,
  * which on a planned card left a control taller than everything above it put together. Trimmed to
- * the height of a row, and full width only where it is the last thing on the card — on the planned
- * row it sits inline and takes the width of its own label.
+ * the height of a row instead, full width since it is the last thing on the card.
  */
 @Composable
 private fun StartAction(
     session: TrackingSession,
     mediaType: MediaType,
     onLogProgress: (() -> Unit)?,
-    fillWidth: Boolean = true,
+    accent: Color,
 ) {
     val log = onLogProgress ?: return
-    // Not the state's own colour. Every other coloured thing on the card reports where the session
-    // *is*; this button is the one thing that changes it, and a planned session's grey painted the
-    // only live control on the card in the colour of standing still — it read as disabled. It takes
-    // the colour of what pressing it makes true instead.
-    val container = OmnilogTheme.accents.InProgress
     Button(
         onClick = log,
         modifier = Modifier
-            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
+            .fillMaxWidth()
             .height(ActionHeight),
         shape = RoundedCornerShape(11.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = container,
+            containerColor = accent,
             contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
     ) {
@@ -397,7 +422,7 @@ private fun ProgressFigure(
                 .weight(1f)
                 .padding(start = 8.dp, bottom = 5.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = OmnilogTheme.colors.appMuted,
+            color = color,
         )
         if (total != null && total > 0) {
             Text(
