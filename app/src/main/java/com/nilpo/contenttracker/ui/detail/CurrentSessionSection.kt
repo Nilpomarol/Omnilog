@@ -1,11 +1,6 @@
 package com.nilpo.contenttracker.ui.detail
 
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,13 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,18 +33,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
@@ -173,76 +163,10 @@ private fun SessionCard(
             // different weights, and none of them needed a gap to be told apart from its neighbour.
             verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            // The whole row is the button: no rectangle drawn inside it, just the eyebrow, the
-            // action's own name, and a triangle that acts as the handle. Every other option this
-            // was tried against either grew a second row for a fact the artwork could already
-            // imply, or kept a chip and a button naming the same thing twice. The edit disc still
-            // needs its own tap target, but Compose gives the innermost clickable the touch before
-            // the row's, so the two never fight over the same gesture.
-            if (session.status == TrackingStatus.Planned) {
-                val log = onLogProgress
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (log != null) {
-                                Modifier.clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = LocalIndication.current,
-                                    onClick = log,
-                                )
-                            } else {
-                                Modifier
-                            },
-                        ),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = visual.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = logActionLabel(status = session.status, mediaType = mediaType),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = state,
-                            maxLines = 1,
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = onEditClick,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = stringResource(R.string.edit),
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(state),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(19.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
-                }
-                return@Column
-            }
-
+            // Planned no longer forks off its own anatomy. It is the in-progress card at zero: the
+            // same chip-and-edit row, the same figure — now showing the total instead of a current —
+            // and the same track, empty rather than partway full. One less shape for the eye to
+            // learn, at the cost of a row that used to be bare artwork now stating the obvious: zero.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
