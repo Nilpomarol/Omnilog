@@ -23,6 +23,7 @@ import com.nilpo.contenttracker.core.database.migration.MIGRATION_24_25
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_25_26
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_26_27
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_27_28
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_28_29
 import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
 import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
 import com.nilpo.contenttracker.core.mal.MalSyncManager
@@ -104,6 +105,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
                 MIGRATION_25_26,
                 MIGRATION_26_27,
                 MIGRATION_27_28,
+                MIGRATION_28_29,
             )
             .build()
     }

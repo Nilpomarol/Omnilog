@@ -17,6 +17,8 @@ import com.nilpo.contenttracker.core.database.migration.LegacyProgressRow
 import com.nilpo.contenttracker.core.database.migration.convertSessionToIncrements
 import com.nilpo.contenttracker.core.database.mapper.toDomain
 import com.nilpo.contenttracker.core.database.mapper.toEntity
+import com.nilpo.contenttracker.core.mal.MalSyncPayload
+import com.nilpo.contenttracker.core.mal.buildMalSyncPayload
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
@@ -470,6 +472,7 @@ class OfflineMediaRepository(
         val sessions = mediaDao.getTrackingSessions(request.mediaItemId)
         val latestSession = sessions.maxByOrNull { it.sessionNumber }
         val mediaItem = mediaDao.getMediaItem(request.mediaItemId) ?: return@withTransaction
+        val malPayloadBefore = currentMalSyncPayload(request.mediaItemId)
         val newSessionNumber = (latestSession?.sessionNumber ?: 0) + 1
         val updatedAtEpochMillis = System.currentTimeMillis()
         val validProgressTotal = mediaItem.progressTotal
@@ -512,7 +515,7 @@ class OfflineMediaRepository(
         // Progress supplied when a session is created is where the user already was, not a sitting
         // they logged, so it becomes the session's baseline and produces no entry.
         mediaDao.insertTrackingSession(newSession.copy(baselineProgress = validProgress))
-        onMalRelevantChange(request.mediaItemId)
+        notifyMalIfPayloadChanged(request.mediaItemId, malPayloadBefore)
     }
 
     override suspend fun addTrackedMedia(request: AddTrackedMediaRequest): Long =
@@ -523,7 +526,9 @@ class OfflineMediaRepository(
         origin: MediaWriteOrigin,
     ): Long {
         val mediaItemId = insertTrackedMedia(request, origin)
-        origin.notifyOutboundMalSync(mediaItemId, onMalRelevantChange)
+        if (origin.queuesOutboundMalSync) {
+            notifyMalIfPayloadChanged(mediaItemId, before = null)
+        }
         return mediaItemId
     }
 
@@ -677,6 +682,7 @@ class OfflineMediaRepository(
         val before = captureSessionHistory(sessionId) ?: return@withTransaction null
         val session = before.session
         val mediaItem = mediaDao.getMediaItem(session.mediaItemId) ?: return@withTransaction null
+        val malPayloadBefore = currentMalSyncPayload(session.mediaItemId)
         // Provider metadata is not allowed to rewrite user history. A corrected total can be below
         // already-recorded progress, so only the natural lower bound is enforced here.
         val validProgress = progressCurrent.coerceAtLeast(0)
@@ -762,7 +768,7 @@ class OfflineMediaRepository(
             }
         }
         val after = captureSessionHistory(sessionId) ?: return@withTransaction null
-        onMalRelevantChange(session.mediaItemId)
+        notifyMalIfPayloadChanged(session.mediaItemId, malPayloadBefore)
         DeletionRecovery.SessionMutation(before = before, after = after)
     }
 
@@ -792,6 +798,7 @@ class OfflineMediaRepository(
     override suspend fun deletePastSession(sessionId: Long): DeletionRecovery? = database.withTransaction {
         val session = mediaDao.getTrackingSession(sessionId) ?: return@withTransaction null
         val sessions = mediaDao.getTrackingSessions(session.mediaItemId)
+        val malPayloadBefore = currentMalSyncPayload(session.mediaItemId)
         val latestSessionNumber = sessions.maxOfOrNull { it.sessionNumber } ?: return@withTransaction null
         if (sessions.size <= 1 || session.sessionNumber == latestSessionNumber) {
             return@withTransaction null
@@ -804,7 +811,7 @@ class OfflineMediaRepository(
         val progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId)
         val statusEvents = mediaDao.getSessionStatusEventsForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
-        onMalRelevantChange(session.mediaItemId)
+        notifyMalIfPayloadChanged(session.mediaItemId, malPayloadBefore)
         DeletionRecovery.PastSession(
             session = session,
             progressUpdates = progressUpdates,
@@ -816,6 +823,7 @@ class OfflineMediaRepository(
     override suspend fun deleteCurrentSession(sessionId: Long): DeletionRecovery? = database.withTransaction {
         val session = mediaDao.getTrackingSession(sessionId) ?: return@withTransaction null
         val sessions = mediaDao.getTrackingSessions(session.mediaItemId)
+        val malPayloadBefore = currentMalSyncPayload(session.mediaItemId)
         val latestSessionNumber = sessions.maxOfOrNull { it.sessionNumber } ?: return@withTransaction null
         // The mirror image of deletePastSession's guard: only the latest session, and only when a
         // previous one survives to become live again. Deleting the sole session is untracking.
@@ -828,7 +836,7 @@ class OfflineMediaRepository(
         val progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId)
         val statusEvents = mediaDao.getSessionStatusEventsForSession(sessionId)
         mediaDao.deleteTrackingSession(sessionId)
-        onMalRelevantChange(session.mediaItemId)
+        notifyMalIfPayloadChanged(session.mediaItemId, malPayloadBefore)
         DeletionRecovery.PastSession(
             session = session,
             progressUpdates = progressUpdates,
@@ -845,6 +853,7 @@ class OfflineMediaRepository(
     ) = database.withTransaction {
         if (amount <= 0) return@withTransaction
         val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return@withTransaction
+        val malPayloadBefore = currentMalSyncPayload(update.mediaItemId)
         mediaDao.updateProgressUpdateAndRecalculateSession(
             progressUpdateId = progressUpdateId,
             amount = amount,
@@ -853,13 +862,14 @@ class OfflineMediaRepository(
             coversPeriod = coversPeriod ?: update.coversPeriod,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
-        onMalRelevantChange(update.mediaItemId)
+        notifyMalIfPayloadChanged(update.mediaItemId, malPayloadBefore)
     }
 
     /** Deletes one mistaken transition and restores the exact state it left when it is the latest. */
     override suspend fun deleteSessionStatusEvent(eventId: Long): DeletionRecovery? = database.withTransaction {
         val event = mediaDao.getSessionStatusEvent(eventId) ?: return@withTransaction null
         val session = mediaDao.getTrackingSession(event.sessionId) ?: return@withTransaction null
+        val malPayloadBefore = currentMalSyncPayload(event.mediaItemId)
         val sessionEvents = mediaDao.getSessionStatusEventsForSession(event.sessionId)
         val eventIndex = sessionEvents.indexOfFirst { it.id == eventId }
         if (eventIndex < 0) return@withTransaction null
@@ -912,7 +922,7 @@ class OfflineMediaRepository(
         val sessionAfterDeletion = mediaDao.getTrackingSession(event.sessionId)
             ?: return@withTransaction null
         val statusEventsAfterDeletion = mediaDao.getSessionStatusEventsForSession(event.sessionId)
-        onMalRelevantChange(event.mediaItemId)
+        notifyMalIfPayloadChanged(event.mediaItemId, malPayloadBefore)
         DeletionRecovery.SessionStatusEvents(
             events = listOf(event),
             statusEventsBeforeDeletion = sessionEvents,
@@ -925,6 +935,7 @@ class OfflineMediaRepository(
     override suspend fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate) =
         database.withTransaction {
         val event = mediaDao.getSessionStatusEvent(eventId) ?: return@withTransaction
+        val malPayloadBefore = currentMalSyncPayload(event.mediaItemId)
         val orderedEvents = mediaDao.getSessionStatusEventsForSession(event.sessionId)
         val eventIndex = orderedEvents.indexOfFirst { it.id == eventId }
         if (eventIndex < 0) return@withTransaction
@@ -951,7 +962,7 @@ class OfflineMediaRepository(
                 updatedAtEpochMillis = System.currentTimeMillis(),
             )
         }
-        onMalRelevantChange(event.mediaItemId)
+        notifyMalIfPayloadChanged(event.mediaItemId, malPayloadBefore)
     }
 
     private fun SessionStatusEventEntity.resolvedOccurredOn(): LocalDate =
@@ -963,6 +974,7 @@ class OfflineMediaRepository(
     override suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery? = database.withTransaction {
         val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return@withTransaction null
         val sessionBeforeDeletion = mediaDao.getTrackingSession(update.sessionId) ?: return@withTransaction null
+        val malPayloadBefore = currentMalSyncPayload(update.mediaItemId)
         val progressAfterDeletion = sessionBeforeDeletion.baselineProgress +
             mediaDao.getProgressUpdatesForSession(update.sessionId)
                 .filterNot { it.id == progressUpdateId }
@@ -978,7 +990,7 @@ class OfflineMediaRepository(
             progressCurrent = progressAfterDeletion,
             updatedAtEpochMillis = updatedAtEpochMillis,
         )
-        onMalRelevantChange(update.mediaItemId)
+        notifyMalIfPayloadChanged(update.mediaItemId, malPayloadBefore)
         DeletionRecovery.ProgressUpdate(
             update = update,
             sessionBeforeDeletion = sessionBeforeDeletion,
@@ -1012,6 +1024,14 @@ class OfflineMediaRepository(
     }
 
     override suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean = database.withTransaction {
+        val mediaItemId = when (recovery) {
+            is DeletionRecovery.MediaItem -> recovery.item.id
+            is DeletionRecovery.PastSession -> recovery.session.mediaItemId
+            is DeletionRecovery.ProgressUpdate -> recovery.update.mediaItemId
+            is DeletionRecovery.SessionStatusEvents -> recovery.sessionBeforeDeletion.mediaItemId
+            is DeletionRecovery.SessionMutation -> recovery.before.session.mediaItemId
+        }
+        val malPayloadBefore = currentMalSyncPayload(mediaItemId)
         val restored = when (recovery) {
             is DeletionRecovery.MediaItem -> restoreMediaItemDeletion(recovery)
             is DeletionRecovery.PastSession -> restorePastSessionDeletion(recovery)
@@ -1020,16 +1040,23 @@ class OfflineMediaRepository(
             is DeletionRecovery.SessionMutation -> restoreSessionMutation(recovery)
         }
         if (restored) {
-            val mediaItemId = when (recovery) {
-                is DeletionRecovery.MediaItem -> recovery.item.id
-                is DeletionRecovery.PastSession -> recovery.session.mediaItemId
-                is DeletionRecovery.ProgressUpdate -> recovery.update.mediaItemId
-                is DeletionRecovery.SessionStatusEvents -> recovery.sessionBeforeDeletion.mediaItemId
-                is DeletionRecovery.SessionMutation -> recovery.before.session.mediaItemId
-            }
-            onMalRelevantChange(mediaItemId)
+            notifyMalIfPayloadChanged(mediaItemId, malPayloadBefore)
         }
         restored
+    }
+
+    private suspend fun currentMalSyncPayload(mediaItemId: Long): MalSyncPayload? {
+        val item = mediaDao.getMediaItem(mediaItemId) ?: return null
+        return buildMalSyncPayload(item, mediaDao.getTrackingSessions(mediaItemId))
+    }
+
+    private suspend fun notifyMalIfPayloadChanged(
+        mediaItemId: Long,
+        before: MalSyncPayload?,
+    ) {
+        if (before != currentMalSyncPayload(mediaItemId)) {
+            onMalRelevantChange(mediaItemId)
+        }
     }
 
     private suspend fun restoreMediaItemDeletion(recovery: DeletionRecovery.MediaItem): Boolean {
@@ -1298,8 +1325,6 @@ class OfflineMediaRepository(
             isOwned = isOwned,
         )
         mediaDao.deleteEmptyMediaCollections()
-
-        onMalRelevantChange(mediaItemId)
     }
 
     override suspend fun updateMediaItemMetadata(
@@ -1370,8 +1395,6 @@ class OfflineMediaRepository(
             mediaItemId = mediaItemId,
             metadataOverrideFieldsCsv = updatedOverrideFields.toMetadataOverrideFieldsCsv(),
         )
-
-        onMalRelevantChange(mediaItemId)
     }
 
     override suspend fun previewMediaItemMetadataRefresh(
@@ -1677,7 +1700,6 @@ class OfflineMediaRepository(
             )
         }
 
-        origin.notifyOutboundMalSync(preview.mediaItemId, onMalRelevantChange)
         return true
     }
 

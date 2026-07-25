@@ -194,7 +194,6 @@ class HomeViewModel(
 
     suspend fun importBackupJson(json: String) {
         mediaRepository.importBackupJson(json)
-        malSyncManager.syncAllIfEnabled()
         synchronizeLibraryCoversInBackground()
     }
 

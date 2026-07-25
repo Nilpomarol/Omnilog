@@ -196,6 +196,116 @@ class ImportedMetadataPreservationTest {
     }
 
     @Test
+    fun queuesMALOnlyWhenTrackingSnapshotChanges() = runBlocking {
+        val dao = database.mediaDao()
+        val notifications = mutableListOf<Long>()
+        val repository = OfflineMediaRepository(database) { mediaItemId -> notifications += mediaItemId }
+        val mediaItemId = dao.insertMediaItem(
+            MediaItemEntity(
+                type = MediaType.Anime.name,
+                title = "Snapshot Anime",
+                malId = 1,
+            ),
+        )
+        val sessionId = dao.insertTrackingSession(
+            TrackingSessionEntity(
+                mediaItemId = mediaItemId,
+                sessionNumber = 1,
+                status = TrackingStatus.InProgress.name,
+                progressCurrent = 3,
+            ),
+        )
+        val olderEventId = dao.insertSessionStatusEvent(
+            SessionStatusEventEntity(
+                mediaItemId = mediaItemId,
+                sessionId = sessionId,
+                previousStatus = TrackingStatus.Planned.name,
+                status = TrackingStatus.InProgress.name,
+                createdAtEpochMillis = 1,
+                occurredOnEpochDay = LocalDate.of(2025, 1, 2).toEpochDay(),
+            ),
+        )
+        dao.insertSessionStatusEvent(
+            SessionStatusEventEntity(
+                mediaItemId = mediaItemId,
+                sessionId = sessionId,
+                previousStatus = TrackingStatus.InProgress.name,
+                status = TrackingStatus.Paused.name,
+                createdAtEpochMillis = 2,
+                occurredOnEpochDay = LocalDate.of(2025, 1, 3).toEpochDay(),
+            ),
+        )
+
+        repository.updateSessionDetails(
+            sessionId = sessionId,
+            status = TrackingStatus.InProgress,
+            progressCurrent = 3,
+            rating = null,
+            notes = null,
+            startedAt = null,
+            finishedAt = null,
+        )
+        repository.updateSessionStatusEventDate(olderEventId, LocalDate.of(2025, 1, 1))
+        repository.deleteSessionStatusEvent(olderEventId)
+
+        assertTrue(notifications.isEmpty())
+
+        repository.updateSessionDetails(
+            sessionId = sessionId,
+            status = TrackingStatus.InProgress,
+            progressCurrent = 4,
+            rating = null,
+            notes = null,
+            startedAt = null,
+            finishedAt = null,
+        )
+
+        assertEquals(listOf(mediaItemId), notifications)
+
+        repository.updateMediaItemDetails(
+            mediaItemId = mediaItemId,
+            title = "Renamed Anime",
+            collectionId = null,
+            newCollectionName = null,
+            collectionSortOrder = null,
+            progressTotal = 12,
+            isOwned = true,
+        )
+        repository.updateMediaItemMetadata(
+            mediaItemId = mediaItemId,
+            title = "Metadata Anime",
+            originalTitle = null,
+            releaseYear = 2025,
+            language = "en",
+            progressTotal = 12,
+            genres = listOf("Action"),
+            creators = listOf("Creator"),
+            coverUrl = "https://example.test/cover.jpg",
+            synopsis = "Synopsis",
+            sourceUrl = "https://example.test/source",
+            steamAppId = null,
+        )
+        assertTrue(
+            repository.applyMediaItemMetadataRefresh(
+                preview = MetadataRefreshPreview(
+                    mediaItemId = mediaItemId,
+                    refreshed = MetadataSuggestion(
+                        source = MetadataSource.Jikan,
+                        externalId = "1",
+                        malId = 1,
+                        mediaType = MediaType.Anime,
+                        title = "Refreshed Anime",
+                    ),
+                    changes = emptyList(),
+                ),
+                selectedFields = setOf(MetadataRefreshField.Title),
+            ),
+        )
+
+        assertEquals(listOf(mediaItemId), notifications)
+    }
+
+    @Test
     fun importedMetadataChangesOnlySelectedMetadataAndPreservesUserData() = runBlocking {
         val dao = database.mediaDao()
         val collectionId = dao.insertMediaCollection(MediaCollectionEntity(name = "Favourites"))

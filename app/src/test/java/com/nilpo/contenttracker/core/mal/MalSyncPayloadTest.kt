@@ -83,6 +83,28 @@ class MalSyncPayloadTest {
         }
     }
 
+    @Test
+    fun fingerprintIsStableAndChangesWithEveryOutboundField() {
+        val baseline = buildMalSyncPayload(anime(), listOf(session(1, TrackingStatus.InProgress, progress = 3)))!!
+        val same = buildMalSyncPayload(anime(), listOf(session(1, TrackingStatus.InProgress, progress = 3)))!!
+
+        assertEquals(baseline.fingerprint(), same.fingerprint())
+        assertEquals(64, baseline.fingerprint().length)
+        listOf(
+            baseline.copy(status = "completed"),
+            baseline.copy(watchedEpisodes = 4),
+            baseline.copy(score = 9),
+            baseline.copy(comments = "A note"),
+            baseline.copy(tags = listOf("favorite")),
+            baseline.copy(startDate = "2026-01-02"),
+            baseline.copy(finishDate = "2026-01-03"),
+            baseline.copy(isRewatching = true),
+            baseline.copy(completedRewatches = 1),
+        ).forEach { changed ->
+            assertFalse(baseline.fingerprint() == changed.fingerprint())
+        }
+    }
+
     private fun anime() = MediaItemEntity(
         type = MediaType.Anime.name,
         title = "Anime",

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -74,6 +75,7 @@ import java.time.format.FormatStyle
 // rows cannot drift apart from each other again.
 private val RowPaddingHorizontal = 16.dp
 private val RowPaddingVertical = 14.dp
+private val MalChangesListHeight = 280.dp
 
 /**
  * Preferences, backups, and imports.
@@ -216,16 +218,32 @@ fun SettingsScreen(
                                 iconResId = MediaSection.Anime.navIconResId,
                                 accent = OmnilogTheme.accents.Anime,
                             )
-                            malSyncState.changes.forEach { change ->
-                                SettingsDivider()
-                                SettingsActionRow(
-                                    title = change.animeTitle,
-                                    description = malSyncChangeDescription(change),
-                                    onClick = {},
-                                    enabled = false,
-                                )
-                            }
+                            SettingsDivider()
+                            SettingsActionRow(
+                                title = "Sincronitza tota la biblioteca",
+                                description = "Envia a MyAnimeList l'estat actual dels animes amb identificador MAL.",
+                                onClick = onSyncMyAnimeList,
+                                enabled = !malSyncState.isSyncing,
+                                accent = OmnilogTheme.accents.Anime,
+                            )
                             if (malSyncState.changes.isNotEmpty()) {
+                                SettingsDivider()
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(MalChangesListHeight)
+                                        .verticalScroll(rememberScrollState()),
+                                ) {
+                                    malSyncState.changes.forEachIndexed { index, change ->
+                                        if (index > 0) SettingsDivider()
+                                        SettingsActionRow(
+                                            title = change.animeTitle,
+                                            description = malSyncChangeDescription(change),
+                                            onClick = {},
+                                            enabled = false,
+                                        )
+                                    }
+                                }
                                 SettingsDivider()
                                 SettingsActionRow(
                                     title = "Reintenta només aquests canvis",

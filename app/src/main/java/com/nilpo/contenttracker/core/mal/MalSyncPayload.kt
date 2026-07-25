@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.json.JSONArray
+import java.security.MessageDigest
 import java.time.LocalDate
 
 data class MalSyncPayload(
@@ -74,4 +75,18 @@ private fun String?.toTagList(): List<String> {
             .filter { it.isNotBlank() }
             .distinct()
     }.getOrDefault(emptyList())
+}
+
+/**
+ * A stable, non-sensitive identity for the exact state sent to MAL.
+ *
+ * Length-prefixing makes the input unambiguous even when notes or tags contain separators.
+ */
+fun MalSyncPayload.fingerprint(): String {
+    val canonical = toFormFields().entries.joinToString(separator = "") { (key, value) ->
+        "${key.length}:$key${value.length}:$value"
+    }
+    return MessageDigest.getInstance("SHA-256")
+        .digest(canonical.toByteArray(Charsets.UTF_8))
+        .joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
 }

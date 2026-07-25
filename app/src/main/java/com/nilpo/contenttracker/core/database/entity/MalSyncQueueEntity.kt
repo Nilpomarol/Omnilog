@@ -33,4 +33,6 @@ data class MalSyncQueueEntity(
     val updatedAtEpochMillis: Long,
     val lastAttemptAtEpochMillis: Long? = null,
     val lastSuccessAtEpochMillis: Long? = null,
+    /** SHA-256 fingerprint of the payload most recently accepted by MAL. */
+    val lastSyncedPayloadHash: String? = null,
 )

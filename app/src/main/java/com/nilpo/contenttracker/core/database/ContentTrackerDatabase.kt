@@ -30,7 +30,7 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
         ImportBatchEntity::class,
         ImportBatchItemEntity::class,
     ],
-    version = 28,
+    version = 29,
     exportSchema = true,
 )
 abstract class ContentTrackerDatabase : RoomDatabase() {

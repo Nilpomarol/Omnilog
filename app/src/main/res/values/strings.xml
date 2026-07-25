@@ -674,6 +674,7 @@
     <string name="backup_export_success">Còpia exportada.</string>
     <string name="backup_export_error">No s\'ha pogut exportar la còpia.</string>
     <string name="backup_import_success">Còpia importada.</string>
+    <string name="backup_import_sync_mal_action">Sincronitza amb MyAnimeList</string>
     <string name="backup_import_read_error">No s\'ha pogut llegir el fitxer de còpia.</string>
     <string name="backup_import_invalid">Aquest fitxer no és una còpia vàlida.</string>
     <string name="backup_import_unsupported">Aquesta versió de còpia no és compatible.</string>

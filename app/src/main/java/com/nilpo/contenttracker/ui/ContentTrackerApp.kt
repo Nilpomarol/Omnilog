@@ -260,6 +260,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val exportErrorMessage = stringResource(R.string.backup_export_error)
     val importReadErrorMessage = stringResource(R.string.backup_import_read_error)
     val importSuccessMessage = stringResource(R.string.backup_import_success)
+    val backupImportSyncMalAction = stringResource(R.string.backup_import_sync_mal_action)
     val importInvalidMessage = stringResource(R.string.backup_import_invalid)
     val importUnsupportedMessage = stringResource(R.string.backup_import_unsupported)
     val imdbImportReadErrorMessage = stringResource(R.string.imdb_import_read_error)
@@ -1562,7 +1563,18 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             pendingImportConfirmation = null
                             if (result.isSuccess) {
                                 backStack.selectHome()
-                                snackbarHostState.showSnackbar(importSuccessMessage)
+                                val snackbarResult = snackbarHostState.showSnackbar(
+                                    message = importSuccessMessage,
+                                    actionLabel = if (malSyncState.isConnected) {
+                                        backupImportSyncMalAction
+                                    } else {
+                                        null
+                                    },
+                                    duration = SnackbarDuration.Long,
+                                )
+                                if (snackbarResult == SnackbarResult.ActionPerformed) {
+                                    showMalInitialSyncConfirmation = true
+                                }
                             } else {
                                 val message = when (result.exceptionOrNull()) {
                                     is UnsupportedBackupSchemaException -> importUnsupportedMessage

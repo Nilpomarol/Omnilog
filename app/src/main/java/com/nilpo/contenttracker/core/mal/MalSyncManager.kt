@@ -86,13 +86,13 @@ class MalSyncManager(
         scope.launch {
             mediaDao.observeMalSyncQueue().collectLatest { queue ->
                 val changes = queue
-                    .filter { it.state == PendingState || it.state == FailedState }
+                    .filter { it.state == MalSyncPendingState || it.state == MalSyncFailedState }
                     .map { item ->
                         MalSyncChange(
                             mediaItemId = item.mediaItemId,
                             animeTitle = mediaDao.getMediaItem(item.mediaItemId)?.title ?: "Anime #${item.malId}",
                             malId = item.malId,
-                            isFailed = item.state == FailedState,
+                            isFailed = item.state == MalSyncFailedState,
                             attemptCount = item.attemptCount,
                             error = item.lastError,
                         )
@@ -290,6 +290,7 @@ class MalSyncManager(
         mediaItemId: Long,
         schedule: Boolean,
         showSkippedReason: Boolean = false,
+        force: Boolean = false,
     ) {
         val item = mediaDao.getMediaItem(mediaItemId) ?: return
         if (item.type != MediaType.Anime.name) return
@@ -308,17 +309,36 @@ class MalSyncManager(
         }
         if (item.malId != malId) mediaDao.updateMalId(mediaItemId, malId)
 
+        val payload = buildMalSyncPayload(item, mediaDao.getTrackingSessions(mediaItemId)) ?: return
+        val payloadHash = payload.fingerprint()
         val existing = mediaDao.getMalSyncQueueItem(mediaItemId)
+        if (isMalPayloadAlreadySynced(existing?.lastSyncedPayloadHash, payloadHash, force)) {
+            // A pending update may have been reverted before the worker ran. Retain the known
+            // remote fingerprint while clearing the now-unnecessary work.
+            if (existing != null && existing.state != MalSyncSyncedState) {
+                mediaDao.insertMalSyncQueueItem(
+                    existing.copy(
+                        state = MalSyncSyncedState,
+                        attemptCount = 0,
+                        lastError = null,
+                        updatedAtEpochMillis = System.currentTimeMillis(),
+                    ),
+                )
+            }
+            Log.d(MalLogTag, "Not queued: mediaItem=$mediaItemId payload already synced")
+            return
+        }
         mediaDao.insertMalSyncQueueItem(
             MalSyncQueueEntity(
                 mediaItemId = mediaItemId,
                 malId = malId,
-                state = PendingState,
+                state = MalSyncPendingState,
                 attemptCount = 0,
                 lastError = null,
                 updatedAtEpochMillis = System.currentTimeMillis(),
                 lastAttemptAtEpochMillis = existing?.lastAttemptAtEpochMillis,
                 lastSuccessAtEpochMillis = existing?.lastSuccessAtEpochMillis,
+                lastSyncedPayloadHash = existing?.lastSyncedPayloadHash,
             ),
         )
         val canSync = tokenStore.isSyncEnabled() && tokenStore.readTokens() != null
@@ -343,7 +363,9 @@ class MalSyncManager(
     suspend fun syncAllIfEnabled() {
         if (!tokenStore.isSyncEnabled() || tokenStore.readTokens() == null) return
         mediaDao.getMediaItems().forEach { item ->
-            queueMediaItem(item.id, schedule = false, showSkippedReason = false)
+            // This is an explicit full-library send, including the first send after connecting a
+            // different MAL account. It must not trust a fingerprint confirmed by another account.
+            queueMediaItem(item.id, schedule = false, showSkippedReason = false, force = true)
         }
         MalSyncScheduler.enqueue(context)
     }
@@ -359,15 +381,8 @@ class MalSyncManager(
             return
         }
         val now = System.currentTimeMillis()
-        unfinished.filter { it.state == FailedState }.forEach { item ->
-            mediaDao.insertMalSyncQueueItem(
-                item.copy(
-                    state = PendingState,
-                    attemptCount = 0,
-                    lastError = null,
-                    updatedAtEpochMillis = now,
-                ),
-            )
+        unfinished.filter { it.state == MalSyncFailedState }.forEach { item ->
+            mediaDao.insertMalSyncQueueItem(item.forRetry(now))
         }
         Log.d(MalLogTag, "Retry requested for ${unfinished.size} unfinished item(s)")
         MalSyncScheduler.enqueue(context)
@@ -413,6 +428,7 @@ class MalSyncManager(
                     }
 
                     val attemptAt = System.currentTimeMillis()
+                    val payloadHash = payload.fingerprint()
                     try {
                         successCodes += apiClient.updateAnimeList(tokens.accessToken, queueItem.malId, payload)
                     } catch (error: MalApiException) {
@@ -424,18 +440,24 @@ class MalSyncManager(
                         }
                     }
                     val currentQueueItem = mediaDao.getMalSyncQueueItem(queueItem.mediaItemId)
-                    if (currentQueueItem == null || currentQueueItem.state != PendingState) {
+                    if (currentQueueItem == null || currentQueueItem.state != MalSyncPendingState) {
                         Log.d(MalLogTag, "Result ignored after cancellation: mediaItem=${queueItem.mediaItemId}")
                         processed++
                         continue
                     }
+                    val latestPayloadHash = mediaDao.getMediaItem(queueItem.mediaItemId)
+                        ?.let { latestItem ->
+                            buildMalSyncPayload(
+                                latestItem,
+                                mediaDao.getTrackingSessions(latestItem.id),
+                            )?.fingerprint()
+                        }
                     mediaDao.insertMalSyncQueueItem(
-                        currentQueueItem.copy(
-                            state = SyncedState,
-                            attemptCount = 0,
-                            lastError = null,
-                            lastAttemptAtEpochMillis = attemptAt,
-                            lastSuccessAtEpochMillis = System.currentTimeMillis(),
+                        currentQueueItem.afterSuccessfulPayload(
+                            sentPayloadHash = payloadHash,
+                            latestPayloadHash = latestPayloadHash,
+                            attemptedAtEpochMillis = attemptAt,
+                            succeededAtEpochMillis = System.currentTimeMillis(),
                         ),
                     )
                     item?.title?.let(updatedTitles::add)
@@ -508,7 +530,7 @@ class MalSyncManager(
         val animeTitle = mediaDao.getMediaItem(item.mediaItemId)?.title
         mediaDao.insertMalSyncQueueItem(
             item.copy(
-                state = if (retryable) PendingState else FailedState,
+                state = if (retryable) MalSyncPendingState else MalSyncFailedState,
                 attemptCount = item.attemptCount + 1,
                 lastError = message?.take(MaxStoredErrorLength),
                 lastAttemptAtEpochMillis = System.currentTimeMillis(),
@@ -626,9 +648,6 @@ private fun secureRandomString(byteCount: Int): String {
 }
 
 private const val AuthorizationUrl = "https://myanimelist.net/v1/oauth2/authorize"
-private const val PendingState = "Pending"
-private const val SyncedState = "Synced"
-private const val FailedState = "Failed"
 private const val BatchSize = 25
 private const val MaxItemsPerRun = 100
 private const val MaxStoredErrorLength = 300
