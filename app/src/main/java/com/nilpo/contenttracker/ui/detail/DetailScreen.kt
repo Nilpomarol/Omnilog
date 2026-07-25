@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -311,7 +312,10 @@ fun DetailScreen(
 
             item {
                 DetailQuickActionsSection(
-                    modifier = gutter,
+                    // These controls belong to the live session, so they sit closer to its card than
+                    // the page-wide section rhythm. The offset only tightens that single hand-off;
+                    // later sections retain the standard 20dp separation.
+                    modifier = gutter.offset(y = (-8).dp),
                     item = trackedMedia.item,
                     collection = trackedMedia.collection,
                     library = allTrackedMedia,
