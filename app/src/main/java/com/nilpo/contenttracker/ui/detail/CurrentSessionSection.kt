@@ -163,10 +163,11 @@ private fun SessionCard(
             // different weights, and none of them needed a gap to be told apart from its neighbour.
             verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            // Planned is one row, not a short card. There is no progress, no dates and no verdict, so
-            // the previous version stacked a chip over a full-width button with the card's whole
-            // artwork showing between them — slimmer than it had been, still mostly empty. Everything
-            // a planned session has to say fits on a line: what it is, and the offer to begin.
+            // Planned is two rows, not a short card and not the full anatomy either. A single row
+            // — chip, spacer, start button, edit disc — was shorter still, but left the card's
+            // whole middle as bare artwork with nothing to say. The second row fills that with the
+            // one thing a planned item actually has: how much of it there is, and how long it has
+            // been waiting. When neither is known the row drops itself and the card stays one line.
             if (session.status == TrackingStatus.Planned) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -175,12 +176,6 @@ private fun SessionCard(
                 ) {
                     SessionStateChip(visual = visual)
                     Spacer(modifier = Modifier.weight(1f))
-                    StartAction(
-                        session = session,
-                        mediaType = mediaType,
-                        onLogProgress = onLogProgress,
-                        fillWidth = false,
-                    )
                     FilledTonalIconButton(
                         onClick = onEditClick,
                         modifier = Modifier.size(32.dp),
@@ -191,6 +186,28 @@ private fun SessionCard(
                             modifier = Modifier.size(16.dp),
                         )
                     }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    plannedMetaLabel(session = session, progressTotal = progressTotal, mediaType = mediaType)
+                        ?.let { meta ->
+                            Text(
+                                text = meta,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = OmnilogTheme.colors.appMuted,
+                                maxLines = 1,
+                            )
+                        } ?: Spacer(modifier = Modifier.weight(1f))
+                    StartAction(
+                        session = session,
+                        mediaType = mediaType,
+                        onLogProgress = onLogProgress,
+                        fillWidth = false,
+                    )
                 }
                 return@Column
             }

@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,11 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,7 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -36,6 +32,8 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.endsSession
+import com.nilpo.contenttracker.ui.common.OmnilogLocale
+import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -55,35 +53,42 @@ import java.time.temporal.ChronoUnit
  */
 data class SessionStateVisual(
     val label: String,
-    val icon: ImageVector,
+    @DrawableRes val icon: Int,
     val color: Color,
 )
 
+/**
+ * The same five marks every other status surface already draws — the home groups, the related-media
+ * rows, the tracking-status picker. This one used to reach for generic Material glyphs instead
+ * (`Icons.Filled.Star`, `PlayArrow`...), and `Paused` drew the identical `PlayArrow` triangle
+ * `InProgress` does, so the one status that most needs to look different from "playing" looked
+ * exactly like it.
+ */
 @Composable
 fun sessionStateVisual(status: TrackingStatus): SessionStateVisual = when (status) {
     TrackingStatus.Planned -> SessionStateVisual(
         label = stringResource(R.string.status_planned),
-        icon = Icons.Filled.Star,
+        icon = R.drawable.ic_state_planned,
         color = OmnilogTheme.accents.Planned,
     )
     TrackingStatus.InProgress -> SessionStateVisual(
         label = stringResource(R.string.status_in_progress),
-        icon = Icons.Filled.PlayArrow,
+        icon = R.drawable.ic_state_in_progress,
         color = OmnilogTheme.accents.InProgress,
     )
     TrackingStatus.Completed -> SessionStateVisual(
         label = stringResource(R.string.status_completed),
-        icon = Icons.Filled.CheckCircle,
+        icon = R.drawable.ic_state_completed,
         color = OmnilogTheme.accents.Completed,
     )
     TrackingStatus.Paused -> SessionStateVisual(
         label = stringResource(R.string.status_paused),
-        icon = Icons.Filled.PlayArrow,
+        icon = R.drawable.ic_state_paused,
         color = OmnilogTheme.accents.Paused,
     )
     TrackingStatus.Dropped -> SessionStateVisual(
         label = stringResource(R.string.status_dropped),
-        icon = Icons.Filled.Close,
+        icon = R.drawable.ic_state_dropped,
         color = OmnilogTheme.accents.Dropped,
     )
 }
@@ -115,7 +120,7 @@ fun SessionStateChip(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(imageVector = visual.icon, contentDescription = null, modifier = Modifier.size(12.dp))
+            Icon(painter = painterResource(visual.icon), contentDescription = null, modifier = Modifier.size(12.dp))
             Text(
                 text = visual.label,
                 style = MaterialTheme.typography.labelMedium,
@@ -285,8 +290,15 @@ private fun endLabel(session: TrackingSession, mediaType: MediaType): String = s
 /** What an unrecorded date looks like. Not a sentence, and not a zero. */
 private const val MissingDateMark = "—"
 
-/** Two digits of year, matching the library rows. Every date in this app is recent. */
-fun LocalDate.formatSessionDate(): String = format(DateTimeFormatter.ofPattern("dd/MM/yy"))
+/** Displays '13 jul.' if it is the current year, otherwise '13 jul. 2025'. */
+fun LocalDate.formatSessionDate(now: LocalDate = LocalDate.now()): String {
+    val monthName = month.getDisplayName(java.time.format.TextStyle.SHORT_STANDALONE, OmnilogLocale)
+    return if (year == now.year) {
+        "$dayOfMonth $monthName"
+    } else {
+        "$dayOfMonth $monthName $year"
+    }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Recency
@@ -347,3 +359,23 @@ fun logProgressLabel(mediaType: MediaType): String = stringResource(
         MediaType.Game -> R.string.session_log_hours
     },
 )
+
+/**
+ * What a planned session has to say before you have started it: how much there is, and how long
+ * it has been waiting.
+ *
+ * A planned card has no progress and no dates, which is most of what fills every other card — so
+ * without this it was a chip and a button with nothing between them. `updatedAtEpochMillis` is not
+ * only a progress timestamp; a session that has never logged anything still has one, stamped when
+ * it joined the list, so [sessionRecencyLabel] doubles as "how long it's been waiting" here.
+ *
+ * Either half can be missing — an item with no known total, or one just added — and the row drops
+ * out entirely rather than print half a sentence.
+ */
+@Composable
+fun plannedMetaLabel(session: TrackingSession, progressTotal: Int?, mediaType: MediaType): String? {
+    val total = progressTotal?.takeIf { it > 0 }
+    val count = total?.let { "$it ${progressUnitLabel(mediaType = mediaType, value = it)}" }
+    val waiting = sessionRecencyLabel(session)?.let { stringResource(R.string.session_planned_added, it) }
+    return listOfNotNull(count, waiting).takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
+}
