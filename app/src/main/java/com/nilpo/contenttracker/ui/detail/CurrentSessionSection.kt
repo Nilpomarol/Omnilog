@@ -158,8 +158,43 @@ private fun SessionCard(
             modifier = Modifier
                 .sessionCardArtwork(mediaType)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            // 14dp between six blocks was most of why this card ran tall. The blocks are distinct
+            // enough at 11 — the chip, the figure, the graphic and the dates are different shapes and
+            // different weights, and none of them needed a gap to be told apart from its neighbour.
+            verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
+            // Planned is one row, not a short card. There is no progress, no dates and no verdict, so
+            // the previous version stacked a chip over a full-width button with the card's whole
+            // artwork showing between them — slimmer than it had been, still mostly empty. Everything
+            // a planned session has to say fits on a line: what it is, and the offer to begin.
+            if (session.status == TrackingStatus.Planned) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SessionStateChip(visual = visual)
+                    Spacer(modifier = Modifier.weight(1f))
+                    StartAction(
+                        session = session,
+                        mediaType = mediaType,
+                        onLogProgress = onLogProgress,
+                        fillWidth = false,
+                    )
+                    FilledTonalIconButton(
+                        onClick = onEditClick,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.edit),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+                return@Column
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -196,14 +231,6 @@ private fun SessionCard(
                         )
                     }
                 }
-            }
-
-            // Planned sessions stop here. There is no progress to show, no dates to show, and no
-            // verdict — a full-height card would be five empty rows saying so. What is left is the
-            // state and the invitation to start, which is the whole of what a planned session is.
-            if (session.status == TrackingStatus.Planned) {
-                StartAction(session = session, mediaType = mediaType, state = state, onLogProgress = onLogProgress)
-                return@Column
             }
 
             // The hero slot. A rating is a verdict and a progress figure is a position; when both
@@ -262,7 +289,7 @@ private fun SessionCard(
                 )
             }
 
-            StartAction(session = session, mediaType = mediaType, state = state, onLogProgress = onLogProgress)
+            StartAction(session = session, mediaType = mediaType, onLogProgress = onLogProgress)
         }
     }
 }
@@ -273,26 +300,31 @@ private fun SessionCard(
  * Everything else on the card is accent-at-low-alpha, muted ink or artwork, so the eye lands here
  * without the button having to be large. It was a slab: full width at the default button height,
  * which on a planned card left a control taller than everything above it put together. Trimmed to
- * the height of a row rather than the height of a hero, and still full width, because it is the
- * card's only action and a wide target is the point.
+ * the height of a row, and full width only where it is the last thing on the card — on the planned
+ * row it sits inline and takes the width of its own label.
  */
 @Composable
 private fun StartAction(
     session: TrackingSession,
     mediaType: MediaType,
-    state: Color,
     onLogProgress: (() -> Unit)?,
+    fillWidth: Boolean = true,
 ) {
     val log = onLogProgress ?: return
+    // Not the state's own colour. Every other coloured thing on the card reports where the session
+    // *is*; this button is the one thing that changes it, and a planned session's grey painted the
+    // only live control on the card in the colour of standing still — it read as disabled. It takes
+    // the colour of what pressing it makes true instead.
+    val container = OmnilogTheme.accents.InProgress
     Button(
         onClick = log,
         modifier = Modifier
-            .fillMaxWidth()
+            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
             .height(ActionHeight),
         shape = RoundedCornerShape(11.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = state,
+            containerColor = container,
             contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
     ) {

@@ -26,7 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
@@ -171,18 +173,23 @@ private fun onStateColor(): Color = MaterialTheme.colorScheme.onPrimary
 // ─────────────────────────────────────────────────────────────
 
 /**
- * When a session started and when it ended, stated plainly.
+ * When the session started and when it ended, on one line.
  *
- * These used to be `bodySmall` in the muted tone at the bottom of the card, below the notes — the
- * least prominent thing on a surface whose whole subject is a period of time. Here they are labelled
- * columns in ink, at a size that reads before the caption under the graphic.
+ * This was two labelled columns with the dates set at `titleMedium` — a deliberate promotion, on the
+ * grounds that a card about a period of time should not bury its dates. It went too far. Two stacked
+ * rows of uppercase caption over bold date, for two facts that are checked rather than read, cost
+ * more of the card's height than anything else on it and made the card the tallest thing on the page.
  *
- * A missing date is an em-dash under its own label rather than a sentence. The old copy spelled it
- * out — "Acabat (data desconeguda)" — which spent a whole line apologising for a fact the shape of
- * the row conveys on its own. When neither date is known the row is dropped completely: the state
- * chip has already said the session is finished, so an entirely empty row would only be furniture.
+ * The form is the one the library rows already use — `Començat: 06/04/26 · Acabat: 22/07/26` — so the
+ * same two facts now read the same way wherever you meet them, and a two-digit year is plenty inside
+ * an app where every date is recent. The values keep ink against the muted labels, which is what is
+ * left of the promotion and enough of it: they are still the only ink on the line.
  *
- * What the second column is called depends on what happened to the session — see [endLabel].
+ * A missing date is an em-dash rather than a sentence; the old copy spelled out "Acabat (data
+ * desconeguda)", which apologised at length for something the mark conveys. When neither date is
+ * known the row drops out completely — the state chip has already said where the session stands.
+ *
+ * What the second label is called depends on what happened to the session — see [endLabel].
  */
 @Composable
 fun SessionDatesRow(
@@ -192,71 +199,59 @@ fun SessionDatesRow(
     compact: Boolean = false,
     trailing: String? = null,
 ) {
-    val showFinished = session.finishedAt != null || session.status.endsSession
     if (session.startedAt == null && session.finishedAt == null) return
-
-    val valueStyle = if (compact) {
-        MaterialTheme.typography.bodyMedium
+    val showFinished = session.finishedAt != null || session.status.endsSession
+    val style = if (compact) {
+        MaterialTheme.typography.labelSmall
     } else {
-        MaterialTheme.typography.titleMedium
+        MaterialTheme.typography.labelMedium
     }
 
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        DateColumn(
+        DateFact(
             label = stringResource(R.string.session_date_started),
             value = session.startedAt,
-            valueStyle = valueStyle,
+            style = style,
         )
         if (showFinished) {
-            Text(
-                text = "→",
-                modifier = Modifier.padding(bottom = 2.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = OmnilogTheme.colors.appMuted,
-            )
-            DateColumn(
+            Text(text = "·", style = style, color = OmnilogTheme.colors.appMuted)
+            DateFact(
                 label = endLabel(session = session, mediaType = mediaType),
                 value = session.finishedAt,
-                valueStyle = valueStyle,
+                style = style,
             )
         }
         trailing?.let { label ->
             Text(
                 text = label,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(bottom = 2.dp),
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelSmall,
                 color = OmnilogTheme.colors.appMuted,
-                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                textAlign = TextAlign.End,
                 maxLines = 1,
             )
         }
     }
 }
 
+/** `Començat: 06/04/26` — the label muted, the date in ink, on one line. */
 @Composable
-private fun DateColumn(
-    label: String,
-    value: LocalDate?,
-    valueStyle: androidx.compose.ui.text.TextStyle,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+private fun DateFact(label: String, value: LocalDate?, style: TextStyle) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
+            text = "$label:",
+            style = style,
             color = OmnilogTheme.colors.appMuted,
             maxLines = 1,
         )
         Text(
             text = value?.formatSessionDate() ?: MissingDateMark,
-            style = valueStyle,
-            fontWeight = if (value != null) FontWeight.Bold else FontWeight.Normal,
+            style = style,
+            fontWeight = FontWeight.Bold,
             color = if (value != null) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
             maxLines = 1,
         )
@@ -290,7 +285,8 @@ private fun endLabel(session: TrackingSession, mediaType: MediaType): String = s
 /** What an unrecorded date looks like. Not a sentence, and not a zero. */
 private const val MissingDateMark = "—"
 
-fun LocalDate.formatSessionDate(): String = format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+/** Two digits of year, matching the library rows. Every date in this app is recent. */
+fun LocalDate.formatSessionDate(): String = format(DateTimeFormatter.ofPattern("dd/MM/yy"))
 
 // ─────────────────────────────────────────────────────────────
 // Recency
