@@ -51,11 +51,17 @@ fun SessionProgressGraphic(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     faded: Boolean = false,
+    track: Color? = null,
 ) {
     // Dropped sessions fade rather than change form. The shape still says how far you got; the
     // washed-out fill is what says you are not going any further.
     val shaded = if (faded) modifier.alpha(DroppedAlpha) else modifier
     val total = progressTotal?.takeIf { it > 0 }
+    // What an unreached unit is drawn in. Translucent accent works on a flat panel, where the only
+    // thing behind it is the panel. On the live session card there is artwork behind it, and a
+    // translucent track picks the drawing up and turns the graphic mottled — so that card passes an
+    // opaque colour instead and the track stays a track.
+    val empty = track ?: color.copy(alpha = EmptyAlpha)
 
     when {
         total == null -> ActivityWeeks(
@@ -63,18 +69,21 @@ fun SessionProgressGraphic(
             color = color,
             modifier = shaded,
             compact = compact,
+            empty = empty,
         )
         mediaType == MediaType.Book -> ForeEdge(
             fraction = fractionOf(progressCurrent, total),
             color = color,
             modifier = shaded,
             compact = compact,
+            empty = empty,
         )
         mediaType == MediaType.Movie -> FilmStrip(
             fraction = fractionOf(progressCurrent, total),
             color = color,
             modifier = shaded,
             compact = compact,
+            empty = empty,
         )
         total <= MaxCountableUnits -> UnitGrid(
             total = total,
@@ -82,12 +91,14 @@ fun SessionProgressGraphic(
             color = color,
             modifier = shaded,
             compact = compact,
+            empty = empty,
         )
         else -> QuarterBar(
             fraction = fractionOf(progressCurrent, total),
             color = color,
             modifier = shaded,
             compact = compact,
+            empty = empty,
         )
     }
 }
@@ -101,7 +112,11 @@ private const val MaxCountableUnits = 60
 
 private const val DroppedAlpha = 0.55f
 
-/** How present an unreached cell is: enough to count against, not enough to read as progress. */
+/**
+ * How present an unreached cell is by default: enough to count against, not enough to read as
+ * progress. Only holds up on a flat surface — see the `track` parameter for what a card with
+ * artwork behind it passes instead.
+ */
 private const val EmptyAlpha = 0.11f
 
 /**
@@ -133,6 +148,7 @@ private fun UnitGrid(
     total: Int,
     done: Int,
     color: Color,
+    empty: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -165,7 +181,7 @@ private fun UnitGrid(
                         unit == done && !compact -> color
                         unit <= done && compact -> color
                         unit <= done -> color.copy(alpha = ConsumedAlpha)
-                        else -> color.copy(alpha = EmptyAlpha)
+                        else -> empty
                     }
                     Box(
                         modifier = Modifier
@@ -210,6 +226,7 @@ internal fun gridColumns(total: Int): Int = when {
 private fun ForeEdge(
     fraction: Float,
     color: Color,
+    empty: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -251,7 +268,7 @@ private fun ForeEdge(
                                 if (index < readStrokes) {
                                     color.copy(alpha = 0.64f)
                                 } else {
-                                    color.copy(alpha = 0.13f)
+                                    empty
                                 },
                             ),
                     )
@@ -297,6 +314,7 @@ private fun ForeEdge(
 private fun FilmStrip(
     fraction: Float,
     color: Color,
+    empty: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -313,7 +331,7 @@ private fun FilmStrip(
                 .fillMaxWidth()
                 .height(gateHeight)
                 .clip(shape)
-                .background(color.copy(alpha = EmptyAlpha)),
+                .background(empty),
         ) {
             Box(
                 modifier = Modifier
@@ -370,6 +388,7 @@ private fun Perforations(color: Color) {
 private fun ActivityWeeks(
     updates: List<ProgressUpdate>,
     color: Color,
+    empty: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -395,7 +414,7 @@ private fun ActivityWeeks(
                     .weight(1f)
                     .height(height)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(if (amount > 0) color else color.copy(alpha = EmptyAlpha)),
+                    .background(if (amount > 0) color else empty),
             )
         }
     }
@@ -442,6 +461,7 @@ internal fun weeklyBuckets(
 private fun QuarterBar(
     fraction: Float,
     color: Color,
+    empty: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -462,7 +482,7 @@ private fun QuarterBar(
                     .weight(1f)
                     .fillMaxHeight()
                     .clip(shape)
-                    .background(color.copy(alpha = EmptyAlpha)),
+                    .background(empty),
             ) {
                 Box(
                     modifier = Modifier

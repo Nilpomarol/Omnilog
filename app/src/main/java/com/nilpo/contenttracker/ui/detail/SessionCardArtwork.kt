@@ -1,131 +1,161 @@
 package com.nilpo.contenttracker.ui.detail
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 /**
- * The medium's own artwork, behind the session card.
+ * The medium's own artwork, as the session card's surface rather than as a watermark on it.
  *
- * It says what kind of thing this is without spending a word or a row on saying it, and it is the
- * one part of the card that is not the same shape on every item.
+ * Each drawing is a whole composition — a wave and blossoms, a stack of books and a cup, a reel and a
+ * clapperboard — not a corner motif. That rules out cropping a fragment into a corner and dropping it
+ * to a tenth of its strength: at that size and that alpha the drawing stops being a picture and turns
+ * into texture, which is what the first attempt at this looked like. So it runs the full bleed of the
+ * card at close to full force, and the text stays legible because [legibilityVeil] pulls the drawing
+ * back only where words actually are.
  *
- * Drawn in the *type's* accent rather than the session's: the state colour already carries the
- * chip, the graphic and the button, and tying the artwork to it too would mean pausing a series
- * repainted its branches. The type is a fact about the work and does not move.
+ * Drawn in the *type's* accent rather than the session's. The state colour already owns the chip, the
+ * figure, the graphic and the button; tying the artwork to it too would mean pausing a series
+ * repainted its branches, and Planejat's grey would drain every drawing to greyscale. The type is a
+ * fact about the work and does not move — which also gives the card two colours instead of one.
  *
- * A single flat silhouette, tinted at draw time — which is why the asset carries no colour of its
- * own. One file per medium, all five drawn in the same hand.
+ * A modifier rather than a composable laid out behind the content, because the card is rendered
+ * inside a row measured at [androidx.compose.foundation.layout.IntrinsicSize.Min] — the rail in
+ * `SessionThread` takes its height from the card — and a `BoxWithConstraints` there would throw.
+ * Drawing behind the content node reads the same size without a second layout pass and without
+ * subcomposition. Apply it to the card's content, not to the `Surface`: `Surface` draws its own
+ * colour over its children's background.
+ *
+ * The assets carry no colour of their own: one flat white silhouette per medium, tinted here.
  */
 @Composable
-fun SessionCardArtwork(
-    mediaType: MediaType,
-    modifier: Modifier = Modifier,
-) {
-    val art = mediaType.artworkRes()
+fun Modifier.sessionCardArtwork(mediaType: MediaType): Modifier {
     val onDark = OmnilogTheme.colors.appBackground.luminance() < 0.5f
     val alpha = mediaType.artAlpha.let { if (onDark) it.dark else it.light }
+    val painter = painterResource(mediaType.artworkRes())
+    val tint = ColorFilter.tint(mediaType.typeAccent())
+    val veil = legibilityVeil(ground = cardGround(mediaType), panel = OmnilogTheme.colors.appPanel)
 
-    Image(
-        painter = painterResource(art),
-        contentDescription = null,
-        modifier = modifier
-            .fillMaxWidth(ArtWidthFraction)
-            // The fade has to be a mask rather than per-shape alpha: this is a bitmap, so there are
-            // no shapes to fade. Offscreen compositing is what gives DstIn something to cut into.
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color.Black, Color.Transparent),
-                        center = Offset(size.width, 0f),
-                        radius = size.width * FadeRadiusFactor,
-                    ),
-                    blendMode = BlendMode.DstIn,
-                )
-            },
-        alignment = Alignment.TopEnd,
-        contentScale = ContentScale.FillWidth,
-        alpha = alpha,
-        colorFilter = ColorFilter.tint(mediaType.typeAccent().saturated()),
-    )
+    return clipToBounds().drawBehind {
+        drawArtwork(painter = painter, alpha = alpha, tint = tint)
+        drawRect(brush = veil)
+    }
 }
 
 /**
- * The accent, pushed a little further from grey.
+ * The drawing, larger than the card and hanging off two of its edges.
  *
- * Some of an accent's chroma is spent on the panel underneath at these alphas, and what came back
- * was nearer neutral than the colour the medium is supposed to have. This is a small correction and
- * deliberately stays one: how much the artwork *stands out* is [ArtAlphaOnDark]'s job, not this
- * one's. Pushing saturation instead only makes a drawing more purple, never more present.
+ * Oversized on purpose: at the card's own size the composition would sit centred in a box and read as
+ * a sticker. Letting it run past the top and the trailing corner is what makes it read as a detail of
+ * something larger that the card happens to be a window onto.
  */
-private fun Color.saturated(): Color {
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(toArgb(), hsv)
-    hsv[1] = (hsv[1] * SaturationBoost).coerceAtMost(1f)
-    return Color(android.graphics.Color.HSVToColor(hsv))
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArtwork(
+    painter: Painter,
+    alpha: Float,
+    tint: ColorFilter,
+) {
+    val height = size.height * ArtHeightFraction
+    val width = height * painter.intrinsicSize.let { it.width / it.height }
+    translate(
+        left = size.width * (1f + ArtOverhangEnd) - width,
+        top = -size.height * ArtOverhangTop,
+    ) {
+        with(painter) { draw(size = Size(width, height), alpha = alpha, colorFilter = tint) }
+    }
 }
 
-private const val SaturationBoost = 1.5f
+/**
+ * The card's own surface: the panel, carrying a little of the medium's colour.
+ *
+ * Lives here beside the artwork because the two are one decision. [legibilityVeil] fades into this
+ * exact value, so a card drawn on plain `appPanel` would show the gradient as a visible seam down the
+ * middle of itself.
+ */
+@Composable
+fun cardGround(mediaType: MediaType): Color =
+    lerp(OmnilogTheme.colors.appPanel, mediaType.typeAccent(), GroundTint)
 
-/** How much of the card's width the artwork spans, anchored to the top-right corner. */
-private const val ArtWidthFraction = 0.82f
+private const val GroundTint = 0.17f
+
+/**
+ * An unreached progress cell on a card that has artwork behind it — opaque, unlike the translucent
+ * accent every other surface uses.
+ *
+ * A see-through track picks up whatever the drawing is doing underneath, so the run of empty cells
+ * came out mottled and, over the denser passages, invisible: the graphic stopped reading as a
+ * count. Sitting the track on the card's own ground restores a flat, even bed for the filled cells
+ * to be measured against, and the artwork simply passes behind it.
+ */
+@Composable
+fun cardTrack(mediaType: MediaType): Color =
+    lerp(cardGround(mediaType), OmnilogTheme.colors.appInk, TrackLift)
+
+private const val TrackLift = 0.16f
+
+/**
+ * What keeps the text readable, and the only reason the artwork can run this strong.
+ *
+ * A flat scrim would have cost the drawing everywhere to protect the third of the card that needed
+ * it. This holds the ground opaque across the leading edge — where the chip, the figure and the dates
+ * begin — then opens up across the middle and lets the drawing through nearly undimmed at the
+ * trailing edge, which is where the card has the least text.
+ *
+ * It never reaches fully transparent: the trailing edge still carries the percentage and the recency
+ * label, and a quarter of the panel is what those need to stay legible over ink.
+ */
+private fun legibilityVeil(ground: Color, panel: Color): Brush = Brush.horizontalGradient(
+    0.00f to ground,
+    0.26f to ground,
+    0.56f to ground.copy(alpha = 0.58f),
+    1.00f to panel.copy(alpha = 0.26f),
+)
+
+/** How tall the drawing is drawn, as a multiple of the card's own height. */
+private const val ArtHeightFraction = 1.32f
+
+/** How far the drawing hangs past the card's top edge, as a fraction of the card's height. */
+private const val ArtOverhangTop = 0.16f
+
+/** How far it hangs past the trailing edge, as a fraction of the card's width. */
+private const val ArtOverhangEnd = 0.07f
 
 /**
  * How much each medium's artwork stands out — the one lever that actually controls that, and the
  * only numbers here worth touching.
  *
  * One entry per medium rather than a rule, because the drawings are not interchangeable: what the
- * value has to answer is how much ink this particular one puts on the panel. The sakura and the
- * games spread are filled work covering about a fifth of the frame; books, series and film are open
- * line art covering an eighth, so they need roughly that much more to carry the same weight. A new
- * drawing gets its own number rather than inheriting someone else's.
+ * value has to answer is how much ink this particular one puts on the card. The sakura and the games
+ * spread are filled work covering about a fifth of the frame; books, series and film are open line
+ * art covering an eighth, so they need roughly a fifth more to carry the same weight.
  *
  * Light runs lower throughout. Its accents are darker colours, so the same value lands at close to
- * twice the contrast against the page — the asymmetry the two accent sets exist for. Past about a
- * third of full strength a *filled* drawing stops being a ground and starts competing with the text
- * over it; line work has more room before it does.
+ * twice the contrast against paper — the asymmetry the two accent sets exist for.
  */
 private val MediaType.artAlpha: ArtAlpha
     get() = when (this) {
-        MediaType.Anime -> ArtAlpha(dark = 0.24f, light = 0.15f)
-        MediaType.Book -> ArtAlpha(dark = 0.34f, light = 0.21f)
-        MediaType.Movie -> ArtAlpha(dark = 0.34f, light = 0.21f)
-        MediaType.TvShow -> ArtAlpha(dark = 0.34f, light = 0.21f)
-        MediaType.Game -> ArtAlpha(dark = 0.24f, light = 0.15f)
+        MediaType.Anime -> ArtAlpha(dark = 0.60f, light = 0.40f)
+        MediaType.Book -> ArtAlpha(dark = 0.72f, light = 0.48f)
+        MediaType.Movie -> ArtAlpha(dark = 0.72f, light = 0.48f)
+        MediaType.TvShow -> ArtAlpha(dark = 0.72f, light = 0.48f)
+        MediaType.Game -> ArtAlpha(dark = 0.60f, light = 0.40f)
     }
 
 /** A medium's artwork strength in each theme. 0 is invisible, 1 is the accent at full force. */
 private data class ArtAlpha(val dark: Float, val light: Float)
-
-/**
- * How far the artwork reaches from its corner before it has faded out entirely, as a fraction of
- * its own width.
- *
- * Has to be well under 1: the diagonal of the drawn area is longer than its width, so a radius of
- * 1.15 covered every pixel of it and faded nothing. The point of the mask is that the far corner —
- * where the dates sit — receives none of it.
- */
-private const val FadeRadiusFactor = 0.78f
 
 @DrawableRes
 private fun MediaType.artworkRes(): Int = when (this) {
