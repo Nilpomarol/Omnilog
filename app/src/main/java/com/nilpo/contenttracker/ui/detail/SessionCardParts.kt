@@ -34,9 +34,7 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.common.OmnilogLocale
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
@@ -269,20 +267,17 @@ private fun DateFact(label: String, value: LocalDate?, style: TextStyle) {
  * finished on the day you put it down and an abandoned one read as having been completed. The status
  * knows better, and this is the one place on the card where it can say so in a word.
  *
- * A session with no more than one logged entry gets the verb for having consumed the thing in one
- * go — you *saw* a film, you did not *complete* it. That verb is the medium's own: "Vist" for the
- * things you watch, "Llegit" for a book, "Jugat" for a game. One rule reading naturally across five
- * media is worth the five strings it costs.
+ * The one exception is a film seen in a single sitting: you *saw* it, you did not *complete* it, and
+ * that is the one medium where "one sitting" is the normal case rather than the edge case. A book or
+ * a game read or played in one go is rare enough that "Acabat" still fits it.
  */
 @Composable
 private fun endLabel(session: TrackingSession, mediaType: MediaType): String = stringResource(
     when {
         session.status == TrackingStatus.Paused -> R.string.session_date_paused
         session.status == TrackingStatus.Dropped -> R.string.session_date_dropped
-        session.progressUpdates.size > 1 -> R.string.session_date_finished
-        mediaType == MediaType.Book -> R.string.session_date_read
-        mediaType == MediaType.Game -> R.string.session_date_played
-        else -> R.string.session_date_watched
+        mediaType == MediaType.Movie && session.progressUpdates.size <= 1 -> R.string.session_date_watched
+        else -> R.string.session_date_finished
     },
 )
 
@@ -306,13 +301,15 @@ fun LocalDate.formatSessionDate(now: LocalDate = LocalDate.now()): String {
 /**
  * How long ago the session was last touched, in the coarsest unit that still says something.
  *
- * The card has carried `updatedAtEpochMillis` all along and only ever printed it as a date, which
- * answers a question nobody asks. Whether you have stalled is the useful reading, and that is a
- * distance rather than a point.
+ * The card used to read `updatedAtEpochMillis` for this, which is a bookkeeping timestamp rather
+ * than a claim about the session: it moves on edits that are not activity — for instance a rating
+ * change on an old, otherwise-untouched entry — so a session could read as "fa 2 dies" from a tap
+ * that had nothing to do with progress. The finish date and the dated history — sittings, status
+ * changes — are the things that actually happened, so the most recent of those is what counts.
  */
 @Composable
 fun sessionRecencyLabel(session: TrackingSession): String? {
-    val updated = session.updatedDate() ?: return null
+    val updated = session.lastActivityDate() ?: return null
     val days = ChronoUnit.DAYS.between(updated, LocalDate.now())
     if (days < 0) return null
 
@@ -331,11 +328,11 @@ fun sessionRecencyLabel(session: TrackingSession): String? {
     }
 }
 
-fun TrackingSession.updatedDate(): LocalDate? {
-    if (updatedAtEpochMillis <= 0L) return null
-    return Instant.ofEpochMilli(updatedAtEpochMillis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
+/** The most recent date something actually happened: finishing, a sitting, or a status change. */
+fun TrackingSession.lastActivityDate(): LocalDate? {
+    val historyDates = progressUpdates.filter { it.hasKnownDate }.map { it.loggedAt } +
+        statusEvents.map { it.occurredOn }
+    return (historyDates + listOfNotNull(finishedAt)).maxOrNull()
 }
 
 // ─────────────────────────────────────────────────────────────
