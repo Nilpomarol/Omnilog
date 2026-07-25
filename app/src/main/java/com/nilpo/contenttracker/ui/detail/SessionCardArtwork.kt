@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
@@ -47,8 +48,8 @@ fun Modifier.sessionCardArtwork(mediaType: MediaType): Modifier {
     val onDark = OmnilogTheme.colors.appBackground.luminance() < 0.5f
     val alpha = mediaType.artAlpha.let { if (onDark) it.dark else it.light }
     val painter = painterResource(mediaType.artworkRes())
-    val tint = ColorFilter.tint(mediaType.typeAccent())
-    val veil = legibilityVeil(cardGround())
+    val tint = ColorFilter.tint(mediaType.artworkTint(onDark))
+    val veil = legibilityVeil(ground = cardGround(), onDark = onDark)
 
     return clipToBounds().drawBehind {
         drawArtwork(painter = painter, alpha = alpha, tint = tint)
@@ -128,6 +129,36 @@ fun cardTrack(): Color =
 private const val TrackLift = 0.16f
 
 /**
+ * The colour the drawing is painted, which is not quite the accent in light.
+ *
+ * [legibilityVeil] composites the ground over the artwork, and in light that ground is nearly white.
+ * Compositing white over a colour does not merely dim it, it *desaturates* it — which is why raising
+ * the light alpha barely did anything: from 0.62 to a flat 1.0 the sakura stayed pastel, because
+ * whatever reached the eye had a wash of parchment mixed into it either way. Dark has the opposite
+ * problem and therefore no problem: darkening a colour keeps its chroma, so the accent goes down
+ * untouched.
+ *
+ * So light pre-compensates. The chroma pushed in here is roughly what the veil takes back out, and
+ * the drawing arrives at the accent's own saturation rather than a tint of it. This is the one place
+ * that boosting saturation is the right lever instead of a way of avoiding the real one.
+ */
+@Composable
+private fun MediaType.artworkTint(onDark: Boolean): Color {
+    val accent = typeAccent()
+    return if (onDark) accent else accent.chromaBoosted(LightChromaBoost)
+}
+
+private fun Color.chromaBoosted(factor: Float): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(toArgb(), hsv)
+    hsv[1] = (hsv[1] * factor).coerceAtMost(1f)
+    return Color(android.graphics.Color.HSVToColor(hsv))
+}
+
+/** How much chroma light adds up front to survive its own veil. See [artworkTint]. */
+private const val LightChromaBoost = 1.3f
+
+/**
  * What keeps the text readable, and the only reason the artwork can run this strong.
  *
  * A flat scrim would have cost the drawing everywhere to protect the third of the card that needed
@@ -136,15 +167,19 @@ private const val TrackLift = 0.16f
  * trailing edge, which is where the card has the least text.
  *
  * It never reaches fully transparent, and the trailing figure is why. The percentage and the recency
- * label both sit in the last fifth of the card, right where the sakura is densest — at a fifth of
- * the ground they were unreadable against the blossoms. Two fifths is what they need, and the
- * drawing still comes through at better than half strength there.
+ * label both sit in the last fifth of the card, right where the drawing is densest, so the veil has
+ * to keep some ground under them.
+ *
+ * Light opens up further than dark. Its text is dark ink and its ground is pale, so the ground it
+ * holds back is doing far less work per unit of alpha than the dark card's is — and the cost of every
+ * unit is higher, because each one is white being mixed into the drawing's colour. Backing off to
+ * three tenths is most of what makes light read as strongly as dark; the rest is [artworkTint].
  */
-private fun legibilityVeil(ground: Color): Brush = Brush.horizontalGradient(
+private fun legibilityVeil(ground: Color, onDark: Boolean): Brush = Brush.horizontalGradient(
     0.00f to ground,
     0.28f to ground,
-    0.60f to ground.copy(alpha = 0.62f),
-    1.00f to ground.copy(alpha = 0.40f),
+    0.60f to ground.copy(alpha = if (onDark) 0.62f else 0.48f),
+    1.00f to ground.copy(alpha = if (onDark) 0.40f else 0.30f),
 )
 
 /** How tall the drawing is drawn, as a multiple of the card's own height. */
@@ -168,16 +203,18 @@ private const val ArtOverhangEnd = 0.07f
  * spread are filled work covering about a fifth of the frame; books, series and film are open line
  * art covering an eighth, so they need roughly a fifth more to carry the same weight.
  *
- * Light runs lower throughout. Its accents are darker colours, so the same value lands at close to
- * twice the contrast against paper — the asymmetry the two accent sets exist for.
+ * Light no longer runs lower, because on light this number turned out to be close to inert: its veil
+ * washes the drawing whatever the alpha, so light gets its strength from [artworkTint] and the veil
+ * instead and this stays near the top of its range. What is left of the distinction is dark's, where
+ * a filled drawing at full strength does start competing with the text over it.
  */
 private val MediaType.artAlpha: ArtAlpha
     get() = when (this) {
-        MediaType.Anime -> ArtAlpha(dark = 0.80f, light = 0.52f)
-        MediaType.Book -> ArtAlpha(dark = 0.92f, light = 0.62f)
-        MediaType.Movie -> ArtAlpha(dark = 0.92f, light = 0.62f)
-        MediaType.TvShow -> ArtAlpha(dark = 0.92f, light = 0.62f)
-        MediaType.Game -> ArtAlpha(dark = 0.80f, light = 0.52f)
+        MediaType.Anime -> ArtAlpha(dark = 0.88f, light = 0.92f)
+        MediaType.Book -> ArtAlpha(dark = 1.00f, light = 1.00f)
+        MediaType.Movie -> ArtAlpha(dark = 1.00f, light = 1.00f)
+        MediaType.TvShow -> ArtAlpha(dark = 1.00f, light = 1.00f)
+        MediaType.Game -> ArtAlpha(dark = 0.88f, light = 0.92f)
     }
 
 /** A medium's artwork strength in each theme. 0 is invisible, 1 is the accent at full force. */
