@@ -1,8 +1,13 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
@@ -25,7 +31,8 @@ import java.time.LocalDate
  *
  * Hidden below two rows. One entry is a fact, not a sequence — there is nothing to read, and the
  * card already says where the session stands. The count on the button is what makes it worth
- * opening: it says how much story is behind it.
+ * opening: it says how much story is behind it, which is also why it is on the face of the control
+ * rather than only in its accessibility label.
  */
 @Composable
 fun ActivityAction(
@@ -61,21 +68,29 @@ fun ActivityAction(
 
     val count = updates.size + visibleEvents.size
 
-    // The edit button's twin, because that is what it is: the two controls in this corner do the
-    // same kind of thing and belong to each other. Two passes at this failed for the same reason —
-    // a text button, then a rounded count pill — both sat next to a tonal disc looking like a
-    // different species, and the pill's low-contrast fill read as disabled besides.
+    // Named, counted, and larger than the edit button beside it, because it does more than edit does:
+    // this is the way into the whole record of the session, and matching it to a bare 32dp disc made
+    // the card's most substantial feature its least visible control.
     //
-    // The count moves into the label. It is worth saying, but not worth a second shape in a
-    // 32dp corner, and a bare digit was never self-explanatory anyway.
-    FilledTonalIconButton(
+    // What went wrong before was tone, not shape. An earlier pill failed on `appInk` at 8% behind
+    // muted content, which reads as a disabled control; taking Material's own tonal pair — the same
+    // one the edit disc uses — makes a pill and a disc read as one family at any size.
+    FilledTonalButton(
         onClick = { showSheet = true },
-        modifier = Modifier.size(32.dp),
+        modifier = Modifier.height(36.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_history),
-            contentDescription = stringResource(R.string.activity_open, count),
-            modifier = Modifier.size(16.dp),
+            contentDescription = null,
+            modifier = Modifier.size(17.dp),
+        )
+        Text(
+            text = stringResource(R.string.activity_open, count),
+            modifier = Modifier.padding(start = 7.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
         )
     }
 
