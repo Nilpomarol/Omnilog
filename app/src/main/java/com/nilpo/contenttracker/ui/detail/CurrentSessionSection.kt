@@ -227,7 +227,6 @@ private fun SessionCard(
                     mediaType = mediaType,
                     progressUpdates = session.progressUpdates,
                     color = state,
-                    faded = session.status == TrackingStatus.Dropped,
                     track = cardTrack(),
                 )
                 progressCaption(

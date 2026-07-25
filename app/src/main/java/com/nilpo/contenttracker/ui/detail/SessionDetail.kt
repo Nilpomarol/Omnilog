@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
-import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.RatingMeterCompact
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
@@ -89,7 +88,6 @@ fun SessionDetail(
                 progressUpdates = session.progressUpdates,
                 color = visual.color,
                 compact = true,
-                faded = session.status == TrackingStatus.Dropped,
             )
 
             SessionDatesRow(session = session, mediaType = mediaType, compact = true)

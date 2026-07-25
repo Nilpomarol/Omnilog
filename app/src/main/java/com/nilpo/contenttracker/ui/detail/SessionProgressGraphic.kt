@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -51,12 +50,8 @@ fun SessionProgressGraphic(
     color: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
-    faded: Boolean = false,
     track: Color? = null,
 ) {
-    // Dropped sessions fade rather than change form. The shape still says how far you got; the
-    // washed-out fill is what says you are not going any further.
-    val shaded = if (faded) modifier.alpha(DroppedAlpha) else modifier
     val total = progressTotal?.takeIf { it > 0 }
     // What an unreached unit is drawn in. Translucent accent works on a flat panel, where the only
     // thing behind it is the panel. On the live session card there is artwork behind it, and a
@@ -68,7 +63,7 @@ fun SessionProgressGraphic(
         total == null -> ActivityWeeks(
             updates = progressUpdates,
             color = color,
-            modifier = shaded,
+            modifier = modifier,
             compact = compact,
             empty = empty,
         )
@@ -77,14 +72,14 @@ fun SessionProgressGraphic(
             total = total,
             updates = progressUpdates,
             color = color,
-            modifier = shaded,
+            modifier = modifier,
             compact = compact,
             empty = empty,
         )
         mediaType == MediaType.Movie -> FilmStrip(
             fraction = fractionOf(progressCurrent, total),
             color = color,
-            modifier = shaded,
+            modifier = modifier,
             compact = compact,
             empty = empty,
         )
@@ -92,14 +87,14 @@ fun SessionProgressGraphic(
             total = total,
             done = progressCurrent.coerceIn(0, total),
             color = color,
-            modifier = shaded,
+            modifier = modifier,
             compact = compact,
             empty = empty,
         )
         else -> QuarterBar(
             fraction = fractionOf(progressCurrent, total),
             color = color,
-            modifier = shaded,
+            modifier = modifier,
             compact = compact,
             empty = empty,
         )
@@ -112,8 +107,6 @@ fun SessionProgressGraphic(
  * cell per unit. Long-running series land here and get the quartered bar instead.
  */
 private const val MaxCountableUnits = 60
-
-private const val DroppedAlpha = 0.55f
 
 /**
  * How present an unreached cell is by default: enough to count against, not enough to read as

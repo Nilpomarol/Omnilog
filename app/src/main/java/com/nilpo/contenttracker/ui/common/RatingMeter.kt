@@ -52,7 +52,6 @@ fun RatingMeter(
     rating: Int,
     accent: Color,
     modifier: Modifier = Modifier,
-    label: String? = stringResource(R.string.session_rating_label),
 ) {
     val clamped = rating.coerceIn(0, RatingScale)
     val description = stringResource(R.string.rating_value, clamped)
@@ -89,18 +88,6 @@ fun RatingMeter(
             fontWeight = FontWeight.ExtraBold,
             color = accent.copy(alpha = 0.62f),
         )
-        label?.let {
-            Text(
-                text = it,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(bottom = FigureBaseline + 2.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appMuted,
-                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            )
-        }
     }
 }
 
