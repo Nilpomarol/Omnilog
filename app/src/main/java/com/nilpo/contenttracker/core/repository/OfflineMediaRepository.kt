@@ -813,6 +813,30 @@ class OfflineMediaRepository(
         )
     }
 
+    override suspend fun deleteCurrentSession(sessionId: Long): DeletionRecovery? = database.withTransaction {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return@withTransaction null
+        val sessions = mediaDao.getTrackingSessions(session.mediaItemId)
+        val latestSessionNumber = sessions.maxOfOrNull { it.sessionNumber } ?: return@withTransaction null
+        // The mirror image of deletePastSession's guard: only the latest session, and only when a
+        // previous one survives to become live again. Deleting the sole session is untracking.
+        if (sessions.size <= 1 || session.sessionNumber != latestSessionNumber) {
+            return@withTransaction null
+        }
+        val visitNumber = sessions
+            .sortedBy { it.sessionNumber }
+            .indexOfFirst { it.id == sessionId } + 1
+        val progressUpdates = mediaDao.getProgressUpdatesForSession(sessionId)
+        val statusEvents = mediaDao.getSessionStatusEventsForSession(sessionId)
+        mediaDao.deleteTrackingSession(sessionId)
+        onMalRelevantChange(session.mediaItemId)
+        DeletionRecovery.PastSession(
+            session = session,
+            progressUpdates = progressUpdates,
+            statusEvents = statusEvents,
+            visitNumber = visitNumber,
+        )
+    }
+
     override suspend fun updateProgressUpdate(
         progressUpdateId: Long,
         amount: Int,

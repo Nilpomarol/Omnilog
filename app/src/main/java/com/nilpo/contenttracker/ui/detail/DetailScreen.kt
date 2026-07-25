@@ -81,6 +81,7 @@ fun DetailScreen(
     onQuickCommitProgress: (Int) -> Unit,
     onQuickComplete: (Int) -> Unit,
     onDeletePastSession: (Long) -> Unit,
+    onDeleteCurrentSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
@@ -238,12 +239,12 @@ fun DetailScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
-                // The header and the live session are one composition, not two rows: the negative
+                // The header and the live card are one composition, not two rows: the negative
                 // spacing is what lets the card sit over the tail of the artwork instead of below
                 // a hard edge. The header reserves the same distance under its title block, so the
-                // card rides up into empty artwork rather than onto the title.
-                val hasSessions = currentSession != null || pastSessions.isNotEmpty()
-                val overlap = if (hasSessions) SessionOverlap else 0.dp
+                // card rides up into empty artwork rather than onto the title. Only the live card
+                // overlaps — a title with nothing but history leaves the header standing alone.
+                val overlap = if (currentSession != null) SessionOverlap else 0.dp
 
                 Column(verticalArrangement = Arrangement.spacedBy(-overlap)) {
                     DetailBackdropHeader(
@@ -254,57 +255,35 @@ fun DetailScreen(
                         onCreatorClick = onAuthorClick,
                     )
 
-                    if (hasSessions) {
-                        // The live session and everything before it, on one rail. This replaces the
-                        // separate `Historial` section that used to sit further down the page: a
-                        // re-read is a fact about the session you are looking at, not a footnote.
-                        SessionThread(
+                    // The live session, at the page's full width. It used to hang off a rail that it
+                    // shared with the history, which cost it 22dp for a line it did not need; the
+                    // re-reads now live in their own collapsible `Historial` section below.
+                    currentSession?.let { session ->
+                        CurrentSessionSection(
                             modifier = gutter,
-                            currentStateColor = currentSession
-                                ?.let { sessionStateVisual(it.status).color }
-                                ?: accent,
-                            current = currentSession?.let { session ->
-                                {
-                                    CurrentSessionSection(
-                                        session = session,
-                                        progressTotal = trackedMedia.item.effectiveProgressTotal(),
-                                        mediaType = trackedMedia.item.type,
-                                        accent = accent,
-                                        // Completed and Dropped sessions have nothing left to log,
-                                        // and the sheet behind this button refuses them anyway.
-                                        onLogProgress = if (session.status.endsSession) {
-                                            null
-                                        } else {
-                                            { showQuickProgress = true }
-                                        },
-                                        onUpdateSessionDetails = onUpdateSessionDetails,
-                                        onDeleteProgressUpdate = onDeleteProgressUpdate,
-                                        onDeleteStatusEvent = onDeleteStatusEvent,
-                                        onUpdateStatusEventDate = onUpdateStatusEventDate,
-                                        onUpdateProgressUpdate = onUpdateProgressUpdate,
-                                    )
-                                }
+                            session = session,
+                            progressTotal = trackedMedia.item.effectiveProgressTotal(),
+                            mediaType = trackedMedia.item.type,
+                            accent = accent,
+                            // Completed and Dropped sessions have nothing left to log, and the
+                            // sheet behind this button refuses them anyway.
+                            onLogProgress = if (session.status.endsSession) {
+                                null
+                            } else {
+                                { showQuickProgress = true }
                             },
-                            past = pastSessions.reversed().map { session ->
-                                SessionThreadEntry(
-                                    stateColor = sessionStateVisual(session.status).color,
-                                    content = {
-                                        PastSessionSection(
-                                            session = session,
-                                            visitNumber = trackedMedia.visitNumber(session),
-                                            progressTotal = trackedMedia.item.effectiveProgressTotal(),
-                                            mediaType = trackedMedia.item.type,
-                                            accent = accent,
-                                            onUpdateSessionDetails = onUpdateSessionDetails,
-                                            onDeleteProgressUpdate = onDeleteProgressUpdate,
-                                            onDeleteStatusEvent = onDeleteStatusEvent,
-                                            onUpdateStatusEventDate = onUpdateStatusEventDate,
-                                            onUpdateProgressUpdate = onUpdateProgressUpdate,
-                                            onDeleteSession = { onDeletePastSession(session.id) },
-                                        )
-                                    },
-                                )
+                            onUpdateSessionDetails = onUpdateSessionDetails,
+                            // Only offered when a previous session survives to become live again;
+                            // deleting the sole session is untracking, which this is not.
+                            onDeleteSession = if (pastSessions.isNotEmpty()) {
+                                { onDeleteCurrentSession(session.id) }
+                            } else {
+                                null
                             },
+                            onDeleteProgressUpdate = onDeleteProgressUpdate,
+                            onDeleteStatusEvent = onDeleteStatusEvent,
+                            onUpdateStatusEventDate = onUpdateStatusEventDate,
+                            onUpdateProgressUpdate = onUpdateProgressUpdate,
                         )
                     }
                 }
@@ -334,6 +313,31 @@ fun DetailScreen(
                     },
                     onStartNewSession = onStartNewSession,
                 )
+            }
+
+            if (pastSessions.isNotEmpty()) {
+                item {
+                    SessionHistorySection(
+                        modifier = gutter,
+                        sessions = pastSessions.reversed().map { session ->
+                            {
+                                PastSessionSection(
+                                    session = session,
+                                    visitNumber = trackedMedia.visitNumber(session),
+                                    progressTotal = trackedMedia.item.effectiveProgressTotal(),
+                                    mediaType = trackedMedia.item.type,
+                                    accent = accent,
+                                    onUpdateSessionDetails = onUpdateSessionDetails,
+                                    onDeleteProgressUpdate = onDeleteProgressUpdate,
+                                    onDeleteStatusEvent = onDeleteStatusEvent,
+                                    onUpdateStatusEventDate = onUpdateStatusEventDate,
+                                    onUpdateProgressUpdate = onUpdateProgressUpdate,
+                                    onDeleteSession = { onDeletePastSession(session.id) },
+                                )
+                            }
+                        },
+                    )
+                }
             }
 
             item {

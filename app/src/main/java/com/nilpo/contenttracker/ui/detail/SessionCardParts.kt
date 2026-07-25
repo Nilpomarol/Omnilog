@@ -1,15 +1,12 @@
 package com.nilpo.contenttracker.ui.detail
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -128,39 +125,6 @@ fun SessionStateChip(
 }
 
 /**
- * A quieter statement of the same fact, for the history cards.
- *
- * A filled chip on every past session would give five of them equal billing with the live one; the
- * dot keeps the colour coding and gives up the emphasis.
- */
-@Composable
-fun SessionStateDot(
-    visual: SessionStateVisual,
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(color = visual.color, shape = CircleShape),
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = visual.color,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/**
  * Ink for text sitting on a filled state colour.
  *
  * The state accents are tuned to glow on charcoal in dark and to hold contrast as ink on paper in
@@ -201,8 +165,10 @@ fun SessionDatesRow(
     compact: Boolean = false,
     trailing: String? = null,
 ) {
-    if (session.startedAt == null && session.finishedAt == null) return
-    val showFinished = session.finishedAt != null || session.status.endsSession
+    val startedAt = session.startedAt
+    val finishedAt = session.finishedAt
+    if (startedAt == null && finishedAt == null && trailing == null) return
+
     val style = if (compact) {
         MaterialTheme.typography.labelSmall
     } else {
@@ -214,16 +180,20 @@ fun SessionDatesRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DateFact(
-            label = stringResource(R.string.session_date_started),
-            value = session.startedAt,
-            style = style,
-        )
-        if (showFinished) {
+        if (startedAt != null) {
+            DateFact(
+                label = stringResource(R.string.session_date_started),
+                value = startedAt,
+                style = style,
+            )
+        }
+        if (startedAt != null && finishedAt != null) {
             Text(text = "·", style = style, color = OmnilogTheme.colors.appMuted)
+        }
+        if (finishedAt != null) {
             DateFact(
                 label = endLabel(session = session, mediaType = mediaType),
-                value = session.finishedAt,
+                value = finishedAt,
                 style = style,
             )
         }
@@ -242,7 +212,7 @@ fun SessionDatesRow(
 
 /** `Començat: 06/04/26` — the label muted, the date in ink, on one line. */
 @Composable
-private fun DateFact(label: String, value: LocalDate?, style: TextStyle) {
+private fun DateFact(label: String, value: LocalDate, style: TextStyle) {
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = "$label:",
@@ -251,10 +221,10 @@ private fun DateFact(label: String, value: LocalDate?, style: TextStyle) {
             maxLines = 1,
         )
         Text(
-            text = value?.formatSessionDate() ?: MissingDateMark,
+            text = value.formatSessionDate(),
             style = style,
             fontWeight = FontWeight.Bold,
-            color = if (value != null) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
+            color = OmnilogTheme.colors.appInk,
             maxLines = 1,
         )
     }
@@ -281,8 +251,7 @@ private fun endLabel(session: TrackingSession, mediaType: MediaType): String = s
     },
 )
 
-/** What an unrecorded date looks like. Not a sentence, and not a zero. */
-private const val MissingDateMark = "—"
+
 
 /** Displays '13 jul.' if it is the current year, otherwise '13 jul. 2025'. */
 fun LocalDate.formatSessionDate(now: LocalDate = LocalDate.now()): String {
@@ -353,5 +322,27 @@ fun logProgressLabel(mediaType: MediaType): String = stringResource(
         MediaType.Book -> R.string.session_log_pages
         MediaType.Movie -> R.string.session_log_minutes
         MediaType.Game -> R.string.session_log_hours
+    },
+)
+
+@Composable
+fun sessionStartActionLabel(mediaType: MediaType): String = stringResource(
+    when (mediaType) {
+        MediaType.Anime -> R.string.session_start_anime
+        MediaType.Book -> R.string.session_start_book
+        MediaType.Movie -> R.string.session_start_movie
+        MediaType.TvShow -> R.string.session_start_tv_show
+        MediaType.Game -> R.string.session_start_game
+    },
+)
+
+@Composable
+fun sessionResumeActionLabel(mediaType: MediaType): String = stringResource(
+    when (mediaType) {
+        MediaType.Anime -> R.string.session_resume_anime
+        MediaType.Book -> R.string.session_resume_book
+        MediaType.Movie -> R.string.session_resume_movie
+        MediaType.TvShow -> R.string.session_resume_tv_show
+        MediaType.Game -> R.string.session_resume_game
     },
 )

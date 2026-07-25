@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,6 +50,9 @@ fun ActivityAction(
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    // The history cards draw their controls as a row of equal icon buttons in the header, so there
+    // the activity entry sheds its label and count and becomes one disc among them.
+    iconOnly: Boolean = false,
 ) {
     val visibleEvents = meaningfulActivityStatuses(statusEvents)
     // Milestones count towards this. A session with one entry but a start and a finish does have a
@@ -68,30 +72,43 @@ fun ActivityAction(
 
     val count = updates.size + visibleEvents.size
 
-    // Named, counted, and larger than the edit button beside it, because it does more than edit does:
-    // this is the way into the whole record of the session, and matching it to a bare 32dp disc made
-    // the card's most substantial feature its least visible control.
-    //
-    // What went wrong before was tone, not shape. An earlier pill failed on `appInk` at 8% behind
-    // muted content, which reads as a disabled control; taking Material's own tonal pair — the same
-    // one the edit disc uses — makes a pill and a disc read as one family at any size.
-    FilledTonalButton(
-        onClick = { showSheet = true },
-        modifier = Modifier.height(36.dp),
-        contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_history),
-            contentDescription = null,
-            modifier = Modifier.size(17.dp),
-        )
-        Text(
-            text = stringResource(R.string.activity_open, count),
-            modifier = Modifier.padding(start = 7.dp),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-        )
+    if (iconOnly) {
+        FilledTonalIconButton(
+            onClick = { showSheet = true },
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_history),
+                contentDescription = stringResource(R.string.activity_open, count),
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    } else {
+        // Named, counted, and larger than the edit button beside it, because it does more than edit
+        // does: this is the way into the whole record of the session, and matching it to a bare 32dp
+        // disc made the card's most substantial feature its least visible control.
+        //
+        // What went wrong before was tone, not shape. An earlier pill failed on `appInk` at 8% behind
+        // muted content, which reads as a disabled control; taking Material's own tonal pair — the
+        // same one the edit disc uses — makes a pill and a disc read as one family at any size.
+        FilledTonalButton(
+            onClick = { showSheet = true },
+            modifier = Modifier.height(36.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_history),
+                contentDescription = null,
+                modifier = Modifier.size(17.dp),
+            )
+            Text(
+                text = stringResource(R.string.activity_open, count),
+                modifier = Modifier.padding(start = 7.dp),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
     }
 
     if (showSheet) {

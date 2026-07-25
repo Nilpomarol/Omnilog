@@ -346,7 +346,7 @@ private fun DateField(
                             stringResource(R.string.activity_date_unknown)
                         },
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (hasKnownDate) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (hasKnownDate) accent else OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

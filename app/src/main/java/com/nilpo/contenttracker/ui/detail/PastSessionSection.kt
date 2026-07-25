@@ -1,14 +1,19 @@
 package com.nilpo.contenttracker.ui.detail
 
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
@@ -44,8 +49,15 @@ fun PastSessionSection(
         onUpdateProgressUpdate = onUpdateProgressUpdate,
         onDelete = onDeleteSession,
         trailingContent = {
-            TextButton(onClick = { isEditing = true }) {
-                Text(text = stringResource(R.string.edit))
+            FilledTonalIconButton(
+                onClick = { isEditing = true },
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = stringResource(R.string.edit),
+                    modifier = Modifier.size(16.dp),
+                )
             }
         },
     )

@@ -34,19 +34,17 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
  * repainted its branches, and Planejat's grey would drain every drawing to greyscale. The type is a
  * fact about the work and does not move — which also gives the card two colours instead of one.
  *
- * A modifier rather than a composable laid out behind the content, because the card is rendered
- * inside a row measured at [androidx.compose.foundation.layout.IntrinsicSize.Min] — the rail in
- * `SessionThread` takes its height from the card — and a `BoxWithConstraints` there would throw.
- * Drawing behind the content node reads the same size without a second layout pass and without
- * subcomposition. Apply it to the card's content, not to the `Surface`: `Surface` draws its own
- * colour over its children's background.
+ * A modifier rather than a composable laid out behind the content: drawing behind the content node
+ * reads the card's size without a second layout pass and without subcomposition. Apply it to the
+ * card's content, not to the `Surface`: `Surface` draws its own colour over its children's
+ * background.
  *
  * The assets carry no colour of their own: one flat white silhouette per medium, tinted here.
  */
 @Composable
-fun Modifier.sessionCardArtwork(mediaType: MediaType): Modifier {
+fun Modifier.sessionCardArtwork(mediaType: MediaType, strength: Float = 1f): Modifier {
     val onDark = OmnilogTheme.colors.appBackground.luminance() < 0.5f
-    val alpha = mediaType.artAlpha.let { if (onDark) it.dark else it.light }
+    val alpha = mediaType.artAlpha.let { if (onDark) it.dark else it.light } * strength
     val painter = painterResource(mediaType.artworkRes())
     val tint = ColorFilter.tint(mediaType.artworkTint(onDark))
     val veil = legibilityVeil(ground = cardGround(), onDark = onDark)

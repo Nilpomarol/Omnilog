@@ -49,6 +49,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.endsSession
+import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.RatingMeter
 import com.nilpo.contenttracker.ui.common.TrackingDateRange
 import com.nilpo.contenttracker.ui.common.TrackingNotesField
@@ -75,6 +76,8 @@ fun CurrentSessionSection(
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
+    // Absent when there is no earlier session to fall back to — see DetailScreen.
+    onDeleteSession: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }
@@ -104,6 +107,12 @@ fun CurrentSessionSection(
                 accent = accent,
                 onBack = { showEditor = false },
                 onSaveSessionDetails = onUpdateSessionDetails,
+                onDeleteSession = onDeleteSession?.let {
+                    {
+                        it()
+                        showEditor = false
+                    }
+                },
             )
         }
     }
@@ -402,8 +411,8 @@ private fun progressCaption(
  */
 @Composable
 private fun logActionLabel(status: TrackingStatus, mediaType: MediaType): String = when (status) {
-    TrackingStatus.Planned -> stringResource(R.string.session_start_action)
-    TrackingStatus.Paused -> stringResource(R.string.session_resume_action)
+    TrackingStatus.Planned -> sessionStartActionLabel(mediaType)
+    TrackingStatus.Paused -> sessionResumeActionLabel(mediaType)
     else -> logProgressLabel(mediaType)
 }
 
@@ -421,7 +430,9 @@ fun SessionEditorScreen(
     titleResId: Int = R.string.edit_current_session,
     onBack: () -> Unit,
     onSaveSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
+    onDeleteSession: (() -> Unit)? = null,
 ) {
+    var showDeleteConfirmation by rememberSaveable(session.id) { mutableStateOf(false) }
     var draftStatus by rememberSaveable(session.id) { mutableStateOf(session.status) }
     var draftProgressText by rememberSaveable(session.id) {
         mutableStateOf(
@@ -593,8 +604,52 @@ fun SessionEditorScreen(
                 onValueChange = { draftNotes = it },
             )
 
+            // Deleting the live session hands the title back to the one before it, so it only
+            // appears when there is a previous session to fall back to.
+            onDeleteSession?.let {
+                EditSectionDivider()
+                TextButton(
+                    onClick = { showDeleteConfirmation = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text(
+                        text = stringResource(R.string.delete_session),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    if (showDeleteConfirmation && onDeleteSession != null) {
+        OmnilogAlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = stringResource(R.string.delete_session_title),
+            text = { Text(text = stringResource(R.string.delete_current_session_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDeleteSession()
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 

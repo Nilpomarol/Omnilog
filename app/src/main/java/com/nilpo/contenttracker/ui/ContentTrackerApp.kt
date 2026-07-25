@@ -1343,6 +1343,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                         viewModel.quickComplete(routeMedia, progress)
                                     },
                                     onDeletePastSession = viewModel::deletePastSession,
+                                    onDeleteCurrentSession = viewModel::deleteCurrentSession,
                                     onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
                                     onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
                                     onUpdateStatusEventDate = viewModel::updateSessionStatusEventDate,

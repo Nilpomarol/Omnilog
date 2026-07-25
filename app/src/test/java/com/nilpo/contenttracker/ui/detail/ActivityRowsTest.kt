@@ -177,6 +177,65 @@ class ActivityRowsTest {
         assertTrue(rows.isEmpty())
     }
 
+    @Test
+    fun finalProgressUpdateFoldsIntoFinishedMilestone() {
+        val rows = activityRows(
+            updates = listOf(
+                entry(id = 1, day = 5, amount = 30),
+                entry(id = 2, day = 20, amount = 50),
+            ),
+            statusEvents = emptyList(),
+            baselineProgress = 0,
+            sessionStartedAt = start,
+            sessionFinishedAt = LocalDate.of(2026, 3, 20),
+            sessionStatus = TrackingStatus.Completed,
+        )
+
+        assertEquals(listOf("milestone:Finished", "entry:1", "milestone:Started"), rows.map { it.key })
+        val finished = rows.first() as ActivityRow.Milestone
+        assertEquals(50, finished.update?.amount)
+        assertEquals(80, finished.runningTotal)
+    }
+
+    @Test
+    fun firstProgressUpdateFoldsIntoStartedMilestone() {
+        val rows = activityRows(
+            updates = listOf(
+                entry(id = 1, day = 1, amount = 30),
+                entry(id = 2, day = 10, amount = 50),
+            ),
+            statusEvents = emptyList(),
+            baselineProgress = 0,
+            sessionStartedAt = start,
+            sessionFinishedAt = null,
+            sessionStatus = TrackingStatus.InProgress,
+        )
+
+        assertEquals(listOf("entry:2", "milestone:Started"), rows.map { it.key })
+        val started = rows.last() as ActivityRow.Milestone
+        assertEquals(30, started.update?.amount)
+        assertEquals(30, started.runningTotal)
+    }
+
+    @Test
+    fun finalProgressUpdateFoldsIntoCompletedStatusEvent() {
+        val rows = activityRows(
+            updates = listOf(
+                entry(id = 1, day = 20, amount = 50, createdAt = 100),
+            ),
+            statusEvents = listOf(
+                statusEvent(id = 8, createdAt = 200, status = TrackingStatus.Completed, day = 20),
+            ),
+            baselineProgress = 0,
+            sessionStartedAt = null,
+        )
+
+        assertEquals(listOf("status:8"), rows.map { it.key })
+        val status = rows.single() as ActivityRow.Status
+        assertEquals(50, status.update?.amount)
+        assertEquals(50, status.runningTotal)
+    }
+
     private fun entry(
         id: Long,
         day: Int,
@@ -194,11 +253,16 @@ class ActivityRowsTest {
         coversPeriod = coversPeriod,
     )
 
-    private fun statusEvent(id: Long, createdAt: Long, status: TrackingStatus) = SessionStatusEvent(
+    private fun statusEvent(
+        id: Long,
+        createdAt: Long,
+        status: TrackingStatus,
+        day: Int = 4,
+    ) = SessionStatusEvent(
         id = id,
         sessionId = 10,
         status = status,
-        occurredOn = LocalDate.of(2026, 3, 4),
+        occurredOn = LocalDate.of(2026, 3, day),
         createdAtEpochMillis = createdAt,
     )
 }

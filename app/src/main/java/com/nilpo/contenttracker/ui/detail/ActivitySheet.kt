@@ -160,11 +160,11 @@ fun ActivitySheet(
                         mediaType = mediaType,
                         accent = accent,
                         onClick = {
-                            when (row) {
-                                is ActivityRow.Entry -> editingEntryId = row.update.id
-                                is ActivityRow.Status -> editingStatusId = row.event.id
-                                // Read-only: edited through the session's own dates.
-                                is ActivityRow.Milestone -> Unit
+                            val update = row.update
+                            if (update != null) {
+                                editingEntryId = update.id
+                            } else if (row is ActivityRow.Status) {
+                                editingStatusId = row.event.id
                             }
                         },
                     )
@@ -238,28 +238,42 @@ fun ActivitySheet(
 /** One line of the session's chronology, whichever table it came from. */
 sealed interface ActivityRow {
     val key: String
+    val update: ProgressUpdate?
+        get() = when (this) {
+            is Entry -> update
+            is Status -> update
+            is Milestone -> update
+        }
 
     data class Entry(
-        val update: ProgressUpdate,
+        override val update: ProgressUpdate,
         val runningTotal: Int,
         val window: ActivityWindow?,
     ) : ActivityRow {
         override val key = "entry:${update.id}"
     }
 
-    data class Status(val event: SessionStatusEvent) : ActivityRow {
+    data class Status(
+        val event: SessionStatusEvent,
+        override val update: ProgressUpdate? = null,
+        val runningTotal: Int? = null,
+    ) : ActivityRow {
         override val key = "status:${event.id}"
     }
 
     /**
      * The session opening or closing.
      *
-     * Read-only. These are the session's own `startedAt` and `finishedAt`, which are edited through
-     * the session editor — showing them here as well would be a second place to change one fact.
-     * They earn their place because without them the list starts mid-story: a run of entries with
-     * no beginning and no end.
+     * Read-only unless combined with a progress update. These are the session's own `startedAt`
+     * and `finishedAt`, which earn their place because without them the list starts mid-story:
+     * a run of entries with no beginning and no end.
      */
-    data class Milestone(val kind: MilestoneKind, val date: LocalDate) : ActivityRow {
+    data class Milestone(
+        val kind: MilestoneKind,
+        val date: LocalDate,
+        override val update: ProgressUpdate? = null,
+        val runningTotal: Int? = null,
+    ) : ActivityRow {
         override val key = "milestone:${kind.name}"
     }
 }
@@ -295,43 +309,92 @@ internal fun activityRows(
 ): List<ActivityRow> {
     val windows = activityWindows(updates = updates, sessionStartedAt = sessionStartedAt)
 
+    val orderedUpdates = updates.sortedWith(compareBy({ it.loggedAt }, { it.createdAtEpochMillis }, { it.id }))
     var runningTotal = baselineProgress
-    val entries = updates
-        .sortedWith(compareBy({ it.loggedAt }, { it.createdAtEpochMillis }, { it.id }))
-        .map { update ->
-            runningTotal += update.amount
-            ActivityRow.Entry(
-                update = update,
-                runningTotal = runningTotal,
-                window = windows[update.id],
-            )
-        }
+    val updateTotals = mutableMapOf<Long, Int>()
+    val entryRows = mutableMapOf<Long, ActivityRow.Entry>()
+    orderedUpdates.forEach { update ->
+        runningTotal += update.amount
+        updateTotals[update.id] = runningTotal
+        entryRows[update.id] = ActivityRow.Entry(
+            update = update,
+            runningTotal = runningTotal,
+            window = windows[update.id],
+        )
+    }
 
-    val statuses = meaningfulActivityStatuses(statusEvents)
-        .map(ActivityRow::Status)
+    val rawStatuses = meaningfulActivityStatuses(statusEvents)
+    val claimedUpdateIds = mutableSetOf<Long>()
 
-    val milestones = buildList {
-        sessionStartedAt?.let { add(ActivityRow.Milestone(MilestoneKind.Started, it)) }
-        sessionFinishedAt?.let { finished ->
-            when (sessionStatus) {
-                TrackingStatus.Completed -> if (statuses.none { it.event.status == TrackingStatus.Completed }) {
-                    add(ActivityRow.Milestone(MilestoneKind.Finished, finished))
-                }
-                TrackingStatus.Dropped -> if (statuses.none { it.event.status == TrackingStatus.Dropped }) {
-                    add(ActivityRow.Milestone(MilestoneKind.Abandoned, finished))
-                }
-                else -> Unit
+    val statusRows = rawStatuses.map { event ->
+        if (event.status == TrackingStatus.Completed) {
+            val finalUpdate = orderedUpdates.lastOrNull { update ->
+                update.hasKnownDate && update.loggedAt == event.occurredOn &&
+                    update.createdAtEpochMillis <= event.createdAtEpochMillis
             }
+            if (finalUpdate != null) {
+                claimedUpdateIds += finalUpdate.id
+                ActivityRow.Status(
+                    event = event,
+                    update = finalUpdate,
+                    runningTotal = updateTotals[finalUpdate.id],
+                )
+            } else {
+                ActivityRow.Status(event)
+            }
+        } else {
+            ActivityRow.Status(event)
         }
     }
 
-    // Entries and status changes sort by the instant they were recorded, which is immutable — the
-    // displayed day is user-correctable and so cannot be what fixes the sequence.
-    //
-    // Milestones have no such instant; they are dates on the session rather than rows. They take the
-    // ends of the list outright, which is also where they belong: a session opens before anything in
-    // it and closes after.
-    return (entries + statuses + milestones).sortedByDescending { row ->
+    var finishedMilestone: ActivityRow.Milestone? = null
+    sessionFinishedAt?.let { finished ->
+        when (sessionStatus) {
+            TrackingStatus.Completed -> if (statusRows.none { it.event.status == TrackingStatus.Completed }) {
+                val finalUpdate = orderedUpdates.lastOrNull { update ->
+                    update.hasKnownDate && update.loggedAt == finished
+                }
+                if (finalUpdate != null) {
+                    claimedUpdateIds += finalUpdate.id
+                    finishedMilestone = ActivityRow.Milestone(
+                        kind = MilestoneKind.Finished,
+                        date = finished,
+                        update = finalUpdate,
+                        runningTotal = updateTotals[finalUpdate.id],
+                    )
+                } else {
+                    finishedMilestone = ActivityRow.Milestone(MilestoneKind.Finished, finished)
+                }
+            }
+            TrackingStatus.Dropped -> if (statusRows.none { it.event.status == TrackingStatus.Dropped }) {
+                finishedMilestone = ActivityRow.Milestone(MilestoneKind.Abandoned, finished)
+            }
+            else -> Unit
+        }
+    }
+
+    var startedMilestone: ActivityRow.Milestone? = null
+    sessionStartedAt?.let { started ->
+        val firstUpdate = orderedUpdates.firstOrNull { update ->
+            update.hasKnownDate && update.loggedAt == started && update.id !in claimedUpdateIds
+        }
+        if (firstUpdate != null) {
+            claimedUpdateIds += firstUpdate.id
+            startedMilestone = ActivityRow.Milestone(
+                kind = MilestoneKind.Started,
+                date = started,
+                update = firstUpdate,
+                runningTotal = updateTotals[firstUpdate.id],
+            )
+        } else {
+            startedMilestone = ActivityRow.Milestone(MilestoneKind.Started, started)
+        }
+    }
+
+    val remainingEntries = entryRows.filterKeys { it !in claimedUpdateIds }.values.toList()
+    val milestones = listOfNotNull(startedMilestone, finishedMilestone)
+
+    return (remainingEntries + statusRows + milestones).sortedByDescending { row ->
         when (row) {
             is ActivityRow.Entry -> row.update.createdAtEpochMillis
             is ActivityRow.Status -> row.event.createdAtEpochMillis
@@ -397,8 +460,7 @@ private fun ActivityRailRow(
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(6.dp))
-            // Milestones are read-only, so they are not a target at all.
-            .clickable(enabled = row !is ActivityRow.Milestone, onClick = onClick)
+            .clickable(enabled = row !is ActivityRow.Milestone || row.update != null, onClick = onClick)
             .clearAndSetSemantics { contentDescription = description },
     ) {
         ActivityRail(
@@ -418,8 +480,8 @@ private fun ActivityRailRow(
         ) {
             when (row) {
                 is ActivityRow.Entry -> ActivityEntryBody(row, mediaType, accent)
-                is ActivityRow.Status -> ActivityStatusBody(row)
-                is ActivityRow.Milestone -> ActivityMilestoneBody(row, accent)
+                is ActivityRow.Status -> ActivityStatusBody(row, mediaType, accent)
+                is ActivityRow.Milestone -> ActivityMilestoneBody(row, mediaType, accent)
             }
         }
     }
@@ -457,9 +519,9 @@ private fun ActivityEntryBody(row: ActivityRow.Entry, mediaType: MediaType, acce
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
                 text = row.dateLabel(),
-                color = OmnilogTheme.colors.appInk,
+                color = if (row.update.hasKnownDate) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = if (row.update.hasKnownDate) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -499,39 +561,133 @@ private fun ActivityEntryBody(row: ActivityRow.Entry, mediaType: MediaType, acce
 }
 
 @Composable
-private fun ActivityStatusBody(row: ActivityRow.Status) {
-    Text(
-        text = row.event.occurredOn.formatActivityDate(),
-        color = OmnilogTheme.colors.appMuted,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-    )
-    Text(
-        text = stringResource(row.event.statusLabelRes()),
-        color = row.event.statusAccent(),
-        style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.ExtraBold,
-        maxLines = 1,
-    )
+private fun ActivityStatusBody(row: ActivityRow.Status, mediaType: MediaType, accent: Color) {
+    val update = row.update
+    val runningTotal = row.runningTotal
+    if (update != null && runningTotal != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = row.event.occurredOn.formatActivityDate(),
+                    color = OmnilogTheme.colors.appMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = stringResource(row.event.statusLabelRes()),
+                    color = row.event.statusAccent(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = stringResource(
+                        R.string.activity_amount,
+                        update.amount,
+                        progressUnitLabel(mediaType = mediaType, value = update.amount),
+                    ),
+                    color = accent,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = runningTotal.toString(),
+                    color = OmnilogTheme.colors.appMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                )
+            }
+        }
+    } else {
+        Text(
+            text = row.event.occurredOn.formatActivityDate(),
+            color = OmnilogTheme.colors.appMuted,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+        Text(
+            text = stringResource(row.event.statusLabelRes()),
+            color = row.event.statusAccent(),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
-private fun ActivityMilestoneBody(row: ActivityRow.Milestone, accent: Color) {
-    Text(
-        text = row.date.formatActivityDate(),
-        color = OmnilogTheme.colors.appMuted,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-    )
-    Text(
-        text = stringResource(row.kind.labelRes()),
-        color = accent,
-        style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.ExtraBold,
-        maxLines = 1,
-    )
+private fun ActivityMilestoneBody(row: ActivityRow.Milestone, mediaType: MediaType, accent: Color) {
+    val update = row.update
+    val runningTotal = row.runningTotal
+    if (update != null && runningTotal != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = row.date.formatActivityDate(),
+                    color = OmnilogTheme.colors.appMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = stringResource(row.kind.labelRes()),
+                    color = accent,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = stringResource(
+                        R.string.activity_amount,
+                        update.amount,
+                        progressUnitLabel(mediaType = mediaType, value = update.amount),
+                    ),
+                    color = accent,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = runningTotal.toString(),
+                    color = OmnilogTheme.colors.appMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                )
+            }
+        }
+    } else {
+        Text(
+            text = row.date.formatActivityDate(),
+            color = OmnilogTheme.colors.appMuted,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+        Text(
+            text = stringResource(row.kind.labelRes()),
+            color = accent,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -577,11 +733,23 @@ private fun ActivityRow.describe(mediaType: MediaType): String = when (this) {
         runningTotal,
     )
 
-    is ActivityRow.Status ->
-        event.occurredOn.formatActivityDate() + " · " + stringResource(event.statusLabelRes())
+    is ActivityRow.Status -> {
+        val base = event.occurredOn.formatActivityDate() + " · " + stringResource(event.statusLabelRes())
+        if (update != null && runningTotal != null) {
+            base + " · +" + update.amount + " " + progressUnitLabel(mediaType = mediaType, value = update.amount) + " · " + runningTotal
+        } else {
+            base
+        }
+    }
 
-    is ActivityRow.Milestone ->
-        date.formatActivityDate() + " · " + stringResource(kind.labelRes())
+    is ActivityRow.Milestone -> {
+        val base = date.formatActivityDate() + " · " + stringResource(kind.labelRes())
+        if (update != null && runningTotal != null) {
+            base + " · +" + update.amount + " " + progressUnitLabel(mediaType = mediaType, value = update.amount) + " · " + runningTotal
+        } else {
+            base
+        }
+    }
 }
 
 /** Follows the reader's locale rather than one hard-coded ordering. */

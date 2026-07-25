@@ -332,6 +332,7 @@
     <string name="steam_score_no_reviews">Sense ressenyes d’usuaris</string>
     <string name="back">Enrere</string>
     <string name="detail_current_session">Sessió actual</string>
+    <string name="detail_history">Historial</string>
     <string name="edit_current_session">Edita seguiment</string>
     <string name="session_started_at">Començat: %1$s</string>
     <string name="session_finished_at">Acabat: %1$s</string>
@@ -356,7 +357,17 @@
     <string name="session_log_minutes">Registra minuts</string>
     <string name="session_log_hours">Registra hores</string>
     <string name="session_start_action">Comença</string>
+    <string name="session_start_anime">Comença l\'anime</string>
+    <string name="session_start_book">Comença el llibre</string>
+    <string name="session_start_movie">Comença la pel·lícula</string>
+    <string name="session_start_tv_show">Comença la sèrie</string>
+    <string name="session_start_game">Comença el joc</string>
     <string name="session_resume_action">Reprèn</string>
+    <string name="session_resume_anime">Reprèn l\'anime</string>
+    <string name="session_resume_book">Reprèn el llibre</string>
+    <string name="session_resume_movie">Reprèn la pel·lícula</string>
+    <string name="session_resume_tv_show">Reprèn la sèrie</string>
+    <string name="session_resume_game">Reprèn el joc</string>
     <string name="session_recency_today">avui</string>
     <string name="session_recency_yesterday">ahir</string>
     <plurals name="session_recency_days">
@@ -782,6 +793,8 @@
     <string name="update_notes">Actualitza notes</string>
     <string name="delete_session_title">Elimina sessió</string>
     <string name="delete_session_message">Vols eliminar la sessió #%1$d?</string>
+    <string name="delete_current_session_message">Vols eliminar la sessió actual? La sessió anterior tornarà a ser l\'activa.</string>
+    <string name="delete_session">Elimina la sessió</string>
     <string name="delete_media_title">Elimina element</string>
     <string name="delete_media_message">Vols eliminar %1$s? També s\'eliminaran les seves sessions.</string>
     <string name="update_item_details">Actualitza dades</string>

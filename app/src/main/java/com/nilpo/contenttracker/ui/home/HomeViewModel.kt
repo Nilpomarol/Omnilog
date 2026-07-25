@@ -689,6 +689,12 @@ class HomeViewModel(
         }
     }
 
+    fun deleteCurrentSession(sessionId: Long) {
+        viewModelScope.launch {
+            mediaRepository.deleteCurrentSession(sessionId)?.let { publishDeletionRecovery(it) }
+        }
+    }
+
     fun updateProgressUpdate(
         progressUpdateId: Long,
         amount: Int,

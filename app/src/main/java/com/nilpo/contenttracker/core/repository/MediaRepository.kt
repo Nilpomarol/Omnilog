@@ -189,6 +189,15 @@ interface MediaRepository {
 
     suspend fun deletePastSession(sessionId: Long): DeletionRecovery?
 
+    /**
+     * Deletes the live session and hands the title back to the one before it.
+     *
+     * The counterpart to [deletePastSession], which refuses the latest session precisely because
+     * this exists. Refuses when there is nothing to fall back to: the only session is untracking,
+     * not a session delete.
+     */
+    suspend fun deleteCurrentSession(sessionId: Long): DeletionRecovery?
+
     suspend fun deleteProgressUpdate(progressUpdateId: Long): DeletionRecovery?
 
     /**

@@ -54,6 +54,8 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.detail.sessionResumeActionLabel
+import com.nilpo.contenttracker.ui.detail.sessionStartActionLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 /**
@@ -233,9 +235,9 @@ fun QuickProgressSheet(
                     text = when {
                         done -> stringResource(R.string.quick_progress_complete)
                         !changed && session.status == TrackingStatus.Planned ->
-                            stringResource(R.string.home_planned_start)
+                            sessionStartActionLabel(item.type)
                         !changed && session.status == TrackingStatus.Paused ->
-                            stringResource(R.string.home_paused_resume)
+                            sessionResumeActionLabel(item.type)
                         else -> stringResource(R.string.quick_progress_save)
                     },
                     modifier = Modifier.padding(start = if (done) 6.dp else 0.dp),
