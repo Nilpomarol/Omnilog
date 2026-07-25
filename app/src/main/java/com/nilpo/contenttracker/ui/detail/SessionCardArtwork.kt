@@ -48,7 +48,7 @@ fun Modifier.sessionCardArtwork(mediaType: MediaType): Modifier {
     val alpha = mediaType.artAlpha.let { if (onDark) it.dark else it.light }
     val painter = painterResource(mediaType.artworkRes())
     val tint = ColorFilter.tint(mediaType.typeAccent())
-    val veil = legibilityVeil(ground = cardGround(mediaType), panel = OmnilogTheme.colors.appPanel)
+    val veil = legibilityVeil(cardGround())
 
     return clipToBounds().drawBehind {
         drawArtwork(painter = painter, alpha = alpha, tint = tint)
@@ -68,8 +68,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArtwork(
     alpha: Float,
     tint: ColorFilter,
 ) {
-    val height = size.height * ArtHeightFraction
-    val width = height * painter.intrinsicSize.let { it.width / it.height }
+    val aspect = painter.intrinsicSize.let { it.width / it.height }
+    // Sized off the card's height, except when that would leave the drawing small. A planned card is
+    // two rows tall, and scaling by height alone put a thumbnail in the corner of it rather than a
+    // detail of something larger — the whole point of the overhang. The width floor is what keeps a
+    // short card looking like the same treatment as a tall one.
+    val height = maxOf(size.height * ArtHeightFraction, size.width * ArtMinWidthFraction / aspect)
+    val width = height * aspect
     translate(
         left = size.width * (1f + ArtOverhangEnd) - width,
         top = -size.height * ArtOverhangTop,
@@ -79,17 +84,33 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArtwork(
 }
 
 /**
- * The card's own surface: the panel, carrying a little of the medium's colour.
+ * The card's own surface: the panel, pulled toward the page behind it.
+ *
+ * Neutral rather than tinted. Tinting it the medium's colour gave the drawing a ground of its own
+ * hue to sit on, and a shape only reads as strongly as it differs from what is under it — the pink
+ * sakura on a pink card was competing with itself. Taking the colour out of the ground is what let
+ * the artwork go up to [artAlpha]'s current values without the card turning into a wash.
+ *
+ * Darker in dark, barely darker in light. Both move toward `appBackground`, but the light card has
+ * to stay visibly lifted off the page or the panel stops reading as a panel at all; the dark one has
+ * room to sink because its accents supply the contrast.
  *
  * Lives here beside the artwork because the two are one decision. [legibilityVeil] fades into this
- * exact value, so a card drawn on plain `appPanel` would show the gradient as a visible seam down the
- * middle of itself.
+ * exact value, so a card drawn on plain `appPanel` would show the gradient as a seam down the middle
+ * of itself.
  */
 @Composable
-fun cardGround(mediaType: MediaType): Color =
-    lerp(OmnilogTheme.colors.appPanel, mediaType.typeAccent(), GroundTint)
+fun cardGround(): Color {
+    val onDark = OmnilogTheme.colors.appBackground.luminance() < 0.5f
+    return lerp(
+        OmnilogTheme.colors.appPanel,
+        OmnilogTheme.colors.appBackground,
+        if (onDark) GroundSinkDark else GroundSinkLight,
+    )
+}
 
-private const val GroundTint = 0.17f
+private const val GroundSinkDark = 0.62f
+private const val GroundSinkLight = 0.22f
 
 /**
  * An unreached progress cell on a card that has artwork behind it — opaque, unlike the translucent
@@ -101,8 +122,8 @@ private const val GroundTint = 0.17f
  * to be measured against, and the artwork simply passes behind it.
  */
 @Composable
-fun cardTrack(mediaType: MediaType): Color =
-    lerp(cardGround(mediaType), OmnilogTheme.colors.appInk, TrackLift)
+fun cardTrack(): Color =
+    lerp(cardGround(), OmnilogTheme.colors.appInk, TrackLift)
 
 private const val TrackLift = 0.16f
 
@@ -114,18 +135,23 @@ private const val TrackLift = 0.16f
  * begin — then opens up across the middle and lets the drawing through nearly undimmed at the
  * trailing edge, which is where the card has the least text.
  *
- * It never reaches fully transparent: the trailing edge still carries the percentage and the recency
- * label, and a quarter of the panel is what those need to stay legible over ink.
+ * It never reaches fully transparent, and the trailing figure is why. The percentage and the recency
+ * label both sit in the last fifth of the card, right where the sakura is densest — at a fifth of
+ * the ground they were unreadable against the blossoms. Two fifths is what they need, and the
+ * drawing still comes through at better than half strength there.
  */
-private fun legibilityVeil(ground: Color, panel: Color): Brush = Brush.horizontalGradient(
+private fun legibilityVeil(ground: Color): Brush = Brush.horizontalGradient(
     0.00f to ground,
-    0.26f to ground,
-    0.56f to ground.copy(alpha = 0.58f),
-    1.00f to panel.copy(alpha = 0.26f),
+    0.28f to ground,
+    0.60f to ground.copy(alpha = 0.62f),
+    1.00f to ground.copy(alpha = 0.40f),
 )
 
 /** How tall the drawing is drawn, as a multiple of the card's own height. */
 private const val ArtHeightFraction = 1.32f
+
+/** …but never so narrow that it stops filling the card. See the floor in `drawArtwork`. */
+private const val ArtMinWidthFraction = 0.95f
 
 /** How far the drawing hangs past the card's top edge, as a fraction of the card's height. */
 private const val ArtOverhangTop = 0.16f
@@ -147,11 +173,11 @@ private const val ArtOverhangEnd = 0.07f
  */
 private val MediaType.artAlpha: ArtAlpha
     get() = when (this) {
-        MediaType.Anime -> ArtAlpha(dark = 0.60f, light = 0.40f)
-        MediaType.Book -> ArtAlpha(dark = 0.72f, light = 0.48f)
-        MediaType.Movie -> ArtAlpha(dark = 0.72f, light = 0.48f)
-        MediaType.TvShow -> ArtAlpha(dark = 0.72f, light = 0.48f)
-        MediaType.Game -> ArtAlpha(dark = 0.60f, light = 0.40f)
+        MediaType.Anime -> ArtAlpha(dark = 0.80f, light = 0.52f)
+        MediaType.Book -> ArtAlpha(dark = 0.92f, light = 0.62f)
+        MediaType.Movie -> ArtAlpha(dark = 0.92f, light = 0.62f)
+        MediaType.TvShow -> ArtAlpha(dark = 0.92f, light = 0.62f)
+        MediaType.Game -> ArtAlpha(dark = 0.80f, light = 0.52f)
     }
 
 /** A medium's artwork strength in each theme. 0 is invisible, 1 is the accent at full force. */

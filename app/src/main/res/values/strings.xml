@@ -341,7 +341,11 @@
     <string name="session_finished_label">Data de final</string>
     <string name="session_date_started">Començat</string>
     <string name="session_date_finished">Acabat</string>
-    <string name="session_no_dates">Sense dates registrades</string>
+    <string name="session_date_watched">Vist</string>
+    <string name="session_date_read">Llegit</string>
+    <string name="session_date_played">Jugat</string>
+    <string name="session_date_paused">Pausat</string>
+    <string name="session_date_dropped">Abandonat</string>
     <string name="session_rating_label">la teva nota</string>
     <string name="session_progress_of">%1$d de %2$d %3$s</string>
     <string name="session_progress_of_suffix">de %1$d %2$s</string>

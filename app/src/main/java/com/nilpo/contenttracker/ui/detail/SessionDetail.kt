@@ -92,7 +92,7 @@ fun SessionDetail(
                 faded = session.status == TrackingStatus.Dropped,
             )
 
-            SessionDatesRow(session = session, compact = true)
+            SessionDatesRow(session = session, mediaType = mediaType, compact = true)
 
             session.platform?.let { platform ->
                 Text(

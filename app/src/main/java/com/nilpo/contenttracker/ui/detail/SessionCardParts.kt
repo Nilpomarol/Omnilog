@@ -101,12 +101,15 @@ fun SessionStateChip(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(7.dp),
+        // Fully rounded, like every other pill in the app — the title's ordinal badge, the genre
+        // row, the collection chip. A 7dp corner was this card's own invention and read as a button
+        // that had lost its label rather than as a piece of the same family.
+        shape = RoundedCornerShape(percent = 50),
         color = visual.color,
         contentColor = onStateColor(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+            modifier = Modifier.padding(start = 9.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -178,10 +181,13 @@ private fun onStateColor(): Color = MaterialTheme.colorScheme.onPrimary
  * out — "Acabat (data desconeguda)" — which spent a whole line apologising for a fact the shape of
  * the row conveys on its own. When neither date is known the row is dropped completely: the state
  * chip has already said the session is finished, so an entirely empty row would only be furniture.
+ *
+ * What the second column is called depends on what happened to the session — see [endLabel].
  */
 @Composable
 fun SessionDatesRow(
     session: TrackingSession,
+    mediaType: MediaType,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     trailing: String? = null,
@@ -213,7 +219,7 @@ fun SessionDatesRow(
                 color = OmnilogTheme.colors.appMuted,
             )
             DateColumn(
-                label = stringResource(R.string.session_date_finished),
+                label = endLabel(session = session, mediaType = mediaType),
                 value = session.finishedAt,
                 valueStyle = valueStyle,
             )
@@ -256,6 +262,30 @@ private fun DateColumn(
         )
     }
 }
+
+/**
+ * What the second date is called, which is not always "Acabat".
+ *
+ * The column used to be labelled "Acabat" whatever had happened, so a paused session read as having
+ * finished on the day you put it down and an abandoned one read as having been completed. The status
+ * knows better, and this is the one place on the card where it can say so in a word.
+ *
+ * A session with no more than one logged entry gets the verb for having consumed the thing in one
+ * go — you *saw* a film, you did not *complete* it. That verb is the medium's own: "Vist" for the
+ * things you watch, "Llegit" for a book, "Jugat" for a game. One rule reading naturally across five
+ * media is worth the five strings it costs.
+ */
+@Composable
+private fun endLabel(session: TrackingSession, mediaType: MediaType): String = stringResource(
+    when {
+        session.status == TrackingStatus.Paused -> R.string.session_date_paused
+        session.status == TrackingStatus.Dropped -> R.string.session_date_dropped
+        session.progressUpdates.size > 1 -> R.string.session_date_finished
+        mediaType == MediaType.Book -> R.string.session_date_read
+        mediaType == MediaType.Game -> R.string.session_date_played
+        else -> R.string.session_date_watched
+    },
+)
 
 /** What an unrecorded date looks like. Not a sentence, and not a zero. */
 private const val MissingDateMark = "—"

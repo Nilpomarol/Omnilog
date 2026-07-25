@@ -33,9 +33,10 @@ import kotlin.math.ceil
  * How far a session has got, drawn in the shape of the thing being tracked.
  *
  * One bar with the fraction written on it works for every medium and says nothing about any of them.
- * These borrow the physical form instead: episodes are countable so they get one cell each, a book is
- * a block of pages so it gets its fore-edge, a film is a strip of frames. That is also what makes a
- * book stop looking like an anime on a page where the only other difference is the accent colour.
+ * These borrow the shape of how the thing is actually consumed instead: episodes are countable so they
+ * get one cell each, a book is read in sittings so its bar is cut where the reading stopped, a film is
+ * a strip of frames. That is also what makes a book stop looking like an anime on a page where the
+ * only other difference is the accent colour.
  *
  * The choice is made from the data, not from a preference: a medium whose total is too large to count
  * out falls back to a quartered bar, and a session with no total at all gets no bar of any kind — see
@@ -71,8 +72,10 @@ fun SessionProgressGraphic(
             compact = compact,
             empty = empty,
         )
-        mediaType == MediaType.Book -> ForeEdge(
-            fraction = fractionOf(progressCurrent, total),
+        mediaType == MediaType.Book -> SittingBar(
+            reached = progressCurrent.coerceIn(0, total),
+            total = total,
+            updates = progressUpdates,
             color = color,
             modifier = shaded,
             compact = compact,
@@ -210,94 +213,85 @@ internal fun gridColumns(total: Int): Int = when {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Books — the page block, seen edge-on
+// Books — the bar, split where you put it down
 // ─────────────────────────────────────────────────────────────
 
 /**
- * A book's fore-edge: the board at the left, the page block beside it, and a ribbon at the page you
- * are on.
+ * A book's progress, cut where the reading actually stopped.
  *
- * Deliberately not one stroke per page. Four hundred and eighty-six strokes is not a graphic, and a
- * page is not a unit anyone counts the way they count episodes — what a reader wants to see is how
- * much of the block is behind the ribbon. The stroke count is therefore fixed and the fill is
- * proportional, which is the one place in this file a graphic is a proportion rather than a tally.
+ * The fore-edge this replaces drew forty-eight evenly spaced strokes and a ribbon, which looked like
+ * a book and said nothing a plain bar would not have: the strokes were fixed and the fill was a
+ * proportion, so no mark on it corresponded to anything that happened. At the size it ran on the
+ * card it read as hatching rather than as pages.
+ *
+ * The chunks here are real. Each one is a logged sitting, as wide as the share of the book it got
+ * through, so the bar shows both how far you are and how you got there — a long holiday stretch and
+ * a fortnight of ten-page nights look different, which is the thing about reading a book that a
+ * percentage cannot carry. Same idea as the timeline's own strip, at the scale of one title.
+ *
+ * Drawn rather than laid out with weights, because sittings differ by orders of magnitude: two pages
+ * of a seven-hundred-page book is a quarter of a percent, and a weighted row would render it as
+ * nothing. [MinSittingWidth] gives every recorded sitting a visible mark, and the gaps come out of
+ * the chunk rather than being added between them so the run still ends exactly at the fraction read.
  */
 @Composable
-private fun ForeEdge(
-    fraction: Float,
+private fun SittingBar(
+    reached: Int,
+    total: Int,
+    updates: List<ProgressUpdate>,
     color: Color,
     empty: Color,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
-    val strokes = if (compact) 32 else 48
-    val height = if (compact) 16.dp else 30.dp
-    val ribbonWidth = 3.dp
-    val readStrokes = (strokes * fraction).toInt()
+    val height = if (compact) 6.dp else 11.dp
+    val radius = if (compact) 1.5.dp else 2.dp
+    // Progress can predate the log — an import carries a page count with no sittings behind it, and
+    // the editor can set one by hand. Whatever the sittings do not account for is drawn as a single
+    // opening run, so the bar always adds up to where the reader actually is.
+    val logged = updates.sumOf { it.amount }.coerceIn(0, reached)
+    val runs = buildList {
+        if (reached > logged) add(reached - logged)
+        updates.forEach { if (it.amount > 0) add(it.amount) }
+    }
 
-    Row(
+    Canvas(
         modifier = modifier
             .fillMaxWidth()
             .height(height),
     ) {
-        // The board. Full-strength colour against the paler block, so the graphic has a spine to be
-        // read from rather than starting in mid-air.
-        Box(
-            modifier = Modifier
-                .width(if (compact) 3.dp else 5.dp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(topStart = 2.dp, bottomStart = 2.dp))
-                .background(color),
-        )
+        val corner = CornerRadius(radius.toPx(), radius.toPx())
+        val gap = GapWidth.toPx()
+        val minWidth = MinSittingWidth.toPx()
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(1.5.dp),
-            ) {
-                repeat(strokes) { index ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .background(
-                                if (index < readStrokes) {
-                                    color.copy(alpha = 0.64f)
-                                } else {
-                                    empty
-                                },
-                            ),
-                    )
-                }
-            }
+        drawRoundRect(color = empty, size = size, cornerRadius = corner)
 
-            // Only while there is somewhere to be. At nought the ribbon would sit on the board, and
-            // at the end there is no page left to mark.
-            //
-            // Placed with weights rather than by reading the block's measured width. The card can be
-            // laid out inside a row measuring its intrinsic height — the session thread does exactly
-            // that to size its rail — and intrinsic measurement is not supported by the subcompose
-            // layout that `BoxWithConstraints` is built on, so reading the width here would throw on
-            // any book with a history beside it.
-            if (!compact && fraction > 0f && fraction < 1f) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Spacer(modifier = Modifier.weight(fraction))
-                    Box(
-                        modifier = Modifier
-                            .width(ribbonWidth)
-                            .fillMaxHeight()
-                            .background(color),
-                    )
-                    Spacer(modifier = Modifier.weight(1f - fraction))
-                }
-            }
+        var x = 0f
+        runs.forEach { amount ->
+            val span = (amount.toFloat() / total) * size.width
+            val width = maxOf(span, minWidth)
+            if (x >= size.width) return@forEach
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(x, 0f),
+                size = Size(
+                    // The gap is taken out of the chunk, never added after it, so a run of many
+                    // short sittings cannot push the total past where the reader has got to.
+                    width = minOf(width - gap, size.width - x).coerceAtLeast(1f),
+                    height = size.height,
+                ),
+                cornerRadius = corner,
+            )
+            x += width
         }
     }
 }
+
+/** The space between two sittings — enough to count them, not enough to lose a short one. */
+private val GapWidth = 1.5.dp
+
+/** No sitting is drawn thinner than this, however few pages it was. */
+private val MinSittingWidth = 4.dp
 
 // ─────────────────────────────────────────────────────────────
 // Films — a strip of frames

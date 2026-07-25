@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -147,9 +148,9 @@ private fun SessionCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        // Not the neutral panel the rest of the app uses: the medium tints its own card, and the
-        // artwork's veil fades into this exact value.
-        color = cardGround(mediaType),
+        // Sunk below the panel the rest of the app uses, and neutral: the artwork supplies the
+        // colour, and the veil behind the content fades into this exact value.
+        color = cardGround(),
     ) {
         // The artwork is drawn behind the content across the card's whole area, and the Surface's
         // shape clips it, so it bleeds off the corner rather than sitting inside a frame of its own.
@@ -197,6 +198,14 @@ private fun SessionCard(
                 }
             }
 
+            // Planned sessions stop here. There is no progress to show, no dates to show, and no
+            // verdict — a full-height card would be five empty rows saying so. What is left is the
+            // state and the invitation to start, which is the whole of what a planned session is.
+            if (session.status == TrackingStatus.Planned) {
+                StartAction(session = session, mediaType = mediaType, state = state, onLogProgress = onLogProgress)
+                return@Column
+            }
+
             // The hero slot. A rating is a verdict and a progress figure is a position; when both
             // exist the verdict is the more interesting of the two, so it takes the slot and the
             // position drops to the caption under its own graphic.
@@ -220,7 +229,7 @@ private fun SessionCard(
                     progressUpdates = session.progressUpdates,
                     color = state,
                     faded = session.status == TrackingStatus.Dropped,
-                    track = cardTrack(mediaType),
+                    track = cardTrack(),
                 )
                 progressCaption(
                     session = session,
@@ -236,17 +245,14 @@ private fun SessionCard(
                 }
             }
 
-            if (session.startedAt != null || session.finishedAt != null) {
-                SessionDatesRow(session = session, trailing = sessionRecencyLabel(session))
-            } else if (session.status.endsSession) {
-                // Finished with nothing recorded. One quiet line, rather than a dates row made
-                // entirely of em-dashes.
-                Text(
-                    text = stringResource(R.string.session_no_dates),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
+            // Nothing at all when nothing is known. The row already drops itself in that case, and
+            // the line that used to take its place — "Sense dates registrades" — spent a row of the
+            // card announcing an absence the reader can see for themselves.
+            SessionDatesRow(
+                session = session,
+                mediaType = mediaType,
+                trailing = sessionRecencyLabel(session),
+            )
 
             session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
                 Text(
@@ -256,28 +262,49 @@ private fun SessionCard(
                 )
             }
 
-            // The card's one saturated object, and the reason the card is worth tapping. Everything
-            // else here is accent-at-low-alpha or muted ink, so the eye lands on the action.
-            onLogProgress?.let { log ->
-                Button(
-                    onClick = log,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = state,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                ) {
-                    Text(
-                        text = logActionLabel(status = session.status, mediaType = mediaType),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                }
-            }
+            StartAction(session = session, mediaType = mediaType, state = state, onLogProgress = onLogProgress)
         }
     }
 }
+
+/**
+ * The card's one saturated object, and the reason the card is worth tapping.
+ *
+ * Everything else on the card is accent-at-low-alpha, muted ink or artwork, so the eye lands here
+ * without the button having to be large. It was a slab: full width at the default button height,
+ * which on a planned card left a control taller than everything above it put together. Trimmed to
+ * the height of a row rather than the height of a hero, and still full width, because it is the
+ * card's only action and a wide target is the point.
+ */
+@Composable
+private fun StartAction(
+    session: TrackingSession,
+    mediaType: MediaType,
+    state: Color,
+    onLogProgress: (() -> Unit)?,
+) {
+    val log = onLogProgress ?: return
+    Button(
+        onClick = log,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ActionHeight),
+        shape = RoundedCornerShape(11.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = state,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+    ) {
+        Text(
+            text = logActionLabel(status = session.status, mediaType = mediaType),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.ExtraBold,
+        )
+    }
+}
+
+private val ActionHeight = 40.dp
 
 /**
  * Where the session has got to, as the largest thing on the card.
