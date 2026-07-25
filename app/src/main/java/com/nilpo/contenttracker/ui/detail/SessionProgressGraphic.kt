@@ -122,16 +122,6 @@ private const val DroppedAlpha = 0.55f
  */
 private const val EmptyAlpha = 0.11f
 
-/**
- * How far the cells behind you are held back from full strength.
- *
- * This is what marks the cell you are on without drawing anything extra on it: everything consumed is
- * present but muted, the current unit is the one at full colour, and the rest is track. A ring or a
- * halo would have needed the surface's own colour to cut a gap around the cell, which ties the
- * graphic to whatever panel it happens to be sitting on.
- */
-private const val ConsumedAlpha = 0.55f
-
 private fun fractionOf(current: Int, total: Int): Float =
     (current.toFloat() / total.toFloat()).coerceIn(0f, 1f)
 
@@ -140,11 +130,15 @@ private fun fractionOf(current: Int, total: Int): Float =
 // ─────────────────────────────────────────────────────────────
 
 /**
- * One cell per episode, filled up to where you are, with the current one at full strength.
+ * One cell per episode, filled solid up to where you are.
  *
  * The same graphic the timeline recap strip draws for months, at the scale of a single title. Nothing
  * here is interpolated: twenty-eight cells is twenty-eight real episodes, so the picture cannot claim
  * more precision than the data has.
+ *
+ * Every reached cell is the same strength. Dimming everything behind the last one to mark "where you
+ * are" only reads as a current position while a session is still moving — on a paused, completed or
+ * dropped one it just looked like most of the bar had faded for no reason.
  */
 @Composable
 private fun UnitGrid(
@@ -178,14 +172,7 @@ private fun UnitGrid(
                         Spacer(modifier = Modifier.weight(1f))
                         return@repeat
                     }
-                    // Compact grids sit on the history cards, where the session is over and there is
-                    // no "where you are" to mark — so they fill flat.
-                    val cellColor = when {
-                        unit == done && !compact -> color
-                        unit <= done && compact -> color
-                        unit <= done -> color.copy(alpha = ConsumedAlpha)
-                        else -> empty
-                    }
+                    val cellColor = if (unit <= done) color else empty
                     Box(
                         modifier = Modifier
                             .weight(1f)
