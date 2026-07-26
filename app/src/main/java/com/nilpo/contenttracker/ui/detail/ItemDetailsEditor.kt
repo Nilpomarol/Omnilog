@@ -34,6 +34,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ItemLanguage
+import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.plainSynopsis
@@ -43,6 +45,7 @@ import com.nilpo.contenttracker.ui.common.LanguageDropdown
 @OptIn(ExperimentalMaterial3Api::class)
 fun ItemDetailsEditor(
     item: MediaItem,
+    credits: List<MediaCredit>,
     accent: Color,
     onDismiss: () -> Unit,
     onSaveMetadata: (
@@ -53,6 +56,7 @@ fun ItemDetailsEditor(
         progressTotal: Int?,
         genres: List<String>,
         creators: List<String>,
+        credits: List<MediaCredit>,
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
@@ -67,7 +71,22 @@ fun ItemDetailsEditor(
     }
     var totalText by rememberSaveable(item.id) { mutableStateOf(item.progressTotal?.toString().orEmpty()) }
     var genresText by rememberSaveable(item.id) { mutableStateOf(item.genres.joinToString(", ")) }
-    var creatorsText by rememberSaveable(item.id) { mutableStateOf(item.creators.joinToString(", ")) }
+    val initialCreditTexts = MediaCreditRole.entries.associateWith { role ->
+        val initialNames = credits
+            .asSequence()
+            .filter { it.roleType == role }
+            .map { it.personName }
+            .toList()
+            .ifEmpty {
+                if (role == item.type.groupCreatorRole()) item.creators else emptyList()
+            }
+        initialNames.joinToString(", ")
+    }
+    val creditTexts = MediaCreditRole.entries.associateWith { role ->
+        rememberSaveable(item.id, role.name) {
+            mutableStateOf(initialCreditTexts.getValue(role))
+        }
+    }
     var coverUrl by rememberSaveable(item.id) { mutableStateOf(item.coverUrl.orEmpty()) }
     var sourceUrl by rememberSaveable(item.id) { mutableStateOf(item.sourceUrl.orEmpty()) }
     var steamAppId by rememberSaveable(item.id) { mutableStateOf(item.steamAppId.orEmpty()) }
@@ -90,6 +109,25 @@ fun ItemDetailsEditor(
                     Button(
                         enabled = title.isNotBlank(),
                         onClick = {
+                            val editedCredits = creditTexts.flatMap { (role, creditText) ->
+                                val unchangedRoleCredits = credits.filter { it.roleType == role }
+                                if (
+                                    creditText.value == initialCreditTexts.getValue(role) &&
+                                    unchangedRoleCredits.isNotEmpty()
+                                ) {
+                                    return@flatMap unchangedRoleCredits
+                                }
+                                creditText.value.toMetadataList().mapIndexed { index, name ->
+                                    credits.firstOrNull {
+                                        it.roleType == role && it.personName.equals(name, ignoreCase = true)
+                                    }?.copy(id = 0, personName = name, sortOrder = index)
+                                        ?: MediaCredit(
+                                            personName = name,
+                                            roleType = role,
+                                            sortOrder = index,
+                                        )
+                                }
+                            }
                             onSaveMetadata(
                                 title,
                                 originalTitle.trim().takeIf { it.isNotBlank() },
@@ -97,7 +135,10 @@ fun ItemDetailsEditor(
                                 ItemLanguage.normalize(language).takeUnless { item.type == MediaType.Game },
                                 totalText.toIntOrNull().takeUnless { item.type == MediaType.Game },
                                 genresText.toMetadataList(),
-                                creatorsText.toMetadataList(),
+                                editedCredits
+                                    .filter { it.roleType == item.type.groupCreatorRole() }
+                                    .map { it.personName },
+                                editedCredits,
                                 coverUrl.trim().takeIf { it.isNotBlank() },
                                 synopsis.trim().takeIf { it.isNotBlank() },
                                 sourceUrl.trim().takeIf { it.isNotBlank() },
@@ -162,13 +203,15 @@ fun ItemDetailsEditor(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
             }
-            MetadataEditorField(
-                value = creatorsText,
-                onValueChange = { creatorsText = it },
-                label = stringResource(R.string.field_creators),
-                accent = accent,
-                minLines = 2,
-            )
+            MediaCreditRole.entries.forEach { role ->
+                MetadataEditorField(
+                    value = creditTexts.getValue(role).value,
+                    onValueChange = { creditTexts.getValue(role).value = it },
+                    label = stringResource(role.editorLabelRes()),
+                    accent = accent,
+                    minLines = 2,
+                )
+            }
             MetadataEditorField(
                 value = genresText,
                 onValueChange = { genresText = it },
@@ -247,3 +290,22 @@ private fun String.toMetadataList(): List<String> =
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .distinct()
+
+private fun MediaType.groupCreatorRole(): MediaCreditRole = when (this) {
+    MediaType.Anime -> MediaCreditRole.Studio
+    MediaType.Book -> MediaCreditRole.Author
+    MediaType.Movie -> MediaCreditRole.Director
+    MediaType.TvShow -> MediaCreditRole.Creator
+    MediaType.Game -> MediaCreditRole.Developer
+}
+
+private fun MediaCreditRole.editorLabelRes(): Int = when (this) {
+    MediaCreditRole.Author -> R.string.metadata_credits_authors
+    MediaCreditRole.Director -> R.string.metadata_credits_directors
+    MediaCreditRole.Creator -> R.string.metadata_credits_creators
+    MediaCreditRole.Studio -> R.string.metadata_credits_studios
+    MediaCreditRole.Developer -> R.string.metadata_credits_developers
+    MediaCreditRole.Publisher -> R.string.metadata_credits_publishers
+    MediaCreditRole.Cast -> R.string.metadata_credits_cast
+    MediaCreditRole.VoiceActor -> R.string.metadata_credits_voice_actors
+}

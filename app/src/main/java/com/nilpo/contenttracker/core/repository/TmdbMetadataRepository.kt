@@ -341,6 +341,12 @@ private fun String.toTmdbSeasonRef(): TmdbSeasonRef? {
 
 private fun tmdbImageUrl(path: String): String = "https://image.tmdb.org/t/p/w500$path"
 
+/**
+ * `h632` rather than `w185`: the cast carousel draws these at 132x188dp, which is roughly 400x565px
+ * on a 3x screen, so the smaller profile size was being upscaled about three times.
+ */
+internal fun tmdbPersonImageUrl(path: String): String = "https://image.tmdb.org/t/p/h632$path"
+
 private fun String.ratingVoteCount(): Int? {
     return replace(",", "")
         .trim()
@@ -412,6 +418,9 @@ private fun org.json.JSONArray?.toCredits(
                 personName = name,
                 roleType = roleType,
                 characterName = obj.optString("character").takeIf { it.isNotBlank() },
+                personImageUrl = obj.optString("profile_path")
+                    .takeIf { it.isNotBlank() }
+                    ?.let(::tmdbPersonImageUrl),
                 sortOrder = index,
                 metadataSource = source,
             )

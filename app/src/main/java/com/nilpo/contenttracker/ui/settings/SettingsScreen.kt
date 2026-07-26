@@ -49,6 +49,7 @@ import com.nilpo.contenttracker.core.imports.ImportEnrichmentState
 import com.nilpo.contenttracker.core.imports.AnimeTitlePreference
 import com.nilpo.contenttracker.core.mal.MalSyncState
 import com.nilpo.contenttracker.core.mal.MalSyncChange
+import com.nilpo.contenttracker.core.refresh.MetadataRefreshState
 import com.nilpo.contenttracker.ui.common.ActiveSectionChips
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
@@ -106,6 +107,9 @@ fun SettingsScreen(
     onAutoBackupDisabled: () -> Unit,
     malSyncState: MalSyncState,
     importEnrichmentState: ImportEnrichmentState,
+    metadataRefreshState: MetadataRefreshState,
+    onBulkMetadataRefresh: () -> Unit,
+    onCancelBulkMetadataRefresh: (Long) -> Unit,
     animeTitlePreference: AnimeTitlePreference,
     onAnimeTitlePreferenceChange: (AnimeTitlePreference) -> Unit,
     onBulkRefreshAnimeTitles: () -> Unit,
@@ -165,6 +169,40 @@ fun SettingsScreen(
                                 "Omnilog et demanarà la nota.",
                             checked = askForGoodreadsRating,
                             onCheckedChange = onAskForGoodreadsRatingChange,
+                        )
+                    }
+                }
+            }
+            item {
+                SettingsSection(title = "Metadades") {
+                    SettingsPanel {
+                        val activeRefresh = metadataRefreshState.activeRun
+                        SettingsActionRow(
+                            title = if (activeRefresh == null) {
+                                "Actualitza totes les metadades"
+                            } else {
+                                "Atura l'actualització de metadades"
+                            },
+                            description = if (activeRefresh == null) {
+                                buildString {
+                                    append("Actualitza els elements vinculats a un proveïdor. Els camps editats manualment es conserven.")
+                                    metadataRefreshState.latestCompletedRun?.let { lastRun ->
+                                        append(" Última actualització: ${lastRun.appliedCount} actualitzats")
+                                        if (lastRun.unchangedCount > 0) append(", ${lastRun.unchangedCount} sense canvis")
+                                        if (lastRun.skippedCount > 0) append(", ${lastRun.skippedCount} omesos")
+                                        if (lastRun.failedCount > 0) append(", ${lastRun.failedCount} amb incidències")
+                                        append('.')
+                                    }
+                                }
+                            } else {
+                                "${activeRefresh.processedCount} de ${activeRefresh.totalCount} elements processats. " +
+                                    "Toca per aturar-la."
+                            },
+                            onClick = {
+                                activeRefresh?.let { refresh ->
+                                    onCancelBulkMetadataRefresh(refresh.runId)
+                                } ?: onBulkMetadataRefresh()
+                            },
                         )
                     }
                 }
@@ -287,17 +325,17 @@ fun SettingsScreen(
                         SettingsActionRow(
                             title = "Idioma dels títols d'anime",
                             description = when (animeTitlePreference) {
-                                AnimeTitlePreference.EnglishWithJapaneseOriginal ->
-                                    "Títol principal en anglès i títol original en japonès."
+                                AnimeTitlePreference.EnglishWithRomajiOriginal ->
+                                    "Títol principal en anglès i títol original en rōmaji."
                                 AnimeTitlePreference.KeepMalTitle ->
                                     "Conserva el títol principal que retorna MyAnimeList."
                             },
                             onClick = {
                                 onAnimeTitlePreferenceChange(
-                                    if (animeTitlePreference == AnimeTitlePreference.EnglishWithJapaneseOriginal) {
+                                    if (animeTitlePreference == AnimeTitlePreference.EnglishWithRomajiOriginal) {
                                         AnimeTitlePreference.KeepMalTitle
                                     } else {
-                                        AnimeTitlePreference.EnglishWithJapaneseOriginal
+                                        AnimeTitlePreference.EnglishWithRomajiOriginal
                                     },
                                 )
                             },

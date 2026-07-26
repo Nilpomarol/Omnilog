@@ -1,62 +1,519 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ContributorDirectory
+import com.nilpo.contenttracker.core.model.ContributorStats
 import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
-import com.nilpo.contenttracker.ui.common.MediaMetadataSecondary
-import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
+import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.plainSynopsis
+import com.nilpo.contenttracker.ui.common.ContributorImage
+import com.nilpo.contenttracker.ui.common.SynopsisText
+import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import coil3.compose.AsyncImage
 
+/**
+ * The work's reference page: compact facts first, then the pieces that need room to breathe.
+ *
+ * This deliberately leaves title, collection, genres and progress in the hero/session area. The
+ * values below are the item record rather than a second version of the same introduction.
+ *
+ * [accent] is the item's own media-type accent. Everything tinted here takes it, so a game's page
+ * is not dressed in the books purple — which is what happened while these tints were hard-coded.
+ */
 @Composable
 fun ItemDetailsSection(
     item: MediaItem,
     credits: List<MediaCredit>,
+    contributors: ContributorDirectory,
+    accent: Color,
+    onAuthorClick: (String, MediaCreditRole) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val primaryFacts = listOfNotNull(
+        item.language?.takeUnless { item.type == MediaType.Game }?.let {
+            DetailFact(R.string.metadata_language, languageLabel(it))
+        },
+        item.progressTotal?.takeUnless { item.type == MediaType.Game }?.let {
+            DetailFact(item.type.totalUnitLabelRes(), it.toString())
+        },
+        item.releaseYear?.let { DetailFact(R.string.field_release_year, it.toString()) },
+    )
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.detail_item_details),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
-            )
-        }
-        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+        DetailSectionHeader(
+            title = stringResource(R.string.detail_item_details),
+            accent = accent,
+        )
 
-        ItemDetailsSummary(
-            item = item,
-            credits = credits,
+        if (primaryFacts.isNotEmpty()) {
+            DetailFacts(primaryFacts, columns = 3)
+        }
+        item.tags.takeIf { it.isNotEmpty() }?.let { tags ->
+            DetailTagList(tags, accent)
+        }
+
+        item.synopsis?.takeIf { it.isNotBlank() }?.let { synopsis ->
+            DetailSynopsis(synopsis, accent)
+        }
+
+        CreditGroups(credits, contributors, item.type, accent, onAuthorClick)
+    }
+}
+
+/**
+ * Label over value, arranged in compact rows on the page itself rather than inside a ruled sheet.
+ *
+ * The label runs small and letter-spaced so it reads as a field name at a glance and the value
+ * below it can carry the weight. An incomplete row leaves its remaining cells empty rather than
+ * stretching its last value to full width, so the columns stay aligned.
+ */
+@Composable
+private fun DetailFacts(facts: List<DetailFact>, columns: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        facts.chunked(columns).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                row.forEach { fact ->
+                    DetailFactCell(fact, Modifier.weight(1f))
+                }
+                repeat(columns - row.size) {
+                    Column(modifier = Modifier.weight(1f)) {}
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailFactCell(fact: DetailFact, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        DetailFieldLabel(stringResource(fact.labelRes))
+        // A size up from the label rather than a shade of bold on the same size: the value is the
+        // fact and the label names it, and the old titleMedium left the two nearly indistinguishable.
+        Text(
+            text = fact.value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = OmnilogTheme.colors.appInk,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
 @Composable
-private fun ItemDetailsSummary(
-    item: MediaItem,
-    credits: List<MediaCredit>,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        MediaMetadataSecondary(metadata = item.toMediaMetadataUi(credits))
+private fun DetailTagList(tags: List<String>, accent: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DetailFieldLabel(stringResource(R.string.metadata_tags))
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            tags.forEach { tag ->
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Transparent,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        accent.copy(alpha = 0.75f),
+                    ),
+                ) {
+                    Text(
+                        text = tag,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = OmnilogTheme.colors.appInk,
+                    )
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun DetailSynopsis(body: String, accent: Color) {
+    var expanded by remember(body) { mutableStateOf(false) }
+    val plainBody = remember(body) { plainSynopsis(body).orEmpty() }
+    val canExpand = plainBody.length > SynopsisCollapseThreshold
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DetailFieldLabel(stringResource(R.string.metadata_summary))
+        SynopsisText(
+            body = body,
+            style = MaterialTheme.typography.bodyLarge,
+            color = OmnilogTheme.colors.appInk.copy(alpha = 0.9f),
+            maxLines = if (canExpand && !expanded) 7 else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (canExpand) {
+            TextButton(
+                modifier = Modifier.align(Alignment.Start),
+                onClick = { expanded = !expanded },
+            ) {
+                Text(
+                    text = stringResource(if (expanded) R.string.show_less else R.string.show_more),
+                    color = accent,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreditGroups(
+    credits: List<MediaCredit>,
+    contributors: ContributorDirectory,
+    mediaType: MediaType,
+    accent: Color,
+    onAuthorClick: (String, MediaCreditRole) -> Unit,
+) {
+    val groupedCredits = credits
+        .filter { it.personName.isNotBlank() }
+        .groupBy { it.roleType }
+        .toSortedMap(compareBy { it.ordinal })
+
+    Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+        groupedCredits.forEach { (role, roleCredits) ->
+            CreditGroup(role, roleCredits, contributors, mediaType, accent, onAuthorClick)
+        }
+    }
+}
+
+/**
+ * One role's credits, under the role's name.
+ *
+ * Two shapes, chosen by whether the credits carry a character. A studio or an author is a name and
+ * nothing else, so the whole role fits on one wrapped line and a row each would be three quarters
+ * whitespace. A cast is a set of pairs, so it gets a row each with the performer at the left margin
+ * and the character at the right — the two columns are what makes the pairing readable without a
+ * "com a" between every one of them.
+ *
+ * Either way only [CreditPreviewCount] are drawn until asked: a film's full cast is the single
+ * longest thing on this page and it is not what the page is for.
+ */
+@Composable
+private fun CreditGroup(
+    role: MediaCreditRole,
+    credits: List<MediaCredit>,
+    contributors: ContributorDirectory,
+    mediaType: MediaType,
+    accent: Color,
+    onAuthorClick: (String, MediaCreditRole) -> Unit,
+) {
+    var expanded by remember(role, credits) { mutableStateOf(false) }
+    val ordered = remember(credits) {
+        credits.sortedWith(compareBy<MediaCredit> { it.sortOrder }.thenBy { it.personName })
+    }
+    val hasPerformerCarousel = role in PerformerRoles
+    val previewCount = if (hasPerformerCarousel) CarouselCreditPreviewCount else CreditPreviewCount
+    val visibleCredits = if (expanded) ordered else ordered.take(previewCount)
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DetailFieldLabel(stringResource(role.labelRes()))
+
+        when {
+            hasPerformerCarousel -> CreditCarousel(visibleCredits, contributors, role, accent)
+            else -> ContributorCreditList(
+                credits = visibleCredits,
+                contributors = contributors,
+                role = role,
+                isNavigable = role == mediaType.primaryContributorRole() || role == MediaCreditRole.Publisher,
+                accent = accent,
+                onAuthorClick = onAuthorClick,
+            )
+        }
+
+        if (ordered.size > previewCount) {
+            TextButton(
+                modifier = Modifier.align(Alignment.Start),
+                onClick = { expanded = !expanded },
+            ) {
+                Text(
+                    text = if (expanded) {
+                        stringResource(R.string.show_less)
+                    } else {
+                        stringResource(
+                            R.string.detail_credits_show_more,
+                            ordered.size - previewCount,
+                        )
+                    },
+                    color = accent,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A contributor is a useful route back into the library, not just a line of metadata. Keeping the
+ * visual identity large makes authors, directors and companies easy to scan; the two small facts
+ * make clear how much of the library they represent and how the user has rated that work.
+ */
+@Composable
+private fun ContributorCreditList(
+    credits: List<MediaCredit>,
+    contributors: ContributorDirectory,
+    role: MediaCreditRole,
+    isNavigable: Boolean,
+    accent: Color,
+    onAuthorClick: (String, MediaCreditRole) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        credits.forEach { credit ->
+            ContributorCreditRow(
+                credit = credit,
+                imageUrl = contributors.imageUrl(role, credit.personName)
+                    ?: credit.personImageUrl,
+                imageAspectRatio = contributors.imageAspectRatio(role, credit.personName)
+                    ?: credit.personImageAspectRatio,
+                stats = contributors.stats(role, credit.personName),
+                role = role,
+                accent = accent,
+                onClick = if (isNavigable) {
+                    { onAuthorClick(credit.personName, role) }
+                } else {
+                    null
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContributorCreditRow(
+    credit: MediaCredit,
+    imageUrl: String?,
+    imageAspectRatio: Float?,
+    stats: ContributorStats,
+    role: MediaCreditRole,
+    accent: Color,
+    onClick: (() -> Unit)?,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val isCompany = role in CompanyRoles
+        ContributorImage(
+            imageUrl = imageUrl,
+            name = credit.personName,
+            isCompany = isCompany,
+            accent = accent,
+            height = if (isCompany) 58.dp else 98.dp,
+            logoAspectRatio = imageAspectRatio,
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = credit.personName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.collection_item_count, stats.itemCount),
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmnilogTheme.colors.appMuted,
+            )
+            stats.averageRating?.let { averageRating ->
+                Text(
+                    text = stringResource(R.string.collection_average_rating, averageRating),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A visual credit card for cast and voice actors, using a portrait when the provider has one.
+ *
+ * A performer's portrait is shared across the library on the same terms as an author's or a
+ * studio's: one film's cast entry carrying a headshot illustrates that performer everywhere. The
+ * character's own artwork still wins where a provider supplies it, since that is specific to this
+ * title rather than to the person.
+ */
+@Composable
+private fun CreditCarousel(
+    credits: List<MediaCredit>,
+    contributors: ContributorDirectory,
+    role: MediaCreditRole,
+    accent: Color,
+) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(credits) { credit ->
+            Surface(
+                modifier = Modifier.width(132.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = OmnilogTheme.colors.appPanel,
+                border = androidx.compose.foundation.BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+            ) {
+                Column {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(188.dp)
+                            .background(accent.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = credit.personName.firstOrNull()?.uppercase().orEmpty(),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = accent,
+                        )
+                        val performerImage = credit.characterImageUrl
+                            ?: contributors.imageUrl(role, credit.personName)
+                            ?: credit.personImageUrl
+                        performerImage?.let { imageUrl ->
+                            AsyncImage(
+                                model = imageUrl,
+                                contentDescription = credit.personName,
+                                // Filling both axes, not just the width: with the height left to
+                                // the source image, a wide headshot measured shorter than the card
+                                // and left accent-coloured bands above and below it.
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = credit.personName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = OmnilogTheme.colors.appInk,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = credit.characterName.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A field name: small, letter-spaced and muted, so it never competes with the value under it.
+ *
+ * Shared by the fact cells, the tag list, the synopsis and every credit role, which is the point —
+ * these are all the same kind of thing and used to be set three different ways.
+ */
+@Composable
+internal fun DetailFieldLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.9.sp,
+        color = OmnilogTheme.colors.appMuted,
+    )
+}
+
+private data class DetailFact(
+    @StringRes val labelRes: Int,
+    val value: String,
+)
+
+private const val SynopsisCollapseThreshold = 320
+private const val CreditPreviewCount = 6
+private const val CarouselCreditPreviewCount = 12
+private val PerformerRoles = setOf(MediaCreditRole.Cast, MediaCreditRole.VoiceActor)
+private val CompanyRoles = setOf(
+    MediaCreditRole.Studio,
+    MediaCreditRole.Developer,
+    MediaCreditRole.Publisher,
+)
+
+private fun MediaType.primaryContributorRole(): MediaCreditRole = when (this) {
+    MediaType.Anime -> MediaCreditRole.Studio
+    MediaType.Book -> MediaCreditRole.Author
+    MediaType.Movie -> MediaCreditRole.Director
+    MediaType.TvShow -> MediaCreditRole.Creator
+    MediaType.Game -> MediaCreditRole.Developer
+}
+
+@StringRes
+private fun MediaType.totalUnitLabelRes(): Int = when (this) {
+    MediaType.Anime,
+    MediaType.TvShow,
+        -> R.string.metadata_total_episodes
+    MediaType.Book -> R.string.metadata_total_pages
+    MediaType.Movie -> R.string.metadata_total_minutes
+    MediaType.Game -> R.string.metadata_total_hours
+}
+
+@StringRes
+private fun MediaCreditRole.labelRes(): Int = when (this) {
+    MediaCreditRole.Author -> R.string.metadata_credits_authors
+    MediaCreditRole.Director -> R.string.metadata_credits_directors
+    MediaCreditRole.Creator -> R.string.metadata_credits_creators
+    MediaCreditRole.Studio -> R.string.metadata_credits_studios
+    MediaCreditRole.Developer -> R.string.metadata_credits_developers
+    MediaCreditRole.Publisher -> R.string.metadata_credits_publishers
+    MediaCreditRole.Cast -> R.string.metadata_credits_cast
+    MediaCreditRole.VoiceActor -> R.string.metadata_credits_voice_actors
 }

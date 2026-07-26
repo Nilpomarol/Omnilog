@@ -1,8 +1,12 @@
 package com.nilpo.contenttracker.ui.home
 
 import com.nilpo.contenttracker.core.model.MediaCollection
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorImageUrl
+import com.nilpo.contenttracker.core.model.creatorImageAspectRatio
+import com.nilpo.contenttracker.core.model.creatorNames
 
 internal enum class HomeGroupType {
     Status,
@@ -17,6 +21,9 @@ internal data class HomeDisplayGroup(
     val items: List<TrackedMedia>,
     val collection: MediaCollection? = null,
     val status: TrackingStatus? = null,
+    val imageUrl: String? = null,
+    val imageAspectRatio: Float? = null,
+    val imageIsLogo: Boolean = false,
 )
 
 internal data class CollectionProgressSummary(
@@ -60,10 +67,7 @@ internal fun buildHomeGroups(
         }
         HomeGroupMode.Author -> items
             .flatMap { trackedMedia ->
-                trackedMedia.item.creators
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                    .distinctBy { it.lowercase() }
+                trackedMedia.creatorNames()
                     .map { author -> author to trackedMedia }
                     .ifEmpty { listOf("" to trackedMedia) }
             }
@@ -76,10 +80,25 @@ internal fun buildHomeGroups(
                     type = HomeGroupType.Author,
                     title = author,
                     items = groupItems,
+                    imageUrl = items.creatorImageUrl(author),
+                    imageAspectRatio = items.creatorImageAspectRatio(author),
+                    imageIsLogo = groupItems.creditsACompany(),
                 )
             }
     }
 }
+
+/**
+ * Whether this group's contributor is a company, and so drawn whole rather than cropped.
+ *
+ * Every item has to agree: a group spanning both a studio's anime and a person's books has no one
+ * right answer, and a portrait cropped from a logo is the worse of the two failures. Reading the
+ * type off whichever item happened to sort first made the choice depend on list order.
+ */
+private fun List<TrackedMedia>.creditsACompany(): Boolean =
+    isNotEmpty() && all { it.item.type in CompanyCreditedTypes }
+
+private val CompanyCreditedTypes = setOf(MediaType.Anime, MediaType.Game)
 
 /**
  * Sorts named collection groups by [sortMode]/[sortDirection].

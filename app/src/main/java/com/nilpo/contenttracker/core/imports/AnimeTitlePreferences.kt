@@ -3,7 +3,7 @@ package com.nilpo.contenttracker.core.imports
 import android.content.Context
 
 enum class AnimeTitlePreference {
-    EnglishWithJapaneseOriginal,
+    EnglishWithRomajiOriginal,
     KeepMalTitle,
 }
 
@@ -14,8 +14,11 @@ object AnimeTitlePreferences {
     fun read(context: Context): AnimeTitlePreference {
         val stored = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
             .getString(TitlePreferenceKey, null)
-        return stored?.let { runCatching { AnimeTitlePreference.valueOf(it) }.getOrNull() }
-            ?: AnimeTitlePreference.EnglishWithJapaneseOriginal
+        return when (stored) {
+            // Preserve the setting used by builds that stored Japanese script as the original title.
+            "EnglishWithJapaneseOriginal" -> AnimeTitlePreference.EnglishWithRomajiOriginal
+            else -> stored?.let { runCatching { AnimeTitlePreference.valueOf(it) }.getOrNull() }
+        } ?: AnimeTitlePreference.EnglishWithRomajiOriginal
     }
 
     fun write(context: Context, preference: AnimeTitlePreference) {

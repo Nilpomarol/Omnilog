@@ -10,6 +10,7 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSearchRequest
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
@@ -17,6 +18,7 @@ import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.core.mal.MalSyncManager
 import com.nilpo.contenttracker.core.imports.ImportBatchState
 import com.nilpo.contenttracker.core.imports.ImportCompletionSummary
@@ -24,6 +26,8 @@ import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
 import com.nilpo.contenttracker.core.imports.ImportReviewApplyOutcome
 import com.nilpo.contenttracker.core.imports.ImportReviewDraft
 import com.nilpo.contenttracker.core.imports.ProviderReference
+import com.nilpo.contenttracker.core.refresh.MetadataRefreshManager
+import com.nilpo.contenttracker.core.refresh.MetadataRefreshState
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.core.repository.DeletionRecovery
 import com.nilpo.contenttracker.core.repository.DeletionRecoveryStore
@@ -61,6 +65,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import com.nilpo.contenttracker.core.model.persistableImageUrls
+import com.nilpo.contenttracker.core.model.contributorDirectory
+import com.nilpo.contenttracker.core.model.ContributorDirectory
 
 class HomeViewModel(
     private val mediaRepository: MediaRepository,
@@ -69,6 +76,7 @@ class HomeViewModel(
     private val coverRepository: CoverRepository,
     private val malSyncManager: MalSyncManager,
     private val importEnrichmentManager: ImportEnrichmentManager,
+    private val metadataRefreshManager: MetadataRefreshManager,
 ) : ViewModel() {
     private val selectedSection = MutableStateFlow(MediaSection.Anime)
     private val searchQuery = MutableStateFlow("")
@@ -92,6 +100,7 @@ class HomeViewModel(
     val recommendationUiState = recommendationState.asStateFlow()
     val malSyncState = malSyncManager.state
     val importEnrichmentState = importEnrichmentManager.state
+    val metadataRefreshState: StateFlow<MetadataRefreshState> = metadataRefreshManager.state
     val events = mutableEvents.asSharedFlow()
 
     fun beginMalAuthorization(): String? = malSyncManager.beginAuthorization()
@@ -182,6 +191,25 @@ class HomeViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),
+        )
+
+    /**
+     * Contributor facts for the detail page's credit lists, derived on the same terms as
+     * [timelineEntries].
+     *
+     * These answers depend on the whole library, so working them out inside composition meant a
+     * scan per credit role on every emission — including the keystrokes and filter changes that
+     * [distinctUntilChanged] absorbs here.
+     */
+    val contributorDirectory: StateFlow<ContributorDirectory> = uiState
+        .map { it.allTrackedItems }
+        .distinctUntilChanged()
+        .map { it.contributorDirectory() }
+        .flowOn(Dispatchers.Default)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ContributorDirectory.Empty,
         )
 
     suspend fun exportBackupJson(): String {
@@ -319,6 +347,12 @@ class HomeViewModel(
 
     suspend fun refreshAnimeTitleLanguage(): Result<Int> =
         importEnrichmentManager.enqueueAnimeTitleRefresh()
+
+    suspend fun startBulkMetadataRefresh() = metadataRefreshManager.start()
+
+    fun cancelBulkMetadataRefresh(runId: Long) {
+        viewModelScope.launch { metadataRefreshManager.cancel(runId) }
+    }
 
     fun selectSection(section: MediaSection) {
         cancelMetadataSearch()
@@ -835,6 +869,7 @@ class HomeViewModel(
         progressTotal: Int?,
         genres: List<String>,
         creators: List<String>,
+        credits: List<MediaCredit>,
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
@@ -850,6 +885,7 @@ class HomeViewModel(
                 progressTotal = progressTotal,
                 genres = genres,
                 creators = creators,
+                credits = credits,
                 coverUrl = coverUrl,
                 synopsis = synopsis,
                 sourceUrl = sourceUrl,
@@ -960,12 +996,12 @@ class HomeViewModel(
 
     private fun synchronizeLibraryCoversInBackground() {
         viewModelScope.launch {
-            val coverUrls = mediaRepository
+            val imageUrls = mediaRepository
                 .observeTrackedMedia(MediaType.entries.toSet())
                 .first()
-                .map { it.item.coverUrl }
-            coverRepository.persistAll(coverUrls)
-            coverRepository.removeOrphans(coverUrls)
+                .persistableImageUrls()
+            coverRepository.persistAll(imageUrls)
+            coverRepository.removeOrphans(imageUrls)
         }
     }
 
@@ -1054,6 +1090,7 @@ class HomeViewModel(
         private val coverRepository: CoverRepository,
         private val malSyncManager: MalSyncManager,
         private val importEnrichmentManager: ImportEnrichmentManager,
+        private val metadataRefreshManager: MetadataRefreshManager,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -1064,6 +1101,7 @@ class HomeViewModel(
                 coverRepository = coverRepository,
                 malSyncManager = malSyncManager,
                 importEnrichmentManager = importEnrichmentManager,
+                metadataRefreshManager = metadataRefreshManager,
             ) as T
         }
     }
@@ -1134,7 +1172,7 @@ private fun List<TrackedMedia>.filterBySearch(query: String): List<TrackedMedia>
     return filter { trackedMedia ->
         trackedMedia.item.title.contains(normalizedQuery, ignoreCase = true) ||
             trackedMedia.collection?.name?.contains(normalizedQuery, ignoreCase = true) == true ||
-            trackedMedia.item.creators.any { it.contains(normalizedQuery, ignoreCase = true) }
+            trackedMedia.creatorNames().any { it.contains(normalizedQuery, ignoreCase = true) }
     }
 }
 
@@ -1157,7 +1195,7 @@ private fun List<TrackedMedia>.filterByAdvancedFilters(filters: HomeAdvancedFilt
     val selectedGenres = filters.genres.map { it.normalizedFilterValue() }.toSet()
 
     return filter { trackedMedia ->
-        val creators = trackedMedia.item.creators.map { it.normalizedFilterValue() }
+        val creators = trackedMedia.creatorNames().map { it.normalizedFilterValue() }
         val genres = trackedMedia.item.genres.map { it.normalizedFilterValue() }
         val matchesAuthor = selectedAuthors.isEmpty() || creators.any { it in selectedAuthors }
         val matchesGenre = selectedGenres.isEmpty() || genres.any { it in selectedGenres }

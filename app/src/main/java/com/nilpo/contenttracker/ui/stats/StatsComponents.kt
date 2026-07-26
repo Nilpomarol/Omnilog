@@ -57,6 +57,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.core.stats.ComparisonBasis
 import com.nilpo.contenttracker.core.stats.EstimatedTimeStat
 import com.nilpo.contenttracker.core.stats.LanguageStat
@@ -144,7 +145,7 @@ internal fun StatsMediaTile(
     onClick: () -> Unit,
 ) {
     val item = trackedMedia.item
-    val creator = item.creators.firstOrNull()
+    val creator = trackedMedia.creatorNames().firstOrNull()
     val genres = item.genres.take(2)
     val accent = item.type.statsColor()
 

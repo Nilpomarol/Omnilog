@@ -624,6 +624,7 @@ class OfflineMediaRepository(
         if (request.externalRatings.isNotEmpty()) {
             request.externalRatings
                 .filter { it.score > 0.0 && it.maxScore > 0.0 }
+                .distinctBy { it.source }
                 .forEach { rating ->
                     val ratingId = mediaDao.insertExternalRating(
                         ExternalRatingEntity(
@@ -1179,7 +1180,7 @@ class OfflineMediaRepository(
         val validScore = score.takeIf { it in 0.0..maxScore } ?: return
         val validMax = maxScore.takeIf { it > 0.0 } ?: return
         val existing = mediaDao.getExternalRatingsForItem(mediaItemId)
-            .firstOrNull { it.source == source.name && it.origin == "Manual" }
+            .firstOrNull { it.source == source.name }
         if (existing != null) {
             updateExternalRating(existing.id, source, validScore, validMax, voteCount, makePrimary)
             return
@@ -1209,7 +1210,7 @@ class OfflineMediaRepository(
     ) {
         val existing = mediaDao.getExternalRating(externalRatingId) ?: return
         if (mediaDao.getExternalRatingsForItem(existing.mediaItemId).any { rating ->
-                rating.id != externalRatingId && rating.source == source.name && rating.origin == "Manual"
+                rating.id != externalRatingId && rating.source == source.name
             }
         ) return
         val validScore = score.takeIf { it in 0.0..maxScore } ?: return
@@ -1336,6 +1337,7 @@ class OfflineMediaRepository(
         progressTotal: Int?,
         genres: List<String>,
         creators: List<String>,
+        credits: List<MediaCredit>,
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
@@ -1351,6 +1353,8 @@ class OfflineMediaRepository(
         val validLanguage = ItemLanguage.normalize(language).takeUnless { currentItem.type == MediaType.Game.name }
         val validGenres = genres.cleanMetadataList()
         val validCreators = creators.cleanMetadataList()
+        val currentCredits = mediaDao.getMediaCreditsForItem(mediaItemId).map { it.toDomain() }
+        val validCredits = credits.cleanCredits()
         val validCoverUrl = coverUrl?.trim()?.takeIf { it.isNotBlank() }
         val validSynopsis = normalizeSynopsis(synopsis)
         val validSourceUrl = sourceUrl?.trim()?.takeIf { it.isNotBlank() }
@@ -1372,6 +1376,9 @@ class OfflineMediaRepository(
             if (currentItem.progressTotal != validTotal) add(MetadataRefreshField.ProgressTotal)
             if (currentItem.genresJson.toStringList() != validGenres) add(MetadataRefreshField.Genres)
             if (currentItem.creatorsJson.toStringList() != validCreators) add(MetadataRefreshField.Creators)
+            if (currentCredits.creditFingerprint() != validCredits.creditFingerprint()) {
+                add(MetadataRefreshField.Credits)
+            }
             if (currentItem.coverUrl != validCoverUrl) add(MetadataRefreshField.Cover)
             if (currentItem.synopsis != validSynopsis) add(MetadataRefreshField.Synopsis)
             if (currentItem.sourceUrl != validSourceUrl) add(MetadataRefreshField.SourceUrl)
@@ -1395,6 +1402,14 @@ class OfflineMediaRepository(
             mediaItemId = mediaItemId,
             metadataOverrideFieldsCsv = updatedOverrideFields.toMetadataOverrideFieldsCsv(),
         )
+
+        if (currentCredits.creditFingerprint() != validCredits.creditFingerprint()) {
+            mediaDao.deleteMediaCreditsForItem(mediaItemId)
+            validCredits
+                .map { credit -> credit.copy(id = 0, mediaItemId = mediaItemId).toEntity() }
+                .takeIf { it.isNotEmpty() }
+                ?.let { editedCredits -> mediaDao.insertMediaCredits(editedCredits) }
+        }
     }
 
     override suspend fun previewMediaItemMetadataRefresh(
@@ -1498,13 +1513,31 @@ class OfflineMediaRepository(
         selectedFields: Set<MetadataRefreshField>,
     ): Boolean = applyMediaItemMetadataRefresh(preview, selectedFields, MediaWriteOrigin.ProviderImport)
 
+    override suspend fun applyAutomaticMediaItemMetadataRefresh(
+        preview: MetadataRefreshPreview,
+    ): Boolean = applyMediaItemMetadataRefresh(
+        preview = preview,
+        requestedFields = preview.changes
+            .filterNot { change -> change.isLocallyOverridden }
+            .map { change -> change.field }
+            .toSet(),
+        origin = MediaWriteOrigin.AutomaticMetadataRefresh,
+    )
+
     private suspend fun applyMediaItemMetadataRefresh(
         preview: MetadataRefreshPreview,
-        selectedFields: Set<MetadataRefreshField>,
+        requestedFields: Set<MetadataRefreshField>,
         origin: MediaWriteOrigin,
     ): Boolean {
         val currentItem = mediaDao.getMediaItem(preview.mediaItemId) ?: return false
         val localOverrides = currentItem.metadataOverrideFields()
+        // A bulk refresh may have fetched a value just before the user edits the same field.
+        // Re-read the overrides here so that race can never replace the user's edit.
+        val selectedFields = if (origin == MediaWriteOrigin.AutomaticMetadataRefresh) {
+            requestedFields - localOverrides
+        } else {
+            requestedFields
+        }
         val mediaType = runCatching { MediaType.valueOf(currentItem.type) }.getOrNull() ?: return false
         val refreshed = preview.refreshed
         val currentPrimaryManualRating = currentItem.primaryExternalRatingId
@@ -1659,10 +1692,18 @@ class OfflineMediaRepository(
         }
 
         if (MetadataRefreshField.ExternalRatings in selectedFields) {
-            mediaDao.deleteProviderExternalRatingsForItem(preview.mediaItemId)
-            refreshed.externalRatings
+            // A metadata refresh is authoritative for every source it returns. Remove a matching
+            // manual value as well so the UI cannot show two slightly different ratings under the
+            // same provider name.
+            val refreshedRatings = refreshed.externalRatings
                 .filter { it.score > 0.0 && it.maxScore > 0.0 }
-                .forEach { rating ->
+                .distinctBy { it.source }
+            mediaDao.deleteProviderExternalRatingsForItem(preview.mediaItemId)
+            refreshedRatings
+                .map { it.source.name }
+                .takeIf { it.isNotEmpty() }
+                ?.let { sources -> mediaDao.deleteExternalRatingsForSources(preview.mediaItemId, sources) }
+            refreshedRatings.forEach { rating ->
                     mediaDao.insertExternalRating(
                         ExternalRatingEntity(
                             mediaItemId = preview.mediaItemId,
@@ -1844,6 +1885,8 @@ private fun buildMetadataRefreshChanges(
         field = MetadataRefreshField.Credits,
         currentValue = currentCredits.creditSummary(),
         newValue = refreshed.credits.creditSummary(),
+        currentComparisonValue = currentCredits.creditFingerprint(),
+        newComparisonValue = refreshed.credits.creditFingerprint(),
     )
     addChange(
         field = MetadataRefreshField.Cover,
@@ -1898,10 +1941,14 @@ private fun MutableList<MetadataRefreshChange>.addChange(
     field: MetadataRefreshField,
     currentValue: Any?,
     newValue: Any?,
+    currentComparisonValue: Any? = currentValue,
+    newComparisonValue: Any? = newValue,
 ) {
     val currentDisplay = currentValue.toMetadataDisplayValue()
     val newDisplay = newValue.toMetadataDisplayValue()
-    if (newDisplay == "Empty" || currentDisplay == newDisplay) return
+    val currentComparison = currentComparisonValue.toMetadataComparisonValue()
+    val newComparison = newComparisonValue.toMetadataComparisonValue()
+    if (newDisplay == "Empty" || currentComparison == newComparison) return
 
     add(
         MetadataRefreshChange(
@@ -1936,6 +1983,29 @@ private fun List<MediaCredit>.creditSummary(): String {
             credit.characterName?.takeIf { it.isNotBlank() }
                 ?.let { "${credit.personName.trim()} as ${it.trim()}" }
                 ?: credit.personName.trim()
+        }
+}
+
+private fun Any?.toMetadataComparisonValue(): String = when (this) {
+    null -> ""
+    is String -> trim()
+    is Int -> toString()
+    is Double -> toString()
+    is List<*> -> joinToString("|") { value -> value?.toString()?.trim().orEmpty() }
+    else -> toString().trim()
+}
+
+/** Includes the portrait URLs so a metadata refresh can offer image-only credit updates. */
+private fun List<MediaCredit>.creditFingerprint(): String {
+    return filter { it.personName.isNotBlank() }
+        .joinToString("|") { credit ->
+            listOf(
+                credit.personName.trim(),
+                credit.roleType.name,
+                credit.characterName?.trim().orEmpty(),
+                credit.personImageUrl?.trim().orEmpty(),
+                credit.characterImageUrl?.trim().orEmpty(),
+            ).joinToString("~")
         }
 }
 
@@ -2535,6 +2605,9 @@ private fun MediaCreditEntity.toJson(): JSONObject {
         .put("personName", personName)
         .put("roleType", roleType)
         .putNullable("characterName", characterName)
+        .putNullable("personImageUrl", personImageUrl)
+        .putNullable("personImageAspectRatio", personImageAspectRatio)
+        .putNullable("characterImageUrl", characterImageUrl)
         .put("sortOrder", sortOrder)
         .putNullable("metadataSource", metadataSource)
 }
@@ -2667,6 +2740,9 @@ private fun JSONObject.toMediaCreditEntity(): MediaCreditEntity {
         personName = getString("personName"),
         roleType = optString("roleType", MediaCreditRole.Cast.name),
         characterName = optNullableString("characterName"),
+        personImageUrl = optNullableString("personImageUrl"),
+        personImageAspectRatio = optNullableFloat("personImageAspectRatio"),
+        characterImageUrl = optNullableString("characterImageUrl"),
         sortOrder = optInt("sortOrder", 0),
         metadataSource = optNullableString("metadataSource"),
     )
@@ -2820,6 +2896,10 @@ private fun JSONObject.optNullableDouble(name: String): Double? {
     return if (isNull(name)) null else optDouble(name)
 }
 
+private fun JSONObject.optNullableFloat(name: String): Float? {
+    return optNullableDouble(name)?.toFloat()
+}
+
 private fun JSONObject.optNullableLong(name: String): Long? {
     return if (isNull(name)) null else optLong(name)
 }
@@ -2868,4 +2948,22 @@ private fun List<String>.toJsonArrayString(): String? {
 
 private fun List<String>.cleanMetadataList(): List<String> =
     map { it.trim() }.filter { it.isNotBlank() }.distinct()
+
+private fun List<MediaCredit>.cleanCredits(): List<MediaCredit> = asSequence()
+    .map { credit ->
+        credit.copy(
+            personName = credit.personName.trim(),
+            characterName = credit.characterName?.trim()?.takeIf { it.isNotBlank() },
+            personImageUrl = credit.personImageUrl?.trim()?.takeIf { it.isNotBlank() },
+            personImageAspectRatio = credit.personImageAspectRatio?.takeIf {
+                it.isFinite() && it > 0f
+            },
+            characterImageUrl = credit.characterImageUrl?.trim()?.takeIf { it.isNotBlank() },
+        )
+    }
+    .filter { it.personName.isNotBlank() }
+    .distinctBy { credit ->
+        listOf(credit.roleType, credit.personName.lowercase(), credit.characterName?.lowercase())
+    }
+    .toList()
 

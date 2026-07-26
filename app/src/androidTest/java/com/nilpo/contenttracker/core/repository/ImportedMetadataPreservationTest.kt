@@ -15,7 +15,9 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.mal.buildMalSyncPayload
 import com.nilpo.contenttracker.core.mal.toStagedMalImportItem
 import com.nilpo.contenttracker.core.mal.toStagingJson
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
@@ -280,6 +282,7 @@ class ImportedMetadataPreservationTest {
             progressTotal = 12,
             genres = listOf("Action"),
             creators = listOf("Creator"),
+            credits = emptyList(),
             coverUrl = "https://example.test/cover.jpg",
             synopsis = "Synopsis",
             sourceUrl = "https://example.test/source",
@@ -420,6 +423,72 @@ class ImportedMetadataPreservationTest {
         assertEquals(ratingsBefore, dao.getExternalRatingsForItem(mediaId))
         assertFalse(dao.getMalSyncQueueItem(mediaId) != null)
         assertEquals(0, outboundMalNotifications)
+    }
+
+    @Test
+    fun metadataRefreshReplacesManualRatingFromTheSameSource() = runBlocking {
+        val dao = database.mediaDao()
+        val mediaId = dao.insertMediaItem(
+            MediaItemEntity(
+                type = MediaType.Game.name,
+                title = "Example game",
+            ),
+        )
+        dao.insertExternalRating(
+            ExternalRatingEntity(
+                mediaItemId = mediaId,
+                source = ExternalRatingSource.Steam.name,
+                score = 91.0,
+                maxScore = 100.0,
+                origin = "Manual",
+            ),
+        )
+        dao.insertExternalRating(
+            ExternalRatingEntity(
+                mediaItemId = mediaId,
+                source = ExternalRatingSource.Steam.name,
+                score = 90.0,
+                maxScore = 100.0,
+                origin = "Provider",
+            ),
+        )
+        val repository = OfflineMediaRepository(database)
+
+        assertTrue(
+            repository.applyMediaItemMetadataRefresh(
+                preview = MetadataRefreshPreview(
+                    mediaItemId = mediaId,
+                    refreshed = MetadataSuggestion(
+                        source = MetadataSource.Rawg,
+                        externalId = "1",
+                        mediaType = MediaType.Game,
+                        title = "Example game",
+                        externalRatings = listOf(
+                            MetadataExternalRatingSuggestion(
+                                source = ExternalRatingSource.Steam,
+                                score = 95.0,
+                                maxScore = 100.0,
+                            ),
+                            MetadataExternalRatingSuggestion(
+                                source = ExternalRatingSource.Metacritic,
+                                score = 88.0,
+                                maxScore = 100.0,
+                            ),
+                        ),
+                    ),
+                    changes = emptyList(),
+                ),
+                selectedFields = setOf(MetadataRefreshField.ExternalRatings),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                ExternalRatingSource.Steam.name to 95.0,
+                ExternalRatingSource.Metacritic.name to 88.0,
+            ),
+            dao.getExternalRatingsForItem(mediaId).map { it.source to it.score },
+        )
     }
 
     @Test

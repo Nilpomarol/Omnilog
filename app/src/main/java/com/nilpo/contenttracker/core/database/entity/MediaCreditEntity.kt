@@ -24,6 +24,9 @@ data class MediaCreditEntity(
     val personName: String,
     val roleType: String,
     val characterName: String? = null,
+    val personImageUrl: String? = null,
+    val personImageAspectRatio: Float? = null,
+    val characterImageUrl: String? = null,
     val sortOrder: Int = 0,
     val metadataSource: String? = null,
 )

@@ -69,6 +69,7 @@ import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.core.stats.StatsCalculator
 import com.nilpo.contenttracker.core.stats.StatsBucket
 import com.nilpo.contenttracker.core.stats.StatsFilters
@@ -637,7 +638,7 @@ private fun DashboardSearchResultRow(
     onClick: () -> Unit,
 ) {
     val section = trackedMedia.item.type.dashboardSection()
-    val creator = trackedMedia.item.creators.firstOrNull()
+    val creator = trackedMedia.creatorNames().firstOrNull()
     val collection = formatCollectionDisplayName(
         trackedMedia.collection?.name,
         trackedMedia.item.collectionSortOrder,
@@ -1308,7 +1309,7 @@ private fun TrackedMedia.matchesDashboardQuery(query: String): Boolean {
     if (query.isBlank()) return false
     return item.title.contains(query, ignoreCase = true) ||
         item.originalTitle?.contains(query, ignoreCase = true) == true ||
-        item.creators.any { it.contains(query, ignoreCase = true) } ||
+        creatorNames().any { it.contains(query, ignoreCase = true) } ||
         item.genres.any { it.contains(query, ignoreCase = true) } ||
         item.tags.any { it.contains(query, ignoreCase = true) } ||
         collection?.name?.contains(query, ignoreCase = true) == true

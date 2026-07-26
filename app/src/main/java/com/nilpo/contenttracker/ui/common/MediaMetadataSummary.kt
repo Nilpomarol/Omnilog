@@ -683,6 +683,7 @@ private fun MediaCreditRole.labelRes(): Int {
         MediaCreditRole.Creator -> R.string.metadata_credits_creators
         MediaCreditRole.Studio -> R.string.metadata_credits_studios
         MediaCreditRole.Developer -> R.string.metadata_credits_developers
+        MediaCreditRole.Publisher -> R.string.metadata_credits_publishers
         MediaCreditRole.Cast -> R.string.metadata_credits_cast
         MediaCreditRole.VoiceActor -> R.string.metadata_credits_voice_actors
     }

@@ -386,7 +386,11 @@
     <string name="clear_date">Buida la data</string>
     <string name="detail_item_details">Dades de l\'element</string>
     <string name="history_empty">Encara no hi ha sessions anteriors.</string>
-    <string name="detail_external_scores">Puntuacions</string>
+    <string name="detail_external_scores">Valoracions externes</string>
+    <string name="detail_external_scores_subtitle">Totes les fonts disponibles</string>
+    <string name="detail_ratings">Valoracions</string>
+    <string name="detail_rating_yours">La teva nota</string>
+    <string name="detail_credits_show_more">Mostra\'n %1$d més</string>
     <string name="detail_related_collection_title">Més elements de la col·lecció «%1$s»</string>
     <string name="detail_related_collection_fallback">Més elements de la col·lecció</string>
     <string name="detail_related_title">Relacionats de la teva biblioteca</string>
@@ -469,6 +473,7 @@
     <string name="metadata_credits_creators">Creadors</string>
     <string name="metadata_credits_studios">Estudis</string>
     <string name="metadata_credits_developers">Desenvolupadors</string>
+    <string name="metadata_credits_publishers">Editors</string>
     <string name="metadata_credits_cast">Repartiment</string>
     <string name="metadata_credits_voice_actors">Veus</string>
     <string name="add_item">Afegeix</string>

@@ -20,6 +20,7 @@ import java.net.URL
 
 class AniListMetadataRepository(
     private val malClientId: String = "",
+    private val tmdbCompanyLogos: TmdbCompanyLogoEnricher = TmdbCompanyLogoEnricher(""),
 ) : MetadataRepository {
     private val jikanRequestMutex = Mutex()
     private var lastJikanRequestAtEpochMillis: Long = 0L
@@ -47,14 +48,22 @@ class AniListMetadataRepository(
 
     override suspend fun getSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
         if (suggestion.source == MetadataSource.Jikan) {
-            return getJikanSuggestionDetails(suggestion)
+            val detailedSuggestion = getJikanSuggestionDetails(suggestion)
+            return detailedSuggestion.copy(
+                credits = tmdbCompanyLogos.enrichAnimeStudioCredits(
+                    title = detailedSuggestion.title,
+                    originalTitle = detailedSuggestion.originalTitle,
+                    releaseYear = detailedSuggestion.releaseYear,
+                    credits = detailedSuggestion.credits,
+                ),
+            )
         }
         if (suggestion.source != MetadataSource.AniList) return suggestion
         val suggestionMalId = suggestion.malId
 
         // Failures propagate: the caller reports them and offers a retry, rather than silently
         // handing back the un-enriched suggestion as if the details had loaded.
-        return withContext(Dispatchers.IO) {
+        val detailedSuggestion = withContext(Dispatchers.IO) {
             val aniListId = suggestion.externalId.toLongOrNull() ?: return@withContext suggestion
             val detailed = postAniListGraphQL(
                     DETAILS_QUERY,
@@ -96,6 +105,14 @@ class AniListMetadataRepository(
                 rankingLabel = malRank?.let { "MAL rank" } ?: detailed.rankingLabel,
             )
         }
+        return detailedSuggestion.copy(
+            credits = tmdbCompanyLogos.enrichAnimeStudioCredits(
+                title = detailedSuggestion.title,
+                originalTitle = detailedSuggestion.originalTitle,
+                releaseYear = detailedSuggestion.releaseYear,
+                credits = detailedSuggestion.credits,
+            ),
+        )
     }
 
     private suspend fun getJikanSuggestionDetails(suggestion: MetadataSuggestion): MetadataSuggestion {
@@ -166,10 +183,10 @@ class AniListMetadataRepository(
         val titleObj = optJSONObject("title") ?: return null
         val titleEnglish = titleObj.optString("english").takeIf { it.isNotBlank() }
         val titleRomaji = titleObj.optString("romaji").takeIf { it.isNotBlank() } ?: return null
-        val titleNative = titleObj.optString("native").takeIf { it.isNotBlank() }
         val title = titleEnglish ?: titleRomaji
-        val originalTitle = titleNative?.takeIf { it != title }
-            ?: titleRomaji.takeIf { titleEnglish != null && it != titleEnglish }
+        // `native` is normally Japanese script. The app's original-title field is intended to
+        // remain readable in the Latin alphabet, so retain the official rōmaji spelling instead.
+        val originalTitle = titleRomaji.takeIf { it != title }
 
         val coverUrl = optJSONObject("coverImage")?.optString("large")?.takeIf { it.isNotBlank() }
         val synopsis = optString("description")
@@ -270,8 +287,11 @@ class AniListMetadataRepository(
                   studios(isMain: true) { nodes { name } }
                   characters(perPage: 12, sort: ROLE) {
                     edges {
-                      node { name { full } }
-                      voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } }
+                      node { name { full } image { large } }
+                      voiceActors(language: JAPANESE, sort: RELEVANCE) {
+                        name { full }
+                        image { large }
+                      }
                     }
                   }
                   siteUrl
@@ -298,8 +318,11 @@ class AniListMetadataRepository(
                 studios(isMain: true) { nodes { name } }
                 characters(perPage: 12, sort: ROLE) {
                   edges {
-                    node { name { full } }
-                    voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } }
+                    node { name { full } image { large } }
+                    voiceActors(language: JAPANESE, sort: RELEVANCE) {
+                      name { full }
+                      image { large }
+                    }
                   }
                 }
                 siteUrl
@@ -325,8 +348,11 @@ class AniListMetadataRepository(
                 studios(isMain: true) { nodes { name } }
                 characters(perPage: 12, sort: ROLE) {
                   edges {
-                    node { name { full } }
-                    voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } }
+                    node { name { full } image { large } }
+                    voiceActors(language: JAPANESE, sort: RELEVANCE) {
+                      name { full }
+                      image { large }
+                    }
                   }
                 }
                 siteUrl
@@ -359,9 +385,6 @@ internal fun JSONObject.toOfficialMalMetadataSuggestion(base: MetadataSuggestion
     val englishTitle = alternativeTitles
         ?.optString("en")
         ?.takeIf { it.isNotBlank() }
-    val japaneseTitle = alternativeTitles
-        ?.optString("ja")
-        ?.takeIf { it.isNotBlank() }
     val mainPicture = optJSONObject("main_picture")
     val studios = optJSONArray("studios").toNamedList()
     val genres = optJSONArray("genres").toNamedList()
@@ -378,7 +401,9 @@ internal fun JSONObject.toOfficialMalMetadataSuggestion(base: MetadataSuggestion
         title = englishTitle
             ?: optString("title").takeIf { it.isNotBlank() }
             ?: base.title,
-        originalTitle = japaneseTitle ?: base.originalTitle,
+        // MAL only gives us the native-script Japanese alternative title. Keep a previously
+        // supplied rōmaji value (normally from AniList) instead of replacing it with kanji/kana.
+        originalTitle = base.originalTitle,
         releaseYear = releaseYear ?: base.releaseYear,
         coverUrl = mainPicture
             ?.optString("large")
@@ -462,7 +487,7 @@ private fun JSONObject.toJikanMalRating(): MetadataExternalRatingSuggestion? {
     )
 }
 
-private fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): MetadataSuggestion {
+internal fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): MetadataSuggestion {
     val malId = optInt("mal_id", 0).takeIf { it > 0 }?.toString() ?: base.externalId
     val score = optDouble("score", 0.0)
     val scoredBy = optInt("scored_by", 0)
@@ -489,15 +514,18 @@ private fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): Meta
         ).distinctBy { it.source }
     val studios = optJSONArray("studios").toNamedList()
 
+    val title = optString("title_english").takeIf { it.isNotBlank() }
+        ?: optString("title").takeIf { it.isNotBlank() }
+        ?: base.title
+    val romanizedTitle = optString("title")
+        .takeIf { it.isNotBlank() && it != title && !it.containsJapaneseScript() }
+
     return base.copy(
         source = MetadataSource.Jikan,
         externalId = malId,
         malId = malId.toIntOrNull(),
-        title = optString("title_english").takeIf { it.isNotBlank() }
-            ?: optString("title").takeIf { it.isNotBlank() }
-            ?: base.title,
-        originalTitle = optString("title_japanese").takeIf { it.isNotBlank() }
-            ?: optString("title").takeIf { it.isNotBlank() && it != base.title },
+        title = title,
+        originalTitle = romanizedTitle ?: base.originalTitle,
         releaseYear = optJSONObject("aired")
             ?.optJSONObject("prop")
             ?.optJSONObject("from")
@@ -530,6 +558,12 @@ private fun JSONObject.toJikanMetadataSuggestion(base: MetadataSuggestion): Meta
     )
 }
 
+private fun String.containsJapaneseScript(): Boolean = any { character ->
+    character.code in 0x3040..0x30FF || // Hiragana and Katakana
+        character.code in 0x3400..0x9FFF || // CJK unified ideographs
+        character.code in 0xF900..0xFAFF // CJK compatibility ideographs
+}
+
 private fun org.json.JSONArray?.toNamedList(): List<String> {
     if (this == null) return emptyList()
     return List(length()) { index -> getJSONObject(index).optString("name") }
@@ -557,10 +591,14 @@ private fun org.json.JSONArray?.toVoiceActorCredits(): List<MediaCredit> {
     if (this == null) return emptyList()
     return List(length()) { edgeIndex ->
         val edge = getJSONObject(edgeIndex)
-        val characterName = edge
-            .optJSONObject("node")
+        val character = edge.optJSONObject("node")
+        val characterName = character
             ?.optJSONObject("name")
             ?.optString("full")
+            ?.takeIf { it.isNotBlank() }
+        val characterImageUrl = character
+            ?.optJSONObject("image")
+            ?.optString("large")
             ?.takeIf { it.isNotBlank() }
         val voiceActors = edge.optJSONArray("voiceActors") ?: return@List emptyList()
         List(voiceActors.length()) { actorIndex ->
@@ -574,6 +612,12 @@ private fun org.json.JSONArray?.toVoiceActorCredits(): List<MediaCredit> {
                 personName = actorName,
                 roleType = MediaCreditRole.VoiceActor,
                 characterName = characterName,
+                personImageUrl = voiceActors
+                    .getJSONObject(actorIndex)
+                    .optJSONObject("image")
+                    ?.optString("large")
+                    ?.takeIf { it.isNotBlank() },
+                characterImageUrl = characterImageUrl,
                 sortOrder = edgeIndex * 10 + actorIndex,
                 metadataSource = MetadataSource.AniList,
             )

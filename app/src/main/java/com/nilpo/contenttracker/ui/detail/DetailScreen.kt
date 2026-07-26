@@ -45,11 +45,15 @@ import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRecommendation
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
+import com.nilpo.contenttracker.core.model.MediaCredit
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
+import com.nilpo.contenttracker.core.model.ContributorDirectory
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
@@ -73,6 +77,7 @@ private val BarFadeDistance = 150.dp
 fun DetailScreen(
     trackedMedia: TrackedMedia,
     allTrackedMedia: List<TrackedMedia>,
+    contributors: ContributorDirectory,
     accent: Color,
     headerActions: DetailHeaderActions,
     onBack: () -> Unit,
@@ -91,12 +96,12 @@ fun DetailScreen(
     onSetPrimaryExternalRating: (Long) -> Unit,
     onDeleteExternalRating: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, Boolean) -> Unit,
-    onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, String?, String?, String?, String?) -> Unit,
+    onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, List<MediaCredit>, String?, String?, String?, String?) -> Unit,
     onRefreshMediaItemMetadata: (Long) -> Unit,
     onLinkMediaMetadata: () -> Unit,
     onDeleteMediaItem: (Long) -> Unit,
     onCollectionClick: () -> Unit,
-    onAuthorClick: (String) -> Unit,
+    onAuthorClick: (String, MediaCreditRole) -> Unit,
     onRelatedMediaClick: (TrackedMedia) -> Unit,
     externalRecommendations: List<ExternalRecommendation> = emptyList(),
     isExternalRecommendationsLoading: Boolean = false,
@@ -111,6 +116,10 @@ fun DetailScreen(
     val pastSessions = trackedMedia.sessions
         .filter { session -> session.id != currentSession?.id }
         .sortedBy { it.sessionNumber }
+    // The ratings card shows the user's own verdict beside the providers'. Ratings belong to
+    // sessions, and a re-read can be scored differently from the first read, so the latest one
+    // that carries a score is the one that stands as "la teva nota".
+    val userRating = trackedMedia.orderedSessions.lastOrNull { it.rating != null }?.rating
     var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var showExternalRatingsManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var showQuickProgress by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
@@ -126,6 +135,7 @@ fun DetailScreen(
             trackedMedia.item.id.toString() !in skippedGoodreadsPromptIds
     val primaryExternalRating = trackedMedia.primaryExternalRating
     val metadata = trackedMedia.item.toMediaMetadataUi(trackedMedia.credits).copy(
+        creators = trackedMedia.creatorNames(),
         collectionName = trackedMedia.collection?.name,
         collectionSortOrder = trackedMedia.item.collectionSortOrder,
         progressTotal = trackedMedia.item.effectiveProgressTotal(),
@@ -252,7 +262,9 @@ fun DetailScreen(
                         topInset = contentPadding.calculateTopPadding(),
                         overlap = overlap,
                         onCollectionClick = trackedMedia.collection?.let { { onCollectionClick() } },
-                        onCreatorClick = onAuthorClick,
+                        onCreatorClick = { creator ->
+                            onAuthorClick(creator, trackedMedia.item.type.primaryContributorRole())
+                        },
                     )
 
                     // The live session, at the page's full width. It used to hang off a rail that it
@@ -344,21 +356,22 @@ fun DetailScreen(
                 ItemDetailsSection(
                     item = trackedMedia.item,
                     credits = trackedMedia.credits,
+                    contributors = contributors,
+                    accent = accent,
+                    onAuthorClick = onAuthorClick,
                     modifier = gutter,
                 )
             }
 
-            if (trackedMedia.externalRatings.size > 1) {
+            if (trackedMedia.externalRatings.isNotEmpty() || userRating != null) {
                 item {
-                    DetailSectionTitle(
-                        text = stringResource(R.string.detail_external_scores),
-                        modifier = gutter,
-                    )
-                }
-                item {
-                    ExternalScoreTiles(
+                    RatingsSection(
                         ratings = trackedMedia.externalRatings,
+                        userRating = userRating,
                         mediaType = trackedMedia.item.type,
+                        primaryRatingId = trackedMedia.item.primaryExternalRatingId,
+                        rankingPosition = trackedMedia.item.rankingPosition,
+                        rankingLabel = trackedMedia.item.rankingLabel,
                         accent = accent,
                         modifier = gutter,
                     )
@@ -492,9 +505,10 @@ fun DetailScreen(
         ) {
             ItemDetailsEditor(
                 item = trackedMedia.item,
+                credits = trackedMedia.credits,
                 accent = accent,
                 onDismiss = { headerActions.isEditingItemDetails = false },
-                onSaveMetadata = { title, originalTitle, releaseYear, language, progressTotal, genres, creators, coverUrl, synopsis, sourceUrl, steamAppId ->
+                onSaveMetadata = { title, originalTitle, releaseYear, language, progressTotal, genres, creators, credits, coverUrl, synopsis, sourceUrl, steamAppId ->
                     onUpdateMediaItemMetadata(
                         trackedMedia.item.id,
                         title,
@@ -504,6 +518,7 @@ fun DetailScreen(
                         progressTotal,
                         genres,
                         creators,
+                        credits,
                         coverUrl,
                         synopsis,
                         sourceUrl,
@@ -516,106 +531,14 @@ fun DetailScreen(
     }
 }
 
-@Composable
-private fun ExternalScoreTiles(
-    ratings: List<ExternalRating>,
-    mediaType: MediaType,
-    accent: Color,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ratings.chunked(3).forEach { rowRatings ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                rowRatings.forEach { rating ->
-                    ExternalScoreTile(
-                        rating = rating,
-                        mediaType = mediaType,
-                        accent = accent,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                repeat(3 - rowRatings.size) {
-                    Column(modifier = Modifier.weight(1f)) {}
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExternalScoreTile(
-    rating: ExternalRating,
-    mediaType: MediaType,
-    accent: Color,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.height(128.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = rating.source.displayName(),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = formatExternalRating(
-                        score = rating.score,
-                        maxScore = rating.maxScore,
-                        mediaType = mediaType,
-                        source = rating.source,
-                    ),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = accent,
-                )
-                localizedSteamScoreDescriptor(
-                    mediaType = mediaType,
-                    source = rating.source,
-                    descriptor = rating.scoreDescriptor,
-                )?.let { descriptor ->
-                    Text(
-                        text = descriptor,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = OmnilogTheme.colors.appMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            rating.voteCount?.let { voteCount ->
-                Text(
-                    text = stringResource(R.string.metadata_users) + " " + formatCompactCount(
-                        voteCount.toDouble()
-                    ),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = OmnilogTheme.colors.appMuted,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
 private fun MediaItem.effectiveProgressTotal(): Int? {
     return progressTotal.takeUnless { type == MediaType.Game }
+}
+
+private fun MediaType.primaryContributorRole(): MediaCreditRole = when (this) {
+    MediaType.Anime -> MediaCreditRole.Studio
+    MediaType.Book -> MediaCreditRole.Author
+    MediaType.Movie -> MediaCreditRole.Director
+    MediaType.TvShow -> MediaCreditRole.Creator
+    MediaType.Game -> MediaCreditRole.Developer
 }

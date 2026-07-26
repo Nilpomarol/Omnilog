@@ -22,6 +22,7 @@ import java.net.URLEncoder
 
 class RawgMetadataRepository(
     private val apiKey: String,
+    private val igdbCompanies: IgdbCompanyMetadataEnricher = IgdbCompanyMetadataEnricher("", ""),
 ) : MetadataRepository {
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         val query = request.query.trim()
@@ -132,11 +133,18 @@ class RawgMetadataRepository(
         val ratingsCount = optInt("ratings_count", 0)
         val rawgMetacritic = optInt("metacritic", 0).takeIf { it > 0 }
         val ratingsDistribution = optJSONArray("ratings")?.toString()
+        val igdbCompanyCreditsDeferred = async {
+            igdbCompanies.findCompanyCredits(
+                title = rawgTitle ?: base.title,
+                releaseYear = rawgReleaseYear ?: base.releaseYear,
+            )
+        }
         val steamAppId = base.storedSteamAppId() ?: fetchSteamAppId(base.externalId)
         val steamMetadataDeferred = async { steamAppId?.let(::fetchSteamMetadata) }
         val steamRatingDeferred = async { steamAppId?.let(::fetchSteamRating) }
         val steamMetadata = steamMetadataDeferred.await()
         val steamRating = steamRatingDeferred.await()
+        val igdbCompanyCredits = igdbCompanyCreditsDeferred.await()
         val rawgRating = if (rating > 0.0) {
             MetadataRatingSuggestion(
                 score = rating,
@@ -180,6 +188,12 @@ class RawgMetadataRepository(
                 maxScore = 100.0,
             )
         } ?: rawgRating ?: base.externalRating
+        val developerCredits = steamMetadata?.developers
+            .orEmpty()
+            .toCredits(MediaCreditRole.Developer, MetadataSource.Rawg)
+            .ifEmpty {
+                optJSONArray("developers").toCredits(MediaCreditRole.Developer, MetadataSource.Rawg)
+            }
 
         base.copy(
             title = steamMetadata?.title ?: rawgTitle ?: base.title,
@@ -197,13 +211,13 @@ class RawgMetadataRepository(
             creators = steamMetadata?.developers.orEmpty()
                 .ifEmpty { optJSONArray("developers").toStringList("name") }
                 .ifEmpty { base.creators },
-            credits = steamMetadata?.developers
-                .orEmpty()
-                .toCredits(MediaCreditRole.Developer, MetadataSource.Rawg)
-                .ifEmpty {
-                    optJSONArray("developers").toCredits(MediaCreditRole.Developer, MetadataSource.Rawg)
-                }
+            credits = mergeGameCompanyCredits(developerCredits, igdbCompanyCredits)
                 .ifEmpty { base.credits },
+            publishers = (steamMetadata?.publishers.orEmpty() +
+                igdbCompanyCredits
+                    .filter { it.roleType == MediaCreditRole.Publisher }
+                    .map { it.personName })
+                .distinctBy { it.trim().lowercase() },
             progressTotal = null,
             sourceUrl = steamAppId?.let { "https://store.steampowered.com/app/$it/" } ?: base.sourceUrl,
             popularityScore = steamMetadata?.recommendations?.toDouble()

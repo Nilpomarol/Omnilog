@@ -10,6 +10,7 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
+import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
@@ -277,6 +278,7 @@ interface MediaRepository {
         progressTotal: Int?,
         genres: List<String>,
         creators: List<String>,
+        credits: List<MediaCredit>,
         coverUrl: String?,
         synopsis: String?,
         sourceUrl: String?,
@@ -298,6 +300,9 @@ interface MediaRepository {
         preview: MetadataRefreshPreview,
         selectedFields: Set<MetadataRefreshField>,
     ): Boolean
+
+    /** Refreshes provider-owned fields only, including a final override check immediately before writing. */
+    suspend fun applyAutomaticMediaItemMetadataRefresh(preview: MetadataRefreshPreview): Boolean
 
     suspend fun refreshMediaItemMetadata(mediaItemId: Long, metadataRepository: MetadataRepository): Boolean
 

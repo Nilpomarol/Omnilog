@@ -41,6 +41,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OwnedBadge
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
@@ -70,7 +71,7 @@ fun MediaCard(
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
     val primaryExternalRating = trackedMedia.primaryExternalRating
-    val creator = item.creators.firstOrNull()
+    val creator = trackedMedia.creatorNames().firstOrNull()
     val collection = formatCollectionDisplayName(
         trackedMedia.collection?.name,
         item.collectionSortOrder,

@@ -116,6 +116,9 @@ fun MediaCreditEntity.toDomain(): MediaCredit {
         personName = personName,
         roleType = enumValueOrDefault(roleType, MediaCreditRole.Cast),
         characterName = characterName,
+        personImageUrl = personImageUrl,
+        personImageAspectRatio = personImageAspectRatio,
+        characterImageUrl = characterImageUrl,
         sortOrder = sortOrder,
         metadataSource = enumValueOrNull<MetadataSource>(metadataSource),
     )
@@ -128,6 +131,9 @@ fun MediaCredit.toEntity(mediaItemIdOverride: Long? = null): MediaCreditEntity {
         personName = personName,
         roleType = roleType.name,
         characterName = characterName,
+        personImageUrl = personImageUrl,
+        personImageAspectRatio = personImageAspectRatio,
+        characterImageUrl = characterImageUrl,
         sortOrder = sortOrder,
         metadataSource = metadataSource?.name,
     )

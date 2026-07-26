@@ -33,6 +33,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,6 +56,8 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.ContributorImageBox
+import com.nilpo.contenttracker.ui.common.resolvedLogoWidthRatio
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.ZoneId
@@ -163,6 +169,8 @@ private fun AuthorGroupCard(
     onAuthorClick: (String) -> Unit,
 ) {
     val summary = group.items.collectionProgressSummary()
+    var loadedLogoAspectRatio by remember(group.imageUrl) { mutableFloatStateOf(1f) }
+    val logoAspectRatio = resolvedLogoWidthRatio(group.imageAspectRatio, loadedLogoAspectRatio)
     val averageRating = group.items.collectionAverageRating()
     val topItem = group.items.authorTopRatedItem()
     val lastUpdatedMillis = group.items.collectionLastUpdatedMillis()
@@ -177,14 +185,22 @@ private fun AuthorGroupCard(
         targetState = isCollapsed,
         label = "author_card_transition",
     )
+    // Creator cards retain the same 150dp rhythm as collection cards. A supplied logo gets an
+    // image-sized landscape cover inside that row; no supplied image falls back to the old stack.
+    val expandedCoverHeight = if (group.imageUrl != null && group.imageIsLogo) 72.dp else 150.dp
+    val expandedCoverWidth = if (group.imageUrl != null && group.imageIsLogo) {
+        expandedCoverHeight * logoAspectRatio
+    } else {
+        100.dp
+    }
     val coverWidth = transition.animateDp(
         transitionSpec = { tween(220) },
         label = "author_cover_width",
-    ) { collapsed -> if (collapsed) 72.dp else 0.dp }
+    ) { collapsed -> if (collapsed) expandedCoverWidth else 0.dp }
     val coverHeight = transition.animateDp(
         transitionSpec = { tween(220) },
         label = "author_cover_height",
-    ) { collapsed -> if (collapsed) 108.dp else 0.dp }
+    ) { collapsed -> if (collapsed) expandedCoverHeight else 0.dp }
     val coverGap = transition.animateDp(
         transitionSpec = { tween(220) },
         label = "author_cover_gap",
@@ -192,7 +208,7 @@ private fun AuthorGroupCard(
     val contentHeight = transition.animateDp(
         transitionSpec = { tween(220) },
         label = "author_content_height",
-    ) { collapsed -> if (collapsed) 108.dp else 28.dp }
+    ) { collapsed -> if (collapsed) 150.dp else 28.dp }
     val coverAlpha = transition.animateFloat(
         transitionSpec = { tween(140) },
         label = "author_cover_alpha",
@@ -223,14 +239,22 @@ private fun AuthorGroupCard(
                     .alpha(coverAlpha.value)
                     .clipToBounds(),
             ) {
-                CollectionCoverStack(
-                    coverStack = (
-                        listOfNotNull(topItem?.item?.coverUrl) +
-                            group.items.mapNotNull { it.item.coverUrl }
-                    ).distinct().take(3),
-                    itemCount = group.items.size,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                if (group.imageUrl == null) {
+                    CollectionCoverStack(
+                        coverStack = group.items.collectionCoverStack(),
+                        itemCount = group.items.size,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    ContributorImageBox(
+                        imageUrl = group.imageUrl,
+                        name = group.title,
+                        isCompany = group.imageIsLogo,
+                        accent = accent,
+                        modifier = Modifier.fillMaxSize(),
+                        onLogoWidthRatio = { ratio -> loadedLogoAspectRatio = ratio },
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(coverGap.value))
             Column(
@@ -730,4 +754,3 @@ private fun TrackingStatus.label(): String = when (this) {
     TrackingStatus.Paused -> stringResource(R.string.status_paused)
     TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
 }
-

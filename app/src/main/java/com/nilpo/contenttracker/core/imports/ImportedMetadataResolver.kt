@@ -366,6 +366,8 @@ internal fun List<ProviderReference>.toJson(): String = JSONArray().apply {
                                 .put("personName", credit.personName)
                                 .put("roleType", credit.roleType.name)
                                 .put("characterName", credit.characterName)
+                                .put("personImageUrl", credit.personImageUrl)
+                                .put("characterImageUrl", credit.characterImageUrl)
                                 .put("sortOrder", credit.sortOrder)
                                 .put("metadataSource", credit.metadataSource?.name),
                         )
@@ -511,6 +513,8 @@ private fun JSONObject.creditList(key: String): List<MediaCredit> {
                 personName = personName,
                 roleType = role,
                 characterName = value.nullableString("characterName"),
+                personImageUrl = value.nullableString("personImageUrl"),
+                characterImageUrl = value.nullableString("characterImageUrl"),
                 sortOrder = value.optInt("sortOrder"),
                 metadataSource = value.nullableString("metadataSource")?.let { source ->
                     runCatching { MetadataSource.valueOf(source) }.getOrNull()

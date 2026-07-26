@@ -17,8 +17,18 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 
 class OpenLibraryMetadataRepository : MetadataRepository {
+    /**
+     * Author OLID to portrait URL, with a blank value recording "this author has no photo".
+     *
+     * Authors recur constantly across a book library, and the answer never changes within a
+     * session, so the verification below costs one request per distinct author rather than one
+     * per book.
+     */
+    private val authorPortraits = ConcurrentHashMap<String, String>()
+
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         val query = request.query.trim()
         if (MediaType.Book !in request.mediaTypes || query.isBlank()) return emptyList()
@@ -30,8 +40,10 @@ class OpenLibraryMetadataRepository : MetadataRepository {
                     "&limit=20&fields=$OpenLibrarySearchFields",
             )
             val docs = response.optJSONArray("docs") ?: return@withContext emptyList()
+            // A results page is twenty books' worth of authors; portraits are resolved on the
+            // detail path instead, where the cost is bounded to the one book being added.
             List(docs.length()) { docs.getJSONObject(it) }
-                .mapNotNull { it.toMetadataSuggestion() }
+                .mapNotNull { it.toMetadataSuggestion(resolveAuthorPortraits = false) }
         }
     }
 
@@ -96,12 +108,17 @@ class OpenLibraryMetadataRepository : MetadataRepository {
                     "&limit=5&fields=$OpenLibrarySearchFields",
             )
             val docs = response.optJSONArray("docs") ?: return null
+            // The matching doc is chosen before portraits are resolved, so the five candidates
+            // cost author lookups for the one book that is actually kept.
             List(docs.length()) { index -> docs.optJSONObject(index) }
-                .mapNotNull { it?.toMetadataSuggestion() }
-                .firstOrNull { suggestion ->
-                    (expectedWorkKey == null || suggestion.externalId == expectedWorkKey) &&
-                        suggestion.identifiers.any { it.normalizedOpenLibraryIsbn() == isbn }
+                .filterNotNull()
+                .firstOrNull { doc ->
+                    val candidate = doc.toMetadataSuggestion(resolveAuthorPortraits = false)
+                    candidate != null &&
+                        (expectedWorkKey == null || candidate.externalId == expectedWorkKey) &&
+                        candidate.identifiers.any { it.normalizedOpenLibraryIsbn() == isbn }
                 }
+                ?.toMetadataSuggestion(resolveAuthorPortraits = true)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Throwable) {
@@ -110,10 +127,17 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         }
     }
 
-    private fun JSONObject.toMetadataSuggestion(): MetadataSuggestion? {
+    private fun JSONObject.toMetadataSuggestion(resolveAuthorPortraits: Boolean): MetadataSuggestion? {
         val key = optString("key").takeIf { it.startsWith("/works/") } ?: return null
         val title = optString("title").takeIf { it.isNotBlank() } ?: return null
-        val authors = optJSONArray("author_name").toStringList()
+        val authorEntries = optJSONArray("author_name")
+            .toOpenLibraryAuthorCredits(optJSONArray("author_key"))
+        val authorCredits = if (resolveAuthorPortraits) {
+            authorEntries.withVerifiedPortraits()
+        } else {
+            authorEntries.map { it.credit }
+        }
+        val authors = authorCredits.map { it.personName }
         val coverId = optLong("cover_i", 0L).takeIf { it > 0L }
         val rating = optDouble("ratings_average", 0.0)
         val ratingCount = optInt("ratings_count", 0)
@@ -141,7 +165,7 @@ class OpenLibraryMetadataRepository : MetadataRepository {
             synopsis = null,
             progressTotal = pages,
             creators = authors,
-            credits = authors.toAuthorCredits(),
+            credits = authorCredits,
             genres = optJSONArray("subject").toStringList().standardBookGenres(),
             sourceUrl = "https://openlibrary.org$key",
             publishers = publishers,
@@ -169,11 +193,16 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         val remoteTitle = work.optString("title").takeIf { it.isNotBlank() }
         val subjects = work.optJSONArray("subjects").toStringList().standardBookGenres()
         val editionSuggestions = editions.optJSONArray("entries").toBookEditionMetadata()
+        // Work details contain author IDs but not their display names. The item already retains
+        // the ordered author names from search/import, so pair those with the work's canonical IDs
+        // to make a refresh capable of adding author portraits.
+        val refreshedAuthorCredits = work.toOpenLibraryWorkAuthorCredits(creators).withVerifiedPortraits()
 
         return copy(
             title = remoteTitle ?: title,
             synopsis = description ?: synopsis,
             genres = subjects.ifEmpty { genres },
+            credits = refreshedAuthorCredits.ifEmpty { credits },
             bookEditionSuggestions = editionSuggestions,
         )
     }
@@ -183,7 +212,44 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         return toBookEditionMetadata(externalId)
     }
 
+    /**
+     * Turns each author's OLID into a portrait only once the author record confirms one exists.
+     *
+     * Neither the search nor the work response says whether an author has a photo, so a URL built
+     * from the OLID alone is a guess — and because most authors have none, that guess is usually a
+     * permanent 404 stored as if it were an image. Everything downstream reads a non-blank
+     * `personImageUrl` as "this author is illustrated", so a guess also shadows the real portrait
+     * the same author may have on another book.
+     *
+     * Best-effort like the other image enrichers: an unreachable author record leaves the credit
+     * without a portrait rather than failing the book.
+     */
+    private fun List<OpenLibraryAuthorCredit>.withVerifiedPortraits(): List<MediaCredit> = map { entry ->
+        val authorKey = entry.authorKey ?: return@map entry.credit
+        entry.credit.copy(personImageUrl = authorPortrait(authorKey))
+    }
+
+    private fun authorPortrait(authorKey: String): String? {
+        authorPortraits[authorKey]?.let { cached -> return cached.takeIf { it.isNotBlank() } }
+        val portrait = try {
+            getJson("https://openlibrary.org/authors/$authorKey.json").openLibraryAuthorPortraitUrl()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            // Deliberately uncached: a reachability problem is not evidence about the author, and
+            // caching it would make one blocked request suppress the portrait for the whole session.
+            return null
+        }
+        authorPortraits[authorKey] = portrait.orEmpty()
+        return portrait
+    }
 }
+
+/** An author credit paired with the OLID needed to look its portrait up. */
+internal data class OpenLibraryAuthorCredit(
+    val credit: MediaCredit,
+    val authorKey: String?,
+)
 
 private fun JSONArray?.toStringList(limit: Int = Int.MAX_VALUE): List<String> {
     if (this == null) return emptyList()
@@ -193,15 +259,81 @@ private fun JSONArray?.toStringList(limit: Int = Int.MAX_VALUE): List<String> {
         .take(limit)
 }
 
-private fun List<String>.toAuthorCredits(): List<MediaCredit> {
-    return mapIndexed { index, author ->
-        MediaCredit(
-            personName = author,
-            roleType = MediaCreditRole.Author,
-            sortOrder = index,
-            metadataSource = MetadataSource.OpenLibrary,
+private fun JSONArray?.toOpenLibraryAuthorCredits(
+    authorKeys: JSONArray?,
+): List<OpenLibraryAuthorCredit> {
+    if (this == null) return emptyList()
+    return List(length()) { index ->
+        val author = optString(index).takeIf { it.isNotBlank() } ?: return@List null
+        OpenLibraryAuthorCredit(
+            credit = MediaCredit(
+                personName = author,
+                roleType = MediaCreditRole.Author,
+                sortOrder = index,
+                metadataSource = MetadataSource.OpenLibrary,
+            ),
+            authorKey = authorKeys?.optString(index)?.toOpenLibraryAuthorKey(),
         )
-    }
+    }.filterNotNull()
+        .distinctBy { it.credit.personName.trim().lowercase() }
+}
+
+/**
+ * A work response has `authors[].author.key` but no author-name field. The ordered names supplied
+ * by the original search result remain the source of display text; this endpoint supplies the
+ * stable IDs needed to look portraits up when the item is refreshed later.
+ */
+internal fun JSONObject.toOpenLibraryWorkAuthorCredits(
+    authorNames: List<String>,
+): List<OpenLibraryAuthorCredit> {
+    val authorKeys = optJSONArray("authors")?.let { authors ->
+        List(authors.length()) { index ->
+            authors.optJSONObject(index)
+                ?.optJSONObject("author")
+                ?.optString("key")
+                ?.substringAfterLast('/')
+                ?.toOpenLibraryAuthorKey()
+        }
+    }.orEmpty()
+    return authorNames.mapIndexed { index, authorName ->
+        authorName.trim().takeIf { it.isNotBlank() }?.let { name ->
+            OpenLibraryAuthorCredit(
+                credit = MediaCredit(
+                    personName = name,
+                    roleType = MediaCreditRole.Author,
+                    sortOrder = index,
+                    metadataSource = MetadataSource.OpenLibrary,
+                ),
+                authorKey = authorKeys.getOrNull(index),
+            )
+        }
+    }.filterNotNull()
+        .distinctBy { it.credit.personName.trim().lowercase() }
+}
+
+private fun String.toOpenLibraryAuthorKey(): String? =
+    trim().takeIf { it.startsWith("OL") && it.endsWith("A") }
+
+/**
+ * The portrait an author record actually has, or null when it has none.
+ *
+ * `photos` holds cover IDs, with deleted entries recorded as `-1`. Addressing the portrait by that
+ * ID rather than by OLID is what makes the URL a fact instead of a guess.
+ */
+internal fun JSONObject.openLibraryAuthorPortraitUrl(): String? {
+    val photos = optJSONArray("photos") ?: return null
+    val photoId = List(photos.length()) { index -> photos.optLong(index, 0L) }
+        .firstOrNull { it > 0L }
+        ?: return null
+    return openLibraryAuthorImageUrl(photoId)
+}
+
+/**
+ * `default=false` keeps a portrait deleted after we stored it a normal image-load failure, so the
+ * detail page falls back to the author's initial instead of Open Library's placeholder glyph.
+ */
+internal fun openLibraryAuthorImageUrl(photoId: Long): String {
+    return "https://covers.openlibrary.org/a/id/$photoId-L.jpg?default=false"
 }
 
 private fun JSONObject.descriptionText(): String? {
@@ -276,7 +408,7 @@ private fun String.normalizedOpenLibraryIsbn(): String =
     filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
 
 private const val OpenLibrarySearchFields =
-    "key,title,author_name,first_publish_year,cover_i,subject,language," +
+    "key,title,author_name,author_key,first_publish_year,cover_i,subject,language," +
         "number_of_pages_median,ratings_average,ratings_count,edition_key,isbn,publisher"
 
 private fun coverUrl(coverId: Long): String {

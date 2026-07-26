@@ -132,9 +132,15 @@ import com.nilpo.contenttracker.ui.home.HomeLandingScreen
 import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
+import com.nilpo.contenttracker.ui.home.creatorImageIsLogo
 import com.nilpo.contenttracker.ui.home.creatorDetailLabelResId
 import com.nilpo.contenttracker.ui.home.navIconResId
 import com.nilpo.contenttracker.ui.home.themedAccent
+import com.nilpo.contenttracker.core.model.creatorImageUrl
+import com.nilpo.contenttracker.core.model.creatorImageAspectRatio
+import com.nilpo.contenttracker.core.model.hasCreator
+import com.nilpo.contenttracker.core.model.hasContributor
+import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.ui.imports.ImportHubDialog
 import com.nilpo.contenttracker.ui.imports.ImportProgressBanner
 import com.nilpo.contenttracker.ui.imports.MetadataDiffFieldList
@@ -171,10 +177,12 @@ import java.time.format.DateTimeFormatter
 fun ContentTrackerApp(viewModel: HomeViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val timelineEntries by viewModel.timelineEntries.collectAsStateWithLifecycle()
+    val contributors by viewModel.contributorDirectory.collectAsStateWithLifecycle()
     val metadataUiState by viewModel.metadataUiState.collectAsStateWithLifecycle()
     val recommendationUiState by viewModel.recommendationUiState.collectAsStateWithLifecycle()
     val malSyncState by viewModel.malSyncState.collectAsStateWithLifecycle()
     val importEnrichmentState by viewModel.importEnrichmentState.collectAsStateWithLifecycle()
+    val metadataRefreshState by viewModel.metadataRefreshState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -217,6 +225,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         mutableStateOf(AnimeTitlePreferences.read(context))
     }
     var showAnimeTitleBulkConfirmation by remember { mutableStateOf(false) }
+    var showMetadataBulkConfirmation by remember { mutableStateOf(false) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
     val profileImagePath = remember(context, currentRoute) {
@@ -1106,6 +1115,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 },
                                 malSyncState = malSyncState,
                                 importEnrichmentState = importEnrichmentState,
+                                metadataRefreshState = metadataRefreshState,
+                                onBulkMetadataRefresh = { showMetadataBulkConfirmation = true },
+                                onCancelBulkMetadataRefresh = viewModel::cancelBulkMetadataRefresh,
                                 animeTitlePreference = animeTitlePreference,
                                 onAnimeTitlePreferenceChange = { preference ->
                                     animeTitlePreference = preference
@@ -1171,13 +1183,23 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             )
                         } else if (route is AppRoute.AuthorDetail) {
                             AuthorDetailScreen(
+                                authorName = route.author,
+                                authorImageUrl = uiState.allTrackedItems.creatorImageUrl(route.author),
+                                authorImageAspectRatio = uiState.allTrackedItems.creatorImageAspectRatio(route.author),
+                                imageIsLogo = route.section.creatorImageIsLogo,
                                 creatorLabelResId = route.section.creatorDetailLabelResId,
                                 items = uiState.allTrackedItems.filter { trackedMedia ->
-                                    trackedMedia.item.type in route.section.types &&
-                                            trackedMedia.item.creators.any {
-                                                it.trim()
-                                                    .equals(route.author.trim(), ignoreCase = true)
-                                            }
+                                    trackedMedia.item.type in route.section.types && (
+                                            route.contributorRole
+                                                ?.let { roleName ->
+                                                    runCatching { MediaCreditRole.valueOf(roleName) }
+                                                        .getOrNull()
+                                                        ?.let { role ->
+                                                            trackedMedia.hasContributor(role, route.author)
+                                                        }
+                                                }
+                                                ?: trackedMedia.hasCreator(route.author)
+                                            )
                                 },
                                 accent = route.section.themedAccent(),
                                 onMediaClick = openTrackedMedia,
@@ -1328,6 +1350,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 DetailScreen(
                                     trackedMedia = routeMedia,
                                     allTrackedMedia = uiState.allTrackedItems,
+                                    contributors = contributors,
                                     accent = routeMedia.item.type.homeSection().themedAccent(),
                                     headerActions = actions,
                                     onBack = navigateBack,
@@ -1371,11 +1394,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                             ),
                                         )
                                     },
-                                    onAuthorClick = { author ->
+                                    onAuthorClick = { author, role ->
                                         backStack.push(
                                             AppRoute.AuthorDetail(
                                                 author = author,
                                                 section = routeMedia.item.type.homeSection(),
+                                                contributorRole = role.name,
                                             ),
                                         )
                                     },
@@ -1997,8 +2021,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             text = {
                 Text(
                     text = when (animeTitlePreference) {
-                        AnimeTitlePreference.EnglishWithJapaneseOriginal ->
-                            "S'aplicarà el títol anglès i es desarà el japonès com a títol original. " +
+                        AnimeTitlePreference.EnglishWithRomajiOriginal ->
+                            "S'aplicarà el títol anglès i es desarà el rōmaji com a títol original. " +
                                 "Els títols editats manualment no es modificaran. El progrés serà visible a la barra d'importació."
                         AnimeTitlePreference.KeepMalTitle ->
                             "Es tornarà a enriquir la biblioteca conservant els títols de MyAnimeList. " +
@@ -2026,6 +2050,46 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { showAnimeTitleBulkConfirmation = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (showMetadataBulkConfirmation) {
+        OmnilogAlertDialog(
+            onDismissRequest = { showMetadataBulkConfirmation = false },
+            title = "Actualitza totes les metadades?",
+            text = {
+                Text(
+                    "S'actualitzaran en segon pla les dades dels elements vinculats a un proveïdor. " +
+                        "Els camps editats manualment, les puntuacions personals i el seguiment no es modificaran.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMetadataBulkConfirmation = false
+                        coroutineScope.launch {
+                            val result = viewModel.startBulkMetadataRefresh()
+                            snackbarHostState.showSnackbar(
+                                result.fold(
+                                    onSuccess = { start ->
+                                        when {
+                                            start.alreadyRunning -> "Ja hi ha una actualització de metadades en curs."
+                                            start.queuedCount == 0 -> "No hi ha cap element vinculat que es pugui actualitzar."
+                                            else -> "${start.queuedCount} elements en cua per actualitzar les metadades."
+                                        }
+                                    },
+                                    onFailure = { "No s'ha pogut iniciar l'actualització de metadades." },
+                                ),
+                            )
+                        }
+                    },
+                ) { Text("Actualitza en bloc") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMetadataBulkConfirmation = false }) {
                     Text(text = stringResource(R.string.cancel))
                 }
             },
@@ -2393,7 +2457,7 @@ private fun MalTitlePreferencePrompt(
                 ) {
                     Text(
                         text = when (option) {
-                            AnimeTitlePreference.EnglishWithJapaneseOriginal -> "Anglès + original japonès"
+                            AnimeTitlePreference.EnglishWithRomajiOriginal -> "Anglès + original en rōmaji"
                             AnimeTitlePreference.KeepMalTitle -> "Conserva el títol de MAL"
                         },
                         fontWeight = FontWeight.Bold,
@@ -2401,8 +2465,8 @@ private fun MalTitlePreferencePrompt(
                     )
                     Text(
                         text = when (option) {
-                            AnimeTitlePreference.EnglishWithJapaneseOriginal ->
-                                "Usa l'anglès com a títol principal i el japonès com a títol original."
+                            AnimeTitlePreference.EnglishWithRomajiOriginal ->
+                                "Usa l'anglès com a títol principal i el rōmaji com a títol original."
                             AnimeTitlePreference.KeepMalTitle ->
                                 "Manté exactament el títol retornat per la importació."
                         },

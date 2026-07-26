@@ -78,6 +78,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
@@ -736,7 +737,7 @@ private fun AdvancedFiltersSheet(
     var authorsExpanded by remember(currentFilters) { mutableStateOf(currentFilters.authors.isNotEmpty()) }
     var genresExpanded by remember(currentFilters) { mutableStateOf(currentFilters.genres.isNotEmpty()) }
     val authors = remember(availableItems) {
-        availableItems.flatMap { it.item.creators }
+        availableItems.flatMap { it.creatorNames() }
             .map(String::trim)
             .filter(String::isNotBlank)
             .distinct()

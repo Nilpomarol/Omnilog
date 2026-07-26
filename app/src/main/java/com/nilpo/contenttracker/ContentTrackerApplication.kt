@@ -24,13 +24,22 @@ import com.nilpo.contenttracker.core.database.migration.MIGRATION_25_26
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_26_27
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_27_28
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_28_29
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_29_30
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_30_31
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_31_32
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_32_33
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_33_34
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_34_35
 import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
 import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
+import com.nilpo.contenttracker.core.refresh.MetadataRefreshManager
 import com.nilpo.contenttracker.core.mal.MalSyncManager
 import com.nilpo.contenttracker.core.repository.AniListMetadataRepository
 import com.nilpo.contenttracker.core.repository.BookRecommendationRepository
 import com.nilpo.contenttracker.core.repository.CompositeMetadataRepository
 import com.nilpo.contenttracker.core.repository.GoogleBooksMetadataRepository
+import com.nilpo.contenttracker.core.repository.IgdbCompanyMetadataEnricher
+import com.nilpo.contenttracker.core.repository.TmdbCompanyLogoEnricher
 import com.nilpo.contenttracker.core.repository.MetadataRepository
 import com.nilpo.contenttracker.core.repository.OfflineMediaRepository
 import com.nilpo.contenttracker.core.repository.OpenLibraryMetadataRepository
@@ -65,6 +74,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
         CoverSyncScheduler.enqueue(this)
         malSyncManager.resumePendingSync()
         importEnrichmentManager.resumePending()
+        metadataRefreshManager.resumePending()
     }
 
     override fun newImageLoader(context: Context): ImageLoader {
@@ -106,6 +116,12 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
                 MIGRATION_26_27,
                 MIGRATION_27_28,
                 MIGRATION_28_29,
+                MIGRATION_29_30,
+                MIGRATION_30_31,
+                MIGRATION_31_32,
+                MIGRATION_32_33,
+                MIGRATION_33_34,
+                MIGRATION_34_35,
             )
             .build()
     }
@@ -133,10 +149,19 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
                 apiKey = BuildConfig.TMDB_API_KEY,
                 omdbApiKey = BuildConfig.OMDB_API_KEY,
             ),
-            aniList = AniListMetadataRepository(malClientId = BuildConfig.MAL_CLIENT_ID),
+            aniList = AniListMetadataRepository(
+                malClientId = BuildConfig.MAL_CLIENT_ID,
+                tmdbCompanyLogos = TmdbCompanyLogoEnricher(BuildConfig.TMDB_API_KEY),
+            ),
             openLibrary = OpenLibraryMetadataRepository(),
             googleBooks = GoogleBooksMetadataRepository(BuildConfig.GOOGLE_BOOKS_API_KEY),
-            rawg = RawgMetadataRepository(BuildConfig.RAWG_API_KEY),
+            rawg = RawgMetadataRepository(
+                apiKey = BuildConfig.RAWG_API_KEY,
+                igdbCompanies = IgdbCompanyMetadataEnricher(
+                    clientId = BuildConfig.IGDB_CLIENT_ID,
+                    clientSecret = BuildConfig.IGDB_CLIENT_SECRET,
+                ),
+            ),
         )
     }
 
@@ -149,6 +174,17 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
             metadataRepository = metadataRepository,
             coverRepository = coverRepository,
             animeTitlePreference = { AnimeTitlePreferences.read(applicationContext) },
+        )
+    }
+
+    val metadataRefreshManager: MetadataRefreshManager by lazy {
+        MetadataRefreshManager(
+            context = applicationContext,
+            refreshDao = database.metadataRefreshDao(),
+            mediaDao = database.mediaDao(),
+            mediaRepository = mediaRepository,
+            metadataRepository = metadataRepository,
+            coverRepository = coverRepository,
         )
     }
 

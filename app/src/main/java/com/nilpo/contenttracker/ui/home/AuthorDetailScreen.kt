@@ -1,13 +1,14 @@
 package com.nilpo.contenttracker.ui.home
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
@@ -23,10 +24,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.ui.common.ContributorImage
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 @Composable
 fun AuthorDetailScreen(
+    authorName: String,
+    authorImageUrl: String?,
+    authorImageAspectRatio: Float?,
+    imageIsLogo: Boolean,
     creatorLabelResId: Int,
     items: List<TrackedMedia>,
     accent: Color,
@@ -49,13 +55,29 @@ fun AuthorDetailScreen(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = stringResource(creatorLabelResId),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = accent,
+                ContributorImage(
+                    imageUrl = authorImageUrl,
+                    name = authorName,
+                    isCompany = imageIsLogo,
+                    accent = accent,
+                    height = if (imageIsLogo) 64.dp else 88.dp,
+                    logoAspectRatio = authorImageAspectRatio,
                 )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(creatorLabelResId),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent,
+                    )
+                    Text(
+                        text = authorName,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogTheme.colors.appInk,
+                    )
+                }
                 Column(horizontalAlignment = Alignment.End) {
                     averageRating?.let { rating ->
                         Text(

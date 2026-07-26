@@ -183,7 +183,7 @@ class ImportEnrichmentManager(
     private val metadataRepository: MetadataRepository,
     private val coverRepository: CoverRepository,
     private val animeTitlePreference: () -> AnimeTitlePreference = {
-        AnimeTitlePreference.EnglishWithJapaneseOriginal
+        AnimeTitlePreference.EnglishWithRomajiOriginal
     },
     private val resolver: ImportedMetadataResolver = ImportedMetadataResolver(metadataRepository),
 ) : AutoCloseable {

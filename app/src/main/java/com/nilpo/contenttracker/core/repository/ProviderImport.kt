@@ -118,6 +118,7 @@ internal enum class MediaWriteOrigin(
 ) {
     UserAction(queuesOutboundMalSync = true),
     ProviderImport(queuesOutboundMalSync = false),
+    AutomaticMetadataRefresh(queuesOutboundMalSync = false),
 }
 
 internal suspend fun MediaWriteOrigin.notifyOutboundMalSync(

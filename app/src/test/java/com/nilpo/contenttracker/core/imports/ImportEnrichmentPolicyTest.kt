@@ -28,7 +28,7 @@ class ImportEnrichmentPolicyTest {
         listOf(ImportSource.ImdbCsv, ImportSource.StoryGraphCsv).forEach { source ->
             val automatic = preview.autoApplicableImportedFields(
                 source,
-                AnimeTitlePreference.EnglishWithJapaneseOriginal,
+                AnimeTitlePreference.EnglishWithRomajiOriginal,
             )
 
             assertEquals(
@@ -59,7 +59,7 @@ class ImportEnrichmentPolicyTest {
         )
         val automatic = preview.autoApplicableImportedFields(
             ImportSource.ImdbCsv,
-            AnimeTitlePreference.EnglishWithJapaneseOriginal,
+            AnimeTitlePreference.EnglishWithRomajiOriginal,
         )
 
         assertFalse(preview.hasReviewChangesAfter(automatic))
@@ -103,14 +103,14 @@ class ImportEnrichmentPolicyTest {
             setOf(MetadataRefreshField.Title, MetadataRefreshField.OriginalTitle),
             automatic.autoApplicableImportedFields(
                 ImportSource.MalApi,
-                AnimeTitlePreference.EnglishWithJapaneseOriginal,
+                AnimeTitlePreference.EnglishWithRomajiOriginal,
             ),
         )
         assertEquals(
             setOf(MetadataRefreshField.OriginalTitle),
             protected.autoApplicableImportedFields(
                 ImportSource.MalXml,
-                AnimeTitlePreference.EnglishWithJapaneseOriginal,
+                AnimeTitlePreference.EnglishWithRomajiOriginal,
             ),
         )
         assertEquals(

@@ -567,6 +567,9 @@ interface MediaDao {
     @Query("DELETE FROM external_ratings WHERE mediaItemId = :mediaItemId AND origin = 'Provider'")
     suspend fun deleteProviderExternalRatingsForItem(mediaItemId: Long)
 
+    @Query("DELETE FROM external_ratings WHERE mediaItemId = :mediaItemId AND source IN (:sources)")
+    suspend fun deleteExternalRatingsForSources(mediaItemId: Long, sources: List<String>)
+
     @Query("DELETE FROM external_ratings WHERE id = :externalRatingId")
     suspend fun deleteExternalRating(externalRatingId: Long)
     @Query("DELETE FROM external_ratings")

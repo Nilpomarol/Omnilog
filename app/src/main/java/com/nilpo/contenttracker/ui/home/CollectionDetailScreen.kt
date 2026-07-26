@@ -61,6 +61,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.core.repository.CollectionItemOrder
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
@@ -913,7 +914,7 @@ private fun ReorderItemRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                trackedMedia.item.creators.firstOrNull()?.let { creator ->
+                trackedMedia.creatorNames().firstOrNull()?.let { creator ->
                     Text(
                         text = creator,
                         style = MaterialTheme.typography.bodySmall,

@@ -11,6 +11,10 @@ android.disallowKotlinSourceSets=false
 # Never commit real credentials.
 GOOGLE_BOOKS_API_KEY=
 RAWG_API_KEY=
+# Optional: enriches game developers and publishers with IGDB company logos.
+# Create a free Twitch developer application and keep these values out of version control.
+IGDB_CLIENT_ID=
+IGDB_CLIENT_SECRET=
 OMDB_API_KEY=
 MAL_CLIENT_ID=
 TMDB_API_KEY=

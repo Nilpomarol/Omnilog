@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.ui.common.CoverScrim
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
@@ -68,7 +69,7 @@ internal fun findRelatedMedia(
         )
     }
 
-    val currentCreators = current.item.creators.normalizedValues()
+    val currentCreators = current.creatorNames().normalizedValues()
     val currentGenres = current.item.genres.normalizedValues()
     val currentCollectionId = current.collection?.id ?: current.item.collectionId
 
@@ -76,7 +77,7 @@ internal fun findRelatedMedia(
         .asSequence()
         .filter { candidate -> candidate.item.id != current.item.id }
         .mapNotNull { candidate ->
-            val sharedCreators = candidate.item.creators.matchingValues(currentCreators)
+            val sharedCreators = candidate.creatorNames().matchingValues(currentCreators)
             val sharedGenres = candidate.item.genres.matchingValues(currentGenres)
             val isSameCollection = currentCollectionId != null &&
                 currentCollectionId == (candidate.collection?.id ?: candidate.item.collectionId)

@@ -138,6 +138,10 @@ internal val MediaSection.creatorDetailLabelResId: Int
         MediaSection.Games -> R.string.creator_page_subtitle_developer
     }
 
+/** Studios and developers supply logos; people supply portraits. */
+internal val MediaSection.creatorImageIsLogo: Boolean
+    get() = this == MediaSection.Anime || this == MediaSection.Games
+
 internal val MediaSection.creatorExpandLabelResId: Int
     get() = when (this) {
         MediaSection.Anime -> R.string.creator_expand_studio

@@ -1,0 +1,1220 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 30,
+    "identityHash": "0f9daf8167a1d1c7d415e70fabef7195",
+    "entities": [
+      {
+        "tableName": "media_collections",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "media_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT NOT NULL, `title` TEXT NOT NULL, `collectionId` INTEGER, `collectionSortOrder` REAL, `progressTotal` INTEGER, `originalTitle` TEXT, `releaseYear` INTEGER, `language` TEXT, `genresJson` TEXT, `tagsJson` TEXT, `creatorsJson` TEXT, `coverUrl` TEXT, `synopsis` TEXT, `sourceUrl` TEXT, `externalRatingScore` REAL, `externalRatingMax` REAL, `externalRatingVoteCount` INTEGER, `primaryExternalRatingId` INTEGER, `popularityScore` REAL, `rankingPosition` INTEGER, `rankingLabel` TEXT, `providerCollectionTitle` TEXT, `ratingDistributionJson` TEXT, `popularityJson` TEXT, `rankingJson` TEXT, `metadataLastFetchedAtEpochMillis` INTEGER, `metadataExternalId` TEXT, `metadataSource` TEXT, `malId` INTEGER, `imdbId` TEXT, `storyGraphId` TEXT, `metadataOverrideFieldsCsv` TEXT, `isOwned` INTEGER NOT NULL, `ownershipType` TEXT NOT NULL, FOREIGN KEY(`collectionId`) REFERENCES `media_collections`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectionId",
+            "columnName": "collectionId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "collectionSortOrder",
+            "columnName": "collectionSortOrder",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "progressTotal",
+            "columnName": "progressTotal",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "originalTitle",
+            "columnName": "originalTitle",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "releaseYear",
+            "columnName": "releaseYear",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "language",
+            "columnName": "language",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "genresJson",
+            "columnName": "genresJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tagsJson",
+            "columnName": "tagsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "creatorsJson",
+            "columnName": "creatorsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "coverUrl",
+            "columnName": "coverUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "synopsis",
+            "columnName": "synopsis",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceUrl",
+            "columnName": "sourceUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "externalRatingScore",
+            "columnName": "externalRatingScore",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "externalRatingMax",
+            "columnName": "externalRatingMax",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "externalRatingVoteCount",
+            "columnName": "externalRatingVoteCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "primaryExternalRatingId",
+            "columnName": "primaryExternalRatingId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "popularityScore",
+            "columnName": "popularityScore",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rankingPosition",
+            "columnName": "rankingPosition",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rankingLabel",
+            "columnName": "rankingLabel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "providerCollectionTitle",
+            "columnName": "providerCollectionTitle",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ratingDistributionJson",
+            "columnName": "ratingDistributionJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "popularityJson",
+            "columnName": "popularityJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "rankingJson",
+            "columnName": "rankingJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "metadataLastFetchedAtEpochMillis",
+            "columnName": "metadataLastFetchedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "metadataExternalId",
+            "columnName": "metadataExternalId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "metadataSource",
+            "columnName": "metadataSource",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "malId",
+            "columnName": "malId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "imdbId",
+            "columnName": "imdbId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "storyGraphId",
+            "columnName": "storyGraphId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "metadataOverrideFieldsCsv",
+            "columnName": "metadataOverrideFieldsCsv",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isOwned",
+            "columnName": "isOwned",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownershipType",
+            "columnName": "ownershipType",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_media_items_collectionId",
+            "unique": false,
+            "columnNames": [
+              "collectionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_items_collectionId` ON `${TABLE_NAME}` (`collectionId`)"
+          },
+          {
+            "name": "index_media_items_imdbId",
+            "unique": false,
+            "columnNames": [
+              "imdbId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_items_imdbId` ON `${TABLE_NAME}` (`imdbId`)"
+          },
+          {
+            "name": "index_media_items_storyGraphId",
+            "unique": false,
+            "columnNames": [
+              "storyGraphId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_items_storyGraphId` ON `${TABLE_NAME}` (`storyGraphId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "media_collections",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "collectionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "media_credits",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaItemId` INTEGER NOT NULL, `personName` TEXT NOT NULL, `roleType` TEXT NOT NULL, `characterName` TEXT, `personImageUrl` TEXT, `sortOrder` INTEGER NOT NULL, `metadataSource` TEXT, FOREIGN KEY(`mediaItemId`) REFERENCES `media_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaItemId",
+            "columnName": "mediaItemId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "personName",
+            "columnName": "personName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "roleType",
+            "columnName": "roleType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "characterName",
+            "columnName": "characterName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "personImageUrl",
+            "columnName": "personImageUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metadataSource",
+            "columnName": "metadataSource",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_media_credits_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_credits_mediaItemId` ON `${TABLE_NAME}` (`mediaItemId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "media_items",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "tracking_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaItemId` INTEGER NOT NULL, `sessionNumber` INTEGER NOT NULL, `status` TEXT NOT NULL, `progressCurrent` INTEGER NOT NULL, `baselineProgress` INTEGER NOT NULL, `rating` INTEGER, `notes` TEXT, `platformName` TEXT, `platformType` TEXT, `startedAtEpochDay` INTEGER, `finishedAtEpochDay` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL, FOREIGN KEY(`mediaItemId`) REFERENCES `media_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaItemId",
+            "columnName": "mediaItemId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionNumber",
+            "columnName": "sessionNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progressCurrent",
+            "columnName": "progressCurrent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baselineProgress",
+            "columnName": "baselineProgress",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rating",
+            "columnName": "rating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "platformName",
+            "columnName": "platformName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "platformType",
+            "columnName": "platformType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startedAtEpochDay",
+            "columnName": "startedAtEpochDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "finishedAtEpochDay",
+            "columnName": "finishedAtEpochDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_tracking_sessions_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracking_sessions_mediaItemId` ON `${TABLE_NAME}` (`mediaItemId`)"
+          },
+          {
+            "name": "index_tracking_sessions_id_mediaItemId",
+            "unique": true,
+            "columnNames": [
+              "id",
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_tracking_sessions_id_mediaItemId` ON `${TABLE_NAME}` (`id`, `mediaItemId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "media_items",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "progress_updates",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaItemId` INTEGER NOT NULL, `sessionId` INTEGER NOT NULL, `amount` INTEGER NOT NULL, `loggedAtEpochDay` INTEGER NOT NULL, `hasKnownDate` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `coversPeriod` INTEGER NOT NULL, FOREIGN KEY(`mediaItemId`) REFERENCES `media_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sessionId`, `mediaItemId`) REFERENCES `tracking_sessions`(`id`, `mediaItemId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaItemId",
+            "columnName": "mediaItemId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amount",
+            "columnName": "amount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loggedAtEpochDay",
+            "columnName": "loggedAtEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasKnownDate",
+            "columnName": "hasKnownDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coversPeriod",
+            "columnName": "coversPeriod",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_progress_updates_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_progress_updates_mediaItemId` ON `${TABLE_NAME}` (`mediaItemId`)"
+          },
+          {
+            "name": "index_progress_updates_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_progress_updates_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          },
+          {
+            "name": "index_progress_updates_sessionId_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "sessionId",
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_progress_updates_sessionId_mediaItemId` ON `${TABLE_NAME}` (`sessionId`, `mediaItemId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "media_items",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "tracking_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId",
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id",
+              "mediaItemId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "session_status_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaItemId` INTEGER NOT NULL, `sessionId` INTEGER NOT NULL, `previousStatus` TEXT, `status` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `occurredOnEpochDay` INTEGER, FOREIGN KEY(`mediaItemId`) REFERENCES `media_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sessionId`, `mediaItemId`) REFERENCES `tracking_sessions`(`id`, `mediaItemId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaItemId",
+            "columnName": "mediaItemId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previousStatus",
+            "columnName": "previousStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurredOnEpochDay",
+            "columnName": "occurredOnEpochDay",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_session_status_events_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_session_status_events_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          },
+          {
+            "name": "index_session_status_events_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_session_status_events_mediaItemId` ON `${TABLE_NAME}` (`mediaItemId`)"
+          },
+          {
+            "name": "index_session_status_events_sessionId_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "sessionId",
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_session_status_events_sessionId_mediaItemId` ON `${TABLE_NAME}` (`sessionId`, `mediaItemId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "media_items",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "tracking_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId",
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id",
+              "mediaItemId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "external_ratings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mediaItemId` INTEGER NOT NULL, `source` TEXT NOT NULL, `score` REAL NOT NULL, `maxScore` REAL NOT NULL, `voteCount` INTEGER, `scoreDescriptor` TEXT, `origin` TEXT NOT NULL, FOREIGN KEY(`mediaItemId`) REFERENCES `media_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaItemId",
+            "columnName": "mediaItemId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxScore",
+            "columnName": "maxScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "voteCount",
+            "columnName": "voteCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "scoreDescriptor",
+            "columnName": "scoreDescriptor",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "origin",
+            "columnName": "origin",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_external_ratings_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_external_ratings_mediaItemId` ON `${TABLE_NAME}` (`mediaItemId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "media_items",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "objectives",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `metric` TEXT NOT NULL, `unit` TEXT NOT NULL, `mediaType` TEXT, `targetValue` INTEGER NOT NULL, `startDateEpochDay` INTEGER NOT NULL, `endDateEpochDay` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `archivedAtEpochMillis` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metric",
+            "columnName": "metric",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unit",
+            "columnName": "unit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaType",
+            "columnName": "mediaType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "targetValue",
+            "columnName": "targetValue",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDateEpochDay",
+            "columnName": "startDateEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endDateEpochDay",
+            "columnName": "endDateEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAtEpochMillis",
+            "columnName": "archivedAtEpochMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "mal_sync_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mediaItemId` INTEGER NOT NULL, `malId` INTEGER NOT NULL, `state` TEXT NOT NULL, `attemptCount` INTEGER NOT NULL, `lastError` TEXT, `updatedAtEpochMillis` INTEGER NOT NULL, `lastAttemptAtEpochMillis` INTEGER, `lastSuccessAtEpochMillis` INTEGER, `lastSyncedPayloadHash` TEXT, PRIMARY KEY(`mediaItemId`), FOREIGN KEY(`mediaItemId`) REFERENCES `media_items`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "mediaItemId",
+            "columnName": "mediaItemId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "malId",
+            "columnName": "malId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attemptCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptAtEpochMillis",
+            "columnName": "lastAttemptAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastSuccessAtEpochMillis",
+            "columnName": "lastSuccessAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastSyncedPayloadHash",
+            "columnName": "lastSyncedPayloadHash",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "mediaItemId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_mal_sync_queue_state",
+            "unique": false,
+            "columnNames": [
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_mal_sync_queue_state` ON `${TABLE_NAME}` (`state`)"
+          },
+          {
+            "name": "index_mal_sync_queue_updatedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "updatedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_mal_sync_queue_updatedAtEpochMillis` ON `${TABLE_NAME}` (`updatedAtEpochMillis`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "media_items",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "import_batches",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `source` TEXT NOT NULL, `state` TEXT NOT NULL, `totalCount` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `completedAtEpochMillis` INTEGER, `continuationUrl` TEXT, `diagnostic` TEXT, `reconnectRequired` INTEGER NOT NULL, `completionNotified` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCount",
+            "columnName": "totalCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtEpochMillis",
+            "columnName": "completedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "continuationUrl",
+            "columnName": "continuationUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "diagnostic",
+            "columnName": "diagnostic",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reconnectRequired",
+            "columnName": "reconnectRequired",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completionNotified",
+            "columnName": "completionNotified",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_import_batches_state",
+            "unique": false,
+            "columnNames": [
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_batches_state` ON `${TABLE_NAME}` (`state`)"
+          },
+          {
+            "name": "index_import_batches_updatedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "updatedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_batches_updatedAtEpochMillis` ON `${TABLE_NAME}` (`updatedAtEpochMillis`)"
+          }
+        ]
+      },
+      {
+        "tableName": "import_batch_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `batchId` INTEGER NOT NULL, `sourceKey` TEXT NOT NULL, `sourceExternalId` TEXT, `normalizedPayloadJson` TEXT, `mediaItemId` INTEGER, `state` TEXT NOT NULL, `providerSource` TEXT, `providerExternalId` TEXT, `matchKind` TEXT, `candidateReferencesJson` TEXT, `attemptCount` INTEGER NOT NULL, `retryable` INTEGER NOT NULL, `lastError` TEXT, `updatedAtEpochMillis` INTEGER NOT NULL, `lastAttemptAtEpochMillis` INTEGER, `completedAtEpochMillis` INTEGER, `coverageDismissed` INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(`batchId`) REFERENCES `import_batches`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`mediaItemId`) REFERENCES `media_items`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "batchId",
+            "columnName": "batchId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceKey",
+            "columnName": "sourceKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceExternalId",
+            "columnName": "sourceExternalId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "normalizedPayloadJson",
+            "columnName": "normalizedPayloadJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mediaItemId",
+            "columnName": "mediaItemId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerSource",
+            "columnName": "providerSource",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "providerExternalId",
+            "columnName": "providerExternalId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "matchKind",
+            "columnName": "matchKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "candidateReferencesJson",
+            "columnName": "candidateReferencesJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attemptCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retryable",
+            "columnName": "retryable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptAtEpochMillis",
+            "columnName": "lastAttemptAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAtEpochMillis",
+            "columnName": "completedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "coverageDismissed",
+            "columnName": "coverageDismissed",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_import_batch_items_batchId_sourceKey",
+            "unique": true,
+            "columnNames": [
+              "batchId",
+              "sourceKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_import_batch_items_batchId_sourceKey` ON `${TABLE_NAME}` (`batchId`, `sourceKey`)"
+          },
+          {
+            "name": "index_import_batch_items_batchId",
+            "unique": false,
+            "columnNames": [
+              "batchId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_batch_items_batchId` ON `${TABLE_NAME}` (`batchId`)"
+          },
+          {
+            "name": "index_import_batch_items_mediaItemId",
+            "unique": false,
+            "columnNames": [
+              "mediaItemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_batch_items_mediaItemId` ON `${TABLE_NAME}` (`mediaItemId`)"
+          },
+          {
+            "name": "index_import_batch_items_state",
+            "unique": false,
+            "columnNames": [
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_batch_items_state` ON `${TABLE_NAME}` (`state`)"
+          },
+          {
+            "name": "index_import_batch_items_updatedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "updatedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_import_batch_items_updatedAtEpochMillis` ON `${TABLE_NAME}` (`updatedAtEpochMillis`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "import_batches",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "batchId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "media_items",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "mediaItemId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0f9daf8167a1d1c7d415e70fabef7195')"
+    ]
+  }
+}

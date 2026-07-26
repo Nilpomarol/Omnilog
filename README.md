@@ -51,6 +51,7 @@ Supported keys:
 - `TMDB_API_KEY`
 - `GOOGLE_BOOKS_API_KEY`
 - `RAWG_API_KEY`
+- `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` (optional game-company logo enrichment)
 - `OMDB_API_KEY`
 - `MAL_CLIENT_ID`
 
@@ -70,11 +71,15 @@ User-level Gradle property example:
 TMDB_API_KEY=your-key
 GOOGLE_BOOKS_API_KEY=your-key
 RAWG_API_KEY=your-key
+IGDB_CLIENT_ID=your-twitch-client-id
+IGDB_CLIENT_SECRET=your-twitch-client-secret
 OMDB_API_KEY=your-key
 MAL_CLIENT_ID=your-client-id
 ```
 
 The root `gradle.properties` is local-only and ignored. Copy `gradle.properties.example` when setting up the project, or place credentials in user-level Gradle properties or environment variables.
+
+When both IGDB values are configured, game metadata refreshes use IGDB to add available developer and publisher logos beside their names. IGDB uses free Twitch developer credentials, but an Android app cannot keep a client secret private after distribution; use these direct credentials for local/development builds only. A production release should obtain IGDB access tokens through a small server-side proxy.
 
 For MAL account synchronization, register `omnilog://mal-oauth` as the application's OAuth redirect
 URI in MyAnimeList. Omnilog uses the authorization-code flow with PKCE, stores tokens behind Android

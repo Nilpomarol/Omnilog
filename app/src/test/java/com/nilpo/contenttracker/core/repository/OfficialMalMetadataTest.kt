@@ -9,12 +9,13 @@ import org.junit.Test
 
 class OfficialMalMetadataTest {
     @Test
-    fun `official MAL details supply English title Japanese original and core metadata`() {
+    fun `official MAL details preserve a Romanized original title and supply core metadata`() {
         val base = MetadataSuggestion(
             source = MetadataSource.Jikan,
             externalId = "5114",
             mediaType = MediaType.Anime,
             title = "Hagane no Renkinjutsushi",
+            originalTitle = "Hagane no Renkinjutsushi: FULLMETAL ALCHEMIST",
         )
         val details = JSONObject(
             """
@@ -40,12 +41,36 @@ class OfficialMalMetadataTest {
         val result = details.toOfficialMalMetadataSuggestion(base)
 
         assertEquals("Fullmetal Alchemist: Brotherhood", result.title)
-        assertEquals("鋼の錬金術師 FULLMETAL ALCHEMIST", result.originalTitle)
+        assertEquals("Hagane no Renkinjutsushi: FULLMETAL ALCHEMIST", result.originalTitle)
         assertEquals(2009, result.releaseYear)
         assertEquals("large.jpg", result.coverUrl)
         assertEquals(64, result.progressTotal)
         assertEquals(listOf("Action"), result.genres)
         assertEquals(listOf("Bones"), result.creators)
         assertEquals("https://myanimelist.net/anime/5114", result.sourceUrl)
+    }
+
+    @Test
+    fun `Jikan uses its Latin-script title as the original title`() {
+        val result = JSONObject(
+            """
+            {
+              "mal_id": 16498,
+              "title": "Shingeki no Kyojin",
+              "title_english": "Attack on Titan",
+              "title_japanese": "進撃の巨人"
+            }
+            """.trimIndent(),
+        ).toJikanMetadataSuggestion(
+            MetadataSuggestion(
+                source = MetadataSource.Jikan,
+                externalId = "16498",
+                mediaType = MediaType.Anime,
+                title = "Attack on Titan",
+            ),
+        )
+
+        assertEquals("Attack on Titan", result.title)
+        assertEquals("Shingeki no Kyojin", result.originalTitle)
     }
 }

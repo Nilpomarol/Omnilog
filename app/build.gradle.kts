@@ -17,6 +17,8 @@ fun providerCredential(name: String): String {
 val tmdbApiKey = providerCredential("TMDB_API_KEY")
 val googleBooksApiKey = providerCredential("GOOGLE_BOOKS_API_KEY")
 val rawgApiKey = providerCredential("RAWG_API_KEY")
+val igdbClientId = providerCredential("IGDB_CLIENT_ID")
+val igdbClientSecret = providerCredential("IGDB_CLIENT_SECRET")
 val omdbApiKey = providerCredential("OMDB_API_KEY")
 val malClientId = providerCredential("MAL_CLIENT_ID")
 
@@ -34,6 +36,8 @@ android {
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
         buildConfigField("String", "GOOGLE_BOOKS_API_KEY", "\"$googleBooksApiKey\"")
         buildConfigField("String", "RAWG_API_KEY", "\"$rawgApiKey\"")
+        buildConfigField("String", "IGDB_CLIENT_ID", "\"$igdbClientId\"")
+        buildConfigField("String", "IGDB_CLIENT_SECRET", "\"$igdbClientSecret\"")
         buildConfigField("String", "OMDB_API_KEY", "\"$omdbApiKey\"")
         buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"")
         buildConfigField("String", "MAL_REDIRECT_URI", "\"omnilog://mal-oauth\"")

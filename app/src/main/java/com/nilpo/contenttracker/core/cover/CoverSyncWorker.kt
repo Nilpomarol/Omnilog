@@ -11,6 +11,7 @@ import androidx.work.WorkerParameters
 import com.nilpo.contenttracker.ContentTrackerApplication
 import com.nilpo.contenttracker.core.model.MediaType
 import kotlinx.coroutines.flow.first
+import com.nilpo.contenttracker.core.model.persistableImageUrls
 
 object CoverSyncScheduler {
     private const val UNIQUE_WORK_NAME = "omnilog_cover_sync"
@@ -38,12 +39,12 @@ class CoverSyncWorker(
     override suspend fun doWork(): Result {
         val application = applicationContext as? ContentTrackerApplication
             ?: return Result.failure()
-        val coverUrls = application.mediaRepository
+        val imageUrls = application.mediaRepository
             .observeTrackedMedia(MediaType.entries.toSet())
             .first()
-            .map { it.item.coverUrl }
+            .persistableImageUrls()
 
-        val sync = application.coverRepository.persistAll(coverUrls)
+        val sync = application.coverRepository.persistAll(imageUrls)
         return if (sync.failures.isNotEmpty() && runAttemptCount < MAX_RETRY_COUNT) {
             Result.retry()
         } else {

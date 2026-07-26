@@ -25,6 +25,7 @@ internal sealed interface AppRoute : NavKey {
     data class AuthorDetail(
         val author: String,
         val section: MediaSection,
+        val contributorRole: String? = null,
     ) : AppRoute
 
     @Serializable

@@ -429,6 +429,7 @@ private fun HeaderFigures(
     // the width to be the size it now is.
     val minor = listOfNotNull(
         audience?.let { stringResource(R.string.metadata_users) to it },
+        length?.let { stringResource(metadata.totalUnitLabelRes()) to it },
     )
     if (rating == null && minor.isEmpty()) return
 

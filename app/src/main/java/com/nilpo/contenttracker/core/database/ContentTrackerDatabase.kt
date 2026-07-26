@@ -4,12 +4,15 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.nilpo.contenttracker.core.database.dao.ImportDao
 import com.nilpo.contenttracker.core.database.dao.MediaDao
+import com.nilpo.contenttracker.core.database.dao.MetadataRefreshDao
 import com.nilpo.contenttracker.core.database.entity.ExternalRatingEntity
 import com.nilpo.contenttracker.core.database.entity.ImportBatchEntity
 import com.nilpo.contenttracker.core.database.entity.ImportBatchItemEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCollectionEntity
 import com.nilpo.contenttracker.core.database.entity.MediaCreditEntity
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
+import com.nilpo.contenttracker.core.database.entity.MetadataRefreshItemEntity
+import com.nilpo.contenttracker.core.database.entity.MetadataRefreshRunEntity
 import com.nilpo.contenttracker.core.database.entity.MalSyncQueueEntity
 import com.nilpo.contenttracker.core.database.entity.ObjectiveEntity
 import com.nilpo.contenttracker.core.database.entity.ProgressUpdateEntity
@@ -29,12 +32,16 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
         MalSyncQueueEntity::class,
         ImportBatchEntity::class,
         ImportBatchItemEntity::class,
+        MetadataRefreshRunEntity::class,
+        MetadataRefreshItemEntity::class,
     ],
-    version = 29,
+    version = 35,
     exportSchema = true,
 )
 abstract class ContentTrackerDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
 
     abstract fun importDao(): ImportDao
+
+    abstract fun metadataRefreshDao(): MetadataRefreshDao
 }
