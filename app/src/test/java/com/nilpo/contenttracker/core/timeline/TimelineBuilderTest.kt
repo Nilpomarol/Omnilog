@@ -49,14 +49,14 @@ class TimelineBuilderTest {
         val entries = builder.build(listOf(media(sessions = listOf(session)))).entries
 
         assertEquals(2, entries.size)
-        // Same day, so the completion closes the run rather than opening it.
-        val completion = entries.last()
+        // Same day, with Completion at rank 1 (top of day) and progress at rank 2.
+        val completion = entries.first()
         assertEquals(TimelineEntryKind.Completion, completion.kind)
         assertEquals(100, completion.progress?.value)
         assertEquals(50, completion.progress?.delta)
         assertEquals(9, completion.rating)
         assertEquals("completion:1:10", completion.stableKey)
-        assertEquals("progress:1:10:1", entries.first().stableKey)
+        assertEquals("progress:1:10:1", entries.last().stableKey)
     }
 
     @Test
@@ -163,10 +163,10 @@ class TimelineBuilderTest {
         val entries = builder.build(listOf(media(sessions = listOf(completed)))).entries
 
         assertEquals(
-            listOf(TimelineEntryKind.Start, TimelineEntryKind.Completion),
+            listOf(TimelineEntryKind.Completion, TimelineEntryKind.Start),
             entries.map { it.kind },
         )
-        assertEquals(90, entries.last().progress?.value)
+        assertEquals(90, entries.first().progress?.value)
     }
 
     @Test
@@ -297,8 +297,8 @@ class TimelineBuilderTest {
             ),
         )
 
-        assertEquals(TimelineEntryKind.Dropped, result.entries.last().kind)
-        assertEquals(TimelineEntryKind.Start, result.entries.first().kind)
+        assertEquals(TimelineEntryKind.Dropped, result.entries.first().kind)
+        assertEquals(TimelineEntryKind.Start, result.entries.last().kind)
     }
 
     /** The whole point of the log: one status column could only ever remember the last of these. */

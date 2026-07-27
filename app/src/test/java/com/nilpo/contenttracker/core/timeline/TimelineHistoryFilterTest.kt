@@ -86,8 +86,7 @@ class TimelineHistoryFilterTest {
     }
 
     /**
-     * Within one day the order is the order things happened, so a session that began that day is
-     * listed before one that ended it.
+     * Within one day, endings appear at the top, progress in the middle, and starts at the bottom.
      */
     @Test
     fun withinOneDayAStartPrecedesProgressWhichPrecedesACompletion() {
@@ -95,9 +94,9 @@ class TimelineHistoryFilterTest {
 
         assertEquals(
             listOf(
-                TimelineEntryKind.Start,
-                TimelineEntryKind.Progress,
                 TimelineEntryKind.Completion,
+                TimelineEntryKind.Progress,
+                TimelineEntryKind.Start,
             ),
             sameDayEntries.map { it.kind },
         )

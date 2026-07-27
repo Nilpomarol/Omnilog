@@ -299,9 +299,8 @@ class TimelineBuilder {
             .thenBy { it.id }
 
         /**
-         * Days run newest first, but within one day the events run in the order they happened: a
-         * session that began that day is listed before one that ended that day, with progress in
-         * between. Reading a single day top to bottom therefore tells the day's story forwards.
+         * Days run newest first. Within one day, events run with endings/pauses at the top,
+         * progress updates in the middle, and starts/resumes at the bottom.
          */
         val entryComparator = compareByDescending<TimelineEntry> { it.date != null }
             .thenByDescending { it.date }
@@ -312,18 +311,16 @@ class TimelineBuilder {
 
         val TimelineEntryKind.semanticRank: Int
             get() = when (this) {
-                TimelineEntryKind.Start,
-                TimelineEntryKind.Revisit,
-                -> 1
-                TimelineEntryKind.Progress -> 2
-                // Both ways a session can end rank last, so a day read top to bottom finishes on
-                // whatever closed it. A pause sits with them: it also stops the day's reading.
+                // Both ways a session can end rank first, along with pauses.
                 TimelineEntryKind.Paused,
                 TimelineEntryKind.Completion,
                 TimelineEntryKind.Dropped,
-                -> 3
-                // A resume opens a stretch, so it belongs with the starts.
-                TimelineEntryKind.Resumed -> 1
+                -> 1
+                TimelineEntryKind.Progress -> 2
+                // Starts and resumes rank last, appearing at the bottom of the day.
+                TimelineEntryKind.Start,
+                TimelineEntryKind.Revisit,
+                TimelineEntryKind.Resumed -> 3
             }
     }
 }
