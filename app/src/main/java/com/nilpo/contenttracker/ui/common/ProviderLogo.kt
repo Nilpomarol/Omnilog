@@ -3,8 +3,10 @@ package com.nilpo.contenttracker.ui.common
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -36,9 +38,8 @@ fun ExternalRatingSource.logoRes(): Int? = when (this) {
     ExternalRatingSource.RottenTomatoes -> R.drawable.rottentomatoes_logo
     ExternalRatingSource.Steam -> R.drawable.steam_logo
     ExternalRatingSource.StoryGraph -> R.drawable.storygraph_logo
-    ExternalRatingSource.Rawg,
-    ExternalRatingSource.FilmAffinity,
-    -> null
+    ExternalRatingSource.Rawg -> R.drawable.rawg_logo
+    ExternalRatingSource.FilmAffinity -> null
 }
 
 /**
@@ -49,8 +50,7 @@ fun ExternalRatingSource.logoRes(): Int? = when (this) {
  */
 fun ExternalRatingSource.logoIsSilhouette(): Boolean = when (this) {
     ExternalRatingSource.Goodreads,
-    ExternalRatingSource.StoryGraph,
-    -> true
+    ExternalRatingSource.StoryGraph -> true
 
     else -> false
 }
@@ -79,6 +79,7 @@ private val ChipPadding = 3.dp
 fun ProviderLogo(
     source: ExternalRatingSource,
     height: Dp,
+    maxWidth: Dp? = null,
     modifier: Modifier = Modifier,
 ) {
     val logo = source.logoRes() ?: return
@@ -91,22 +92,61 @@ fun ProviderLogo(
         )
     }
 
-    if (source.logoIsSilhouette()) {
-        // The chip wraps the mark rather than boxing it into a square: these run from StoryGraph's
-        // square glyph to the Goodreads wordmark at 4:1, and a square would crush the wordmark to
-        // nothing.
+    val baseModifier = if (maxWidth != null) {
+        modifier.heightIn(max = height).widthIn(max = maxWidth)
+    } else {
+        modifier.height(height)
+    }
+
+    if (source == ExternalRatingSource.Rawg) {
         Surface(
-            modifier = modifier,
+            modifier = baseModifier,
+            shape = RoundedCornerShape(4.dp),
+            color = Color.Black,
+        ) {
+            mark(
+                Modifier
+                    .padding(horizontal = ChipPadding * 2, vertical = ChipPadding)
+                    .heightIn(max = height - ChipPadding * 2)
+                    .run { if (maxWidth != null) widthIn(max = maxWidth - ChipPadding * 2) else this },
+            )
+        }
+    } else if (source.logoIsSilhouette()) {
+        Surface(
+            modifier = baseModifier,
             shape = RoundedCornerShape(4.dp),
             color = ChipPaper,
         ) {
             mark(
                 Modifier
                     .padding(horizontal = ChipPadding * 2, vertical = ChipPadding)
-                    .height(height - ChipPadding * 2),
+                    .heightIn(max = height - ChipPadding * 2)
+                    .run { if (maxWidth != null) widthIn(max = maxWidth - ChipPadding * 2) else this },
             )
         }
     } else {
-        mark(modifier.height(height))
+        mark(baseModifier)
     }
+}
+
+/** Returns the expected width of the provider logo or mark at the given height, capped at [maxWidth]. */
+fun ExternalRatingSource?.logoWidth(height: Dp = 30.dp, maxWidth: Dp = 60.dp): Dp {
+    val unconstrainedWidth = when (this) {
+        null -> height
+        ExternalRatingSource.AniList,
+        ExternalRatingSource.Mal,
+        ExternalRatingSource.Steam,
+        ExternalRatingSource.FilmAffinity,
+        ExternalRatingSource.GoogleBooks -> height
+
+        ExternalRatingSource.StoryGraph -> (height.value - 6f + 12f).dp
+        ExternalRatingSource.Tmdb -> (height.value * 1.387f).dp
+        ExternalRatingSource.OpenLibrary -> (height.value * 1.632f).dp
+        ExternalRatingSource.Imdb -> (height.value * 1.984f).dp
+        ExternalRatingSource.RottenTomatoes -> (height.value * 3.508f).dp
+        ExternalRatingSource.Goodreads -> ((height.value - 6f) * 4f + 12f).dp
+        ExternalRatingSource.Metacritic -> (height.value * 4.4f).dp
+        ExternalRatingSource.Rawg -> ((height.value - 6f) * (82.55f / 15.692f) + 12f).dp
+    }
+    return minOf(unconstrainedWidth, maxWidth)
 }

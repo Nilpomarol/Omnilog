@@ -26,6 +26,9 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import com.nilpo.contenttracker.ui.common.logoWidth
 import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.formatCompactCount
@@ -104,6 +107,11 @@ fun RatingsSection(
         )
     }
 
+    val allDisplays = listOfNotNull(userDisplay).plus(providerDisplays)
+    val maxLogoWidth = allDisplays
+        .maxOfOrNull { it.markSource.logoWidth(30.dp) }
+        ?: 30.dp
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -114,8 +122,8 @@ fun RatingsSection(
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOfNotNull(userDisplay).plus(providerDisplays).forEach { display ->
-                RatingCard(display)
+            allDisplays.forEach { display ->
+                RatingCard(display, maxLogoWidth)
             }
         }
     }
@@ -123,7 +131,7 @@ fun RatingsSection(
 
 /** One provider or personal score, drawn as a compact, long card. */
 @Composable
-private fun RatingCard(display: RatingDisplay) {
+private fun RatingCard(display: RatingDisplay, maxLogoWidth: Dp) {
     val isPersonalRating = display.markSource == null
     val isEmphasized = isPersonalRating || display.isPrimary
     Surface(
@@ -142,11 +150,17 @@ private fun RatingCard(display: RatingDisplay) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RatingMark(
-                source = display.markSource,
-                tint = display.tint,
-                height = 30.dp,
-            )
+            Box(
+                modifier = Modifier.width(maxLogoWidth),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                RatingMark(
+                    source = display.markSource,
+                    tint = display.tint,
+                    height = 30.dp,
+                    maxWidth = maxLogoWidth,
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -224,7 +238,7 @@ private fun ScoreFigure(score: String, scale: String?, rankingPosition: Int?, ti
 
 /** Draws the provider logo or Omnilog's own rating mark. */
 @Composable
-private fun RatingMark(source: ExternalRatingSource?, tint: Color, height: Dp) {
+private fun RatingMark(source: ExternalRatingSource?, tint: Color, height: Dp, maxWidth: Dp) {
     when {
         source == null -> Icon(
             painter = painterResource(R.drawable.ic_kpi_rating),
@@ -232,7 +246,7 @@ private fun RatingMark(source: ExternalRatingSource?, tint: Color, height: Dp) {
             modifier = Modifier.size(height),
             tint = tint,
         )
-        source.logoRes() != null -> ProviderLogo(source = source, height = height)
+        source.logoRes() != null -> ProviderLogo(source = source, height = height, maxWidth = maxWidth)
         else -> Unit
     }
 }
