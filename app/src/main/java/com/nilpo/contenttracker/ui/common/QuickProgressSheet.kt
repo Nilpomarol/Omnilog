@@ -1,24 +1,41 @@
 package com.nilpo.contenttracker.ui.common
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -26,8 +43,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,18 +58,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp as lerpDp
 import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
@@ -57,63 +88,47 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.detail.sessionResumeActionLabel
 import com.nilpo.contenttracker.ui.detail.sessionStartActionLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Compact dialog for the UX-13 quick progress actions.
- *
- * The "Ara mateix" tiles stay uncluttered: a single tap opens this sheet, which keeps all the
- * density off the tile. Every startable status routes here — Planned and Paused included — so the
- * same gesture always means "tell me where you are", never a blind status flip.
- *
- * Editing is deliberately deferred: the stepper and the text field both write to a local draft,
- * and nothing is persisted until the primary button is pressed. That costs episodic media one tap
- * versus the old commit-on-every-tap stepper, but it is what lets a single button describe the
- * outcome honestly — and it stops a `+` onto the final episode from auto-completing the item
- * before you have even looked at the button.
- *
- * Finishing is a checkbox rather than a second button, because "fill the progress to the total"
- * and "mark it completed" are the same act whenever a total exists — offering them separately made
- * the user perform it twice. Ticking the box fills the draft to the total and turns the single
- * button into the completion action; unticking restores the draft you had. On a total-less item
- * (any game) there is nothing to fill, so the tick simply means "completed at whatever the draft
- * says", which is what keeps games from needing a layout of their own.
- *
- * That leaves exactly one call to action at all times. Its label is derived from the draft, not
- * the status alone:
- *  - box ticked               -> "Marca com a completat", in the Completat green
- *  - Planned, draft untouched -> "Comença"
- *  - Paused, draft untouched  -> "Reprèn"
- *  - otherwise                -> "Desa el progrés"
- *
- * [onCommit] receives an absolute target value; the caller (ViewModel) clamps, promotes a
- * Planned/Paused session to In progress, and completes when the value reaches the total.
- * [onComplete] receives the same draft, so a game completed at 42 hours records the 42.
  */
+data class QuickCompletion(
+    val progress: Int,
+    val rating: Int?,
+    val finishedAt: LocalDate,
+)
+
+private enum class QuickProgressPhase {
+    Progress,
+    CompletionDetails,
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickProgressSheet(
     trackedMedia: TrackedMedia,
     accent: Color,
     onCommit: (Int) -> Unit,
-    onComplete: (Int) -> Unit,
+    onComplete: (QuickCompletion) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val session = trackedMedia.currentSession ?: return
     val item = trackedMedia.item
-    // Games measure open-ended hours, so they never carry a total. Every other type does when its
-    // metadata supplied one — including movies, whose total is the TMDB runtime in minutes.
     val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }?.takeIf { it > 0 }
 
-    // Close once the item lands somewhere the sheet can no longer act on. Planned, In progress and
-    // Paused are all editable here; Completed and Dropped are not.
     LaunchedEffect(session.status) {
         if (session.status == TrackingStatus.Completed || session.status == TrackingStatus.Dropped) {
             onDismiss()
         }
     }
 
-    // Re-seeded whenever the persisted value moves under us, so an external edit is not silently
-    // overwritten by a stale draft.
     var draftText by remember(session.id, session.progressCurrent) {
         mutableStateOf(session.progressCurrent.toString())
     }
@@ -122,23 +137,16 @@ fun QuickProgressSheet(
     val promotes = session.status == TrackingStatus.Planned ||
         session.status == TrackingStatus.Paused
 
-    // With a total the tick is just a view of the draft, so editing the number back down unticks
-    // the box on its own. Without one there is nothing to read it from, so it holds its own state.
-    var doneChecked by remember(session.id) { mutableStateOf(false) }
-    var draftBeforeDone by remember(session.id) { mutableStateOf<String?>(null) }
-    val done = if (total != null) draft == total else doneChecked
     val completedAccent = OmnilogTheme.accents.Completed
-    val onDoneChange: (Boolean) -> Unit = { checked ->
-        doneChecked = checked
-        if (total != null) {
-            if (checked) {
-                draftBeforeDone = draftText
-                draftText = total.toString()
-            } else {
-                draftText = draftBeforeDone ?: session.progressCurrent.toString()
-                draftBeforeDone = null
-            }
-        }
+    var manualFinishing by remember(session.id) { mutableStateOf(false) }
+    var preFinishDraftText by remember(session.id) { mutableStateOf<String?>(null) }
+    var phase by remember(session.id) { mutableStateOf(QuickProgressPhase.Progress) }
+
+    val isFinishing = manualFinishing || (total != null && draft != null && draft >= total)
+
+    var ratingDraft by remember(session.id) { mutableStateOf(session.rating) }
+    var finishDate by remember(session.id) {
+        mutableStateOf(session.finishedAt ?: LocalDate.now())
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -147,153 +155,442 @@ fun QuickProgressSheet(
         sheetState = sheetState,
         containerColor = OmnilogTheme.colors.appPanel,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MetadataCoverImage(
-                    coverUrl = item.coverUrl,
-                    modifier = Modifier.size(width = 40.dp, height = 60.dp),
-                    shape = RoundedCornerShape(6.dp),
-                )
+        when (phase) {
+            QuickProgressPhase.Progress -> {
                 Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .padding(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.quick_progress_title),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = OmnilogTheme.colors.appMuted,
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MetadataCoverImage(
+                            coverUrl = item.coverUrl,
+                            modifier = Modifier.size(width = 40.dp, height = 60.dp),
+                            shape = RoundedCornerShape(6.dp),
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.quick_progress_title),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = OmnilogTheme.colors.appMuted,
+                            )
+                            Text(
+                                text = displayMediaTitle(item.title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = OmnilogTheme.colors.appInk,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+
+                    // The rail and the switch read as one control, so they sit closer to each
+                    // other than to the header above or the button below.
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        QuickProgressRail(
+                            text = draftText,
+                            total = total,
+                            mediaType = item.type,
+                            accent = if (isFinishing) completedAccent else accent,
+                            onTextChange = { draftText = it },
+                        )
+
+                        FinishSwitch(
+                            checked = isFinishing,
+                            accent = completedAccent,
+                            trailing = total?.let { "$it / $it" },
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    manualFinishing = true
+                                    if (total != null && (draft == null || draft < total)) {
+                                        preFinishDraftText = draftText
+                                        draftText = total.toString()
+                                    }
+                                } else {
+                                    manualFinishing = false
+                                    if (preFinishDraftText != null) {
+                                        draftText = preFinishDraftText!!
+                                        preFinishDraftText = null
+                                    } else if (total != null && draft != null && draft >= total) {
+                                        draftText = (total - 1).coerceAtLeast(0).toString()
+                                    }
+                                }
+                            },
+                        )
+                    }
+
+                    val buttonColor by animateColorAsState(
+                        targetValue = if (isFinishing) completedAccent else accent,
+                        label = "buttonColor",
                     )
-                    Text(
-                        text = displayMediaTitle(item.title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = OmnilogTheme.colors.appInk,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Button(
+                        onClick = {
+                            draft?.let { value ->
+                                if (isFinishing) {
+                                    phase = QuickProgressPhase.CompletionDetails
+                                } else {
+                                    onCommit(value)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = draft != null && (isFinishing || changed || promotes),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = buttonColor,
+                            contentColor = contentColorOn(buttonColor),
+                        ),
+                    ) {
+                        Text(
+                            text = when {
+                                isFinishing -> stringResource(R.string.quick_progress_next)
+                                !changed && session.status == TrackingStatus.Planned ->
+                                    sessionStartActionLabel(item.type)
+                                !changed && session.status == TrackingStatus.Paused ->
+                                    sessionResumeActionLabel(item.type)
+                                else -> stringResource(R.string.quick_progress_save)
+                            },
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
                 }
             }
 
-            // The control takes the accent while you are editing and the Completat green once the
-            // box is ticked, so the whole sheet — control, tick and button — agrees on what the
-            // next tap will do.
-            val controlAccent = if (done) completedAccent else accent
-            if (item.type.usesEpisodeStepper()) {
-                QuickStepper(
-                    draft = draft,
-                    total = total,
-                    mediaType = item.type,
-                    accent = controlAccent,
-                    onDraftChange = { draftText = it.toString() },
-                )
-            } else {
-                QuickDirectEntry(
-                    text = draftText,
-                    total = total,
-                    mediaType = item.type,
-                    accent = controlAccent,
-                    onTextChange = { draftText = it },
+            QuickProgressPhase.CompletionDetails -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .padding(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MetadataCoverImage(
+                            coverUrl = item.coverUrl,
+                            modifier = Modifier.size(width = 40.dp, height = 60.dp),
+                            shape = RoundedCornerShape(6.dp),
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.quick_progress_completion_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = OmnilogTheme.colors.appInk,
+                            )
+                            Text(
+                                text = stringResource(R.string.quick_progress_completion_subtitle),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = OmnilogTheme.colors.appMuted,
+                            )
+                        }
+                    }
+
+                    CompletionForm(
+                        rating = ratingDraft,
+                        finishedAt = finishDate,
+                        accent = completedAccent,
+                        onRatingChange = { ratingDraft = it },
+                        onFinishedAtChange = { finishDate = it },
+                    )
+
+                    Button(
+                        onClick = {
+                            draft?.let { value ->
+                                onComplete(QuickCompletion(value, ratingDraft, finishDate))
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = draft != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = completedAccent,
+                            contentColor = contentColorOn(completedAccent),
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            text = stringResource(R.string.quick_progress_complete),
+                            modifier = Modifier.padding(start = 6.dp),
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
+
+                    TextButton(
+                        onClick = { phase = QuickProgressPhase.Progress },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(text = stringResource(R.string.back))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Totals at or below this get a tick per step drawn on the rail; above it the marks would be
+ * closer together than a fingertip and the rail runs unmarked instead.
+ */
+private const val MaxTickedTotal = 40
+
+/** Diameter of the rail's thumb, and so the width the track is inset by at each end. */
+private val RailThumbSize = 26.dp
+
+/**
+ * Vertical slack trimmed off the rail. A [Slider] claims a 48 dp interactive height around a
+ * 10 dp track, which left the rail marooned in whitespace between the figure and the switch.
+ * Trimming only changes the space the slider *claims* — it is still drawn and still hit-tested at
+ * full height, so the touch target survives.
+ */
+private val RailSlackTrim = 14.dp
+
+/**
+ * Lets the rail bleed to the full content width and gives back its vertical slack.
+ *
+ * M3 insets the track by half a thumb at each end so the thumb stays inside the slider's bounds,
+ * which left the rail visibly narrower than the figure above it and the switch below. Measuring
+ * one thumb wider than the slot and centring the overhang puts the track's ends exactly on the
+ * content edges, so all three line up.
+ */
+private fun Modifier.railBleed(): Modifier = layout { measurable, constraints ->
+    val overhang = RailThumbSize.roundToPx()
+    val trim = RailSlackTrim.roundToPx()
+    val placeable = measurable.measure(
+        constraints.copy(
+            minWidth = constraints.maxWidth + overhang,
+            maxWidth = constraints.maxWidth + overhang,
+        ),
+    )
+    layout(constraints.maxWidth, (placeable.height - trim).coerceAtLeast(0)) {
+        placeable.place(-overhang / 2, -trim / 2)
+    }
+}
+
+/**
+ * The single progress control: an editable figure sitting over a draggable rail.
+ *
+ * This replaces the old stepper/direct-entry split. One control covers every media type because
+ * the rail scales with the total instead of the type — it marks the individual steps while there
+ * are few enough to aim at and runs unmarked above that, with the figure as the exact path either
+ * way. Items with no known total (games, anything missing `progressTotal`) have no scale to draw
+ * a rail against, so they keep plain step buttons.
+ *
+ * The slider is deliberately continuous rather than stepped even when the ticks are drawn: a
+ * stepped [Slider] coerces its value to the nearest tick, which turns the run to the total on
+ * finishing into a march between episodes instead of a glide. Whole values come from rounding in
+ * `onValueChange` instead, which holds the drag to steps without quantising the animation.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickProgressRail(
+    text: String,
+    total: Int?,
+    mediaType: MediaType,
+    accent: Color,
+    onTextChange: (String) -> Unit,
+) {
+    val current = text.toIntOrNull()?.coerceAtLeast(0) ?: 0
+    val unit = progressUnitLabel(mediaType, total ?: current)
+
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            ProgressFigure(
+                text = text,
+                accent = accent,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .widthIn(min = 44.dp),
+                onTextChange = onTextChange,
+            )
+            Text(
+                text = if (total != null) "/ $total $unit" else unit,
+                modifier = Modifier.padding(start = 8.dp, bottom = 7.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (total != null && total > 0) {
+                Spacer(modifier = Modifier.weight(1f))
+                val pct = ((current.toFloat() / total) * 100).toInt().coerceIn(0, 100)
+                Text(
+                    text = "$pct%",
+                    modifier = Modifier.padding(bottom = 7.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
+        }
 
-            DoneToggleRow(
-                checked = done,
-                accent = completedAccent,
-                onCheckedChange = onDoneChange,
+        if (total != null && total > 0) {
+            val stateLabel = "$current / $total $unit"
+            val interactionSource = remember { MutableInteractionSource() }
+            val dragged by interactionSource.collectIsDraggedAsState()
+            // The rail glides when something else moves the figure — the finish switch jumping it
+            // to the total, or a typed value — but tracks the finger exactly while it is dragged,
+            // where a spring would only ever lag behind.
+            val railValue by animateFloatAsState(
+                targetValue = current.coerceAtMost(total).toFloat(),
+                animationSpec = if (dragged) {
+                    snap()
+                } else {
+                    spring(dampingRatio = 0.85f, stiffness = 200f)
+                },
+                label = "railValue",
             )
 
-            Button(
-                onClick = { draft?.let { if (done) onComplete(it) else onCommit(it) } },
-                modifier = Modifier.fillMaxWidth(),
-                // A Planned or Paused item always has something to commit — the promotion itself —
-                // even when the number never moved.
-                enabled = draft != null && (done || changed || promotes),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = controlAccent,
-                    contentColor = Color.Black,
-                ),
-            ) {
-                if (done) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+            val trackColors = SliderDefaults.colors(
+                activeTrackColor = accent,
+                inactiveTrackColor = accent.copy(alpha = 0.16f),
+            )
+            val passedTickColor = OmnilogTheme.colors.appPanel.copy(alpha = 0.55f)
+            val comingTickColor = accent.copy(alpha = 0.45f)
+            val showTicks = total in 2..MaxTickedTotal
+
+            Slider(
+                value = railValue,
+                onValueChange = { raw ->
+                    // A continuous slider's accessibility increment is a hundredth of the range,
+                    // which rounds straight back to where it started on a scale as short as an
+                    // episode count. Off-drag changes therefore move a whole step instead.
+                    val next = if (!dragged && raw != current.toFloat() && abs(raw - current) < 1f) {
+                        if (raw > current) current + 1 else current - 1
+                    } else {
+                        raw.roundToInt()
+                    }
+                    onTextChange(next.coerceIn(0, total).toString())
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .railBleed()
+                    .semantics { stateDescription = stateLabel },
+                interactionSource = interactionSource,
+                valueRange = 0f..total.toFloat(),
+                colors = trackColors,
+                thumb = {
+                    Box(
+                        modifier = Modifier
+                            .size(RailThumbSize)
+                            .clip(CircleShape)
+                            .background(OmnilogTheme.colors.appPanel)
+                            .border(3.dp, accent, CircleShape),
                     )
-                }
-                Text(
-                    text = when {
-                        done -> stringResource(R.string.quick_progress_complete)
-                        !changed && session.status == TrackingStatus.Planned ->
-                            sessionStartActionLabel(item.type)
-                        !changed && session.status == TrackingStatus.Paused ->
-                            sessionResumeActionLabel(item.type)
-                        else -> stringResource(R.string.quick_progress_save)
-                    },
-                    modifier = Modifier.padding(start = if (done) 6.dp else 0.dp),
-                    fontWeight = FontWeight.ExtraBold,
+                },
+                track = { sliderState ->
+                    SliderDefaults.Track(
+                        sliderState = sliderState,
+                        modifier = Modifier
+                            .height(10.dp)
+                            .drawWithContent {
+                                drawContent()
+                                if (!showTicks) return@drawWithContent
+                                val reached = railValue / total
+                                val radius = 1.5.dp.toPx()
+                                for (step in 1 until total) {
+                                    val at = step.toFloat() / total
+                                    drawCircle(
+                                        color = if (at <= reached) passedTickColor else comingTickColor,
+                                        radius = radius,
+                                        center = Offset(size.width * at, size.height / 2f),
+                                    )
+                                }
+                            },
+                        colors = trackColors,
+                        drawStopIndicator = null,
+                        thumbTrackGapSize = 0.dp,
+                        trackInsideCornerSize = 0.dp,
+                    )
+                },
+            )
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                StepButton(
+                    symbol = "−",
+                    enabled = current > 0,
+                    accent = accent,
+                    contentDescription = stringResource(R.string.quick_progress_decrease),
+                    modifier = Modifier.weight(1f),
+                    onClick = { onTextChange((current - 1).coerceAtLeast(0).toString()) },
+                )
+                StepButton(
+                    symbol = "+",
+                    enabled = true,
+                    accent = accent,
+                    contentDescription = stringResource(R.string.quick_progress_increase),
+                    modifier = Modifier.weight(1f),
+                    onClick = { onTextChange((current + 1).toString()) },
                 )
             }
         }
     }
 }
 
+/**
+ * The figure, edited in place. No border until it is touched: a faint accent rule on rest, solid
+ * on focus, so it reads as editable without becoming another box on the sheet.
+ */
 @Composable
-private fun QuickStepper(
-    draft: Int?,
-    total: Int?,
-    mediaType: MediaType,
+private fun ProgressFigure(
+    text: String,
     accent: Color,
-    onDraftChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    onTextChange: (String) -> Unit,
 ) {
-    val current = draft ?: 0
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        StepButton(
-            symbol = "−",
-            enabled = current > 0,
-            accent = accent,
-            contentDescription = stringResource(R.string.quick_progress_decrease),
-            onClick = { onDraftChange(current - 1) },
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = if (total != null) "$current / $total" else "$current",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = accent,
+    val interactionSource = remember { MutableInteractionSource() }
+    val focused by interactionSource.collectIsFocusedAsState()
+    val underline by animateColorAsState(
+        targetValue = if (focused) accent else accent.copy(alpha = 0.28f),
+        label = "figureUnderline",
+    )
+
+    BasicTextField(
+        value = text,
+        onValueChange = { input -> onTextChange(input.filter { it.isDigit() }.take(6)) },
+        modifier = modifier.drawBehind {
+            val y = size.height - 1.dp.toPx()
+            drawLine(
+                color = underline,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 2.dp.toPx(),
             )
-            Text(
-                text = progressUnitLabel(mediaType, total ?: current),
-                style = MaterialTheme.typography.labelMedium,
-                color = OmnilogTheme.colors.appMuted,
-            )
-        }
-        StepButton(
-            symbol = "+",
-            enabled = total == null || current < total,
-            accent = accent,
-            contentDescription = stringResource(R.string.quick_progress_increase),
-            onClick = { onDraftChange(current + 1) },
-        )
-    }
+        },
+        textStyle = MaterialTheme.typography.displaySmall.copy(
+            fontWeight = FontWeight.ExtraBold,
+            color = accent,
+        ),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        singleLine = true,
+        interactionSource = interactionSource,
+        cursorBrush = SolidColor(accent),
+    )
 }
 
 @Composable
@@ -302,23 +599,24 @@ private fun StepButton(
     enabled: Boolean,
     accent: Color,
     contentDescription: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     FilledTonalIconButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier
-            .size(52.dp)
+        modifier = modifier
+            .height(46.dp)
             .semantics { this.contentDescription = contentDescription },
+        shape = RoundedCornerShape(14.dp),
         colors = IconButtonDefaults.filledTonalIconButtonColors(
             containerColor = accent.copy(alpha = 0.16f),
             contentColor = accent,
         ),
     ) {
-        // The glyph is decorative; the button carries the accessibility label.
         Text(
             text = symbol,
-            fontSize = 26.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Light,
             modifier = Modifier.clearAndSetSemantics { },
         )
@@ -326,96 +624,201 @@ private fun StepButton(
 }
 
 /**
- * The finish affordance. A divider sets it apart from the progress control above, because it is
- * the one thing in the sheet that changes what the button will do rather than what it will write.
- * The whole row is the target, not just the box.
+ * Full-width finish toggle: the row itself is the switch.
+ *
+ * The knob travels the whole width while [accent] washes in behind it, so the label ends up
+ * sitting on the finished colour — the state change carries more weight than the primary button
+ * below it, which is right for the one thing on this sheet that opens the completion step. It
+ * replaces a bordered card whose trailing chevron made it read as navigation.
  */
 @Composable
-private fun DoneToggleRow(
+private fun FinishSwitch(
     checked: Boolean,
     accent: Color,
+    trailing: String?,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        HorizontalDivider(color = OmnilogTheme.colors.appLine)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(role = Role.Checkbox) { onCheckedChange(!checked) }
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Checkbox(
-                checked = checked,
-                // The row already carries the click and the label; a nested target would only
-                // give TalkBack a second, unlabelled way in.
-                onCheckedChange = null,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = accent,
-                    checkmarkColor = Color.Black,
-                    uncheckedColor = OmnilogTheme.colors.appMuted,
-                ),
+    val palette = OmnilogTheme.colors
+    val onAccent = contentColorOn(accent)
+    val progress by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = 220f),
+        label = "finishSwitch",
+    )
+
+    Surface(
+        onClick = { onCheckedChange(!checked) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .semantics { role = Role.Switch },
+        shape = RoundedCornerShape(16.dp),
+        color = palette.appBackground,
+        border = BorderStroke(1.dp, lerp(palette.appLine, accent, progress)),
+    ) {
+        BoxWithConstraints {
+            val knobWidth = 44.dp
+            val inset = 5.dp
+            val travel = maxWidth - knobWidth - inset * 2
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress)
+                    .background(accent),
             )
             Text(
                 text = stringResource(R.string.quick_progress_mark_done),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (checked) FontWeight.Bold else FontWeight.SemiBold,
-                color = if (checked) accent else OmnilogTheme.colors.appInk,
-            )
-        }
-    }
-}
-
-@Composable
-private fun QuickDirectEntry(
-    text: String,
-    total: Int?,
-    mediaType: MediaType,
-    accent: Color,
-    onTextChange: (String) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = accent.copy(alpha = 0.08f),
-            border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
-        ) {
-            BasicTextField(
-                value = text,
-                onValueChange = { input -> onTextChange(input.filter { it.isDigit() }.take(6)) },
                 modifier = Modifier
-                    .widthIn(min = 72.dp)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                textStyle = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    textAlign = TextAlign.Center,
-                    color = accent,
-                ),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                cursorBrush = SolidColor(accent),
+                    .align(Alignment.CenterStart)
+                    .padding(start = lerpDp(62.dp, 20.dp, progress)),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = lerp(palette.appInk, onAccent, progress),
             )
-        }
-        if (total != null) {
-            Text(
-                text = stringResource(
-                    R.string.quick_progress_of_total,
-                    total,
-                    progressUnitLabel(mediaType, total),
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = OmnilogTheme.colors.appMuted,
-            )
+            if (trailing != null) {
+                Text(
+                    text = trailing,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = lerpDp(18.dp, 62.dp, progress)),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = lerp(palette.appMuted, onAccent.copy(alpha = 0.72f), progress),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(x = inset + travel * progress)
+                    .size(width = knobWidth, height = 42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(lerp(palette.appMuted.copy(alpha = 0.22f), palette.appPanel, progress)),
+                contentAlignment = Alignment.Center,
+            ) {
+                // The tick belongs to the finished state, so off it is simply an empty well —
+                // a greyed check reads as an action already half taken.
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .alpha(progress),
+                )
+            }
         }
     }
 }
 
 /**
- * Episodic media where counting up one at a time is the natural gesture. Everything else is
- * measured in pages, hours or minutes and gets the typed field instead — movies included, since
- * their total is the runtime, so a paused film can record where you stopped rather than being an
- * all-or-nothing toggle.
+ * Ink for text and icons drawn on top of a filled accent.
+ *
+ * The threshold is sRGB's own mid-point rather than a naive 0.5: the media accents sit between
+ * 0.13 and 0.35 relative luminance, where 0.5 would put white on every one of them and drop
+ * several — the dark theme's Books violet among them — below 3.5:1.
  */
-fun MediaType.usesEpisodeStepper(): Boolean =
-    this == MediaType.Anime || this == MediaType.TvShow
+private fun contentColorOn(accent: Color): Color =
+    if (accent.luminance() > 0.179f) Color(0xFF12100E) else Color(0xFFFFF9F0)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompletionForm(
+    rating: Int?,
+    finishedAt: LocalDate,
+    accent: Color,
+    onRatingChange: (Int?) -> Unit,
+    onFinishedAtChange: (LocalDate) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.quick_progress_rating_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = OmnilogTheme.colors.appMuted,
+        )
+        TrackingRatingSelector(
+            currentRating = rating,
+            accent = accent,
+            onRatingSelected = onRatingChange,
+        )
+        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+        CompletionDateRow(
+            date = finishedAt,
+            accent = accent,
+            onDateChange = onFinishedAtChange,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompletionDateRow(
+    date: LocalDate,
+    accent: Color,
+    onDateChange: (LocalDate) -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showPicker = true }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stringResource(R.string.session_finished_label),
+                style = MaterialTheme.typography.labelSmall,
+                color = OmnilogTheme.colors.appMuted,
+            )
+            Text(
+                text = date.format(quickDateFormatter),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = accent,
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.DateRange,
+            contentDescription = null,
+            tint = OmnilogTheme.colors.appMuted,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+    if (showPicker) {
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = date
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.selectedDateMillis?.let { millis ->
+                            onDateChange(
+                                Instant.ofEpochMilli(millis)
+                                    .atZone(ZoneId.systemDefault())
+                                    .toLocalDate(),
+                            )
+                        }
+                        showPicker = false
+                    },
+                ) { Text(text = stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        ) { DatePicker(state = state) }
+    }
+}
+
+private val quickDateFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMM ''yy", Locale.getDefault())

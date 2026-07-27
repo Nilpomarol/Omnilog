@@ -57,6 +57,7 @@ import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.DetailHeaderActions
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
+import com.nilpo.contenttracker.ui.common.QuickCompletion
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
@@ -84,7 +85,7 @@ fun DetailScreen(
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onQuickCommitProgress: (Int) -> Unit,
-    onQuickComplete: (Int) -> Unit,
+    onQuickComplete: (QuickCompletion) -> Unit,
     onDeletePastSession: (Long) -> Unit,
     onDeleteCurrentSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,

@@ -839,6 +839,11 @@
     <string name="quick_progress_decrease">Resta</string>
     <string name="quick_progress_increase">Suma</string>
     <string name="quick_progress_of_total">de %1$d %2$s</string>
+    <string name="quick_progress_of_total_pct">de %1$d %2$s · %3$d%%</string>
+    <string name="quick_progress_rating_label">Valoració</string>
+    <string name="quick_progress_completion_title">Ja l\'has acabat</string>
+    <string name="quick_progress_completion_subtitle">Afegeix la data i, si vols, la nota.</string>
+    <string name="quick_progress_next">Continua</string>
     <string name="quick_progress_complete">Marca com a completat</string>
     <string name="quick_progress_save">Desa el progrés</string>
     <string name="quick_progress_mark_done">Ja l\'he acabat</string>

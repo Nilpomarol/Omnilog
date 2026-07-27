@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -78,7 +79,7 @@ import com.nilpo.contenttracker.core.stats.ComparisonBasis
 import com.nilpo.contenttracker.core.stats.StatsSnapshot
 import com.nilpo.contenttracker.ui.common.CoverScrim
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
-import com.nilpo.contenttracker.ui.common.OwnedBadge
+import com.nilpo.contenttracker.ui.common.QuickCompletion
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
@@ -114,7 +115,7 @@ fun HomeLandingScreen(
     onAddToSection: (MediaSection) -> Unit,
     onImportBackup: () -> Unit,
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
-    onQuickComplete: (TrackedMedia, Int) -> Unit = { _, _ -> },
+    onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
@@ -753,7 +754,7 @@ private fun HomeCarousel(
     onMediaClick: (TrackedMedia) -> Unit,
     emptyText: String? = null,
     onQuickCommitProgress: ((TrackedMedia, Int) -> Unit)? = null,
-    onQuickComplete: ((TrackedMedia, Int) -> Unit)? = null,
+    onQuickComplete: ((TrackedMedia, QuickCompletion) -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DashboardSectionTitle(title = title)
@@ -770,7 +771,7 @@ private fun HomeCarousel(
                             { value: Int -> commit(trackedMedia, value) }
                         },
                         onQuickComplete = onQuickComplete?.let { complete ->
-                            { value: Int -> complete(trackedMedia, value) }
+                            { completion: QuickCompletion -> complete(trackedMedia, completion) }
                         },
                     )
                 }
@@ -787,7 +788,7 @@ private fun HomeActiveCarousel(
     onShowAllSections: () -> Unit,
     onMediaClick: (TrackedMedia) -> Unit,
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit,
-    onQuickComplete: (TrackedMedia, Int) -> Unit,
+    onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit,
     isFiltered: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -922,8 +923,8 @@ private fun ActiveFilterIndicator(
 // A 2:3 poster, so the cover fills the tile without cropping. Keep the ratio if you resize:
 // the dashboard stacks several carousels, and tile height is what decides how many are reachable
 // without scrolling.
-private val TileWidth = 132.dp
-private val TileHeight = 198.dp
+private val TileWidth = 114.dp
+private val TileHeight = 171.dp
 
 @Composable
 private fun HomeMediaTile(
@@ -931,10 +932,9 @@ private fun HomeMediaTile(
     accent: Color,
     onClick: () -> Unit,
     onQuickCommitProgress: ((Int) -> Unit)? = null,
-    onQuickComplete: ((Int) -> Unit)? = null,
+    onQuickComplete: ((QuickCompletion) -> Unit)? = null,
 ) {
     val session = trackedMedia.currentSession
-    val isGame = trackedMedia.item.type == MediaType.Game
     // Planned and Paused open the very same sheet as In progress. Starting something is just a
     // progress commit that happens to promote the status, so there is no reason for the dashboard
     // to offer a blind status flip that guesses you are at zero.
@@ -964,17 +964,12 @@ private fun HomeMediaTile(
                 coverUrl = trackedMedia.item.coverUrl,
                 modifier = Modifier.fillMaxSize(),
             )
-            Row(
+            CardStatusIcon(
+                status = session?.status,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                if (trackedMedia.item.isOwned) {
-                    OwnedBadge()
-                }
-                CardStatusIcon(status = session?.status)
-            }
+            )
             CoverScrim()
             if (quickActionsEnabled) {
                 // One destination, but the glyph still previews what the sheet will lead with:
@@ -992,21 +987,25 @@ private fun HomeMediaTile(
                         else -> stringResource(R.string.quick_progress_open)
                     },
                     accent = accent,
+                    modifier = Modifier.align(Alignment.TopStart),
+                    onClick = { showQuickSheet = true },
+                )
+            } else if (session?.status == TrackingStatus.Completed && session.rating != null) {
+                TileRatingBadge(
+                    rating = session.rating,
+                    accent = accent,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp),
-                    onClick = { showQuickSheet = true },
                 )
             }
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                // The title gets the full tile width. Only the progress line shares its row with
-                // the rating — the rating is short and the progress label is too, whereas titles
-                // need every pixel at this tile size.
+                // The title gets the full tile width.
                 Text(
                     text = displayMediaTitle(trackedMedia.item.title),
                     modifier = Modifier.fillMaxWidth(),
@@ -1016,49 +1015,16 @@ private fun HomeMediaTile(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // The rating stands beside the whole progress block — label and bar both — so it
-                // gets the height of the two stacked together and can stay large. The title keeps
-                // the full width above it, which is what it needs at this tile size.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = session.progressLabel(
-                                progressTotal = trackedMedia.item.progressTotal
-                                    .takeUnless { trackedMedia.item.type == MediaType.Game },
-                                mediaType = trackedMedia.item.type,
-                            ),
-                            style = if (isGame) {
-                                MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp)
-                            } else {
-                                MaterialTheme.typography.labelSmall
-                            },
-                            fontWeight = if (isGame) {
-                                FontWeight.ExtraBold
-                            } else {
-                                FontWeight.SemiBold
-                            },
-                            color = if (isGame) accent else OnCoverInk,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        trackedMedia.item.progressTotal
-                            .takeUnless { trackedMedia.item.type == MediaType.Game }
-                            ?.takeIf { it > 0 }
-                            ?.let { progressTotal ->
-                                ProgressBar(
-                                    fraction = session.progressFraction(progressTotal),
-                                    color = accent,
-                                )
-                            }
-                    }
-                    RatingSlot(rating = session?.rating, accent = accent)
+                if (session?.status == TrackingStatus.InProgress || session?.status == TrackingStatus.Paused) {
+                    trackedMedia.item.progressTotal
+                        .takeUnless { trackedMedia.item.type == MediaType.Game }
+                        ?.takeIf { it > 0 }
+                        ?.let { progressTotal ->
+                            ProgressBar(
+                                fraction = session.progressFraction(progressTotal),
+                                color = accent,
+                            )
+                        }
                 }
             }
         }
@@ -1092,19 +1058,29 @@ private fun TileQuickActionButton(
     // Filled like the status and owned pills opposite it, but a little larger: those are read-only
     // badges, this one is the tile's only tap target and pill size was too small to hit reliably —
     // the rounded corner clips the touch area that would otherwise extend past it.
-    Surface(
-        onClick = onClick,
-        modifier = modifier.size(30.dp),
-        shape = RoundedCornerShape(999.dp),
-        color = accent.copy(alpha = 0.86f),
-        contentColor = Color.Black,
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clickable(
+                onClick = onClick,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(18.dp),
-            )
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = accent,
+            contentColor = Color.Black,
+            modifier = Modifier.size(24.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }
@@ -1119,7 +1095,7 @@ private fun CardStatusIcon(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = color.copy(alpha = if (status == null) 0.10f else 0.92f),
+        color = if (status == null) color.copy(alpha = 0.10f) else color,
         contentColor = if (status == null) Color.White.copy(alpha = 0.34f) else Color.Black,
     ) {
         Box(
@@ -1138,19 +1114,30 @@ private fun CardStatusIcon(
 }
 
 @Composable
-private fun RatingSlot(
-    rating: Int?,
+private fun TileRatingBadge(
+    rating: Int,
     accent: Color,
+    modifier: Modifier = Modifier,
 ) {
-    // Sized to its content and skipped entirely when unrated, so an unrated tile gives the whole
-    // row back to the progress label instead of holding an empty column open.
-    if (rating == null) return
-    Text(
-        text = rating.toString(),
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.ExtraBold,
+    Surface(
+        modifier = modifier.size(24.dp),
+        shape = RoundedCornerShape(999.dp),
         color = accent,
-    )
+        contentColor = Color.Black,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = rating.toString(),
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 13.sp,
+                    lineHeight = 13.sp,
+                ),
+                fontWeight = FontWeight.Black,
+                color = Color.Black,
+                maxLines = 1,
+            )
+        }
+    }
 }
 
 @Composable

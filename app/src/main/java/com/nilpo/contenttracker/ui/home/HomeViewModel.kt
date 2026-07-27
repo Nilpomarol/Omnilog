@@ -48,6 +48,7 @@ import com.nilpo.contenttracker.core.repository.StoryGraphCsvImportResult
 import com.nilpo.contenttracker.core.timeline.TimelineBuilder
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
+import com.nilpo.contenttracker.ui.common.QuickCompletion
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -682,15 +683,17 @@ class HomeViewModel(
      * back on, so taking the sheet's draft is the only way those 42 hours survive the completion.
      * Anything with a total finishes at the total regardless of what the draft said.
      */
-    fun quickComplete(media: TrackedMedia, progress: Int) {
+    fun quickComplete(media: TrackedMedia, completion: QuickCompletion) {
         val session = media.currentSession ?: return
         val item = media.item
         val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }
         completeSession(
             session = session,
-            progress = total ?: progress.coerceAtLeast(0),
+            progress = total ?: completion.progress.coerceAtLeast(0),
             startedAt = session.startedAt
                 ?: LocalDate.now().takeIf { session.status == TrackingStatus.Planned },
+            rating = completion.rating,
+            finishedAt = completion.finishedAt,
         )
     }
 
@@ -698,16 +701,18 @@ class HomeViewModel(
         session: TrackingSession,
         progress: Int,
         startedAt: LocalDate? = session.startedAt,
+        rating: Int? = session.rating,
+        finishedAt: LocalDate = session.finishedAt ?: LocalDate.now(),
     ) {
         viewModelScope.launch {
             val recovery = mediaRepository.updateSessionDetails(
                 sessionId = session.id,
                 status = TrackingStatus.Completed,
                 progressCurrent = progress,
-                rating = session.rating,
+                rating = rating,
                 notes = session.notes,
                 startedAt = startedAt,
-                finishedAt = session.finishedAt ?: LocalDate.now(),
+                finishedAt = finishedAt,
             )
             recovery?.let {
                 val token = deletionRecoveryStore.put(it)
