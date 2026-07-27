@@ -23,7 +23,52 @@ data class AutoBackupConfiguration(
     val directoryUri: Uri?,
     val frequency: AutoBackupFrequency,
     val lastSuccessAtEpochMillis: Long?,
+    val maxKeptBackups: Int,
 )
+
+/**
+ * A readable one-line label for a picked backup folder: the storage provider it lives on, then the
+ * folder's own display name — "Google Drive · Còpies Omnilog", "Emmagatzematge del dispositiu ·
+ * Download". The raw tree URI (`content://…/tree/primary%3ADownload…`) is undecipherable, and the
+ * provider name is read from the URI authority rather than assumed, so a Drive folder no longer
+ * reads as local storage.
+ */
+fun Uri.backupFolderLabel(context: Context): String {
+    val provider = backupStorageProviderLabel()
+    val folderName = documentTreeDisplayName(context)
+        ?: lastPathSegment.orEmpty().substringAfterLast(':').substringAfterLast('/').ifBlank { null }
+    return folderName?.let { "$provider · $it" } ?: provider
+}
+
+/** Human name for the SAF provider behind a tree URI, keyed off its authority. */
+private fun Uri.backupStorageProviderLabel(): String = when {
+    authority == "com.android.externalstorage.documents" -> "Emmagatzematge del dispositiu"
+    authority == "com.android.providers.downloads.documents" -> "Baixades"
+    authority?.contains("google", ignoreCase = true) == true -> "Google Drive"
+    authority?.contains("dropbox", ignoreCase = true) == true -> "Dropbox"
+    authority?.contains("onedrive", ignoreCase = true) == true ||
+        authority?.contains("skydrive", ignoreCase = true) == true -> "OneDrive"
+    else -> "Emmagatzematge extern"
+}
+
+/** The folder's own display name via the documents provider, or null if it can't be read. */
+private fun Uri.documentTreeDisplayName(context: Context): String? = try {
+    val documentUri = DocumentsContract.buildDocumentUriUsingTree(
+        this,
+        DocumentsContract.getTreeDocumentId(this),
+    )
+    context.contentResolver.query(
+        documentUri,
+        arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+        null,
+        null,
+        null,
+    )?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0)?.takeIf { it.isNotBlank() } else null
+    }
+} catch (_: Exception) {
+    null
+}
 
 enum class AutoBackupFrequency(
     val label: String,
@@ -41,11 +86,15 @@ enum class AutoBackupFrequency(
     }
 }
 
+val AutoBackupRetentionOptions = listOf(3, 5, 10, 20)
+
 object AutoBackupPreferences {
     private const val PreferencesName = "omnilog_auto_backup"
     private const val DirectoryUriKey = "directory_uri"
     private const val FrequencyKey = "frequency"
     private const val LastSuccessAtKey = "last_success_at"
+    private const val MaxKeptBackupsKey = "max_kept_backups"
+    const val DefaultMaxKeptBackups = 5
 
     fun read(context: Context): AutoBackupConfiguration {
         val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
@@ -55,6 +104,7 @@ object AutoBackupPreferences {
             lastSuccessAtEpochMillis = preferences
                 .getLong(LastSuccessAtKey, 0L)
                 .takeIf { it > 0L },
+            maxKeptBackups = preferences.getInt(MaxKeptBackupsKey, DefaultMaxKeptBackups),
         )
     }
 
@@ -69,6 +119,13 @@ object AutoBackupPreferences {
         context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
             .edit()
             .putString(FrequencyKey, frequency.name)
+            .apply()
+    }
+
+    fun saveMaxKeptBackups(context: Context, maxKeptBackups: Int) {
+        context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(MaxKeptBackupsKey, maxKeptBackups)
             .apply()
     }
 
@@ -177,6 +234,7 @@ class AutoBackupWorker(
                 outputStream.write(backupJson.toByteArray(Charsets.UTF_8))
             }
             AutoBackupPreferences.markBackupSucceeded(applicationContext)
+            pruneOldBackups(directoryUri, configuration.maxKeptBackups)
             Result.success()
         } catch (_: SecurityException) {
             Result.failure()
@@ -188,9 +246,54 @@ class AutoBackupWorker(
             Result.failure()
         }
     }
+
+    /** Deletes the oldest auto-backup files once the folder holds more than [maxKept]. */
+    private fun pruneOldBackups(directoryUri: Uri, maxKept: Int) {
+        if (maxKept <= 0) return
+        val resolver = applicationContext.contentResolver
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            directoryUri,
+            DocumentsContract.getTreeDocumentId(directoryUri),
+        )
+        val backups = mutableListOf<Pair<String, Uri>>()
+        resolver.query(
+            childrenUri,
+            arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            ),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameIndex = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(nameIndex) ?: continue
+                if (name.startsWith(AutoBackupFilePrefix) && name.endsWith(".json")) {
+                    val documentUri = DocumentsContract.buildDocumentUriUsingTree(
+                        directoryUri,
+                        cursor.getString(idIndex),
+                    )
+                    backups += name to documentUri
+                }
+            }
+        }
+        // The timestamp suffix in autoBackupFileName() sorts lexicographically in creation order.
+        backups.sortBy { (name, _) -> name }
+        backups.dropLast(maxKept).forEach { (_, documentUri) ->
+            try {
+                DocumentsContract.deleteDocument(resolver, documentUri)
+            } catch (_: SecurityException) {
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
 }
+
+private const val AutoBackupFilePrefix = "omnilog-auto-backup-"
 
 private fun autoBackupFileName(): String {
     val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss"))
-    return "omnilog-auto-backup-$timestamp.json"
+    return "$AutoBackupFilePrefix$timestamp.json"
 }

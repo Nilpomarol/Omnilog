@@ -83,6 +83,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupPreferences
 import com.nilpo.contenttracker.core.backup.AutoBackupScheduler
+import com.nilpo.contenttracker.core.backup.backupFolderLabel
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -190,7 +191,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
     }
     var askForGoodreadsRating by remember {
-        mutableStateOf(preferences.getBoolean("ask_for_goodreads_rating", true))
+        mutableStateOf(preferences.getBoolean("ask_for_goodreads_rating", false))
     }
     var autoBackupConfiguration by remember(context) {
         mutableStateOf(AutoBackupPreferences.read(context))
@@ -239,11 +240,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val timelineHeaderActions = remember { TimelineHeaderActions() }
     val selectedMedia = (currentRoute as? AppRoute.MediaDetail)?.let { route ->
         uiState.allTrackedItems.firstOrNull { it.item.id == route.mediaItemId }
-    }
-    val currentCollection = (currentRoute as? AppRoute.CollectionDetail)?.let { route ->
-        uiState.allTrackedItems
-            .mapNotNull { it.collection }
-            .firstOrNull { it.id == route.collectionId }
     }
     val currentSection = when (val route = currentRoute) {
         is AppRoute.Section -> route.section
@@ -875,8 +871,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         AppRoute.Profile -> "Perfil"
                         AppRoute.Settings -> "Configuració"
                         is AppRoute.AuthorDetail -> route.author
-                        is AppRoute.CollectionDetail -> currentCollection?.name
-                            ?: stringResource(R.string.field_collection)
+                        // The collection title belongs to its cover ribbon, just as an item's
+                        // title belongs to the Detail hero. Keeping this bar empty avoids saying
+                        // the same thing twice before the collection itself has appeared.
+                        is AppRoute.CollectionDetail -> ""
                         is AppRoute.MediaDetail -> ""
                         else -> null
                     },
@@ -893,9 +891,17 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute !is AppRoute.AddMedia &&
                             currentRoute != AppRoute.Stats &&
                             currentRoute != AppRoute.Timeline &&
-                            currentRoute != AppRoute.Profile,
+                            currentRoute != AppRoute.Profile &&
+                            currentRoute !is AppRoute.CollectionDetail,
                     showProfileControls = currentRoute == AppRoute.Profile,
-                    showHomeSettingsAction = currentRoute == AppRoute.Home,
+                    // Settings and Profile are a pack: shown together everywhere except the routes
+                    // where neither belongs, and each hides on its own screen.
+                    showHomeSettingsAction = currentRoute !is AppRoute.MediaDetail &&
+                            currentRoute !is AppRoute.AddMedia &&
+                            currentRoute != AppRoute.Stats &&
+                            currentRoute != AppRoute.Timeline &&
+                            currentRoute != AppRoute.Settings &&
+                            currentRoute !is AppRoute.CollectionDetail,
                     showTimelineSettingsAction = currentRoute == AppRoute.Timeline,
                     profileImagePath = profileImagePath,
                     // Only the detail page draws artwork under the bar, and only while it is
@@ -1075,7 +1081,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                         .putBoolean("ask_for_goodreads_rating", enabled).apply()
                                 },
                                 onExportBackup = { backupActions.onExportBackupRequested() },
-                                onImportBackup = { backupActions.onImportBackupRequested() },
                                 onRestoreBackup = { backupActions.onRestoreBackupRequested() },
                                 onImportMyAnimeListAccount = {
                                     coroutineScope.launch {
@@ -1097,6 +1102,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 isAutoBackupEnabled = autoBackupConfiguration.directoryUri != null,
                                 autoBackupFrequency = autoBackupConfiguration.frequency,
                                 lastAutoBackupAtEpochMillis = autoBackupConfiguration.lastSuccessAtEpochMillis,
+                                autoBackupFolderLabel = autoBackupConfiguration.directoryUri
+                                    ?.backupFolderLabel(context),
+                                maxKeptBackups = autoBackupConfiguration.maxKeptBackups,
                                 onAutoBackupFolderRequested = { autoBackupFolderLauncher.launch(null) },
                                 onAutoBackupFrequencyChange = { frequency ->
                                     AutoBackupPreferences.saveFrequency(context, frequency)
@@ -1105,12 +1113,20 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                         AutoBackupScheduler.schedule(context, frequency)
                                     }
                                 },
-                                onAutoBackupDisabled = {
-                                    AutoBackupScheduler.cancel(context)
-                                    AutoBackupPreferences.clear(context)
+                                onMaxKeptBackupsChange = { maxKeptBackups ->
+                                    AutoBackupPreferences.saveMaxKeptBackups(context, maxKeptBackups)
                                     autoBackupConfiguration = AutoBackupPreferences.read(context)
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("Còpia automàtica desactivada.")
+                                },
+                                onAutoBackupToggle = { enabled ->
+                                    if (enabled) {
+                                        autoBackupFolderLauncher.launch(null)
+                                    } else {
+                                        AutoBackupScheduler.cancel(context)
+                                        AutoBackupPreferences.clear(context)
+                                        autoBackupConfiguration = AutoBackupPreferences.read(context)
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Còpia automàtica desactivada.")
+                                        }
                                     }
                                 },
                                 malSyncState = malSyncState,
@@ -1458,10 +1474,26 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             onDismissRequest = { showRestoreList = false },
             title = stringResource(R.string.restore_previous_backup_title),
             text = {
-                if (safetyBackups.isEmpty()) {
-                    Text(text = stringResource(R.string.restore_previous_backup_empty))
-                } else {
-                    Column {
+                Column {
+                    TextButton(
+                        onClick = {
+                            showRestoreList = false
+                            backupActions.onImportBackupRequested()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 0.dp,
+                            vertical = 4.dp,
+                        ),
+                    ) {
+                        Text(
+                            text = "Tria un fitxer…",
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    if (safetyBackups.isEmpty()) {
+                        Text(text = stringResource(R.string.restore_previous_backup_empty))
+                    } else {
                         safetyBackups.forEach { file ->
                             val label = remember(file) {
                                 val dt = LocalDateTime.ofInstant(

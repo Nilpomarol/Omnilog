@@ -2,38 +2,13 @@ package com.nilpo.contenttracker.ui.common
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.ui.home.MediaSection
-import com.nilpo.contenttracker.ui.home.navIconResId
-import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 private const val ActiveFilterPreferencesName = "omnilog_dashboard_preferences"
 
@@ -102,72 +77,4 @@ fun SharedPreferences.writeHiddenActiveSections(sections: Set<MediaSection>) {
     edit()
         .putStringSet(HiddenActiveSectionsKey, sections.mapTo(mutableSetOf()) { it.name })
         .apply()
-}
-
-/**
- * The sections Ara mateix draws from, as one chip per shelf.
- *
- * Chips are [MediaSection], not `MediaType`, so the granularity matches the nav and `Cinema i TV`
- * stays a single shelf rather than splitting into two chips nothing else in the app distinguishes.
- * Every section is offered whether or not the library currently holds one: this is a standing
- * preference, not a live filter over the items on screen.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun ActiveSectionChips(
-    hiddenSections: Set<MediaSection>,
-    onToggleSection: (MediaSection) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        MediaSection.entries.forEach { section ->
-            val isVisible = section !in hiddenSections
-            val accent = section.accent
-            val contentColor = if (isVisible) {
-                accent
-            } else {
-                OmnilogTheme.colors.appMuted.copy(alpha = 0.70f)
-            }
-            Surface(
-                modifier = Modifier.toggleable(
-                    value = isVisible,
-                    role = Role.Checkbox,
-                    onValueChange = { onToggleSection(section) },
-                ),
-                shape = RoundedCornerShape(999.dp),
-                color = if (isVisible) accent.copy(alpha = 0.16f) else Color.Transparent,
-                border = BorderStroke(
-                    1.dp,
-                    if (isVisible) accent.copy(alpha = 0.42f) else OmnilogTheme.colors.appLine.copy(alpha = 0.70f),
-                ),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // The same mark the bottom bar uses for this section, so a chip and its shelf
-                    // are recognisable as the same thing without reading either label.
-                    Icon(
-                        painter = painterResource(section.navIconResId),
-                        contentDescription = null,
-                        tint = contentColor,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Text(
-                        text = stringResource(section.titleResId),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = contentColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
 }

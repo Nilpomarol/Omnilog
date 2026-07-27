@@ -61,6 +61,8 @@ data class MetadataRefreshProgress(
     val skippedCount: Int,
     val failedCount: Int,
     val pendingCount: Int,
+    val createdAtEpochMillis: Long = 0L,
+    val completedAtEpochMillis: Long? = null,
 ) {
     val processedCount: Int
         get() = (totalCount - pendingCount).coerceIn(0, totalCount)
@@ -69,6 +71,8 @@ data class MetadataRefreshProgress(
 data class MetadataRefreshState(
     val activeRun: MetadataRefreshProgress? = null,
     val latestCompletedRun: MetadataRefreshProgress? = null,
+    /** Every past run, most recent first, for the settings history sheet. */
+    val history: List<MetadataRefreshProgress> = emptyList(),
 )
 
 data class MetadataRefreshStart(
@@ -98,6 +102,7 @@ class MetadataRefreshManager(
         refreshDao.observeItems(),
     ) { runs, items ->
         val progress = runs.mapNotNull { run -> run.toProgress(items.filter { it.runId == run.id }) }
+            .sortedByDescending { it.createdAtEpochMillis }
         MetadataRefreshState(
             activeRun = progress.firstOrNull { it.state == MetadataRefreshRunState.Refreshing },
             latestCompletedRun = progress.firstOrNull {
@@ -106,6 +111,7 @@ class MetadataRefreshManager(
                     MetadataRefreshRunState.CompletedWithIssues,
                 )
             },
+            history = progress,
         )
     }.stateIn(scope, SharingStarted.Eagerly, MetadataRefreshState())
 
@@ -348,6 +354,8 @@ private fun MetadataRefreshRunEntity.toProgress(
         skippedCount = count(MetadataRefreshItemState.Skipped),
         failedCount = count(MetadataRefreshItemState.Failed),
         pendingCount = count(MetadataRefreshItemState.Pending) + count(MetadataRefreshItemState.Processing),
+        createdAtEpochMillis = createdAtEpochMillis,
+        completedAtEpochMillis = completedAtEpochMillis,
     )
 }
 
