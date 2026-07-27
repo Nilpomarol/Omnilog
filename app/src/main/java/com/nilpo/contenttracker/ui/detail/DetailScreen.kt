@@ -499,7 +499,13 @@ fun DetailScreen(
     if (headerActions.isEditingItemDetails) {
         Dialog(
             onDismissRequest = { headerActions.isEditingItemDetails = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
+            // The editor owns the discard confirmation, so back has to reach its own handler rather
+            // than closing the window out from under an unsaved edit.
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+            ),
         ) {
             ItemDetailsEditor(
                 item = trackedMedia.item,
