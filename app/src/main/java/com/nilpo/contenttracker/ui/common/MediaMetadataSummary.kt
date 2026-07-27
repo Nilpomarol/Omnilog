@@ -513,6 +513,7 @@ fun MetadataSource.displayName(): String {
         MetadataSource.GoogleBooks -> "Google Books"
         MetadataSource.Tmdb -> "TMDb"
         MetadataSource.Rawg -> "RAWG"
+        MetadataSource.Steam -> "Steam"
         MetadataSource.Imdb -> "IMDb"
         MetadataSource.StoryGraph -> "StoryGraph"
     }

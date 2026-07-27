@@ -543,6 +543,13 @@ private fun MetadataSearchStep(
             title = initialMediaType.addTitle(),
             subtitle = stringResource(R.string.add_search_subtitle),
         )
+        if (initialMediaType == MediaType.Game) {
+            Text(
+                text = stringResource(R.string.steam_id_search_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
+            )
+        }
 
         DashboardStyleSearchBar(
             query = uiState.query,

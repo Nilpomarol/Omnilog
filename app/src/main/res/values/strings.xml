@@ -411,6 +411,7 @@
     <string name="add_title_anime">Afegeix un anime</string>
     <string name="add_title_game">Afegeix un joc</string>
     <string name="add_search_subtitle">Cerca pel títol per omplir les dades automàticament, o afegeix-lo manualment.</string>
+    <string name="steam_id_search_hint">També pots cercar un Steam ID exacte: steam:1145360</string>
     <string name="metadata_search_label">Títol a cercar</string>
     <string name="metadata_search_prompt">Escriu un títol i cerca per trobar-lo abans de crear l\'element.</string>
     <string name="clear_search">Esborra la cerca</string>

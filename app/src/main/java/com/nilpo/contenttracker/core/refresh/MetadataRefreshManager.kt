@@ -337,6 +337,7 @@ private fun String?.toDirectRefreshSource(): MetadataSource? = runCatching {
         MetadataSource.GoogleBooks,
         MetadataSource.Tmdb,
         MetadataSource.Rawg,
+        MetadataSource.Steam,
     )
 }
 

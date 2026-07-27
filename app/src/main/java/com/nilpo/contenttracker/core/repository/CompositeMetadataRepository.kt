@@ -15,6 +15,7 @@ class CompositeMetadataRepository(
     private val openLibrary: OpenLibraryMetadataRepository,
     private val googleBooks: GoogleBooksMetadataRepository,
     private val rawg: RawgMetadataRepository,
+    private val steam: SteamMetadataRepository,
 ) : MetadataRepository {
     override suspend fun searchSuggestions(request: MetadataSearchRequest): List<MetadataSuggestion> {
         return searchSuggestionsWithDiagnostics(request).suggestions
@@ -41,11 +42,7 @@ class CompositeMetadataRepository(
                 add(async { bookSuggestions(request.copy(mediaTypes = setOf(MediaType.Book))) })
             }
             if (MediaType.Game in request.mediaTypes) {
-                add(async {
-                    searchProvider(MetadataSource.Rawg) {
-                        rawg.searchSuggestions(request.copy(mediaTypes = setOf(MediaType.Game)))
-                    }
-                })
+                add(async { gameSuggestions(request.copy(mediaTypes = setOf(MediaType.Game))) })
             }
         }
         val results = searches.awaitAll()
@@ -64,6 +61,7 @@ class CompositeMetadataRepository(
             MetadataSource.OpenLibrary -> openLibrary.getSuggestionDetails(suggestion)
             MetadataSource.GoogleBooks -> googleBooks.getSuggestionDetails(suggestion)
             MetadataSource.Rawg -> rawg.getSuggestionDetails(suggestion)
+            MetadataSource.Steam -> steam.getSuggestionDetails(suggestion)
             else -> suggestion
         }
     }
@@ -132,7 +130,48 @@ class CompositeMetadataRepository(
             )
         }
     }
+
+    /**
+     * RAWG's fuzzy matching can produce unrelated games, so Steam is searched alongside it
+     * rather than only after an empty RAWG response. Exact-title duplicates stay hidden.
+     */
+    private suspend fun gameSuggestions(request: MetadataSearchRequest): ProviderSearchResult = coroutineScope {
+        // An explicitly supplied Steam App ID is authoritative and should not be diluted by
+        // fuzzy title matches from either catalogue.
+        if (steamAppIdFromSearchQuery(request.query) != null) {
+            return@coroutineScope searchProvider(MetadataSource.Steam) {
+                steam.searchSuggestions(request)
+            }
+        }
+        val rawgSearch = async {
+            searchProvider(MetadataSource.Rawg) { rawg.searchSuggestions(request) }
+        }
+        val steamSearch = async {
+            searchProvider(MetadataSource.Steam) { steam.searchSuggestions(request) }
+        }
+        val rawgResult = rawgSearch.await()
+        val steamResult = steamSearch.await()
+        ProviderSearchResult(
+            suggestions = mergeGameSearchSuggestions(rawgResult.suggestions, steamResult.suggestions),
+            failedSources = rawgResult.failedSources + steamResult.failedSources,
+            failures = rawgResult.failures + steamResult.failures,
+        )
+    }
 }
+
+internal fun mergeGameSearchSuggestions(
+    rawgSuggestions: List<MetadataSuggestion>,
+    steamSuggestions: List<MetadataSuggestion>,
+): List<MetadataSuggestion> {
+    val rawgTitles = rawgSuggestions.mapTo(mutableSetOf(), MetadataSuggestion::normalizedGameTitle)
+    return rawgSuggestions + steamSuggestions.filter { suggestion ->
+        suggestion.normalizedGameTitle() !in rawgTitles
+    }
+}
+
+private fun MetadataSuggestion.normalizedGameTitle(): String = title
+    .lowercase()
+    .filter(Char::isLetterOrDigit)
 
 internal fun mergeExactBookMatches(
     openLibrary: MetadataSuggestion?,

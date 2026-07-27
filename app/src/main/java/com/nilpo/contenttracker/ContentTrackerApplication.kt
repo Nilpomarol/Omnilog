@@ -46,6 +46,7 @@ import com.nilpo.contenttracker.core.repository.OpenLibraryMetadataRepository
 import com.nilpo.contenttracker.core.repository.RawgMetadataRepository
 import com.nilpo.contenttracker.core.repository.CompositeRecommendationRepository
 import com.nilpo.contenttracker.core.repository.RecommendationRepository
+import com.nilpo.contenttracker.core.repository.SteamMetadataRepository
 import com.nilpo.contenttracker.core.repository.TmdbMetadataRepository
 import com.nilpo.contenttracker.core.repository.AniListRecommendationRepository
 import com.nilpo.contenttracker.core.repository.RawgRecommendationRepository
@@ -162,6 +163,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
                     clientSecret = BuildConfig.IGDB_CLIENT_SECRET,
                 ),
             ),
+            steam = SteamMetadataRepository(),
         )
     }
 

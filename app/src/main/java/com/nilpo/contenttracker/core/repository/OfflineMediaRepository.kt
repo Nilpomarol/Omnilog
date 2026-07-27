@@ -2065,6 +2065,7 @@ private fun MetadataSource.defaultExternalRatingSource(): String {
         MetadataSource.GoogleBooks -> ExternalRatingSource.GoogleBooks
         MetadataSource.Tmdb -> ExternalRatingSource.Tmdb
         MetadataSource.Rawg -> ExternalRatingSource.Steam
+        MetadataSource.Steam -> ExternalRatingSource.Steam
         MetadataSource.Imdb -> ExternalRatingSource.Imdb
         MetadataSource.StoryGraph -> ExternalRatingSource.StoryGraph
     }.name
