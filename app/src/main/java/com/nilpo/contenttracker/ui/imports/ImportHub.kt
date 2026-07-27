@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -13,11 +13,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,11 +30,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.nilpo.contenttracker.core.imports.ImportBatchProgress
 import com.nilpo.contenttracker.core.imports.ImportBatchState
@@ -134,6 +141,7 @@ internal fun ImportProgressBanner(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ImportHubDialog(
     state: ImportEnrichmentState,
@@ -182,86 +190,73 @@ internal fun ImportHubDialog(
         }
     }
 
-    Dialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // The lists inside drive their own scroll; leftover at either end is consumed here rather than
+    // handed up to the sheet, so scrolling the content never drags the sheet.
+    val keepScrollInContent = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset = available
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+                available
+        }
+    }
+    val isDrillDown = historyDeletionCandidate != null || clearHistoryConfirmation ||
+        cancellationCandidate != null || draft != null || selectedItem != null
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        sheetState = sheetState,
+        containerColor = OmnilogTheme.colors.appBackground,
     ) {
-        Surface(
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = OmnilogTheme.colors.appBackground,
-            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f)
+                .nestedScroll(keepScrollInContent)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = when {
-                                historyDeletionCandidate != null -> "Elimina el registre"
-                                clearHistoryConfirmation -> "Neteja l'historial"
-                                cancellationCandidate != null -> "Cancel·la l'enriquiment"
-                                draft != null -> "Revisa els camps"
-                                selectedItem != null -> "Tria la coincidència"
-                                else -> "Importacions"
-                            },
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = OmnilogTheme.colors.appInk,
-                        )
-                        Text(
-                            text = cancellationCandidate?.let { "Importació de ${it.source.label()}" }
-                                ?: historyDeletionCandidate?.let { "Importació de ${it.source.label()}" }
-                                ?: if (clearHistoryConfirmation) "Importacions completades i cancel·lades" else null
-                                ?: draft?.title ?: selectedItem?.title ?: when {
-                                state.reviewItems.isNotEmpty() ->
-                                    "Progrés i decisions pendents de les importacions."
-                                state.recentBatches.any { it.issueCount > 0 } ->
-                                    "Progrés i incidències dels proveïdors de metadades."
-                                state.coverageItems.isNotEmpty() ->
-                                    "Metadades aplicades amb alguns camps encara buits."
-                                else -> "Progrés de les importacions."
-                            },
-                            color = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            when {
-                                historyDeletionCandidate != null -> historyDeletionCandidate = null
-                                clearHistoryConfirmation -> clearHistoryConfirmation = false
-                                cancellationCandidate != null -> cancellationCandidate = null
-                                draft != null -> {
-                                    draft = null
-                                    selectedFields = emptySet()
-                                }
-                                selectedItem != null -> selectedItem = null
-                                else -> onDismiss()
-                            }
+                ImportSheetHeader(
+                    title = when {
+                        historyDeletionCandidate != null -> "Elimina el registre"
+                        clearHistoryConfirmation -> "Neteja l'historial"
+                        cancellationCandidate != null -> "Cancel·la l'enriquiment"
+                        draft != null -> "Revisa els camps"
+                        selectedItem != null -> "Tria la coincidència"
+                        else -> "Importacions"
+                    },
+                    subtitle = cancellationCandidate?.let { "Importació de ${it.source.label()}" }
+                        ?: historyDeletionCandidate?.let { "Importació de ${it.source.label()}" }
+                        ?: if (clearHistoryConfirmation) "Importacions completades i cancel·lades" else null
+                        ?: draft?.title ?: selectedItem?.title ?: when {
+                            state.reviewItems.isNotEmpty() ->
+                                "Progrés i decisions pendents de les importacions."
+                            state.recentBatches.any { it.issueCount > 0 } ->
+                                "Progrés i incidències dels proveïdors de metadades."
+                            state.coverageItems.isNotEmpty() ->
+                                "Metadades aplicades amb alguns camps encara buits."
+                            else -> "Progrés de les importacions."
                         },
-                    ) {
-                        Text(
-                            if (
-                                historyDeletionCandidate != null || clearHistoryConfirmation ||
-                                cancellationCandidate != null || draft != null || selectedItem != null
-                            ) {
-                                "Enrere"
-                            } else {
-                                "Tanca"
-                            },
-                        )
-                    }
-                }
+                    isDrillDown = isDrillDown,
+                    onBack = {
+                        when {
+                            historyDeletionCandidate != null -> historyDeletionCandidate = null
+                            clearHistoryConfirmation -> clearHistoryConfirmation = false
+                            cancellationCandidate != null -> cancellationCandidate = null
+                            draft != null -> {
+                                draft = null
+                                selectedFields = emptySet()
+                            }
+                            selectedItem != null -> selectedItem = null
+                            else -> onDismiss()
+                        }
+                    },
+                )
 
                 message?.let {
                     Text(
@@ -555,10 +550,65 @@ internal fun ImportHubDialog(
                         modifier = Modifier.weight(1f),
                     )
                 }
-            }
         }
     }
+}
 
+@Composable
+private fun ImportSheetHeader(
+    title: String,
+    subtitle: String?,
+    isDrillDown: Boolean,
+    onBack: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = OmnilogTheme.colors.appInk,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
+        }
+        TextButton(onClick = onBack) {
+            Text(if (isDrillDown) "Enrere" else "Tanca")
+        }
+    }
+}
+
+/** Home's section heading: a bold label, then a hairline out to the right margin. */
+@Composable
+private fun ImportSectionHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = OmnilogTheme.colors.appInk,
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = OmnilogTheme.colors.appLine,
+        )
+    }
 }
 
 @Composable
@@ -588,14 +638,7 @@ private fun ImportOverview(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (batches.isNotEmpty()) {
-            item {
-                Text(
-                    text = "En curs o per resoldre",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
-                )
-            }
+            item { ImportSectionHeader(title = "En curs o per resoldre") }
         }
         items(batches, key = { "batch:${it.batchId}" }) { batch ->
             BatchStatusCard(
@@ -607,11 +650,8 @@ private fun ImportOverview(
         }
         if (state.issueItems.isNotEmpty()) {
             item {
-                Text(
-                    text = "Incidències (${state.issueItems.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
+                ImportSectionHeader(
+                    title = "Incidències (${state.issueItems.size})",
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
@@ -627,11 +667,8 @@ private fun ImportOverview(
         }
         if (state.coverageItems.isNotEmpty()) {
             item {
-                Text(
-                    text = "Totals de seguiment pendents (${state.coverageItems.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
+                ImportSectionHeader(
+                    title = "Totals de seguiment pendents (${state.coverageItems.size})",
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
@@ -654,11 +691,8 @@ private fun ImportOverview(
         }
         if (state.reviewItems.isNotEmpty()) {
             item {
-                Text(
-                    text = "Per revisar (${state.reviewItems.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
+                ImportSectionHeader(
+                    title = "Per revisar (${state.reviewItems.size})",
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
@@ -667,7 +701,7 @@ private fun ImportOverview(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onReview(item) },
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(14.dp),
                     color = OmnilogTheme.colors.appPanel,
                     border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
                 ) {
@@ -717,7 +751,7 @@ private fun ImportOverview(
                 ) {
                     Text(
                         text = "Historial (${history.size})",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = OmnilogTheme.colors.appInk,
                     )
@@ -760,7 +794,7 @@ private fun ImportHistoryCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(14.dp),
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
@@ -806,7 +840,7 @@ private fun CoverageRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(14.dp),
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
@@ -876,7 +910,7 @@ private fun BatchStatusCard(
     val active = progress.state == ImportBatchState.Enriching || progress.state == ImportBatchState.Paused
     val cancellable = active || progress.state == ImportBatchState.CompletedWithIssues
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(14.dp),
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
@@ -932,7 +966,7 @@ private fun IssueRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(14.dp),
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
@@ -1001,7 +1035,7 @@ private fun CandidateRow(candidate: ProviderReference, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(14.dp),
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
