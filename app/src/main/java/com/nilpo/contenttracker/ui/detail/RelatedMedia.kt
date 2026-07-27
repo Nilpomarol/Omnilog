@@ -24,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -117,7 +116,6 @@ internal fun findRelatedMedia(
 internal fun RelatedMediaSection(
     title: String,
     relatedMedia: List<RelatedMediaMatch>,
-    accent: Color,
     onMediaClick: (TrackedMedia) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -134,7 +132,7 @@ internal fun RelatedMediaSection(
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = DetailGutter),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(
                 items = relatedMedia,
@@ -142,7 +140,6 @@ internal fun RelatedMediaSection(
             ) { match ->
                 RelatedMediaCard(
                     match = match,
-                    accent = accent,
                     onClick = { onMediaClick(match.trackedMedia) },
                 )
             }
@@ -153,14 +150,13 @@ internal fun RelatedMediaSection(
 @Composable
 private fun RelatedMediaCard(
     match: RelatedMediaMatch,
-    accent: Color,
     onClick: () -> Unit,
 ) {
     val item = match.trackedMedia.item
     Surface(
         modifier = Modifier
-            .width(144.dp)
-            .height(224.dp)
+            .width(104.dp)
+            .height(160.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = OmnilogTheme.colors.appPanel,
@@ -177,59 +173,29 @@ private fun RelatedMediaCard(
                 status = match.trackedMedia.currentSession?.status,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(9.dp),
+                    .padding(6.dp),
             )
             item.releaseYear?.let { year ->
                 YearMarker(
                     text = year.toString(),
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(9.dp),
+                        .padding(6.dp),
                 )
             }
-            Column(
+            Text(
+                text = displayMediaTitle(item.title),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(9.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = displayMediaTitle(item.title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = OnCoverInk,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                RowLabel(
-                    text = stringResource(match.reasonLabelResId()),
-                    accent = accent,
-                )
-            }
+                    .padding(6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = OnCoverInk,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-    }
-}
-
-@Composable
-private fun RowLabel(
-    text: String,
-    accent: Color,
-) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = accent,
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.92f)),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = OmnilogTheme.colors.appBackground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -246,14 +212,14 @@ private fun RelatedStatusMarker(
         contentColor = if (status == null) Color.White.copy(alpha = 0.34f) else Color.Black,
     ) {
         Box(
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
         ) {
             if (status != null) {
                 Icon(
                     painter = painterResource(status.iconResId),
                     contentDescription = status.label(),
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(13.dp),
                 )
             }
         }
@@ -273,7 +239,7 @@ private fun YearMarker(
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.ExtraBold,
             color = OmnilogTheme.colors.appInk,
@@ -322,14 +288,6 @@ private fun genericMatchComparator(): Comparator<RelatedMediaMatch> {
     return compareByDescending<RelatedMediaMatch> { it.score }
         .thenBy { it.trackedMedia.item.title.lowercase() }
         .thenBy { it.trackedMedia.item.id }
-}
-
-private fun RelatedMediaMatch.reasonLabelResId(): Int {
-    return when {
-        isSameCollection -> R.string.detail_related_same_collection
-        sharedCreators.isNotEmpty() -> R.string.detail_related_same_creator
-        else -> R.string.detail_related_shared_genres
-    }
 }
 
 private fun List<String>.normalizedValues(): Set<String> {

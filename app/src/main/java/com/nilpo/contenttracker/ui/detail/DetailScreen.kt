@@ -383,7 +383,6 @@ fun DetailScreen(
                     RelatedMediaSection(
                         title = collectionSectionTitle,
                         relatedMedia = relatedMedia.collection,
-                        accent = accent,
                         onMediaClick = onRelatedMediaClick,
                     )
                 }
@@ -394,7 +393,6 @@ fun DetailScreen(
                     RelatedMediaSection(
                         title = stringResource(R.string.detail_related_title),
                         relatedMedia = relatedMedia.generic,
-                        accent = accent,
                         onMediaClick = onRelatedMediaClick,
                     )
                 }
