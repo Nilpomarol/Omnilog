@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.ui.home
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -117,7 +119,7 @@ fun CollectionDetailScreen(
     val nextCollectionOrder = (items.maxOfOrNull { it.item.collectionSortOrder ?: 0.0 } ?: 0.0) + 1.0
     val averageRating = items.collectionAverageRating()
     val progressSummary = items.collectionProgressSummary()
-    val collectionCoverStack = sortedItems.mapNotNull { it.item.coverUrl }.take(3)
+    val collectionCoverStack = sortedItems.mapNotNull { it.item.coverUrl }.take(7)
     val requestBack = {
         if (hasUnsavedReorder) {
             showDiscardReorderConfirmation = true
@@ -151,7 +153,11 @@ fun CollectionDetailScreen(
         modifier = modifier,
         color = OmnilogTheme.colors.appBackground,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 12.dp),
+        ) {
+            item {
 
             // ── Header ────────────────────────────────────────────────────
             if (isReordering) {
@@ -214,18 +220,14 @@ fun CollectionDetailScreen(
 
             }
             // ── Item list ──────────────────────────────────────────────────
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            }
                 if (items.isEmpty()) {
                     item {
                         Text(
                             text = stringResource(R.string.collection_empty),
                             style = MaterialTheme.typography.bodyMedium,
                             color = OmnilogTheme.colors.appMuted,
-                            modifier = Modifier.padding(top = 8.dp),
+                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
                         )
                     }
                 } else {
@@ -233,6 +235,7 @@ fun CollectionDetailScreen(
                         items = displayedItems,
                         key = { trackedMedia -> trackedMedia.item.id },
                     ) { trackedMedia ->
+                        Box(modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)) {
                         if (isReordering) {
                             val index = displayedItems.indexOfFirst { it.item.id == trackedMedia.item.id }
                             ReorderItemRow(
@@ -266,10 +269,10 @@ fun CollectionDetailScreen(
                                 onRemoveClick = { itemPendingRemoval = trackedMedia },
                             )
                         }
+                        }
                     }
                 }
             }
-        }
     }
 
     // ── Rename dialog ──────────────────────────────────────────────────────
@@ -433,6 +436,22 @@ private fun CollectionHeroHeader(
     onDelete: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    CollectionHeaderContent(
+        collection = collection,
+        accent = accent,
+        coverUrls = coverStack,
+        itemCount = itemCount,
+        progressSummary = progressSummary,
+        averageRating = averageRating,
+        onAdd = onAdd,
+        menuExpanded = menuExpanded,
+        onMenuExpandedChange = { menuExpanded = it },
+        onEdit = onEdit,
+        onReorder = onReorder,
+        onDelete = onDelete,
+    )
+    return
+
     // Contained hero: a soft accent glow lives inside the rounded card (which
     // clips it), so the header reads as part of the app rather than a floating
     // spotlight on the page background.
@@ -570,6 +589,211 @@ private fun CollectionHeroHeader(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CollectionHeaderContent(
+    collection: MediaCollection,
+    accent: Color,
+    coverUrls: List<String>,
+    itemCount: Int,
+    progressSummary: CollectionProgressSummary,
+    averageRating: Double?,
+    onAdd: () -> Unit,
+    menuExpanded: Boolean,
+    onMenuExpandedChange: (Boolean) -> Unit,
+    onEdit: () -> Unit,
+    onReorder: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        CollectionCoverRibbon(
+            coverUrls = coverUrls,
+            accent = accent,
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = collection.name,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OmnilogTheme.colors.appInk,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(R.string.collection_item_count, itemCount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OmnilogTheme.colors.appMuted,
+                    )
+                }
+                TextButton(onClick = onAdd) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(19.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.add_item),
+                        color = accent,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+                Box {
+                    IconButton(onClick = { onMenuExpandedChange(true) }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.collection_menu),
+                            tint = OmnilogTheme.colors.appMuted,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { onMenuExpandedChange(false) },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.edit)) },
+                            onClick = {
+                                onMenuExpandedChange(false)
+                                onEdit()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.collection_reorder)) },
+                            onClick = {
+                                onMenuExpandedChange(false)
+                                onReorder()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = stringResource(R.string.delete),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = {
+                                onMenuExpandedChange(false)
+                                onDelete()
+                            },
+                        )
+                    }
+                }
+            }
+
+            averageRating?.let { rating ->
+                HeroStatChip(
+                    text = stringResource(R.string.collection_average_rating, rating),
+                    accent = accent,
+                    emphasized = true,
+                )
+            }
+
+            if (itemCount > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = progressSummary.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogTheme.colors.appMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        GroupProgressBar(
+                            fraction = progressSummary.progressFraction,
+                            color = accent,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectionCoverRibbon(
+    coverUrls: List<String>,
+    accent: Color,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(184.dp)
+            .background(accent.copy(alpha = 0.10f)),
+    ) {
+        if (coverUrls.size >= 3) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                coverUrls.forEach { coverUrl ->
+                    MetadataCoverImage(
+                        coverUrl = coverUrl,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize(),
+                        shape = RoundedCornerShape(0.dp),
+                    )
+                }
+            }
+        } else if (coverUrls.isNotEmpty()) {
+            MetadataCoverImage(
+                coverUrl = coverUrls.first(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(0.24f),
+                shape = RoundedCornerShape(0.dp),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(OmnilogTheme.colors.appBackground.copy(alpha = 0.48f)),
+            )
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+                    .height(142.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                coverUrls.forEach { coverUrl ->
+                    MetadataCoverImage(
+                        coverUrl = coverUrl,
+                        modifier = Modifier
+                            .width(96.dp)
+                            .fillMaxSize(),
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(92.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, OmnilogTheme.colors.appBackground),
+                    ),
+                ),
+        )
     }
 }
 
