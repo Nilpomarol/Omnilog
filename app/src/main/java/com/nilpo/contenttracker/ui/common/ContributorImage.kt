@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +30,7 @@ import coil3.compose.AsyncImage
 import coil3.BitmapImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import com.nilpo.contenttracker.ContentTrackerApplication
 
 /**
@@ -46,6 +48,7 @@ fun ContributorImage(
     accent: Color,
     height: Dp,
     logoAspectRatio: Float? = null,
+    logoFrameWidth: Dp? = null,
     modifier: Modifier = Modifier,
 ) {
     var logoWidthRatio by remember(imageUrl) { mutableFloatStateOf(DefaultLogoWidthRatio) }
@@ -53,7 +56,7 @@ fun ContributorImage(
         // The intrinsic ratio only arrives once the image has loaded, so the box would otherwise
         // snap from square to its real width and shove the text beside it sideways.
         targetValue = if (isCompany) {
-            height * resolvedLogoWidthRatio(logoAspectRatio, logoWidthRatio)
+            logoFrameWidth ?: height * resolvedLogoWidthRatio(logoAspectRatio, logoWidthRatio)
         } else {
             height * PortraitWidthRatio
         },
@@ -85,6 +88,7 @@ fun ContributorImageBox(
     onLogoWidthRatio: (Float) -> Unit = {},
 ) {
     var isLoaded by remember(imageUrl) { mutableStateOf(false) }
+    var hasTransparentPixels by remember(imageUrl) { mutableStateOf(false) }
     // Resolved through the permanent store the same way covers are, so a portrait already
     // downloaded is drawn from disk rather than re-fetched — and still appears offline.
     val context = LocalContext.current
@@ -97,6 +101,9 @@ fun ContributorImageBox(
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)
                 .networkCachePolicy(CachePolicy.ENABLED)
+                // Company logos are inspected after decoding to distinguish a transparent mark
+                // from an opaque logo tile. Software decoding makes that inspection dependable.
+                .allowHardware(!isCompany)
                 .build()
         }
     }
@@ -123,17 +130,29 @@ fun ContributorImageBox(
             AsyncImage(
                 model = request,
                 contentDescription = name,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Transparent artwork gets deliberate white breathing room. Opaque logo tiles
+                    // stay edge-to-edge, so their supplied colour reaches the edge of the frame.
+                    .then(
+                        if (isCompany && hasTransparentPixels) {
+                            Modifier.padding(TransparentLogoInset)
+                        } else {
+                            Modifier
+                        },
+                    ),
                 contentScale = if (isCompany) ContentScale.Fit else ContentScale.Crop,
                 onSuccess = { result ->
                     isLoaded = true
                     if (isCompany) {
                         val size = result.painter.intrinsicSize
-                        val visualRatio = (result.result.image as? BitmapImage)
+                        val visualMetrics = (result.result.image as? BitmapImage)
                             ?.bitmap
-                            ?.logoContentWidthRatio()
+                            ?.logoContentMetrics()
+                        hasTransparentPixels = visualMetrics?.hasTransparentPixels == true
                         onLogoWidthRatio(
-                            visualRatio ?: contributorLogoWidthRatio(size.width, size.height),
+                            visualMetrics?.widthRatio
+                                ?: contributorLogoWidthRatio(size.width, size.height),
                         )
                     }
                 },
@@ -170,7 +189,10 @@ internal fun resolvedLogoWidthRatio(providerAspectRatio: Float?, loadedAspectRat
  * padding. This keeps already-saved IGDB logos correct even though their old records predate the
  * original-dimension field. Images without transparency deliberately fall back to their canvas.
  */
-internal fun Bitmap.logoContentWidthRatio(): Float? {
+internal fun Bitmap.logoContentWidthRatio(): Float? = logoContentMetrics()?.widthRatio
+
+/** The visible logo bounds and whether its canvas contains transparent pixels. */
+internal fun Bitmap.logoContentMetrics(): LogoContentMetrics? {
     // Coil may retain a decoded cover as a GPU-only hardware bitmap. Android intentionally forbids
     // CPU pixel reads from those images, so use the normal canvas ratio instead of crashing while
     // trying to inspect transparent padding.
@@ -181,8 +203,12 @@ internal fun Bitmap.logoContentWidthRatio(): Float? {
     var top = height
     var right = -1
     var bottom = -1
+    var hasTransparentPixels = false
     pixels.forEachIndexed { index, pixel ->
-        if ((pixel ushr 24) and AlphaMask > AlphaThreshold) {
+        val alpha = (pixel ushr 24) and AlphaMask
+        if (alpha <= AlphaThreshold) {
+            hasTransparentPixels = true
+        } else {
             val x = index % width
             val y = index / width
             left = minOf(left, x)
@@ -192,14 +218,23 @@ internal fun Bitmap.logoContentWidthRatio(): Float? {
         }
     }
     if (right < left || bottom < top) return null
-    return (right - left + 1).toFloat() / (bottom - top + 1)
+    return LogoContentMetrics(
+        widthRatio = (right - left + 1).toFloat() / (bottom - top + 1),
+        hasTransparentPixels = hasTransparentPixels,
+    )
 }
+
+internal data class LogoContentMetrics(
+    val widthRatio: Float,
+    val hasTransparentPixels: Boolean,
+)
 
 internal const val DefaultLogoWidthRatio = 1f
 internal const val MinLogoWidthRatio = 1f
 internal const val MaxLogoWidthRatio = 2.5f
 private const val AlphaMask = 0xFF
 private const val AlphaThreshold = 16
+private val TransparentLogoInset = 5.dp
 
 /** A person is drawn in a consistent portrait crop rather than at their image's own proportions. */
 private const val PortraitWidthRatio = 0.7f

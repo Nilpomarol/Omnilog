@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -249,15 +250,15 @@ private fun CreditGroup(
         credits.sortedWith(compareBy<MediaCredit> { it.sortOrder }.thenBy { it.personName })
     }
     val hasPerformerCarousel = role in PerformerRoles
-    val previewCount = if (hasPerformerCarousel) CarouselCreditPreviewCount else CreditPreviewCount
-    val visibleCredits = if (expanded) ordered else ordered.take(previewCount)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         DetailFieldLabel(stringResource(role.labelRes()))
 
-        when {
-            hasPerformerCarousel -> CreditCarousel(visibleCredits, contributors, role, accent)
-            else -> ContributorCreditList(
+        if (hasPerformerCarousel) {
+            CreditCarousel(ordered, contributors, role, accent)
+        } else {
+            val visibleCredits = if (expanded) ordered else ordered.take(CreditPreviewCount)
+            ContributorCreditList(
                 credits = visibleCredits,
                 contributors = contributors,
                 role = role,
@@ -265,24 +266,24 @@ private fun CreditGroup(
                 accent = accent,
                 onAuthorClick = onAuthorClick,
             )
-        }
 
-        if (ordered.size > previewCount) {
-            TextButton(
-                modifier = Modifier.align(Alignment.Start),
-                onClick = { expanded = !expanded },
-            ) {
-                Text(
-                    text = if (expanded) {
-                        stringResource(R.string.show_less)
-                    } else {
-                        stringResource(
-                            R.string.detail_credits_show_more,
-                            ordered.size - previewCount,
-                        )
-                    },
-                    color = accent,
-                )
+            if (ordered.size > CreditPreviewCount) {
+                TextButton(
+                    modifier = Modifier.align(Alignment.Start),
+                    onClick = { expanded = !expanded },
+                ) {
+                    Text(
+                        text = if (expanded) {
+                            stringResource(R.string.show_less)
+                        } else {
+                            stringResource(
+                                R.string.detail_credits_show_more,
+                                ordered.size - CreditPreviewCount,
+                            )
+                        },
+                        color = accent,
+                    )
+                }
             }
         }
     }
@@ -333,39 +334,44 @@ private fun ContributorCreditRow(
     accent: Color,
     onClick: (() -> Unit)?,
 ) {
+    val isCompany = role in CompanyRoles
+    val imageHeight = if (isCompany) 58.dp else 98.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
-        val isCompany = role in CompanyRoles
         ContributorImage(
             imageUrl = imageUrl,
             name = credit.personName,
             isCompany = isCompany,
             accent = accent,
-            height = if (isCompany) 58.dp else 98.dp,
+            height = imageHeight,
             logoAspectRatio = imageAspectRatio,
         )
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = imageHeight),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = credit.personName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(R.string.collection_item_count, stats.itemCount),
-                style = MaterialTheme.typography.bodyMedium,
-                color = OmnilogTheme.colors.appMuted,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = credit.personName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OmnilogTheme.colors.appInk,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.collection_item_count, stats.itemCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
             stats.averageRating?.let { averageRating ->
                 Text(
                     text = stringResource(R.string.collection_average_rating, averageRating),
@@ -480,7 +486,6 @@ private data class DetailFact(
 
 private const val SynopsisCollapseThreshold = 320
 private const val CreditPreviewCount = 6
-private const val CarouselCreditPreviewCount = 12
 private val PerformerRoles = setOf(MediaCreditRole.Cast, MediaCreditRole.VoiceActor)
 private val CompanyRoles = setOf(
     MediaCreditRole.Studio,
