@@ -89,7 +89,7 @@ class TimelineHistoryFilterTest {
      * Within one day, endings appear at the top, progress in the middle, and starts at the bottom.
      */
     @Test
-    fun withinOneDayAStartPrecedesProgressWhichPrecedesACompletion() {
+    fun withinOneDayACompletionPrecedesProgressWhichPrecedesAStart() {
         val sameDayEntries = builder.buildEntries(listOf(sameDaySession()))
 
         assertEquals(

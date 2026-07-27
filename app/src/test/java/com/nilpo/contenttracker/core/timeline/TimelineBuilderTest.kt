@@ -279,9 +279,9 @@ class TimelineBuilderTest {
         assertTrue(result.entries.none { it.kind == TimelineEntryKind.Dropped })
     }
 
-    /** Both endings close a day, so neither can be ordered before the progress that led to it. */
+    /** Both endings open a day, so neither can be ordered after the progress that led to it. */
     @Test
-    fun aDropIsOrderedAfterTheSameDaysProgress() {
+    fun aDropIsOrderedBeforeTheSameDaysProgress() {
         val result = builder.build(
             listOf(
                 media(
