@@ -99,13 +99,15 @@ Create a completion event only when:
 
 When a final progress update and completion occur for the same title, session, and date, merge them into one completion entry. The merged row may show final progress and personal rating.
 
+When the first progress update lands on the session's start date, merge it into the start or revisit milestone, matching the item's activity sheet. If a session starts and completes on the same day, completion claims the shared update first. Milestone progress remains visible even when standalone progress-history rows are disabled.
+
 A completed session without `finishedAt` has no honest position on a dated timeline. It may be listed in a separate undated group only if that group proves useful in real use.
 
 ### Unknown Dates And Ordering
 
-Progress updates with `hasKnownDate == false` belong in a separate `Data desconeguda` group after dated activity. Their creation time may provide deterministic ordering inside that group but must not be displayed as the consumption date.
+Progress updates with `hasKnownDate == false` stay available in the item's activity sheet so the user can correct or delete them, but do not appear in the library-wide timeline. Without a trustworthy day they have no honest position in a chronology.
 
-For date-only session events that share a day, use a deterministic semantic order. In a newest-first feed, completion should appear before progress and start unless events are merged.
+Days are newest first. Within one day, order timestamped events by when they were recorded, newest first, matching the item's activity sheet. Starts use their recorded transition timestamp; sessions created directly in progress fall back to their first child activity or session timestamp. Legacy milestones whose sequence cannot be recovered use semantic bookends. Event kind and stable identity are otherwise only deterministic tie-breakers.
 
 ## Placement And Navigation
 

@@ -10,7 +10,6 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -167,16 +166,55 @@ class TimelineBuilderTest {
             entries.map { it.kind },
         )
         assertEquals(90, entries.first().progress?.value)
+        assertEquals(null, entries.last().progress)
     }
 
     @Test
-    fun unknownProgressDatesSortAfterEveryDatedEntry() {
+    fun firstSameDayProgressIsFoldedIntoTheStartMilestone() {
+        val started = session(
+            startedAt = day,
+            baselineProgress = 20,
+            updates = listOf(
+                update(1, 30, day, created = 100),
+                update(2, 10, day, created = 200),
+            ),
+        )
+
+        val entries = builder.build(listOf(media(sessions = listOf(started)))).entries
+        val start = entries.single { it.kind == TimelineEntryKind.Start }
+
+        assertEquals(30, start.progress?.delta)
+        assertEquals(50, start.progress?.value)
+        assertEquals(listOf(2L), entries.filter { it.kind == TimelineEntryKind.Progress }.map { it.sourceId })
+    }
+
+    @Test
+    fun startMilestoneKeepsItsProgressWhenStandaloneHistoryIsHidden() {
+        val entries = builder.buildEntries(
+            listOf(
+                media(
+                    sessions = listOf(
+                        session(startedAt = day, updates = listOf(update(1, 30, day))),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = entries.toSnapshot(TimelineFilters(historyMediaTypes = emptySet()))
+        val start = snapshot.entries.single()
+
+        assertEquals(TimelineEntryKind.Start, start.kind)
+        assertEquals(30, start.progress?.delta)
+    }
+
+    @Test
+    fun unknownProgressDatesDoNotAppearInTheGlobalChronology() {
         val known = update(1, 20, day)
         val unknown = update(2, 30, day.plusDays(5), knownDate = false)
         val result = buildWithUpdates(known, unknown)
 
-        assertEquals(listOf(day, null), result.entries.map { it.date })
-        assertNull(result.entries.last().date)
+        assertEquals(listOf(day), result.entries.map { it.date })
+        assertTrue(result.entries.none { it.date == null })
     }
 
     @Test
@@ -240,9 +278,93 @@ class TimelineBuilderTest {
         val second = buildWithUpdates(*updates.toTypedArray()).entries
 
         assertEquals(first.map { it.stableKey }, second.map { it.stableKey })
-        // Same day: oldest first by creation time, then by id for the two that tie on it.
-        assertEquals(listOf("progress:1:10:3", "progress:1:10:7", "progress:1:10:9"), first.map { it.stableKey })
+        // Same day: newest first by creation time, then by descending id for an exact tie.
+        assertEquals(listOf("progress:1:10:9", "progress:1:10:7", "progress:1:10:3"), first.map { it.stableKey })
         assertEquals(first.map { it.stableKey }.size, first.map { it.stableKey }.toSet().size)
+    }
+
+    @Test
+    fun recordingTimeOutranksSemanticKindWithinOneDay() {
+        val result = builder.build(
+            listOf(
+                media(
+                    sessions = listOf(
+                        session(
+                            status = TrackingStatus.InProgress,
+                            updates = listOf(update(1, 20, day, created = 200)),
+                            statusEvents = listOf(
+                                statusEvent(2, TrackingStatus.Completed, day, created = 100),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(TimelineEntryKind.Progress, TimelineEntryKind.Completion),
+            result.entries.map { it.kind },
+        )
+    }
+
+    @Test
+    fun aLaterStartAppearsAboveAnEarlierCompletionFromAnotherItem() {
+        val completed = media(
+            id = 1,
+            sessions = listOf(
+                session(
+                    id = 10,
+                    status = TrackingStatus.Completed,
+                    finishedAt = day,
+                    updated = 100,
+                ),
+            ),
+        )
+        val started = media(
+            id = 2,
+            sessions = listOf(
+                session(
+                    id = 20,
+                    status = TrackingStatus.InProgress,
+                    startedAt = day,
+                    updated = 50,
+                    statusEvents = listOf(
+                        SessionStatusEvent(
+                            id = 20,
+                            sessionId = 20,
+                            previousStatus = TrackingStatus.Planned,
+                            status = TrackingStatus.InProgress,
+                            occurredOn = day,
+                            createdAtEpochMillis = 200,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val entries = builder.build(listOf(completed, started)).entries
+
+        assertEquals(listOf(TimelineEntryKind.Start, TimelineEntryKind.Completion), entries.map { it.kind })
+    }
+
+    @Test
+    fun aNewInProgressSessionUsesItsSessionTimestampWhenNoTransitionExists() {
+        val completed = media(
+            id = 1,
+            sessions = listOf(
+                session(status = TrackingStatus.Completed, finishedAt = day, updated = 100),
+            ),
+        )
+        val started = media(
+            id = 2,
+            sessions = listOf(
+                session(id = 20, startedAt = day, updated = 200),
+            ),
+        )
+
+        val entries = builder.build(listOf(completed, started)).entries
+
+        assertEquals(listOf(TimelineEntryKind.Start, TimelineEntryKind.Completion), entries.map { it.kind })
     }
 
     @Test
@@ -489,12 +611,17 @@ class TimelineBuilderTest {
         assertTrue(result.entries.none { it.kind == TimelineEntryKind.Resumed })
     }
 
-    private fun statusEvent(id: Long, status: TrackingStatus, on: LocalDate) = SessionStatusEvent(
+    private fun statusEvent(
+        id: Long,
+        status: TrackingStatus,
+        on: LocalDate,
+        created: Long = id * 100,
+    ) = SessionStatusEvent(
         id = id,
         sessionId = 10,
         status = status,
         occurredOn = on,
-        createdAtEpochMillis = id * 100,
+        createdAtEpochMillis = created,
     )
 
     private fun buildWithUpdates(vararg updates: ProgressUpdate): TimelineSnapshot =
@@ -517,6 +644,7 @@ class TimelineBuilderTest {
         finishedAt: LocalDate? = null,
         rating: Int? = null,
         baselineProgress: Int = 0,
+        updated: Long = 0,
         updates: List<ProgressUpdate> = emptyList(),
         statusEvents: List<SessionStatusEvent> = emptyList(),
     ) = TrackingSession(
@@ -528,6 +656,7 @@ class TimelineBuilderTest {
         startedAt = startedAt,
         finishedAt = finishedAt,
         rating = rating,
+        updatedAtEpochMillis = updated,
         progressUpdates = updates,
         statusEvents = statusEvents,
     )

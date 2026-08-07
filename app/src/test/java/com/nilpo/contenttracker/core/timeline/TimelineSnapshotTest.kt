@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.core.timeline
 
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.ProgressUpdate
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -66,12 +67,34 @@ class TimelineSnapshotTest {
     }
 
     @Test
-    fun undatedEntriesSortAfterDatedOnesSoTheRecentPrefixIsNeverStarvedByThem() {
-        val withUndated = library + media(id = 5, type = MediaType.Book, finishedAt = null)
+    fun undatedEntriesAreExcludedFromTheGlobalChronology() {
+        val undated = TrackedMedia(
+            item = MediaItem(id = 5, type = MediaType.Book, title = "Undated", progressTotal = 300),
+            sessions = listOf(
+                TrackingSession(
+                    id = 50,
+                    mediaItemId = 5,
+                    sessionNumber = 1,
+                    status = TrackingStatus.InProgress,
+                    progressUpdates = listOf(
+                        ProgressUpdate(
+                            id = 50,
+                            mediaItemId = 5,
+                            sessionId = 50,
+                            amount = 20,
+                            loggedAt = LocalDate.of(2026, 7, 1),
+                            hasKnownDate = false,
+                            createdAtEpochMillis = 500,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val withUndated = library + undated
         val entries = builder.buildEntries(withUndated)
 
-        assertEquals(4, entries.count { it.date != null })
-        assertTrue(entries.dropWhile { it.date != null }.all { it.date == null })
+        assertEquals(4, entries.size)
+        assertTrue(entries.none { it.date == null })
     }
 
     @Test

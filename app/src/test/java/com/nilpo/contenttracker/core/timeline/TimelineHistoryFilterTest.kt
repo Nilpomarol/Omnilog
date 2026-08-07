@@ -85,21 +85,19 @@ class TimelineHistoryFilterTest {
         assertEquals(1, group.completedCount)
     }
 
-    /**
-     * Within one day, endings appear at the top, progress in the middle, and starts at the bottom.
-     */
+    /** Within one day these timestamps put the finish first and the synthetic start last. */
     @Test
-    fun withinOneDayACompletionPrecedesProgressWhichPrecedesAStart() {
+    fun withinOneDayTheMostRecentlyRecordedEntryLeads() {
         val sameDayEntries = builder.buildEntries(listOf(sameDaySession()))
 
         assertEquals(
             listOf(
                 TimelineEntryKind.Completion,
-                TimelineEntryKind.Progress,
                 TimelineEntryKind.Start,
             ),
             sameDayEntries.map { it.kind },
         )
+        assertEquals(listOf(100, 100), sameDayEntries.map { it.progress?.delta })
     }
 
     private fun sameDaySession() = TrackedMedia(

@@ -43,6 +43,14 @@ android {
         buildConfigField("String", "MAL_REDIRECT_URI", "\"omnilog://mal-oauth\"")
     }
 
+    buildTypes {
+        getByName("debug") {
+            // Keep development installs separate from the release-signed app already on a device.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+    }
+
     buildFeatures {
         buildConfig = true
         compose = true

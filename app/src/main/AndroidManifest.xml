@@ -3,7 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    s<application
+    <application
         android:name=".ContentTrackerApplication"
         android:theme="@style/Theme.ContentTracker"
         android:label="@string/app_name"

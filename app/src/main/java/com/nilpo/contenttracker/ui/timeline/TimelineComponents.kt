@@ -418,10 +418,12 @@ private fun TimelineRail(
 private fun TimelineMilestoneCard(entry: TimelineEntry, onClick: () -> Unit) {
     val description = entry.rowDescription()
     val total = entry.totalText()
+    val delta = entry.deltaText()
+    val position = entry.positionText()
     val meta = entry.metaLine()
     // A start or a revisit carries no verdict yet, so the rating belongs to completions alone.
     val rating = entry.rating?.takeIf { entry.kind == TimelineEntryKind.Completion }
-    val hasFigures = rating != null || total != null || meta != null
+    val hasFigures = rating != null || total != null || delta != null || position != null || meta != null
     // Grows with the system font setting, the way MediaCard pins its own height: without this a
     // large text scale pushes the column past the poster and reopens the gap underneath it.
     val coverHeight = MilestoneCoverHeight * LocalDensity.current.fontScale
@@ -495,14 +497,36 @@ private fun TimelineMilestoneCard(entry: TimelineEntry, onClick: () -> Unit) {
                         } else {
                             Spacer(modifier = Modifier.weight(1f))
                         }
-                        total?.let { text ->
-                            Text(
-                                text = text,
-                                color = OmnilogTheme.colors.appMuted,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                            )
+                        if (delta != null || position != null) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                delta?.let { text ->
+                                    Text(
+                                        text = text,
+                                        color = entry.mediaAccent(),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                    )
+                                }
+                                position?.let { text ->
+                                    Text(
+                                        text = text,
+                                        color = OmnilogTheme.colors.appMuted,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
+                        } else {
+                            total?.let { text ->
+                                Text(
+                                    text = text,
+                                    color = OmnilogTheme.colors.appMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                )
+                            }
                         }
                         rating?.let { value ->
                             MilestoneRating(rating = value, accent = entry.mediaAccent())
@@ -990,8 +1014,14 @@ internal fun TimelineEntry.actionText(): String {
     }
     return when (kind) {
         TimelineEntryKind.Progress -> progressText.orEmpty()
-        TimelineEntryKind.Start -> stringResource(R.string.timeline_started)
-        TimelineEntryKind.Revisit -> stringResource(R.string.timeline_revisit, visitNumber)
+        TimelineEntryKind.Start -> listOfNotNull(
+            stringResource(R.string.timeline_started),
+            progressText,
+        ).joinToString(" · ")
+        TimelineEntryKind.Revisit -> listOfNotNull(
+            stringResource(R.string.timeline_revisit, visitNumber),
+            progressText,
+        ).joinToString(" · ")
         TimelineEntryKind.Paused -> stringResource(R.string.timeline_paused)
         TimelineEntryKind.Resumed -> stringResource(R.string.timeline_resumed)
         // How far it got is the whole point of the sentence — "abandonat" alone says nothing about

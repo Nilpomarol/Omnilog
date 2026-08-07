@@ -7,8 +7,9 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 
 /**
- * Builds consumption facts from the current snapshot models. It deliberately ignores mutable
- * metadata and [TrackingSession.updatedAtEpochMillis], which is not a consumption timestamp.
+ * Builds consumption facts from the current snapshot models. It ignores mutable media metadata.
+ * [TrackingSession.updatedAtEpochMillis] is used only as the last available ordering fallback for
+ * a session milestone that predates the immutable status-event log.
  */
 class TimelineBuilder {
     /**
@@ -17,7 +18,12 @@ class TimelineBuilder {
      * depends only on [items] — applying filters afterwards needs no rebuild.
      */
     fun buildEntries(items: List<TrackedMedia>): List<TimelineEntry> =
-        items.flatMap(::entriesForMedia).sortedWith(entryComparator)
+        items
+            .flatMap(::entriesForMedia)
+            // An undated row remains available in the item's own activity sheet, where it can be
+            // corrected, but it cannot be placed honestly in the library-wide chronology.
+            .filter { it.date != null }
+            .sortedWith(entryComparator)
 
     fun build(
         items: List<TrackedMedia>,
@@ -41,6 +47,7 @@ class TimelineBuilder {
         isRevisit: Boolean,
     ): List<TimelineEntry> {
         val entries = mutableListOf<TimelineEntry>()
+        val claimedUpdateIds = mutableSetOf<Long>()
         val orderedUpdates = session.progressUpdates.sortedWith(progressUpdateComparator)
 
         // Entries are increments, so the total at each point is the session's baseline plus
@@ -73,25 +80,6 @@ class TimelineBuilder {
                 progressTotal = media.item.progressTotal,
                 sortEpochMillis = update.createdAtEpochMillis,
                 sourceId = update.id,
-            )
-        }
-
-        session.startedAt?.let { startedAt ->
-            entries += TimelineEntry(
-                // The identity stays stable if deleting an earlier session changes this event from
-                // a revisit into a first visit (or shifts its displayed visit number).
-                stableKey = "start:${media.item.id}:${session.id}",
-                mediaItemId = media.item.id,
-                sessionId = session.id,
-                mediaType = media.item.type,
-                mediaTitle = media.item.title,
-                coverUrl = media.item.coverUrl,
-                platformName = session.platform?.name,
-                creator = media.item.creators.firstOrNull(),
-                date = startedAt,
-                kind = if (isRevisit) TimelineEntryKind.Revisit else TimelineEntryKind.Start,
-                visitNumber = visitNumber,
-                sourceId = session.id,
             )
         }
 
@@ -139,7 +127,10 @@ class TimelineBuilder {
                             update.createdAtEpochMillis <= event.createdAtEpochMillis
                     }
                     if (finalUpdate != null) {
-                        entries.removeAll { it.sourceId == finalUpdate.id }
+                        claimedUpdateIds += finalUpdate.id
+                        entries.removeAll {
+                            it.kind == TimelineEntryKind.Progress && it.sourceId == finalUpdate.id
+                        }
                         entries += terminal.copy(
                             progress = TimelineProgress(
                                 value = runningTotals[finalUpdate.id] ?: session.progressCurrent,
@@ -177,6 +168,7 @@ class TimelineBuilder {
                 progressTotal = media.item.progressTotal,
                 // Deliberately no rating: abandoning something is not a verdict on it, and the
                 // milestone card only shows a score for completions anyway.
+                sortEpochMillis = session.updatedAtEpochMillis,
                 sourceId = session.id,
             )
         }
@@ -200,6 +192,7 @@ class TimelineBuilder {
                 visitNumber = visitNumber,
                 progressTotal = media.item.progressTotal,
                 rating = session.rating,
+                sortEpochMillis = session.updatedAtEpochMillis,
                 sourceId = session.id,
             )
             // The last entry logged on the finishing day is folded into the completion, so a day
@@ -210,7 +203,10 @@ class TimelineBuilder {
                 update.hasKnownDate && update.loggedAt == finishedAt
             }
             if (finalUpdate != null) {
-                entries.removeAll { it.sourceId == finalUpdate.id }
+                claimedUpdateIds += finalUpdate.id
+                entries.removeAll {
+                    it.kind == TimelineEntryKind.Progress && it.sourceId == finalUpdate.id
+                }
                 entries += completion.copy(
                     progress = TimelineProgress(
                         value = runningTotals[finalUpdate.id] ?: session.progressCurrent,
@@ -221,6 +217,45 @@ class TimelineBuilder {
             } else {
                 entries += completion
             }
+        }
+
+        // The item activity sheet folds the first same-day entry into the opening milestone. Do the
+        // same here so its pages remain visible even when standalone progress history is disabled.
+        // Completion gets first claim when a session starts and finishes on one day.
+        session.startedAt?.let { startedAt ->
+            val firstUpdate = orderedUpdates.firstOrNull { update ->
+                update.hasKnownDate && update.loggedAt == startedAt && update.id !in claimedUpdateIds
+            }
+            if (firstUpdate != null) {
+                claimedUpdateIds += firstUpdate.id
+                entries.removeAll {
+                    it.kind == TimelineEntryKind.Progress && it.sourceId == firstUpdate.id
+                }
+            }
+            entries += TimelineEntry(
+                // The identity stays stable if deleting an earlier session changes this event from
+                // a revisit into a first visit (or shifts its displayed visit number).
+                stableKey = "start:${media.item.id}:${session.id}",
+                mediaItemId = media.item.id,
+                sessionId = session.id,
+                mediaType = media.item.type,
+                mediaTitle = media.item.title,
+                coverUrl = media.item.coverUrl,
+                platformName = session.platform?.name,
+                creator = media.item.creators.firstOrNull(),
+                date = startedAt,
+                kind = if (isRevisit) TimelineEntryKind.Revisit else TimelineEntryKind.Start,
+                visitNumber = visitNumber,
+                progress = firstUpdate?.let { update ->
+                    TimelineProgress(
+                        value = runningTotals[update.id] ?: session.baselineProgress + update.amount,
+                        delta = update.amount,
+                    )
+                },
+                progressTotal = media.item.progressTotal.takeIf { firstUpdate != null },
+                sortEpochMillis = session.startRecordedAtEpochMillis,
+                sourceId = session.id,
+            )
         }
 
         return entries
@@ -293,31 +328,63 @@ class TimelineBuilder {
         sourceId = event.id,
     )
 
+    /**
+     * The immutable transition is the honest timestamp for a planned item being started. Sessions
+     * created directly in progress predate that transition, so their first child row proves the
+     * session already existed; immediately after creation, the session timestamp is the only clock
+     * available. The fallback can be approximate for old edited data, but is still more informative
+     * than forcing every start below every other event from the day.
+     */
+    private val TrackingSession.startRecordedAtEpochMillis: Long
+        get() {
+            statusEvents.firstOrNull { event ->
+                event.status == TrackingStatus.InProgress &&
+                    (event.previousStatus == TrackingStatus.Planned || event.previousStatus == null) &&
+                    event.occurredOn == startedAt
+            }?.let { return it.createdAtEpochMillis }
+
+            val firstChildTimestamp = (
+                progressUpdates.asSequence().map { it.createdAtEpochMillis } +
+                    statusEvents.asSequence().map { it.createdAtEpochMillis }
+                )
+                .filter { it > 0L }
+                .minOrNull()
+            return firstChildTimestamp?.minus(1L) ?: updatedAtEpochMillis
+        }
+
     private companion object {
         val progressUpdateComparator = compareBy<ProgressUpdate> { it.loggedAt }
             .thenBy { it.createdAtEpochMillis }
             .thenBy { it.id }
 
         /**
-         * Days run newest first. Within one day, events run with endings/pauses at the top,
-         * progress updates in the middle, and starts/resumes at the bottom.
+         * Days run newest first. Within one day, the most recently recorded event leads, matching
+         * the ordering used by the item's activity sheet. Session milestones use their transition,
+         * first-child, or session timestamp when available; semantic kind, source id, and stable key
+         * settle legacy events whose sequence cannot be recovered and otherwise exact ties.
          */
         val entryComparator = compareByDescending<TimelineEntry> { it.date != null }
             .thenByDescending { it.date }
-            .thenBy { it.kind.semanticRank }
-            .thenBy { it.sortEpochMillis }
-            .thenBy { it.sourceId }
+            .thenByDescending { it.withinDayOrder }
+            .thenBy { it.kind.tieBreakRank }
+            .thenByDescending { it.sourceId }
             .thenBy { it.stableKey }
 
-        val TimelineEntryKind.semanticRank: Int
+        val TimelineEntry.withinDayOrder: Long
+            get() = when {
+                sortEpochMillis != 0L -> sortEpochMillis
+                kind == TimelineEntryKind.Completion || kind == TimelineEntryKind.Dropped -> Long.MAX_VALUE
+                kind == TimelineEntryKind.Start || kind == TimelineEntryKind.Revisit -> Long.MIN_VALUE
+                else -> 0L
+            }
+
+        val TimelineEntryKind.tieBreakRank: Int
             get() = when (this) {
-                // Both ways a session can end rank first, along with pauses.
                 TimelineEntryKind.Paused,
                 TimelineEntryKind.Completion,
                 TimelineEntryKind.Dropped,
                 -> 1
                 TimelineEntryKind.Progress -> 2
-                // Starts and resumes rank last, appearing at the bottom of the day.
                 TimelineEntryKind.Start,
                 TimelineEntryKind.Revisit,
                 TimelineEntryKind.Resumed -> 3
