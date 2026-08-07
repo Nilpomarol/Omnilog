@@ -21,10 +21,29 @@ val igdbClientId = providerCredential("IGDB_CLIENT_ID")
 val igdbClientSecret = providerCredential("IGDB_CLIENT_SECRET")
 val omdbApiKey = providerCredential("OMDB_API_KEY")
 val malClientId = providerCredential("MAL_CLIENT_ID")
+val releaseKeystorePath = providers.environmentVariable("OMNILOG_RELEASE_KEYSTORE").orNull
+val releaseStorePassword = providers.environmentVariable("OMNILOG_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("OMNILOG_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("OMNILOG_RELEASE_KEY_PASSWORD").orNull
 
 android {
     namespace = "com.nilpo.contenttracker"
     compileSdk = 36
+
+    val localReleaseSigning = if (
+        releaseKeystorePath != null && releaseStorePassword != null &&
+        releaseKeyAlias != null && releaseKeyPassword != null
+    ) {
+        signingConfigs.create("localRelease") {
+            storeFile = file(releaseKeystorePath)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+            storeType = "PKCS12"
+        }
+    } else {
+        null
+    }
 
     defaultConfig {
         applicationId = "com.nilpo.contenttracker"
@@ -48,6 +67,10 @@ android {
             // Keep development installs separate from the release-signed app already on a device.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+        }
+        getByName("release") {
+            // Supplied only for the lifetime of tools/update-release.ps1. Secrets never touch disk.
+            localReleaseSigning?.let { signingConfig = it }
         }
     }
 
