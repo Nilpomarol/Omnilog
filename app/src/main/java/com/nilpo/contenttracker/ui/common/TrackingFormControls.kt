@@ -67,7 +67,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -81,6 +80,8 @@ import androidx.compose.ui.semantics.setProgress
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 import com.nilpo.contenttracker.core.model.RatingHalfPoints
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 
 @Composable
 @Suppress("UNUSED_PARAMETER")
@@ -352,7 +353,7 @@ fun TrackingRatingSelector(
                             .padding(vertical = 7.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        PartialStar(fill = fill, size = starSize, accent = accent)
+                        PartialStar(fill = fill, starSize = starSize, accent = accent)
                     }
                 }
             }
@@ -399,37 +400,41 @@ internal fun ratingHalfPointsAt(x: Float, width: Float): Int {
 /**
  * A star filled from the left by [fill], for the half-lit one.
  *
- * Drawn as the empty star with a clipped copy of the filled star over it, because icons-core has no
- * half star and the fill is the only thing that varies. The row announces itself as a whole, so the
- * stars carry no descriptions of their own.
+ * The fill clips the *painting* of a full-size star, not its layout. Sizing a box to half the width
+ * and putting the icon inside it does not draw half a star: the vector scales to fit whatever box it
+ * is given, so a half-width box yields a whole star at half the size, centred in the slot.
+ *
+ * Drawn as the empty star with the accent star clipped over it, because icons-core has no half star
+ * and the fill is the only thing that varies. The row announces itself as a whole, so the stars
+ * carry no descriptions of their own.
  */
 @Composable
 private fun PartialStar(
     fill: Float,
-    size: Dp,
+    starSize: Dp,
     accent: Color,
 ) {
     val emptyTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
-    Box(modifier = Modifier.size(size)) {
+    Box(modifier = Modifier.size(starSize)) {
         Icon(
             imageVector = Icons.Filled.Star,
             contentDescription = null,
-            modifier = Modifier.size(size),
+            modifier = Modifier.size(starSize),
             tint = emptyTint,
         )
         if (fill > 0f) {
-            Box(
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = null,
                 modifier = Modifier
-                    .size(width = size * fill, height = size)
-                    .clipToBounds(),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Star,
-                    contentDescription = null,
-                    modifier = Modifier.size(size),
-                    tint = accent,
-                )
-            }
+                    .size(starSize)
+                    .drawWithContent {
+                        clipRect(right = size.width * fill) {
+                            this@drawWithContent.drawContent()
+                        }
+                    },
+                tint = accent,
+            )
         }
     }
 }
