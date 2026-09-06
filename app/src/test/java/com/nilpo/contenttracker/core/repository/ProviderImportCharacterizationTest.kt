@@ -614,6 +614,18 @@ class ProviderImportCharacterizationTest {
         assertEquals(2, second.skippedDuplicateRows)
     }
 
+    @Test
+    fun `quoted fields keep their line breaks as LF whatever the file uses`() {
+        val crlf = parseProviderCsvTable("Title,Review\r\n\"A Book\",\"First line\r\nSecond line\"\r\n")
+        assertEquals(listOf("A Book", "First line\nSecond line"), crlf[1])
+
+        val cr = parseProviderCsvTable("Title,Review\r\"A Book\",\"First line\rSecond line\"\r")
+        assertEquals(listOf("A Book", "First line\nSecond line"), cr[1])
+
+        val lf = parseProviderCsvTable("Title,Review\n\"A Book\",\"First line\nSecond line\"\n")
+        assertEquals(listOf("A Book", "First line\nSecond line"), lf[1])
+    }
+
     private fun fixture(name: String): String {
         val resource = requireNotNull(javaClass.classLoader?.getResource("imports/$name")) {
             "Missing import fixture: $name"

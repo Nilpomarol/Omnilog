@@ -113,6 +113,10 @@ internal fun parseProviderCsvTable(csv: String): List<List<String>> {
                 inQuotes = false
                 quoteClosed = true
             }
+            inQuotes && character == '\r' -> {
+                if (csv.getOrNull(index + 1) == '\n') index++
+                cell.append('\n')
+            }
             inQuotes -> cell.append(character)
             quoteClosed && character == ',' -> finishCell()
             quoteClosed && (character == '\n' || character == '\r') -> {
