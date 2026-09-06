@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 
 /** The scale every rating in the app is recorded on. */
 private const val RatingScale = 10
@@ -49,12 +50,13 @@ private const val RatingScale = 10
  */
 @Composable
 fun RatingMeter(
-    rating: Int,
+    ratingHalfPoints: Int,
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
-    val clamped = rating.coerceIn(0, RatingScale)
-    val description = stringResource(R.string.rating_value, clamped)
+    val clamped = RatingHalfPoints.coerce(ratingHalfPoints)
+    val figure = formatRatingHalfPoints(clamped)
+    val description = stringResource(R.string.rating_value, figure)
 
     Row(
         modifier = modifier
@@ -76,7 +78,7 @@ fun RatingMeter(
             tint = accent,
         )
         Text(
-            text = clamped.toString(),
+            text = figure,
             style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.ExtraBold,
             color = accent,
@@ -101,19 +103,20 @@ private val StarSize = 30.dp
  */
 @Composable
 fun RatingMeterCompact(
-    rating: Int,
+    ratingHalfPoints: Int,
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
-    val clamped = rating.coerceIn(0, RatingScale)
-    val description = stringResource(R.string.rating_value, clamped)
+    val clamped = RatingHalfPoints.coerce(ratingHalfPoints)
+    val figure = formatRatingHalfPoints(clamped)
+    val description = stringResource(R.string.rating_value, figure)
 
     Row(
         modifier = modifier.clearAndSetSemantics { contentDescription = description },
         verticalAlignment = Alignment.Bottom,
     ) {
         Text(
-            text = clamped.toString(),
+            text = figure,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
             color = accent,

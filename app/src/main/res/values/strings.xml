@@ -107,7 +107,7 @@
     <string name="timeline_progress_delta_total">+%1$d %2$s · %3$d de %4$d</string>
     <string name="timeline_completion_progress_total">%1$d de %2$d %3$s</string>
     <string name="timeline_completion_progress_value">%1$d %2$s</string>
-    <string name="timeline_completion_rating">%1$d/10</string>
+    <string name="timeline_completion_rating">%1$s/10</string>
     <string name="timeline_dropped">Abandonat</string>
     <string name="timeline_paused">Has posat en pausa</string>
     <string name="timeline_resumed">Has reprès</string>
@@ -307,8 +307,11 @@
     <string name="progress_unit_hour_many">hores</string>
     <string name="progress_unit_minute_compact">min</string>
     <string name="progress_unit_hour_compact">h</string>
-    <string name="rating_value">%1$d/10</string>
+    <string name="rating_value">%1$s/10</string>
     <string name="rating_clear">Esborra la nota</string>
+    <string name="rating_half_point_mark">½</string>
+    <string name="rating_half_point_add">Afegeix mig punt</string>
+    <string name="rating_half_point_remove">Treu el mig punt</string>
     <string name="owned_label">En propietat</string>
     <string name="owned_action_add">En propietat?</string>
     <string name="collection_action_add">Col·lecció</string>
@@ -513,7 +516,7 @@
     <string name="field_progress">Progrés</string>
     <string name="field_final_progress">Progrés final</string>
     <string name="field_rating">Nota</string>
-    <string name="library_row_personal_rating">La teva nota: %1$d de 10</string>
+    <string name="library_row_personal_rating">La teva nota: %1$s de 10</string>
     <string name="library_row_external_rating">Nota externa: %1$s de 10</string>
     <string name="library_row_external_rating_percentage">Nota externa de Steam: %1$s</string>
     <string name="field_notes">Notes</string>

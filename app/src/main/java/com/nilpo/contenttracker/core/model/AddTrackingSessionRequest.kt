@@ -6,7 +6,8 @@ data class AddTrackingSessionRequest(
     val mediaItemId: Long,
     val status: TrackingStatus,
     val progressCurrent: Int = 0,
-    val rating: Int? = null,
+    /** Half points; see [RatingHalfPoints]. */
+    val ratingHalfPoints: Int? = null,
     val notes: String? = null,
     val startedAt: LocalDate? = null,
     val finishedAt: LocalDate? = null,

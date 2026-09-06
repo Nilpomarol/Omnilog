@@ -20,7 +20,14 @@ data class TrackingSession(
      * a starting position is not something that happened.
      */
     val baselineProgress: Int = 0,
-    val rating: Int? = null,
+    /**
+     * The personal rating in half points, so 15 is 7,5 out of 10. See [RatingHalfPoints].
+     *
+     * Named for its unit rather than called `rating` because the unit changed under code that was
+     * already reading the field: a name that still compiled everywhere would have silently doubled
+     * every score it touched.
+     */
+    val ratingHalfPoints: Int? = null,
     val notes: String? = null,
     val platform: ConsumptionPlatform? = null,
     val startedAt: LocalDate? = null,

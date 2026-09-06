@@ -1,5 +1,6 @@
 package com.nilpo.contenttracker.core.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -40,7 +41,9 @@ data class TrackingSessionEntity(
      * `progressCurrent` always equals this plus the sum of the session's entries.
      */
     val baselineProgress: Int = 0,
-    val rating: Int? = null,
+    /** Half points, so 15 is 7,5 out of 10. The column keeps its old name; the unit changed in 36. */
+    @ColumnInfo(name = "rating")
+    val ratingHalfPoints: Int? = null,
     val notes: String? = null,
     val platformName: String? = null,
     val platformType: String? = null,

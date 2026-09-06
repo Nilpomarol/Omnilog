@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -99,6 +100,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.timeline.TimelineRecentActivity
 import com.nilpo.contenttracker.ui.theme.OnCoverInk
+import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.util.Locale
@@ -990,9 +992,9 @@ private fun HomeMediaTile(
                     modifier = Modifier.align(Alignment.TopStart),
                     onClick = { showQuickSheet = true },
                 )
-            } else if (session?.status == TrackingStatus.Completed && session.rating != null) {
+            } else if (session?.status == TrackingStatus.Completed && session.ratingHalfPoints != null) {
                 TileRatingBadge(
-                    rating = session.rating,
+                    ratingHalfPoints = session.ratingHalfPoints,
                     accent = accent,
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -1115,19 +1117,22 @@ private fun CardStatusIcon(
 
 @Composable
 private fun TileRatingBadge(
-    rating: Int,
+    ratingHalfPoints: Int,
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.size(24.dp),
+        // A pill rather than a circle: "7,5" does not fit a 24dp round badge, and rounding it
+        // for the tile would print a score the user never gave.
+        modifier = modifier.heightIn(min = 24.dp).widthIn(min = 24.dp),
         shape = RoundedCornerShape(999.dp),
         color = accent,
         contentColor = Color.Black,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
-                text = rating.toString(),
+                text = formatRatingHalfPoints(ratingHalfPoints),
+                modifier = Modifier.padding(horizontal = 6.dp),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontSize = 13.sp,
                     lineHeight = 13.sp,

@@ -32,6 +32,7 @@ import com.nilpo.contenttracker.core.model.MetadataRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.metadataJsonWithSteamAppId
 import com.nilpo.contenttracker.core.model.normalizeSteamAppId
 import com.nilpo.contenttracker.core.model.steamAppIdFromMetadataJson
@@ -245,7 +246,8 @@ class OfflineMediaRepository(
                     status = session.status.name,
                     progressCurrent = validProgress,
                     baselineProgress = validProgress,
-                    rating = session.rating?.coerceIn(1, 10),
+                    // The provider scored in whole points; the column holds half points.
+                    ratingHalfPoints = session.rating?.let(RatingHalfPoints::fromWholePoints),
                     notes = session.notes?.trim()?.takeIf { it.isNotBlank() },
                     startedAtEpochDay = session.startedAt?.toEpochDay(),
                     finishedAtEpochDay = session.finishedAt?.toEpochDay(),
@@ -488,7 +490,7 @@ class OfflineMediaRepository(
                 sessionNumber = newSessionNumber,
                 status = request.status.name,
                 progressCurrent = validProgress,
-                rating = request.rating?.coerceIn(1, 10),
+                ratingHalfPoints = request.ratingHalfPoints?.let(RatingHalfPoints::coerce),
                 notes = request.notes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = validPlatformName,
                 platformType = validPlatformName?.let { request.platformType.name },
@@ -502,7 +504,7 @@ class OfflineMediaRepository(
                 sessionNumber = newSessionNumber,
                 status = request.status.name,
                 progressCurrent = validProgress,
-                rating = request.rating?.coerceIn(1, 10),
+                ratingHalfPoints = request.ratingHalfPoints?.let(RatingHalfPoints::coerce),
                 notes = request.notes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = validPlatformName,
                 platformType = validPlatformName?.let { request.platformType.name },
@@ -659,7 +661,7 @@ class OfflineMediaRepository(
                 progressCurrent = initialProgress,
                 // Where the user already was when they added this. See addSession.
                 baselineProgress = initialProgress,
-                rating = request.initialRating?.coerceIn(1, 10),
+                ratingHalfPoints = request.initialRatingHalfPoints?.let(RatingHalfPoints::coerce),
                 notes = request.initialNotes?.trim()?.takeIf { it.isNotBlank() },
                 platformName = request.platformName?.trim()?.takeIf { it.isNotBlank() },
                 platformType = request.platformType.name,
@@ -675,7 +677,7 @@ class OfflineMediaRepository(
         sessionId: Long,
         status: TrackingStatus,
         progressCurrent: Int,
-        rating: Int?,
+        ratingHalfPoints: Int?,
         notes: String?,
         startedAt: LocalDate?,
         finishedAt: LocalDate?,
@@ -737,7 +739,7 @@ class OfflineMediaRepository(
             sessionId = sessionId,
             status = status.name,
             progressCurrent = validProgress,
-            rating = rating?.coerceIn(1, 10),
+            ratingHalfPoints = ratingHalfPoints?.let(RatingHalfPoints::coerce),
             notes = notes?.trim()?.takeIf { it.isNotBlank() },
             startedAtEpochDay = startedAt?.toEpochDay(),
             finishedAtEpochDay = validFinishedAt?.toEpochDay(),
@@ -2323,10 +2325,13 @@ private val CanonicalImdbIdPattern = Regex("tt[0-9]{7,10}")
  * taken before an upgrade could only be restored by an app version that no longer exists, which
  * turns the one safety net into a dead end exactly when it is needed.
  */
-private const val BackupSchemaVersion = 12
+private const val BackupSchemaVersion = 13
 
 /** The first version whose progress values are increments rather than cumulative totals. */
 private const val FirstIncrementBackupSchemaVersion = 8
+
+/** Ratings are half points from this backup version on; older backups carry whole points. */
+internal const val FirstHalfPointBackupSchemaVersion = 13
 
 private fun parseBackupRoot(json: String): JSONObject {
     val root = JSONObject(json)
@@ -2355,7 +2360,7 @@ private fun parseBackupData(json: String): ParsedBackup {
     val root = parseBackupRoot(json)
     val schemaVersion = root.getInt("schemaVersion")
     val rawSessions = root.getJSONArray("trackingSessions")
-        .mapObjects { it.toTrackingSessionEntity() }
+        .mapObjects { it.toTrackingSessionEntity(schemaVersion) }
 
     // Backups older than the increment format carry cumulative values and the catch-up flag, so
     // they go through the same conversion the database migration runs. Anything newer is already
@@ -2479,8 +2484,10 @@ private fun ParsedBackup.validate() {
         session.platformType?.let { platformType ->
             requireEnum<ConsumptionPlatformType>(platformType) { "Unknown platform type: $platformType" }
         }
-        session.rating?.let { rating ->
-            require(rating in 1..10) { "Session ratings must be between 1 and 10" }
+        session.ratingHalfPoints?.let { halfPoints ->
+            require(halfPoints in RatingHalfPoints.Min..RatingHalfPoints.Max) {
+                "Session ratings must be between 0,5 and 10"
+            }
         }
     }
 
@@ -2621,7 +2628,7 @@ private fun TrackingSessionEntity.toJson(): JSONObject {
         .put("status", status)
         .put("progressCurrent", progressCurrent)
         .put("baselineProgress", baselineProgress)
-        .putNullable("rating", rating)
+        .putNullable("rating", ratingHalfPoints)
         .putNullable("notes", notes)
         .putNullable("platformName", platformName)
         .putNullable("platformType", platformType)
@@ -2749,7 +2756,8 @@ private fun JSONObject.toMediaCreditEntity(): MediaCreditEntity {
     )
 }
 
-private fun JSONObject.toTrackingSessionEntity(): TrackingSessionEntity {
+/** Visible for the backup-upgrade test: an older backup's whole points must not be read as halves. */
+internal fun JSONObject.toTrackingSessionEntity(schemaVersion: Int): TrackingSessionEntity {
     return TrackingSessionEntity(
         id = getLong("id"),
         mediaItemId = getLong("mediaItemId"),
@@ -2757,7 +2765,10 @@ private fun JSONObject.toTrackingSessionEntity(): TrackingSessionEntity {
         status = getString("status"),
         progressCurrent = optInt("progressCurrent", 0),
         baselineProgress = optInt("baselineProgress", 0),
-        rating = optNullableInt("rating"),
+        // Ratings were whole points until the half-point format, so an older backup's 8 is
+        // today's 16. Restoring one without this halves every score in the library.
+        ratingHalfPoints = optNullableInt("rating")
+            ?.let { if (schemaVersion < FirstHalfPointBackupSchemaVersion) RatingHalfPoints.fromWholePoints(it) else it },
         notes = optNullableString("notes"),
         platformName = optNullableString("platformName"),
         platformType = optNullableString("platformType"),

@@ -22,6 +22,7 @@ import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -242,7 +243,7 @@ class ImportedMetadataPreservationTest {
             sessionId = sessionId,
             status = TrackingStatus.InProgress,
             progressCurrent = 3,
-            rating = null,
+            ratingHalfPoints = null,
             notes = null,
             startedAt = null,
             finishedAt = null,
@@ -256,7 +257,7 @@ class ImportedMetadataPreservationTest {
             sessionId = sessionId,
             status = TrackingStatus.InProgress,
             progressCurrent = 4,
-            rating = null,
+            ratingHalfPoints = null,
             notes = null,
             startedAt = null,
             finishedAt = null,
@@ -333,7 +334,7 @@ class ImportedMetadataPreservationTest {
                 status = "InProgress",
                 progressCurrent = 9,
                 baselineProgress = 4,
-                rating = 8,
+                ratingHalfPoints = RatingHalfPoints.fromWholePoints(8),
                 notes = "User review",
                 startedAtEpochDay = 20_000,
                 updatedAtEpochMillis = 123_456,
@@ -511,7 +512,7 @@ class ImportedMetadataPreservationTest {
                 status = "Completed",
                 progressCurrent = 0,
                 baselineProgress = 0,
-                rating = 9,
+                ratingHalfPoints = RatingHalfPoints.fromWholePoints(9),
                 notes = "Imported review",
                 finishedAtEpochDay = 19_000,
                 updatedAtEpochMillis = 123_456,
@@ -625,7 +626,7 @@ class ImportedMetadataPreservationTest {
                 status = "Completed",
                 progressCurrent = 0,
                 baselineProgress = 0,
-                rating = 8,
+                ratingHalfPoints = RatingHalfPoints.fromWholePoints(8),
                 finishedAtEpochDay = 19_500,
                 updatedAtEpochMillis = 123_456,
             ),
@@ -674,8 +675,8 @@ class ImportedMetadataPreservationTest {
         assertEquals(LocalDate.of(2020, 2, 10).toEpochDay(), sessions[0].finishedAtEpochDay)
         assertEquals(LocalDate.of(2024, 3, 1).toEpochDay(), sessions[1].startedAtEpochDay)
         assertEquals(LocalDate.of(2024, 3, 12).toEpochDay(), sessions[1].finishedAtEpochDay)
-        assertEquals(null, sessions[0].rating)
-        assertEquals(9, sessions[1].rating)
+        assertEquals(null, sessions[0].ratingHalfPoints)
+        assertEquals(RatingHalfPoints.fromWholePoints(9), sessions[1].ratingHalfPoints)
         assertEquals("Latest review", sessions[1].notes)
         assertFalse(sessions.any { it.startedAtEpochDay == LocalDate.of(2019, 1, 1).toEpochDay() })
     }
@@ -790,7 +791,10 @@ class ImportedMetadataPreservationTest {
         assertTrue(sessions.all { it.status == TrackingStatus.Completed.name })
         assertEquals(listOf(12, 12, 12), sessions.map(TrackingSessionEntity::progressCurrent))
         assertEquals(listOf(12, 12, 12), sessions.map(TrackingSessionEntity::baselineProgress))
-        assertEquals(listOf(null, null, 9), sessions.map(TrackingSessionEntity::rating))
+        assertEquals(
+            listOf(null, null, RatingHalfPoints.fromWholePoints(9)),
+            sessions.map(TrackingSessionEntity::ratingHalfPoints),
+        )
         assertEquals("Latest watch", sessions.last().notes)
         assertEquals(LocalDate.of(2024, 1, 2).toEpochDay(), sessions.last().startedAtEpochDay)
         assertEquals(LocalDate.of(2024, 1, 3).toEpochDay(), sessions.last().finishedAtEpochDay)

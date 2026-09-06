@@ -72,6 +72,7 @@ import com.nilpo.contenttracker.ui.common.OmnilogModal
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 
 @Composable
 fun CollectionDetailScreen(
@@ -1161,7 +1162,7 @@ private fun ReorderMetadataLine(trackedMedia: TrackedMedia) {
     val parts = buildList {
         trackedMedia.item.releaseYear?.let { add(it.toString()) }
         statusLabel?.let { add(it) }
-        trackedMedia.currentSession?.rating?.let { add("$it/10") }
+        trackedMedia.currentSession?.ratingHalfPoints?.let { add("${formatRatingHalfPoints(it)}/10") }
     }
     if (parts.isEmpty()) return
 

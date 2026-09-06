@@ -18,7 +18,7 @@ class MalSyncPayloadTest {
             sessions = listOf(
                 session(1, TrackingStatus.Completed, progress = 12),
                 session(2, TrackingStatus.Completed, progress = 12),
-                session(3, TrackingStatus.InProgress, progress = 4, rating = 8, notes = "Second revisit"),
+                session(3, TrackingStatus.InProgress, progress = 4, ratingHalfPoints = 16, notes = "Second revisit"),
             ),
         )!!
 
@@ -116,7 +116,7 @@ class MalSyncPayloadTest {
         number: Int,
         status: TrackingStatus,
         progress: Int,
-        rating: Int? = null,
+        ratingHalfPoints: Int? = null,
         notes: String? = null,
         startedAt: LocalDate? = null,
         finishedAt: LocalDate? = null,
@@ -126,7 +126,7 @@ class MalSyncPayloadTest {
         sessionNumber = number,
         status = status.name,
         progressCurrent = progress,
-        rating = rating,
+        ratingHalfPoints = ratingHalfPoints,
         notes = notes,
         startedAtEpochDay = startedAt?.toEpochDay(),
         finishedAtEpochDay = finishedAt?.toEpochDay(),

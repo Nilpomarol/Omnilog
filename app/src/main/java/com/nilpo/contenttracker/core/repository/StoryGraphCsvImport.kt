@@ -4,6 +4,7 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -117,7 +118,7 @@ internal fun StoryGraphCsvItem.toAddTrackedMediaRequest(
         progressTotal = null,
         initialStatus = session.status,
         initialProgress = 0,
-        initialRating = session.rating,
+        initialRatingHalfPoints = session.rating?.let(RatingHalfPoints::fromWholePoints),
         initialNotes = session.notes,
         initialStartedAt = session.startedAt,
         initialFinishedAt = session.finishedAt,

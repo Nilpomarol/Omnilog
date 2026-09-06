@@ -30,6 +30,7 @@ import com.nilpo.contenttracker.core.database.migration.MIGRATION_31_32
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_32_33
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_33_34
 import com.nilpo.contenttracker.core.database.migration.MIGRATION_34_35
+import com.nilpo.contenttracker.core.database.migration.MIGRATION_35_36
 import com.nilpo.contenttracker.core.imports.ImportEnrichmentManager
 import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
 import com.nilpo.contenttracker.core.refresh.MetadataRefreshManager
@@ -123,6 +124,7 @@ class ContentTrackerApplication : Application(), SingletonImageLoader.Factory {
                 MIGRATION_32_33,
                 MIGRATION_33_34,
                 MIGRATION_34_35,
+                MIGRATION_35_36,
             )
             .build()
     }

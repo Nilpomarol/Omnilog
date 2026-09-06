@@ -59,6 +59,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.common.ContributorImageBox
 import com.nilpo.contenttracker.ui.common.resolvedLogoWidthRatio
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -700,7 +701,7 @@ internal fun List<TrackedMedia>.collectionProgressSummary(): CollectionProgressS
 }
 
 internal fun List<TrackedMedia>.collectionAverageRating(): Double? {
-    val ratings = mapNotNull { it.currentSession?.rating }
+    val ratings = mapNotNull { it.currentSession?.ratingHalfPoints?.let(RatingHalfPoints::toScore) }
     if (ratings.isEmpty()) return null
     return ratings.average()
 }

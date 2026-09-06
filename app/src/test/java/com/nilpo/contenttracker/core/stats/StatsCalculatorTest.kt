@@ -7,6 +7,7 @@ import com.nilpo.contenttracker.core.model.SessionStatusEvent
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
@@ -1117,7 +1118,7 @@ class StatsCalculatorTest {
 
         assertEquals(1, snapshot.bestRatedItems.size)
         assertEquals(1L, snapshot.bestRatedItems.single().trackedMedia.item.id)
-        assertEquals(7, snapshot.bestRatedItems.single().bestRating)
+        assertEquals(7.0, snapshot.bestRatedItems.single().bestScore, 0.0001)
     }
 
     @Test
@@ -1922,7 +1923,7 @@ class StatsCalculatorTest {
             sessionNumber = sessionNumber,
             status = status,
             progressCurrent = progressCurrent,
-            rating = rating,
+            ratingHalfPoints = rating?.let(RatingHalfPoints::fromWholePoints),
             startedAt = startedAt,
             finishedAt = finishedAt,
             statusEvents = statusEvents,

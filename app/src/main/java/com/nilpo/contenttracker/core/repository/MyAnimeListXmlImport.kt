@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
@@ -109,7 +110,7 @@ internal fun MyAnimeListImportItem.toAddTrackedMediaRequest(
         progressTotal = episodeTotal,
         initialStatus = session.status,
         initialProgress = session.progressCurrent,
-        initialRating = session.rating,
+        initialRatingHalfPoints = session.rating?.let(RatingHalfPoints::fromWholePoints),
         initialNotes = session.notes,
         initialStartedAt = session.startedAt,
         initialFinishedAt = session.finishedAt,

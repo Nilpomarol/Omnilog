@@ -87,7 +87,7 @@ fun List<TrackedMedia>.contributorDirectory(): ContributorDirectory {
             ContributorStats(
                 itemCount = items.size,
                 averageRating = items
-                    .mapNotNull { it.currentSession?.rating }
+                    .mapNotNull { it.currentSession?.ratingHalfPoints?.let(RatingHalfPoints::toScore) }
                     .takeIf { it.isNotEmpty() }
                     ?.average(),
             )

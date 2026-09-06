@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.core.mal
 import com.nilpo.contenttracker.core.database.entity.MediaItemEntity
 import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import org.json.JSONArray
 import java.security.MessageDigest
@@ -46,7 +47,11 @@ fun buildMalSyncPayload(
     return MalSyncPayload(
         status = currentStatus,
         watchedEpisodes = current.progressCurrent.coerceAtLeast(0),
-        score = current.rating?.coerceIn(1, 10) ?: 0,
+        // MAL scores in whole points, so a half is rounded away on the way out. The local rating
+        // keeps it: this projection is one-way and never reads back.
+        score = current.ratingHalfPoints
+            ?.let { RatingHalfPoints.toWholePoints(RatingHalfPoints.coerce(it)) }
+            ?: 0,
         comments = current.notes.orEmpty(),
         tags = item.tagsJson.toTagList(),
         startDate = current.startedAtEpochDay.toIsoDate(),

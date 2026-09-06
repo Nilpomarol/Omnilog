@@ -706,7 +706,7 @@ private fun NewSessionDialog(
                         mediaItemId = item.id,
                         status = status,
                         progressCurrent = progress,
-                        rating = rating,
+                        ratingHalfPoints = rating,
                         notes = notes,
                         startedAt = startedAt,
                         finishedAt = finishedAt,

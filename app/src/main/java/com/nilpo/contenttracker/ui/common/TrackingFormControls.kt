@@ -67,6 +67,10 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 @Composable
 @Suppress("UNUSED_PARAMETER")
@@ -261,17 +265,46 @@ fun TrackingProgressField(
     }
 }
 
+/**
+ * Ten stars for the whole points, and a toggle for the half.
+ *
+ * Splitting each star into two tap targets is the usual way to offer halves, and at ten stars across
+ * a phone it puts every value behind a target under 20dp. The toggle keeps the star targets the size
+ * they were and states the value in figures beside them, which also settles what a half-lit star
+ * means: the reading is "7,5", not "somewhere between 7 and 8".
+ *
+ * ponytail: a toggle rather than a drag gesture. Revisit if rating by dragging along the row is ever
+ * asked for.
+ */
 @Composable
-fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected: (Int?) -> Unit) {
+fun TrackingRatingSelector(
+    currentRatingHalfPoints: Int?,
+    accent: Color,
+    onRatingSelected: (Int?) -> Unit,
+) {
+    val hasHalf = currentRatingHalfPoints?.let { it % 2 == 1 } == true
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val starSize = minOf(30.dp, maxWidth / 10)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                (1..10).forEach { rating ->
-                    val isSelected = rating == currentRating
-                    val isActive = currentRating != null && rating <= currentRating
+                (1..10).forEach { star ->
+                    val starHalfPoints = star * 2
+                    // Tapping a star keeps the half if the same star is already carrying one, so the
+                    // toggle is not undone by re-picking the value it applies to.
+                    val tapValue = if (hasHalf && currentRatingHalfPoints == starHalfPoints - 1) {
+                        starHalfPoints - 1
+                    } else {
+                        starHalfPoints
+                    }
+                    val isSelected = currentRatingHalfPoints == tapValue
+                    val fill = when {
+                        currentRatingHalfPoints == null -> 0f
+                        currentRatingHalfPoints >= starHalfPoints -> 1f
+                        currentRatingHalfPoints == starHalfPoints - 1 -> 0.5f
+                        else -> 0f
+                    }
                     Surface(
-                        onClick = { onRatingSelected(if (isSelected) null else rating) },
+                        onClick = { onRatingSelected(if (isSelected) null else tapValue) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
                         color = Color.Transparent,
@@ -282,38 +315,120 @@ fun TrackingRatingSelector(currentRating: Int?, accent: Color, onRatingSelected:
                                 .padding(vertical = 7.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Star,
-                                contentDescription = "$rating / 10",
-                                modifier = Modifier.size(starSize),
-                                tint = if (isActive) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f),
+                            PartialStar(
+                                fill = fill,
+                                size = starSize,
+                                accent = accent,
+                                contentDescription = stringResource(
+                                    R.string.rating_value,
+                                    formatRatingHalfPoints(tapValue),
+                                ),
                             )
                         }
                     }
                 }
             }
         }
-        if (currentRating != null) {
+        if (currentRatingHalfPoints != null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "$currentRating / 10",
+                    text = "${formatRatingHalfPoints(currentRatingHalfPoints)} / 10",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = accent,
                 )
-                Text(
-                    text = stringResource(R.string.rating_clear),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
-                    modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    HalfPointToggle(
+                        isOn = hasHalf,
+                        accent = accent,
+                        onToggle = {
+                            onRatingSelected(
+                                if (hasHalf) currentRatingHalfPoints + 1 else currentRatingHalfPoints - 1,
+                            )
+                        },
+                    )
+                    Text(
+                        text = stringResource(R.string.rating_clear),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
+                        modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A star filled from the left by [fill], for the half-lit one.
+ *
+ * Drawn as the empty star with a clipped copy of the filled star over it, because icons-core has no
+ * half star and the fill is the only thing that varies.
+ */
+@Composable
+private fun PartialStar(
+    fill: Float,
+    size: Dp,
+    accent: Color,
+    contentDescription: String?,
+) {
+    val emptyTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
+    Box(modifier = Modifier.size(size)) {
+        Icon(
+            imageVector = Icons.Filled.Star,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(size),
+            tint = emptyTint,
+        )
+        if (fill > 0f) {
+            Box(
+                modifier = Modifier
+                    .size(width = size * fill, height = size)
+                    .clipToBounds(),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(size),
+                    tint = accent,
                 )
             }
         }
+    }
+}
+
+/** Turns the current rating's last half point on and off. */
+@Composable
+private fun HalfPointToggle(
+    isOn: Boolean,
+    accent: Color,
+    onToggle: () -> Unit,
+) {
+    val label = stringResource(
+        if (isOn) R.string.rating_half_point_remove else R.string.rating_half_point_add,
+    )
+    Surface(
+        onClick = onToggle,
+        shape = RoundedCornerShape(8.dp),
+        color = if (isOn) accent.copy(alpha = 0.18f) else Color.Transparent,
+        border = BorderStroke(1.dp, if (isOn) accent.copy(alpha = 0.7f) else OmnilogTheme.colors.appLine),
+        modifier = Modifier.semantics { contentDescription = label },
+    ) {
+        Text(
+            text = stringResource(R.string.rating_half_point_mark),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isOn) accent else OmnilogTheme.colors.appMuted,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 

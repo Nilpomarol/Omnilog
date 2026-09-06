@@ -118,7 +118,7 @@ private fun sortCollectionGroups(
             it.second.maxOfOrNull { tm -> tm.currentSession?.updatedAtEpochMillis ?: 0L } ?: 0L
         }
         HomeSortMode.Rating -> compareBy {
-            val avg = it.second.mapNotNull { tm -> tm.currentSession?.rating }.average()
+            val avg = it.second.mapNotNull { tm -> tm.currentSession?.ratingHalfPoints }.average()
             if (avg.isNaN()) -1.0 else avg
         }
         HomeSortMode.Progress -> compareBy {
@@ -150,7 +150,7 @@ internal fun List<TrackedMedia>.collectionLastUpdatedMillis(): Long? =
 internal fun List<TrackedMedia>.authorTopRatedItem(): TrackedMedia? =
     filter { it.item.coverUrl != null }
         .maxWithOrNull(
-            compareBy<TrackedMedia> { it.currentSession?.rating ?: 0 }
+            compareBy<TrackedMedia> { it.currentSession?.ratingHalfPoints ?: 0 }
                 .thenBy { it.item.externalRatingScore ?: 0.0 }
                 .thenBy { it.currentSession?.updatedAtEpochMillis ?: 0L },
         )

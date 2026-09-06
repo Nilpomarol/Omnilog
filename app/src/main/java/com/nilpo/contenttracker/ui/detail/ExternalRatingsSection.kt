@@ -35,6 +35,7 @@ import com.nilpo.contenttracker.ui.common.formatCompactCount
 import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
 import com.nilpo.contenttracker.ui.common.logoRes
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 
 private const val UserRatingScale = 10
 private const val GoodScore = 0.75f
@@ -50,6 +51,7 @@ private const val FairScore = 0.55f
 @Composable
 fun RatingsSection(
     ratings: List<ExternalRating>,
+    /** Half points; see [RatingHalfPoints]. */
     userRating: Int?,
     mediaType: MediaType,
     primaryRatingId: Long?,
@@ -99,7 +101,7 @@ fun RatingsSection(
             markSource = null,
             name = stringResource(R.string.detail_rating_yours),
             subtitle = null,
-            score = rating.toString(),
+            score = formatRatingHalfPoints(rating),
             scoreScale = "/$UserRatingScale",
             rankingPosition = null,
             tint = accent,

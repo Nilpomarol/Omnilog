@@ -67,6 +67,7 @@ import com.nilpo.contenttracker.ui.common.OmnilogLocale
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -422,7 +423,7 @@ private fun TimelineMilestoneCard(entry: TimelineEntry, onClick: () -> Unit) {
     val position = entry.positionText()
     val meta = entry.metaLine()
     // A start or a revisit carries no verdict yet, so the rating belongs to completions alone.
-    val rating = entry.rating?.takeIf { entry.kind == TimelineEntryKind.Completion }
+    val rating = entry.ratingHalfPoints?.takeIf { entry.kind == TimelineEntryKind.Completion }
     val hasFigures = rating != null || total != null || delta != null || position != null || meta != null
     // Grows with the system font setting, the way MediaCard pins its own height: without this a
     // large text scale pushes the column past the poster and reopens the gap underneath it.
@@ -529,7 +530,7 @@ private fun TimelineMilestoneCard(entry: TimelineEntry, onClick: () -> Unit) {
                             }
                         }
                         rating?.let { value ->
-                            MilestoneRating(rating = value, accent = entry.mediaAccent())
+                            MilestoneRating(ratingHalfPoints = value, accent = entry.mediaAccent())
                         }
                     }
                 }
@@ -547,7 +548,7 @@ private fun TimelineMilestoneCard(entry: TimelineEntry, onClick: () -> Unit) {
  * is, exactly as it does on the library cards.
  */
 @Composable
-private fun MilestoneRating(rating: Int, accent: Color) {
+private fun MilestoneRating(ratingHalfPoints: Int, accent: Color) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -559,7 +560,7 @@ private fun MilestoneRating(rating: Int, accent: Color) {
             modifier = Modifier.size(15.dp),
         )
         Text(
-            text = stringResource(R.string.timeline_completion_rating, rating),
+            text = stringResource(R.string.timeline_completion_rating, formatRatingHalfPoints(ratingHalfPoints)),
             color = accent,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
@@ -1063,7 +1064,7 @@ internal fun TimelineEntry.actionText(): String {
                     )
                 }
             },
-            rating?.let { stringResource(R.string.timeline_completion_rating, it) },
+            ratingHalfPoints?.let { stringResource(R.string.timeline_completion_rating, formatRatingHalfPoints(it)) },
         ).joinToString(" · ")
     }
 }

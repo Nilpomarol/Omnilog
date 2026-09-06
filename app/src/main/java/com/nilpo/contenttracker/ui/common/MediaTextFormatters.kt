@@ -9,6 +9,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSource
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -222,6 +223,14 @@ fun MetadataSummary(
     }
 }
 
+/**
+ * A personal rating out of ten, carrying the half point only when there is one: "8", "7,5".
+ *
+ * The separator follows the app's locale, so the Catalan build writes a comma.
+ */
+fun formatRatingHalfPoints(halfPoints: Int): String =
+    formatDecimal(RatingHalfPoints.toScore(halfPoints))
+
 private fun formatDecimal(value: Double): String {
     return if (value % 1.0 == 0.0) {
         value.toInt().toString()
@@ -247,7 +256,8 @@ fun sessionSummary(session: TrackingSession, progressTotal: Int?): String {
         else -> stringResource(R.string.progress_with_total, session.progressCurrent, progressTotal)
     }
 
-    val rating = session.rating?.let { stringResource(R.string.rating_value, it) }
+    val rating = session.ratingHalfPoints
+        ?.let { stringResource(R.string.rating_value, formatRatingHalfPoints(it)) }
 
     return listOfNotNull(progress, rating).joinToString(" | ")
 }

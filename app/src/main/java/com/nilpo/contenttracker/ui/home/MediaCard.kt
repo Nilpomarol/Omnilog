@@ -50,6 +50,7 @@ import com.nilpo.contenttracker.ui.common.formatExternalRating
 import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -254,7 +255,7 @@ private fun CardProgressFooter(
                 overflow = TextOverflow.Ellipsis,
             )
             CardRatings(
-                personalRating = session?.rating,
+                personalRating = session?.ratingHalfPoints,
                 externalRatingScore = externalRatingScore,
                 externalRatingMax = externalRatingMax,
                 externalRatingSource = externalRatingSource,
@@ -274,6 +275,7 @@ private fun CardProgressFooter(
 
 @Composable
 private fun CardRatings(
+    /** Half points; see [RatingHalfPoints]. */
     personalRating: Int?,
     externalRatingScore: Double?,
     externalRatingMax: Double?,
@@ -303,8 +305,9 @@ private fun CardRatings(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        personalRating?.let { rating ->
-            val description = stringResource(R.string.library_row_personal_rating, rating)
+        personalRating?.let { halfPoints ->
+            val figure = formatRatingHalfPoints(halfPoints)
+            val description = stringResource(R.string.library_row_personal_rating, figure)
             Row(
                 modifier = Modifier.clearAndSetSemantics { contentDescription = description },
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -317,7 +320,7 @@ private fun CardRatings(
                     modifier = Modifier.size(15.dp),
                 )
                 Text(
-                    text = "$rating/10",
+                    text = "$figure/10",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = accent,

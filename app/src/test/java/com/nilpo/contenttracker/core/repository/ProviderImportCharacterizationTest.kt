@@ -223,7 +223,8 @@ class ProviderImportCharacterizationTest {
         val movieRequest = movie.toAddTrackedMediaRequest()
         assertEquals(TrackingStatus.Completed, movieRequest.initialStatus)
         assertEquals(148, movieRequest.initialProgress)
-        assertEquals(9, movieRequest.initialRating)
+        // IMDb scores in whole points; the request carries half points.
+        assertEquals(18, movieRequest.initialRatingHalfPoints)
         assertEquals(LocalDate.of(2024, 1, 31), movieRequest.initialFinishedAt)
         assertEquals(MetadataSource.Imdb, movieRequest.metadataSource)
         assertEquals(ExternalRatingSource.Imdb, movieRequest.externalRatings.single().source)

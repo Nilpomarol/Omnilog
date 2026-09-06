@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataExternalRatingSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -120,7 +121,7 @@ internal fun ImdbCsvItem.toAddTrackedMediaRequest() =
         } else {
             0
         },
-        initialRating = userRating,
+        initialRatingHalfPoints = userRating?.let(RatingHalfPoints::fromWholePoints),
         initialFinishedAt = dateRated,
         isOwned = false,
         platformName = null,

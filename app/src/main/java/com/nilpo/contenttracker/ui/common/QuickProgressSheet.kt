@@ -101,7 +101,8 @@ import kotlin.math.roundToInt
  */
 data class QuickCompletion(
     val progress: Int,
-    val rating: Int?,
+    /** Half points; see [RatingHalfPoints]. */
+    val ratingHalfPoints: Int?,
     val finishedAt: LocalDate,
 )
 
@@ -144,7 +145,7 @@ fun QuickProgressSheet(
 
     val isFinishing = manualFinishing || (total != null && draft != null && draft >= total)
 
-    var ratingDraft by remember(session.id) { mutableStateOf(session.rating) }
+    var ratingDraft by remember(session.id) { mutableStateOf(session.ratingHalfPoints) }
     var finishDate by remember(session.id) {
         mutableStateOf(session.finishedAt ?: LocalDate.now())
     }
@@ -740,7 +741,7 @@ private fun CompletionForm(
             color = OmnilogTheme.colors.appMuted,
         )
         TrackingRatingSelector(
-            currentRating = rating,
+            currentRatingHalfPoints = rating,
             accent = accent,
             onRatingSelected = onRatingChange,
         )

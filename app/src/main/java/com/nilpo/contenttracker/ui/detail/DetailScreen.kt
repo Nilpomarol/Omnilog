@@ -120,7 +120,9 @@ fun DetailScreen(
     // The ratings card shows the user's own verdict beside the providers'. Ratings belong to
     // sessions, and a re-read can be scored differently from the first read, so the latest one
     // that carries a score is the one that stands as "la teva nota".
-    val userRating = trackedMedia.orderedSessions.lastOrNull { it.rating != null }?.rating
+    val userRating = trackedMedia.orderedSessions
+        .lastOrNull { it.ratingHalfPoints != null }
+        ?.ratingHalfPoints
     var showDeleteConfirmation by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var showExternalRatingsManager by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }
     var showQuickProgress by rememberSaveable(trackedMedia.item.id) { mutableStateOf(false) }

@@ -183,7 +183,7 @@ class ContributorDirectoryTest {
                     mediaItemId = id,
                     sessionNumber = 1,
                     status = TrackingStatus.Completed,
-                    rating = it,
+                    ratingHalfPoints = RatingHalfPoints.fromWholePoints(it),
                 ),
             )
         } ?: emptyList(),

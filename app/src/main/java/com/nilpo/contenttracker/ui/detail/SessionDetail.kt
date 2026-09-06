@@ -33,6 +33,8 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
+import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 import java.time.LocalDate
 
 /**
@@ -130,8 +132,8 @@ fun SessionDetail(
                 }
             }
 
-            session.rating?.let { rating ->
-                RatingLine(rating = rating, accent = state)
+            session.ratingHalfPoints?.let { halfPoints ->
+                RatingLine(ratingHalfPoints = halfPoints, accent = state)
             }
 
             SessionProgressGraphic(
@@ -198,7 +200,7 @@ fun SessionDetail(
  * than the live one.
  */
 @Composable
-private fun RatingLine(rating: Int, accent: Color) {
+private fun RatingLine(ratingHalfPoints: Int, accent: Color) {
     Row(
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -212,7 +214,7 @@ private fun RatingLine(rating: Int, accent: Color) {
             tint = accent,
         )
         Text(
-            text = rating.coerceIn(0, 10).toString(),
+            text = formatRatingHalfPoints(RatingHalfPoints.coerce(ratingHalfPoints)),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.ExtraBold,
             color = accent,

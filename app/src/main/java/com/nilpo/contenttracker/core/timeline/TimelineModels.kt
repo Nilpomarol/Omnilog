@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.core.timeline
 
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import java.time.LocalDate
 
 enum class TimelineEntryKind {
@@ -46,7 +47,8 @@ data class TimelineEntry(
     val visitNumber: Int,
     val progress: TimelineProgress? = null,
     val progressTotal: Int? = null,
-    val rating: Int? = null,
+    /** Half points; see [RatingHalfPoints]. */
+    val ratingHalfPoints: Int? = null,
     /** Where it was consumed, when the session recorded it. */
     val platformName: String? = null,
     /** The first credited creator, for the card's supporting line. */

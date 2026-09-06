@@ -117,7 +117,7 @@ class TimelineBuilder {
                     kind = if (isCompletion) TimelineEntryKind.Completion else TimelineEntryKind.Dropped,
                     visitNumber = visitNumber,
                     progressTotal = media.item.progressTotal,
-                    rating = session.rating.takeIf { isCompletion },
+                    ratingHalfPoints = session.ratingHalfPoints.takeIf { isCompletion },
                     sortEpochMillis = event.createdAtEpochMillis,
                     sourceId = event.id,
                 )
@@ -191,7 +191,7 @@ class TimelineBuilder {
                 kind = TimelineEntryKind.Completion,
                 visitNumber = visitNumber,
                 progressTotal = media.item.progressTotal,
-                rating = session.rating,
+                ratingHalfPoints = session.ratingHalfPoints,
                 sortEpochMillis = session.updatedAtEpochMillis,
                 sourceId = session.id,
             )

@@ -196,7 +196,7 @@ fun TrackingSessionEntity.toDomain(
         status = enumValueOrDefault(status, TrackingStatus.Planned),
         progressCurrent = progressCurrent,
         baselineProgress = baselineProgress,
-        rating = rating,
+        ratingHalfPoints = ratingHalfPoints,
         notes = notes,
         platform = platformName?.let { name ->
             ConsumptionPlatform(
@@ -230,7 +230,7 @@ fun TrackingSession.toEntity(): TrackingSessionEntity {
         status = status.name,
         progressCurrent = progressCurrent,
         baselineProgress = baselineProgress,
-        rating = rating,
+        ratingHalfPoints = ratingHalfPoints,
         notes = notes,
         platformName = platform?.name,
         platformType = platform?.type?.name,

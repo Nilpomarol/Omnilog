@@ -3,6 +3,7 @@ package com.nilpo.contenttracker.core.stats
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -40,7 +41,7 @@ class StatsCalculator(
         // are edited.
         val ratedSessions = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
-                .filter { session -> session.rating != null }
+                .filter { session -> session.ratingHalfPoints != null }
                 .filter { session -> filters.period.contains(session.latestCompletionDate(), today) }
                 .map { session -> trackedMedia to session }
         }
@@ -60,7 +61,7 @@ class StatsCalculator(
             trackedMedia.currentSession?.status == TrackingStatus.Planned
         }
         val averageRating = ratedSessions
-            .mapNotNull { (_, session) -> session.rating }
+            .mapNotNull { (_, session) -> session.ratingHalfPoints?.let(RatingHalfPoints::toScore) }
             .takeIf { ratings -> ratings.isNotEmpty() }
             ?.average()
         val completionSessionsByMonth = completionSessionsByMonth(
@@ -240,9 +241,9 @@ class StatsCalculator(
         }
         val ratings = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
-                .filter { session -> session.rating != null }
+                .filter { session -> session.ratingHalfPoints != null }
                 .filter { session -> inScope(session.latestCompletionDate()) }
-                .mapNotNull { session -> session.rating }
+                .mapNotNull { session -> session.ratingHalfPoints?.let(RatingHalfPoints::toScore) }
         }
         val revisits = filteredItems.flatMap { trackedMedia ->
             trackedMedia.sessions
@@ -363,11 +364,15 @@ class StatsCalculator(
     }
 
     private fun ratingDistribution(ratedSessions: List<Pair<TrackedMedia, TrackingSession>>): List<StatsBucket> {
+        // Ten bars, so a half point falls in with the whole point above it: 7,5 is counted under
+        // 8, the same way it rounds when it goes out to a provider. Twenty bars would be faithful
+        // and unreadable at phone width, and the average below keeps the halves either way.
+        // ponytail: whole-point buckets, split into halves if the distribution ever needs them.
         val ratingValues = ratedSessions
             .mapNotNull { (trackedMedia, session) ->
-                session.rating
-                    ?.takeIf { rating -> rating in 1..10 }
-                    ?.let { rating -> rating to trackedMedia.item.type }
+                session.ratingHalfPoints
+                    ?.takeIf { halfPoints -> halfPoints in RatingHalfPoints.Min..RatingHalfPoints.Max }
+                    ?.let { halfPoints -> RatingHalfPoints.toWholePoints(halfPoints) to trackedMedia.item.type }
             }
         val counts = ratingValues
             .groupingBy { (rating, _) -> rating }
@@ -402,7 +407,10 @@ class StatsCalculator(
     ): List<RatingTrendPoint> {
         val ratingsByMonth = ratedSessions
             .mapNotNull { (_, session) ->
-                val rating = session.rating?.takeIf { value -> value in 1..10 } ?: return@mapNotNull null
+                val rating = session.ratingHalfPoints
+                    ?.takeIf { value -> value in RatingHalfPoints.Min..RatingHalfPoints.Max }
+                    ?.let(RatingHalfPoints::toScore)
+                    ?: return@mapNotNull null
                 // Same date as the period filter uses, so a rating cannot be filtered into the
                 // period by one date and then bucketed into a month by another.
                 val date = session.latestCompletionDate() ?: return@mapNotNull null
@@ -438,7 +446,7 @@ class StatsCalculator(
                 }
                 val ratings = ratedSessions
                     .filter { (trackedMedia, _) -> trackedMedia.item.type == mediaType }
-                    .mapNotNull { (_, session) -> session.rating }
+                    .mapNotNull { (_, session) -> session.ratingHalfPoints?.let(RatingHalfPoints::toScore) }
                 val measuredTitles = completions.mapNotNull { (trackedMedia, session) ->
                     val length = trackedMedia.item.progressTotal
                         ?.takeIf { total -> total > 0 }
@@ -558,7 +566,7 @@ class StatsCalculator(
         val ratingByItemId = ratedSessions
             .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
             .mapValues { (_, sessions) ->
-                sessions.mapNotNull { (_, session) -> session.rating }.average()
+                sessions.mapNotNull { (_, session) -> session.ratingHalfPoints?.let(RatingHalfPoints::toScore) }.average()
             }
 
         return completedItems
@@ -673,7 +681,7 @@ class StatsCalculator(
             .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
             .mapNotNull { (_, sessions) ->
                 val trackedMedia = sessions.firstOrNull()?.first ?: return@mapNotNull null
-                val ratings = sessions.mapNotNull { (_, session) -> session.rating }
+                val ratings = sessions.mapNotNull { (_, session) -> session.ratingHalfPoints?.let(RatingHalfPoints::toScore) }
                 if (ratings.isEmpty()) null else trackedMedia to ratings.average()
             }
 
@@ -727,15 +735,17 @@ class StatsCalculator(
             .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
             .mapNotNull { (_, sessions) ->
                 val trackedMedia = sessions.firstOrNull()?.first ?: return@mapNotNull null
-                val bestRating = sessions.mapNotNull { (_, session) -> session.rating }.maxOrNull()
-                bestRating?.let { rating -> trackedMedia to rating }
+                val bestScore = sessions
+                    .mapNotNull { (_, session) -> session.ratingHalfPoints?.let(RatingHalfPoints::toScore) }
+                    .maxOrNull()
+                bestScore?.let { score -> trackedMedia to score }
             }
             .sortedWith(
-                compareByDescending<Pair<TrackedMedia, Int>> { (_, rating) -> rating }
+                compareByDescending<Pair<TrackedMedia, Double>> { (_, score) -> score }
                     .thenBy { (trackedMedia, _) -> trackedMedia.item.title.lowercase() },
             )
             .take(8)
-            .map { (trackedMedia, rating) -> RatedMediaStat(trackedMedia = trackedMedia, bestRating = rating) }
+            .map { (trackedMedia, score) -> RatedMediaStat(trackedMedia = trackedMedia, bestScore = score) }
     }
 
     private fun mostRevisitedItems(

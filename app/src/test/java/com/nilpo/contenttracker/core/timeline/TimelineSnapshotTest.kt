@@ -169,7 +169,7 @@ class TimelineSnapshotTest {
                 status = TrackingStatus.Completed,
                 startedAt = null,
                 finishedAt = finishedAt,
-                rating = null,
+                ratingHalfPoints = null,
                 progressUpdates = emptyList(),
             ),
         ),

@@ -217,9 +217,9 @@ private fun SessionCard(
             // The hero slot. A rating is a verdict and a progress figure is a position; when both
             // exist the verdict is the more interesting of the two, so it takes the slot and the
             // position drops to the caption under its own graphic.
-            val rating = session.rating
+            val rating = session.ratingHalfPoints
             if (rating != null) {
-                RatingMeter(rating = rating, accent = state)
+                RatingMeter(ratingHalfPoints = rating, accent = state)
             } else {
                 ProgressFigure(
                     session = session,
@@ -439,7 +439,7 @@ fun SessionEditorScreen(
             session.progressCurrent.toString(),
         )
     }
-    var draftRating by rememberSaveable(session.id) { mutableStateOf(session.rating) }
+    var draftRating by rememberSaveable(session.id) { mutableStateOf(session.ratingHalfPoints) }
     var draftNotes by rememberSaveable(session.id) { mutableStateOf(session.notes.orEmpty()) }
     var draftStartedAtText by rememberSaveable(session.id) { mutableStateOf(session.startedAt?.toString().orEmpty()) }
     var draftFinishedAtText by rememberSaveable(session.id) { mutableStateOf(session.finishedAt?.toString().orEmpty()) }
@@ -576,7 +576,7 @@ fun SessionEditorScreen(
             // ── Rating ───────────────────────────────────────────
             EditSectionHeader(title = stringResource(R.string.field_rating))
             TrackingRatingSelector(
-                currentRating = draftRating,
+                currentRatingHalfPoints = draftRating,
                 accent = stateColor,
                 onRatingSelected = { draftRating = it },
             )

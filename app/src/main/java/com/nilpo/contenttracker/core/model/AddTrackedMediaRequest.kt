@@ -8,7 +8,8 @@ data class AddTrackedMediaRequest(
     val progressTotal: Int?,
     val initialStatus: TrackingStatus,
     val initialProgress: Int = 0,
-    val initialRating: Int? = null,
+    /** Half points; see [RatingHalfPoints]. Providers score in whole points and must convert. */
+    val initialRatingHalfPoints: Int? = null,
     val initialNotes: String? = null,
     val initialStartedAt: LocalDate? = null,
     val initialFinishedAt: LocalDate? = null,

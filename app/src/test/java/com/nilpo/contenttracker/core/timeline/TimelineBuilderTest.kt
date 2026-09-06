@@ -7,6 +7,7 @@ import com.nilpo.contenttracker.core.model.SessionStatusEvent
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,7 +54,7 @@ class TimelineBuilderTest {
         assertEquals(TimelineEntryKind.Completion, completion.kind)
         assertEquals(100, completion.progress?.value)
         assertEquals(50, completion.progress?.delta)
-        assertEquals(9, completion.rating)
+        assertEquals(RatingHalfPoints.fromWholePoints(9), completion.ratingHalfPoints)
         assertEquals("completion:1:10", completion.stableKey)
         assertEquals("progress:1:10:1", entries.last().stableKey)
     }
@@ -382,7 +383,7 @@ class TimelineBuilderTest {
         val dropped = result.entries.single { it.kind == TimelineEntryKind.Dropped }
         assertEquals(day, dropped.date)
         // A drop carries no verdict, so nothing should have put a score on it.
-        assertEquals(null, dropped.rating)
+        assertEquals(null, dropped.ratingHalfPoints)
     }
 
     /** No date means no day to sit on. Inventing one would place the event on the wrong day. */
@@ -655,7 +656,7 @@ class TimelineBuilderTest {
         baselineProgress = baselineProgress,
         startedAt = startedAt,
         finishedAt = finishedAt,
-        rating = rating,
+        ratingHalfPoints = rating?.let(RatingHalfPoints::fromWholePoints),
         updatedAtEpochMillis = updated,
         progressUpdates = updates,
         statusEvents = statusEvents,

@@ -401,7 +401,7 @@ interface MediaDao {
         UPDATE tracking_sessions
         SET status = :status,
             progressCurrent = :progressCurrent,
-            rating = :rating,
+            rating = :ratingHalfPoints,
             notes = :notes,
             startedAtEpochDay = :startedAtEpochDay,
             finishedAtEpochDay = :finishedAtEpochDay,
@@ -413,7 +413,7 @@ interface MediaDao {
         sessionId: Long,
         status: String,
         progressCurrent: Int,
-        rating: Int?,
+        ratingHalfPoints: Int?,
         notes: String?,
         startedAtEpochDay: Long?,
         finishedAtEpochDay: Long?,

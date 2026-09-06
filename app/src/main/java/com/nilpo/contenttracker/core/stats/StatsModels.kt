@@ -164,7 +164,8 @@ data class RevisitedMediaStat(
 
 data class RatedMediaStat(
     val trackedMedia: TrackedMedia,
-    val bestRating: Int,
+    /** Out of ten, so a half point survives: 7,5 is 7.5 here. */
+    val bestScore: Double,
 )
 
 data class RankedStat(

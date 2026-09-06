@@ -365,7 +365,7 @@ fun AddMediaScreen(
                                 progressTotal = selectedMediaType.effectiveProgressTotal(totalProgress),
                                 initialStatus = selectedStatus,
                                 initialProgress = initialProgress.toIntOrNull() ?: 0,
-                                initialRating = initialRating,
+                                initialRatingHalfPoints = initialRating,
                                 initialNotes = initialNotes.takeIf { it.isNotBlank() },
                                 initialStartedAt = initialStartedAt.toLocalDateOrNull(),
                                 initialFinishedAt = initialFinishedAt.toLocalDateOrNull(),
@@ -473,7 +473,7 @@ fun AddMediaScreen(
                                     .takeUnless { selectedMediaType == MediaType.Game },
                                 initialStatus = selectedStatus,
                                 initialProgress = initialProgress.toIntOrNull() ?: 0,
-                                initialRating = initialRating,
+                                initialRatingHalfPoints = initialRating,
                                 initialNotes = initialNotes.takeIf { it.isNotBlank() },
                                 initialStartedAt = initialStartedAt.toLocalDateOrNull(),
                                 initialFinishedAt = initialFinishedAt.toLocalDateOrNull(),
@@ -1315,7 +1315,7 @@ private fun RatingSection(
     FormDivider()
     FormSectionHeader(title = stringResource(R.string.field_rating))
     TrackingRatingSelector(
-        currentRating = initialRating,
+        currentRatingHalfPoints = initialRating,
         accent = accent,
         onRatingSelected = onInitialRatingSelected,
     )

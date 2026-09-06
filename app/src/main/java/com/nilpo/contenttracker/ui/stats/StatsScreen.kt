@@ -157,8 +157,8 @@ fun StatsScreen(
                                 statLabel = { trackedMedia ->
                                     snapshot.bestRatedItems
                                         .firstOrNull { stat -> stat.trackedMedia.item.id == trackedMedia.item.id }
-                                        ?.bestRating
-                                        ?.let { rating -> stringResource(R.string.rating_value, rating) }
+                                        ?.bestScore
+                                        ?.let { score -> stringResource(R.string.rating_value, score.roundedStatValue()) }
                                 },
                             )
                         }

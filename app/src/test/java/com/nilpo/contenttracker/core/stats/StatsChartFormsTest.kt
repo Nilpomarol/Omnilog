@@ -5,6 +5,7 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -47,6 +48,31 @@ class StatsChartFormsTest {
         assertEquals(0, distribution.first { it.key == "5" }.value)
         assertTrue(distribution.first { it.key == "5" }.segments.isEmpty())
         assertEquals(0, distribution.first { it.key == "10" }.value)
+    }
+
+    @Test
+    fun ratingDistributionCountsAHalfPointUnderTheWholePointAboveIt() {
+        val items = listOf(
+            trackedMedia(
+                id = 1,
+                type = MediaType.Book,
+                sessions = listOf(
+                    // 7,5 and 8: the chart has ten bars, so both are counted at 8 and the average
+                    // below is what keeps the half visible.
+                    completedSession(id = 1, mediaItemId = 1, ratingHalfPoints = 15, finishedAt = LocalDate.of(2026, 2, 1)),
+                    completedSession(id = 2, mediaItemId = 1, sessionNumber = 2, ratingHalfPoints = 16, finishedAt = LocalDate.of(2026, 3, 1)),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = items,
+            filters = StatsFilters(period = StatsPeriod.ThisYear, mediaTypes = setOf(MediaType.Book)),
+        )
+
+        assertEquals(2, snapshot.ratingDistribution.first { it.key == "8" }.value)
+        assertEquals(0, snapshot.ratingDistribution.first { it.key == "7" }.value)
+        assertEquals(7.75, snapshot.averageRating!!, 0.0001)
     }
 
     @Test
@@ -462,6 +488,7 @@ class StatsChartFormsTest {
         sessionNumber: Int = 1,
         progressCurrent: Int = 0,
         rating: Int? = null,
+        ratingHalfPoints: Int? = rating?.let(RatingHalfPoints::fromWholePoints),
         finishedAt: LocalDate? = null,
     ): TrackingSession {
         return TrackingSession(
@@ -470,7 +497,7 @@ class StatsChartFormsTest {
             sessionNumber = sessionNumber,
             status = TrackingStatus.Completed,
             progressCurrent = progressCurrent,
-            rating = rating,
+            ratingHalfPoints = ratingHalfPoints,
             finishedAt = finishedAt,
         )
     }

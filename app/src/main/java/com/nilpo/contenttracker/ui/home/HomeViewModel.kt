@@ -69,6 +69,7 @@ import java.time.LocalDate
 import com.nilpo.contenttracker.core.model.persistableImageUrls
 import com.nilpo.contenttracker.core.model.contributorDirectory
 import com.nilpo.contenttracker.core.model.ContributorDirectory
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 
 class HomeViewModel(
     private val mediaRepository: MediaRepository,
@@ -593,7 +594,7 @@ class HomeViewModel(
         sessionId: Long,
         status: TrackingStatus,
         progressCurrent: Int,
-        rating: Int?,
+        ratingHalfPoints: Int?,
         notes: String?,
         startedAt: LocalDate?,
         finishedAt: LocalDate?,
@@ -603,7 +604,7 @@ class HomeViewModel(
                 sessionId = sessionId,
                 status = status,
                 progressCurrent = progressCurrent,
-                rating = rating,
+                ratingHalfPoints = ratingHalfPoints,
                 notes = notes,
                 startedAt = startedAt,
                 finishedAt = finishedAt,
@@ -657,7 +658,7 @@ class HomeViewModel(
                 sessionId = session.id,
                 status = if (promotes) TrackingStatus.InProgress else session.status,
                 progressCurrent = clamped,
-                rating = session.rating,
+                ratingHalfPoints = session.ratingHalfPoints,
                 notes = session.notes,
                 startedAt = startedAt,
                 finishedAt = session.finishedAt,
@@ -692,7 +693,7 @@ class HomeViewModel(
             progress = total ?: completion.progress.coerceAtLeast(0),
             startedAt = session.startedAt
                 ?: LocalDate.now().takeIf { session.status == TrackingStatus.Planned },
-            rating = completion.rating,
+            ratingHalfPoints = completion.ratingHalfPoints,
             finishedAt = completion.finishedAt,
         )
     }
@@ -701,7 +702,7 @@ class HomeViewModel(
         session: TrackingSession,
         progress: Int,
         startedAt: LocalDate? = session.startedAt,
-        rating: Int? = session.rating,
+        ratingHalfPoints: Int? = session.ratingHalfPoints,
         finishedAt: LocalDate = session.finishedAt ?: LocalDate.now(),
     ) {
         viewModelScope.launch {
@@ -709,7 +710,7 @@ class HomeViewModel(
                 sessionId = session.id,
                 status = TrackingStatus.Completed,
                 progressCurrent = progress,
-                rating = rating,
+                ratingHalfPoints = ratingHalfPoints,
                 notes = session.notes,
                 startedAt = startedAt,
                 finishedAt = finishedAt,
@@ -1208,7 +1209,11 @@ private fun List<TrackedMedia>.filterByAdvancedFilters(filters: HomeAdvancedFilt
             trackedMedia.item.externalRatingOnTen()?.let { it >= minimum } == true
         } ?: true
         val matchesUserRating = filters.minimumUserRating?.let { minimum ->
-            (trackedMedia.currentSession?.rating ?: 0) >= minimum
+            // The filter asks for whole points; the rating is half points, so compare scores.
+            val score = trackedMedia.currentSession?.ratingHalfPoints
+                ?.let(RatingHalfPoints::toScore)
+                ?: 0.0
+            score >= minimum
         } ?: true
 
         matchesAuthor && matchesGenre && matchesExternalRating && matchesUserRating
@@ -1232,7 +1237,7 @@ private fun List<TrackedMedia>.sortByMode(
         HomeSortMode.Title -> compareBy<TrackedMedia> { it.item.title.lowercase() }
         HomeSortMode.Progress -> compareBy<TrackedMedia> { it.progressSortValue() }
             .thenBy { it.item.title.lowercase() }
-        HomeSortMode.Rating -> compareBy<TrackedMedia> { it.currentSession?.rating ?: 0 }
+        HomeSortMode.Rating -> compareBy<TrackedMedia> { it.currentSession?.ratingHalfPoints ?: 0 }
             .thenBy { it.item.title.lowercase() }
         HomeSortMode.Recent -> compareBy<TrackedMedia> { it.currentSession?.updatedAtEpochMillis ?: 0L }
             .thenBy { it.item.title.lowercase() }

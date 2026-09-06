@@ -182,7 +182,7 @@ interface MediaRepository {
         sessionId: Long,
         status: TrackingStatus,
         progressCurrent: Int,
-        rating: Int?,
+        ratingHalfPoints: Int?,
         notes: String?,
         startedAt: LocalDate?,
         finishedAt: LocalDate?,
