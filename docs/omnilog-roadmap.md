@@ -37,11 +37,18 @@ The app already has:
 - manual external rating management from the detail page overflow menu under `Puntuacions`
 - deterministic primary external ratings stored by id, including migration and deletion fallback
 - a status-first add flow with explicit book-edition selection and manual metadata ownership
+- personal ratings in half points, entered by tapping or dragging along a ten-star row
 - the refined Stats Home drill-in and yearly recap
 - the content-consumption Timeline, including the Home activity preview and full history screen
 - system, light, and dark themes with theme-aware neutral and accent palettes
+- a detail page built on the item's own artwork, with the cover in the app bar and provider marks on the scores
+- a session card carrying per-medium artwork, type-specific progress graphics, and threaded history
+- durable, user-started provider metadata refresh runs
+- Steam, IGDB, and TMDB company/contributor artwork enrichment
+- the import activity surface as a bottom sheet, and Settings restructured into subsystems
 
-The current build state is healthy as of 2026-07-22: `.\gradlew.bat testDebugUnitTest assembleDebug` passes.
+The current build state is healthy as of 2026-09-06: `.\gradlew.bat testDebugUnitTest assembleDebug` passes with
+429 unit tests. Room schema version is 36.
 
 ## Architecture Map
 
@@ -64,12 +71,20 @@ Important files:
 - `app/src/main/java/com/nilpo/contenttracker/ui/detail/DetailQuickActionsSection.kt`: quick actions and external ratings dialog.
 - `app/src/main/java/com/nilpo/contenttracker/core/repository/AniListMetadataRepository.kt`: AniList search/details plus MAL/Jikan enrichment and MAL id preservation support.
 - `app/src/main/java/com/nilpo/contenttracker/core/repository/MyAnimeListXmlImport.kt`: MAL XML parser.
+- `app/src/main/java/com/nilpo/contenttracker/core/model/RatingHalfPoints.kt`: the personal-rating scale and the only sanctioned conversions to and from a provider's whole points.
+- `app/src/main/java/com/nilpo/contenttracker/ui/common/TrackingFormControls.kt`: shared tracking form controls, including the half-point star row and its `ratingHalfPointsAt` touch mapping.
+- `app/src/main/java/com/nilpo/contenttracker/ui/detail/DetailBackdropHeader.kt`: the artwork-led detail header.
+- `app/src/main/java/com/nilpo/contenttracker/ui/detail/SessionCardArtwork.kt`: per-medium session-card artwork.
+- `app/src/main/java/com/nilpo/contenttracker/core/refresh/MetadataRefreshManager.kt`: durable provider metadata refresh runs.
+- `tools/update-release.ps1`: the safe release update workflow.
 - `app/src/main/res/values/strings.xml`: Catalan UI strings.
 - `docs/omnilog-ui-design-v1.md`: UI/product design direction.
 - `docs/omnilog-stats-system-plan.md`: proposed stats system/page plan.
 - `docs/omnilog-product-ux-backlog.md`: current ordered product and UX implementation backlog.
 - `docs/omnilog-stats-improvement-plan.md`: post-backlog stats refinement plan.
 - `docs/omnilog-content-consumption-timeline-plan.md`: post-stats content consumption timeline plan.
+- `docs/omnilog-activity-concept.md`: what per-session progress history is for, and the decisions behind it.
+- `docs/omnilog-activity-implementation-plan.md`: how that concept was satisfied, in four phases.
 
 Core tables/entities:
 
@@ -94,14 +109,17 @@ External metadata/data providers:
 ### Current Execution Priority
 
 The product/UX backlog, Stats refinement, Timeline, goals presentation, theme foundation, metadata-link overwrite
-confirmation, and import enrichment are delivered. The active implementation order is now:
+confirmation, import enrichment, the detail and session-card redesign, and half-point ratings are delivered. The
+import/enrichment release checklist is complete. The active implementation order is now:
 
-1. Run the import/enrichment release checklist against a signed release candidate.
-2. Run focused device/regression QA when high-risk local-first flows change.
+1. Run device/regression QA across the detail, session-card, settings, and rating surfaces that changed together in
+   the redesign, since they landed as one merge and have not been exercised as a whole.
+2. Add the goal states named in section 7 — pause and archive — which is the one exit criterion still unmet.
 3. Address MAL or other provider regressions only when real provider behaviour exposes them.
 4. Continue goals, theme, and UI improvements opportunistically rather than as dedicated redesign workstreams.
 
-Optional Stats drill-downs, an audit-quality event table, and additional goal-management states remain later additions, not current blockers.
+Optional Stats drill-downs, an audit-quality event table, and per-half-point rating buckets remain later additions,
+not current blockers.
 
 ### 1. Device And Regression QA
 
@@ -117,6 +135,9 @@ Tasks:
 - Verify manual external rating management can add, edit, delete, and set primary ratings.
 - Confirm the Settings import hub exposes MAL, IMDb, and StoryGraph and that contextual section entry points invoke only the matching importer.
 - Check that no import or metadata flow overwrites user sessions/progress/rating data unexpectedly.
+- Walk the redesigned detail page, session card, session history, collection header, item editor, and restructured
+  Settings, which reached `main` as one 53-commit merge on 2026-09-06 and were verified per-branch rather than together.
+- Rate by tap and by drag on the star row, including at 200% font scale.
 
 Exit criteria:
 
@@ -447,15 +468,79 @@ Tasks:
 - Never track the root `gradle.properties`.
 - Keep provider credentials in the ignored root file, user-level Gradle properties, or environment variables only.
 - Review unrelated dirty files before commits.
-- Keep old session notes out of the project root.
+- Keep old session notes, screenshots, and uiautomator dumps out of the project root; `/*.png` and `/window.xml` are
+  ignored there.
+- Keep test fixtures byte-stable: `.gitattributes` pins `app/src/test/resources` to LF, because a CRLF checkout
+  changes what a fixture means.
 - Prefer focused docs in `docs/`.
+
+### 12. Detail, Session Card, And Settings Redesign
+
+Status: delivered on 2026-09-06, as a 53-commit merge of `claude/detail-backdrop`.
+
+Goal: make the detail page read as the item rather than as a stack of cards, and bring the surfaces around it with it.
+
+What shipped:
+
+- **Detail page on its own artwork.** The item's art is the page's ground, the cover lifts into the app bar, the
+  score is promoted and marked with the provider's own logo, and the genres sit under the cover instead of in a card.
+- **Session card rebuilt.** One bar, one line of dates, per-medium artwork behind the card, type-specific progress
+  graphics, and a threaded session history.
+- **Quick progress sheet** rebuilt around a single rail.
+- **Settings** restructured into subsystems; the **import activity** moved into a bottom sheet; the **collection
+  detail header** and the **item details editor** were rebuilt, the editor as a proper form.
+- **Provider artwork.** Steam game search fallback, IGDB company logos, TMDB company logos, and contributor
+  portraits kept separate from character artwork.
+- **Durable metadata refresh runs** the user starts, with their own tables and manager.
+- **MAL sync queueing** records the last accepted payload so unchanged state is not resent.
+- **Timeline** orders a day's entries newest first within the day.
+- `tools/update-release.ps1` for a safe release update, and the bottom navigation padded for system insets.
+
+Schema moved from 27 to 35 across this work: MAL queue payload hashes, contributor and character artwork, provider
+logo proportions, and the metadata refresh tables.
+
+Exit criteria:
+
+- The detail page is legible in both themes without a card stack.
+- No redesigned surface loses user tracking data or provider identity.
+- Device QA covers the merged result, not only the individual branches. **Outstanding** — see section 1.
+
+### 13. Half-Point Ratings
+
+Status: delivered on 2026-09-06.
+
+Goal: let a personal rating hold a half, so 7,5 is expressible.
+
+What shipped:
+
+- Ratings are stored in half points, 1 to 20, where 15 means 7,5. The column keeps its name and type, so the exported
+  schema for 36 differs from 35 only in its version; migration 35→36 doubles what is already there.
+- The domain field was renamed `ratingHalfPoints` rather than left as `rating`. The unit changed under code that was
+  already reading it, and a name that still compiled everywhere would have silently doubled every score it touched.
+- Providers score in whole points, so MAL, IMDb, and StoryGraph values are doubled on the way in, and the MAL
+  projection rounds halves up on the way out. `RatingHalfPoints` holds the only sanctioned conversions.
+- Backups carry no unit of their own, so `BackupSchemaVersion` 13 marks the change and an older backup's whole points
+  are doubled on restore.
+- The star row is rated by position: the left half of a star is the half point, and the row takes a drag as well as a
+  tap because twenty positions across a phone is about 16dp each. For assistive technology it is one slider.
+- The rating distribution keeps its ten bars and counts 7,5 under 8; the average beside it keeps the halves.
+
+Exit criteria:
+
+- A rating can be set, stored, displayed, exported, and restored as a half without drifting.
+- No provider round trip changes a rating it did not mean to change.
+- Per-half-point distribution buckets are an optional later addition, not a blocker.
 
 ## Known Risks
 
 - Older AniList-linked anime may lack preserved MAL ids until refreshed/relinked.
-- Import, metadata refresh/linking, and primary-rating persistence need targeted automated tests.
+- Personal ratings changed unit at schema 36. Any code or backup that predates it holds whole points, and reading one
+  as half points halves every score.
+- Metadata refresh/linking and primary-rating persistence rest largely on connected tests, so a regression in them
+  shows on a device rather than in the unit suite.
 - Stats that depend on `finishedAt`, `progressTotal`, genres, creators, or language will be incomplete when those fields are missing.
-- Progress updates store cumulative values, so progress-over-time stats need careful delta calculation.
+- Progress rows are increments rather than cumulative totals since schema 20, so a reader written against the old
+  shape would double-count. See `docs/omnilog-activity-concept.md`.
 - External APIs may rate-limit or omit expected fields.
 
 ## Technical Debt
@@ -464,7 +549,12 @@ Tasks:
 - `DetailQuickActionsSection.kt` carries quick actions plus the external ratings dialog.
 - Primary external rating identity is stored by id; denormalized score/max/vote fields remain as intentional display caches.
 - Refresh diff display uses formatted string comparisons for many fields.
-- Import and metadata flows need automated tests.
+- The rating distribution chart folds a half point into the whole point above it, marked with a `ponytail:` comment
+  in `StatsCalculator`.
+- Goal pause and archive states, and goal detail with contributing titles, remain unbuilt from section 7.
+- Editing a profile photo writes immediately while name, bio, and accent are drafts, so `Cancel·la` does not restore
+  a replaced photo.
+- At 200% text size the secondary MAL title-choice label and the `Cinema i TV` navigation label truncate.
 
 ## Project Guardrails
 

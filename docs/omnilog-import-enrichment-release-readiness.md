@@ -104,7 +104,11 @@ Required before production release:
 
 ## Release Decision
 
-The import and enrichment implementation is ready for release-candidate validation. No known issue threatens imported
-tracking data or manual user history. Production release should wait for the unchecked release-build, upgrade,
-credential, offline-recovery, and final accessibility decisions above.
+The checklist above is complete, including the release-candidate, database-upgrade, credential, offline-recovery, and
+accessibility gates. No known issue threatens imported tracking data or manual user history, and import and enrichment
+are cleared for production release.
+
+Two changes have landed on top of this record and are not covered by the verification above: the CSV reader now keeps
+CRLF out of quoted fields, and personal ratings moved to half points at schema 36, which the import boundaries convert
+for. Both are covered by unit tests; neither has been exercised through a full provider import on a device.
 
