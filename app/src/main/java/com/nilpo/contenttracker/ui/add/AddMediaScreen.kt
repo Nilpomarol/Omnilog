@@ -1464,57 +1464,6 @@ private fun ReviewProgressField(
     }
 }
 
-@Composable
-private fun ReviewRatingSelector(
-    currentRating: Int?,
-    accent: Color,
-    onRatingSelected: (Int?) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            (1..10).forEach { rating ->
-                val isSelected = rating == currentRating
-                val isActive = currentRating != null && rating <= currentRating
-                Surface(
-                    onClick = { onRatingSelected(if (isSelected) null else rating) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isActive) accent.copy(alpha = 0.20f) else OmnilogTheme.colors.appPanel,
-                    border = BorderStroke(
-                        width = if (isSelected) 1.5.dp else 1.dp,
-                        color = if (isActive) accent.copy(alpha = 0.74f) else OmnilogTheme.colors.appLine,
-                    ),
-                ) {
-                    Text(
-                        text = rating.toString(),
-                        modifier = Modifier
-                            .padding(vertical = 10.dp)
-                            .fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        color = if (isActive) accent else OmnilogTheme.colors.appMuted,
-                    )
-                }
-            }
-        }
-        if (currentRating != null) {
-            Text(
-                text = stringResource(R.string.rating_clear),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
-                modifier = Modifier
-                    .clickable { onRatingSelected(null) }
-                    .padding(vertical = 4.dp),
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReviewDateField(

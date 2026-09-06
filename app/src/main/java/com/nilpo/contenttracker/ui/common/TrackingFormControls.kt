@@ -71,6 +71,16 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import kotlin.math.ceil
+import kotlin.math.roundToInt
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
 
 @Composable
 @Suppress("UNUSED_PARAMETER")
@@ -266,15 +276,17 @@ fun TrackingProgressField(
 }
 
 /**
- * Ten stars for the whole points, and a toggle for the half.
+ * Ten stars, rated by where the finger lands: the left half of a star is the half point, the right
+ * half is the whole one.
  *
- * Splitting each star into two tap targets is the usual way to offer halves, and at ten stars across
- * a phone it puts every value behind a target under 20dp. The toggle keeps the star targets the size
- * they were and states the value in figures beside them, which also settles what a half-lit star
- * means: the reading is "7,5", not "somewhere between 7 and 8".
+ * A tap alone would put each of the twenty values behind a target around 16dp wide, so the row also
+ * takes a drag — press anywhere and slide, and the figure under the stars follows the finger. That
+ * is what makes the small zones workable: landing exactly on 7,5 by touch is hard, sliding onto it
+ * while watching the number is not.
  *
- * ponytail: a toggle rather than a drag gesture. Revisit if rating by dragging along the row is ever
- * asked for.
+ * For assistive technology the row is a slider rather than twenty targets: it carries the range,
+ * the step count and a `setProgress` action, so TalkBack and switch access adjust it the way they
+ * adjust any other slider.
  */
 @Composable
 fun TrackingRatingSelector(
@@ -282,109 +294,126 @@ fun TrackingRatingSelector(
     accent: Color,
     onRatingSelected: (Int?) -> Unit,
 ) {
-    val hasHalf = currentRatingHalfPoints?.let { it % 2 == 1 } == true
+    val figure = currentRatingHalfPoints?.let(::formatRatingHalfPoints)
+    val description = when (figure) {
+        null -> stringResource(R.string.rating_none)
+        else -> stringResource(R.string.library_row_personal_rating, figure)
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val starSize = minOf(30.dp, maxWidth / 10)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = description
+                        progressBarRangeInfo = ProgressBarRangeInfo(
+                            current = (currentRatingHalfPoints ?: 0).toFloat(),
+                            range = 0f..RatingHalfPoints.Max.toFloat(),
+                            // Zero included, since clearing the rating is a position too.
+                            steps = RatingHalfPoints.Max - 1,
+                        )
+                        setProgress { target ->
+                            val value = target.roundToInt()
+                            onRatingSelected(value.takeIf { it >= RatingHalfPoints.Min })
+                            true
+                        }
+                    }
+                    .pointerInput(currentRatingHalfPoints, widthPx) {
+                        detectTapGestures { offset ->
+                            val value = ratingHalfPointsAt(offset.x, widthPx)
+                            // Tapping the value it already holds clears it, the way the row has
+                            // always behaved.
+                            onRatingSelected(value.takeIf { it != currentRatingHalfPoints })
+                        }
+                    }
+                    .pointerInput(widthPx) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { offset -> onRatingSelected(ratingHalfPointsAt(offset.x, widthPx)) },
+                            onHorizontalDrag = { change, _ -> onRatingSelected(ratingHalfPointsAt(change.position.x, widthPx)) },
+                        )
+                    },
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
                 (1..10).forEach { star ->
                     val starHalfPoints = star * 2
-                    // Tapping a star keeps the half if the same star is already carrying one, so the
-                    // toggle is not undone by re-picking the value it applies to.
-                    val tapValue = if (hasHalf && currentRatingHalfPoints == starHalfPoints - 1) {
-                        starHalfPoints - 1
-                    } else {
-                        starHalfPoints
-                    }
-                    val isSelected = currentRatingHalfPoints == tapValue
                     val fill = when {
                         currentRatingHalfPoints == null -> 0f
                         currentRatingHalfPoints >= starHalfPoints -> 1f
                         currentRatingHalfPoints == starHalfPoints - 1 -> 0.5f
                         else -> 0f
                     }
-                    Surface(
-                        onClick = { onRatingSelected(if (isSelected) null else tapValue) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.Transparent,
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 7.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            PartialStar(
-                                fill = fill,
-                                size = starSize,
-                                accent = accent,
-                                contentDescription = stringResource(
-                                    R.string.rating_value,
-                                    formatRatingHalfPoints(tapValue),
-                                ),
-                            )
-                        }
+                        PartialStar(fill = fill, size = starSize, accent = accent)
                     }
                 }
             }
         }
-        if (currentRatingHalfPoints != null) {
+        if (figure != null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "${formatRatingHalfPoints(currentRatingHalfPoints)} / 10",
+                    text = "$figure / 10",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = accent,
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    HalfPointToggle(
-                        isOn = hasHalf,
-                        accent = accent,
-                        onToggle = {
-                            onRatingSelected(
-                                if (hasHalf) currentRatingHalfPoints + 1 else currentRatingHalfPoints - 1,
-                            )
-                        },
-                    )
-                    Text(
-                        text = stringResource(R.string.rating_clear),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
-                        modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.rating_clear),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.78f),
+                    modifier = Modifier.clickable { onRatingSelected(null) }.padding(vertical = 4.dp),
+                )
             }
         }
     }
 }
 
 /**
+ * Which of the twenty rating positions a touch at [x] across a row [width] wide is asking for.
+ *
+ * The row is measured edge to edge, so the first half-star starts at zero rather than at the first
+ * star's centre, and every position gets the same slice of the row. A drag that runs off either end
+ * holds at the nearest value instead of clearing the rating, which is what a finger sliding past
+ * the last star means.
+ */
+internal fun ratingHalfPointsAt(x: Float, width: Float): Int {
+    if (width <= 0f) return RatingHalfPoints.Min
+    return ceil(x / width * RatingHalfPoints.Max)
+        .toInt()
+        .coerceIn(RatingHalfPoints.Min, RatingHalfPoints.Max)
+}
+
+/**
  * A star filled from the left by [fill], for the half-lit one.
  *
  * Drawn as the empty star with a clipped copy of the filled star over it, because icons-core has no
- * half star and the fill is the only thing that varies.
+ * half star and the fill is the only thing that varies. The row announces itself as a whole, so the
+ * stars carry no descriptions of their own.
  */
 @Composable
 private fun PartialStar(
     fill: Float,
     size: Dp,
     accent: Color,
-    contentDescription: String?,
 ) {
     val emptyTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
     Box(modifier = Modifier.size(size)) {
         Icon(
             imageVector = Icons.Filled.Star,
-            contentDescription = contentDescription,
+            contentDescription = null,
             modifier = Modifier.size(size),
             tint = emptyTint,
         )
@@ -402,33 +431,6 @@ private fun PartialStar(
                 )
             }
         }
-    }
-}
-
-/** Turns the current rating's last half point on and off. */
-@Composable
-private fun HalfPointToggle(
-    isOn: Boolean,
-    accent: Color,
-    onToggle: () -> Unit,
-) {
-    val label = stringResource(
-        if (isOn) R.string.rating_half_point_remove else R.string.rating_half_point_add,
-    )
-    Surface(
-        onClick = onToggle,
-        shape = RoundedCornerShape(8.dp),
-        color = if (isOn) accent.copy(alpha = 0.18f) else Color.Transparent,
-        border = BorderStroke(1.dp, if (isOn) accent.copy(alpha = 0.7f) else OmnilogTheme.colors.appLine),
-        modifier = Modifier.semantics { contentDescription = label },
-    ) {
-        Text(
-            text = stringResource(R.string.rating_half_point_mark),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isOn) accent else OmnilogTheme.colors.appMuted,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-        )
     }
 }
 

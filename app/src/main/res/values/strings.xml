@@ -309,9 +309,7 @@
     <string name="progress_unit_hour_compact">h</string>
     <string name="rating_value">%1$s/10</string>
     <string name="rating_clear">Esborra la nota</string>
-    <string name="rating_half_point_mark">½</string>
-    <string name="rating_half_point_add">Afegeix mig punt</string>
-    <string name="rating_half_point_remove">Treu el mig punt</string>
+    <string name="rating_none">Sense nota</string>
     <string name="owned_label">En propietat</string>
     <string name="owned_action_add">En propietat?</string>
     <string name="collection_action_add">Col·lecció</string>
