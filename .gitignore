@@ -10,3 +10,7 @@ gradle.properties
 *.apk
 *.aab
 *.hprof
+
+# Debug captures and uiautomator dumps taken at the repository root.
+/*.png
+/window.xml
