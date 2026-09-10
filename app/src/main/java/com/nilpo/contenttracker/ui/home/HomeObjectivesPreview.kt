@@ -1,6 +1,5 @@
 package com.nilpo.contenttracker.ui.home
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +32,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ObjectiveProgress
@@ -43,7 +41,6 @@ import com.nilpo.contenttracker.ui.common.ObjectiveMediaIcon
 import com.nilpo.contenttracker.ui.common.formatObjectiveNumber
 import com.nilpo.contenttracker.ui.common.objectiveAccent
 import com.nilpo.contenttracker.ui.common.paceStatus
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 import kotlin.math.cos
@@ -53,21 +50,11 @@ import kotlin.math.sin
 // shown get the full width of the row and can be large enough to read at a glance. The header's
 // roll-up still counts every objective, so nothing is hidden without a trace.
 private const val VisibleRings = 4
-private val RingSize = 80.dp
-private val RingStroke = 6.dp
-private val RingIconSize = 28.dp
+private val RingSize = 40.dp
+private val RingStroke = 4.dp
+private val RingIconSize = 18.dp
 
-/**
- * UX-17: the dashboard's objectives preview is a single card, not one card per objective.
- *
- * The card is a strip of rings rather than a list of rows, which is what separates it from the
- * Profile section: Profile is where objectives are read in detail and managed, the dashboard is a
- * glance. A strip also keeps the card's height fixed no matter how many objectives exist, where
- * stacked rows grew the card and pushed the rest of the dashboard down.
- *
- * Renders nothing when there are no objectives; the place to create one is Profile, which owns
- * that action.
- */
+/** Compact goal indicators inside El teu ritme; larger text wraps into two columns. */
 @Composable
 fun DashboardObjectivesPreview(
     objectives: List<ObjectiveProgress>,
@@ -87,12 +74,11 @@ fun DashboardObjectivesPreview(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+        color = androidx.compose.ui.graphics.Color.Transparent,
     ) {
         Column(
-            modifier = Modifier.padding(13.dp),
-            verticalArrangement = Arrangement.spacedBy(13.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -111,8 +97,6 @@ fun DashboardObjectivesPreview(
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
                     color = OmnilogTheme.colors.appMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -124,17 +108,22 @@ fun DashboardObjectivesPreview(
 
             // Cells share the width evenly rather than being fixed: the label needs whatever room
             // the row can spare to stay on one line, and that varies with screen width.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                visible.forEach { progress ->
-                    ObjectiveRing(
-                        progress = progress,
-                        today = today,
-                        modifier = Modifier.weight(1f),
-                    )
+            val columns = if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) 2 else 4
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                visible.chunked(columns).forEach { group ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        group.forEach { progress ->
+                            ObjectiveRing(
+                                progress = progress,
+                                today = today,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -252,8 +241,6 @@ private fun ObjectiveRing(
             },
             style = MaterialTheme.typography.labelSmall,
             color = OmnilogTheme.colors.appMuted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
         )
     }

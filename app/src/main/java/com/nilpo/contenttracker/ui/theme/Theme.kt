@@ -26,9 +26,9 @@ import com.nilpo.contenttracker.R
  * properties such as `MediaSection.accent`, and plain functions called outside composition.
  */
 object OmnilogColors {
-    val Dashboard = Color(0xFFC0693A)
-    val Anime = Color(0xFFD88CA8)
-    val Books = Color(0xFF9C82D9)
+    val Dashboard = Color(0xFFA6B58B)
+    val Anime = Color(0xFFC99A85)
+    val Books = Color(0xFFB9AC87)
     val Tv = Color(0xFF4FA8A8)
     val Games = Color(0xFFD4B96A)
 
@@ -51,7 +51,7 @@ object OmnilogColors {
  * The dark values are tuned to glow on charcoal, which makes most of them illegible as ink on
  * paper: measured against the light background, `Games` fell to 1.86:1 and six of the ten were
  * under 3:1. The light set holds each hue and lowers lightness until it clears 4.5:1 against
- * [LightPalette]'s background — the darker of the two light surfaces, so one value is safe on both
+ * [LightPalette]'s panel — the darker of the two light surfaces, so one value is safe on both
  * the page and the cards that sit on it.
  */
 @Immutable
@@ -86,18 +86,18 @@ val DarkAccents = OmnilogAccents(
 )
 
 val LightAccents = OmnilogAccents(
-    Dashboard = Color(0xFFA15831),
-    Anime = Color(0xFFB83E6B),
-    Books = Color(0xFF794EDC),
-    Tv = Color(0xFF377575),
-    Games = Color(0xFF806925),
-    Movie = Color(0xFF377575),
-    Series = Color(0xFF3C6EA4),
-    Planned = Color(0xFF606D7A),
-    InProgress = Color(0xFF3C6EA4),
-    Completed = Color(0xFF417554),
-    Paused = Color(0xFF9D5A08),
-    Dropped = Color(0xFFBE3C53),
+    Dashboard = Color(0xFF526345),
+    Anime = Color(0xFF92553F),
+    Books = Color(0xFF76613E),
+    Tv = Color(0xFF326E6E),
+    Games = Color(0xFF796222),
+    Movie = Color(0xFF326E6E),
+    Series = Color(0xFF38689A),
+    Planned = Color(0xFF596672),
+    InProgress = Color(0xFF38689A),
+    Completed = Color(0xFF3D6F4F),
+    Paused = Color(0xFF955407),
+    Dropped = Color(0xFFB4374D),
 )
 
 val LocalOmnilogAccents = staticCompositionLocalOf { DarkAccents }
@@ -130,13 +130,13 @@ val DarkPalette = OmnilogPalette(
 
 /**
  * Warm-paper light surfaces, the inverse of [DarkPalette]'s warm charcoal rather than a plain white.
- * A parchment background with a lighter card keeps the same "panel lifts off the base" relationship
- * the dark theme has. Accent tuning for light backgrounds is tracked separately (UX-21).
+ * An ivory background with a slightly deeper cream card provides quiet tonal separation, echoing
+ * the warm surfaces of the dark theme. Accents are tuned against the darker cream panel.
  */
 val LightPalette = OmnilogPalette(
-    appBackground = Color(0xFFF3ECDF),
-    appPanel = Color(0xFFFFFBF4),
-    appPanelTranslucent = Color(0xEFFFFBF4),
+    appBackground = Color(0xFFF5F0E6),
+    appPanel = Color(0xFFEEE7DA),
+    appPanelTranslucent = Color(0xEFEEE7DA),
     appLine = Color(0x1F3A332B),
     appInk = Color(0xFF2A2521),
     appMuted = Color(0xFF6B6154),
@@ -176,7 +176,7 @@ private val DarkColors = darkColorScheme(
     background = DarkPalette.appBackground,
     surface = DarkPalette.appPanel,
     surfaceVariant = Color(0xFF302B25),
-    primaryContainer = Color(0xFF25313A),
+    primaryContainer = Color(0xFF303A29),
     secondaryContainer = Color(0xFF2B213A),
     tertiaryContainer = Color(0xFF352F1E),
     onPrimary = Color(0xFF101417),
@@ -196,22 +196,17 @@ private val LightColors = lightColorScheme(
     background = LightPalette.appBackground,
     surface = LightPalette.appPanel,
     surfaceVariant = Color(0xFFEDE4D5),
-    primaryContainer = Color(0xFFF3E1D6),
-    secondaryContainer = Color(0xFFEAE2F5),
+    primaryContainer = Color(0xFFE1E6D7),
+    secondaryContainer = Color(0xFFEAE1CE),
     tertiaryContainer = Color(0xFFF3EBD3),
-    onPrimary = Color(0xFFFFFFFF),
-    onSecondary = Color(0xFFFFFFFF),
+    onPrimary = Color(0xFFF5F0E6),
+    onSecondary = Color(0xFFF5F0E6),
     onTertiary = Color(0xFF2A2521),
     onBackground = LightPalette.appInk,
     onSurface = LightPalette.appInk,
     onSurfaceVariant = LightPalette.appMuted,
     outline = Color(0xFF8B8070),
     error = Color(0xFFB3261E),
-)
-
-private val DisplayFontFamily = FontFamily(
-    Font(R.font.libre_baskerville, weight = FontWeight.Normal),
-    Font(R.font.libre_baskerville, weight = FontWeight.Bold),
 )
 
 private val BodyFontFamily = FontFamily(
@@ -230,8 +225,8 @@ private val OmnilogTypography = Typography(
     headlineMedium = BaseTypography.headlineMedium.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
     headlineSmall = BaseTypography.headlineSmall.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
     titleLarge = BaseTypography.titleLarge.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
-    titleMedium = BaseTypography.titleMedium.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.SemiBold),
-    titleSmall = BaseTypography.titleSmall.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.SemiBold),
+    titleMedium = BaseTypography.titleMedium.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
+    titleSmall = BaseTypography.titleSmall.copy(fontFamily = BodyFontFamily, fontWeight = FontWeight.Bold),
     bodyLarge = BaseTypography.bodyLarge.copy(fontFamily = BodyFontFamily),
     bodyMedium = BaseTypography.bodyMedium.copy(fontFamily = BodyFontFamily),
     bodySmall = BaseTypography.bodySmall.copy(fontFamily = BodyFontFamily),

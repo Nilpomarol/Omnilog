@@ -17,10 +17,13 @@
     <string name="home_active_hidden_sections_show_all">Mostra-ho tot</string>
     <string name="home_active_filtered_empty">Cap element en curs visible amb els filtres actuals.</string>
     <string name="home_active_empty">Res en curs ara mateix. Marca un títol com a En curs i el veuràs aquí.</string>
-    <string name="home_planned_title">Següent a la llista</string>
+    <string name="home_planned_title">Per començar</string>
     <string name="home_planned_empty">Res planificat. Marca un títol com a Planificat i el veuràs aquí.</string>
     <string name="home_planned_start">Comença</string>
-    <string name="home_paused_title">En pausa</string>
+    <string name="home_paused_title">Per reprendre</string>
+    <string name="home_rhythm_title">El teu ritme</string>
+    <string name="home_progress_action">Progrés</string>
+    <string name="home_month_activity">%1$s: %2$d sessions completades</string>
     <string name="home_paused_resume">Reprèn</string>
     <string name="home_completed_title">Completats recentment</string>
     <string name="home_analytics_preview_title">El teu any en contingut</string>
@@ -29,9 +32,9 @@
     <string name="home_analytics_average_rating">nota mitjana</string>
     <string name="home_analytics_average_rating_short">Nota</string>
     <string name="home_analytics_revisits_short">Repeticions</string>
-    <string name="timeline_title">Activitat</string>
+    <string name="timeline_title">Cronologia</string>
     <string name="timeline_recent_title">Activitat recent</string>
-    <string name="timeline_view_all">Veure tota l’activitat</string>
+    <string name="timeline_view_all">Veure la cronologia</string>
     <string name="timeline_loading">Carregant l’activitat…</string>
     <string name="timeline_empty_title">Encara no hi ha activitat</string>
     <string name="timeline_empty_body">Registra progrés, comença una sessió o completa un títol per veure’n l’historial aquí.</string>

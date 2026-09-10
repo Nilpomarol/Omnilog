@@ -31,7 +31,7 @@ fun rememberThemePreferences(): SharedPreferences {
 
 fun SharedPreferences.readThemePreference(): ThemePreference {
     val stored = getString(ThemeModeKey, null)
-    return ThemePreference.entries.firstOrNull { it.name == stored } ?: ThemePreference.System
+    return ThemePreference.entries.firstOrNull { it.name == stored } ?: ThemePreference.Light
 }
 
 fun SharedPreferences.writeThemePreference(preference: ThemePreference) {

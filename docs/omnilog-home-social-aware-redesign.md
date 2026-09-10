@@ -1,6 +1,8 @@
 # Omnilog Home And Social-Aware Information Architecture
 
-Status: approved product/UI direction, not yet implemented.
+Status: personal Home hierarchy implemented; normal-device and 200% font-scale visual QA pending. Social extensions remain future work.
+
+The visual direction is now defined by [Warm Personal Editorial Style](omnilog-warm-personal-style.md), which supersedes the older dark-first colour guidance below. The information architecture and social boundaries remain unchanged.
 
 This document defines the next Home redesign and the navigation responsibilities around it. It is intentionally social-aware: the Home layout should not need to be rebuilt when friends, friend activity, and shared item context are added.
 
@@ -292,8 +294,9 @@ The daily Home hierarchy must still work when the user has zero friends or is of
 
 Keep the existing Omnilog visual system and make it warmer through hierarchy rather than decoration.
 
-- warm soft-dark background rather than pitch black
-- off-white primary text and warm muted secondary text
+- warm ivory/cream foundation by default, with warm charcoal retained for dark mode
+- warm charcoal primary text in light mode, off-white in dark mode, and warm muted secondary text
+- restrained forest/olive primary accent and bold, friendly sans-serif headings
 - covers provide most of the colour
 - section/media accents remain restrained
 - more whitespace between conceptual groups

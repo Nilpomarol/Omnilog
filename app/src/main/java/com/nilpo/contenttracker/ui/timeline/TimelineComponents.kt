@@ -857,7 +857,7 @@ fun TimelineRecentActivity(
     onViewAll: () -> Unit,
     modifier: Modifier = Modifier,
     excludedMediaTypes: Set<MediaType> = emptySet(),
-    maxEntries: Int = 3,
+    maxEntries: Int = 1,
 ) {
     val preferences = rememberTimelinePreferences()
     val visibility by rememberTimelineVisibility(preferences)
@@ -879,11 +879,10 @@ fun TimelineRecentActivity(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+        color = androidx.compose.ui.graphics.Color.Transparent,
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // The heading is the way through, as on the objectives and analytics cards above. Only
@@ -899,8 +898,8 @@ fun TimelineRecentActivity(
                 Text(
                     text = stringResource(R.string.timeline_recent_title),
                     modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.ExtraBold,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                     color = OmnilogTheme.colors.appInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

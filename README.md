@@ -91,6 +91,8 @@ MAL-only titles are never deleted.
 - [Roadmap](docs/omnilog-roadmap.md)
 - [Product and UX Delivery Record](docs/omnilog-product-ux-backlog.md)
 - [UI Design Direction](docs/omnilog-ui-design-v1.md)
+- [Warm Personal Visual Style](docs/omnilog-warm-personal-style.md)
+- [Home Structure and Social Boundaries](docs/omnilog-home-social-aware-redesign.md)
 - [Stats System Plan](docs/omnilog-stats-system-plan.md)
 - [Stats Improvement Delivery Record](docs/omnilog-stats-improvement-plan.md)
 - [Content Consumption Timeline](docs/omnilog-content-consumption-timeline-plan.md)
