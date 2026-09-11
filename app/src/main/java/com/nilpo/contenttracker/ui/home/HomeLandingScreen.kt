@@ -72,18 +72,11 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.creatorNames
-import com.nilpo.contenttracker.core.stats.StatsCalculator
-import com.nilpo.contenttracker.core.stats.StatsBucket
-import com.nilpo.contenttracker.core.stats.StatsFilters
-import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.QuickCompletion
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
-import com.nilpo.contenttracker.ui.stats.MetricBandLead
-import com.nilpo.contenttracker.ui.stats.comparisonBasisLabel
-import com.nilpo.contenttracker.ui.stats.intMetricDelta
 import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
@@ -109,7 +102,7 @@ fun HomeLandingScreen(
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
-    val objectiveProgress = remember(items, uiState.objectives) { ObjectiveCalculator().calculate(items, uiState.objectives) }.filter { it.objective.archivedAtEpochMillis == null && !it.isExpired(LocalDate.now()) }
+    val objectiveProgress = remember(items, uiState.objectives) { ObjectiveCalculator().calculate(items, uiState.objectives) }.filter { it.objective.archivedAtEpochMillis == null }
     val activeFilterPreferences = rememberActiveFilterPreferences()
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearchOverlay by rememberSaveable { mutableStateOf(false) }
@@ -214,21 +207,12 @@ fun HomeLandingScreen(
                     }
 
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            DashboardSectionTitle(stringResource(R.string.home_rhythm_title))
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = OmnilogTheme.colors.appPanel,
-                            ) {
-                                Column {
-                                    DashboardAnalyticsPreview(items = items, onClick = onStatsClick)
-                                    DashboardObjectivesPreview(
-                                        objectives = objectiveProgress,
-                                        onClick = onObjectivesClick,
-                                    )
-                                }
-                            }
-                        }
+                        HomeRhythmCard(
+                            items = items,
+                            objectives = objectiveProgress,
+                            onStatsClick = onStatsClick,
+                            onObjectivesClick = onObjectivesClick,
+                        )
                     }
                     item {
                         TimelineRecentActivity(
@@ -281,101 +265,6 @@ fun HomeLandingScreen(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(start = 16.dp, top = 76.dp, end = 16.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DashboardAnalyticsPreview(
-    items: List<TrackedMedia>,
-    onClick: () -> Unit,
-) {
-    val today = LocalDate.now()
-    val snapshot = remember(items, today) {
-        StatsCalculator(today = today).calculate(items, StatsFilters(period = StatsPeriod.ThisYear))
-    }
-    Column(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MetricBandLead(
-                value = snapshot.completionSessions.toString(),
-                label = stringResource(R.string.home_analytics_preview_completed),
-                accent = OmnilogTheme.colors.appInk,
-                delta = intMetricDelta(snapshot.deltas.completionSessions),
-                basisLabel = snapshot.deltas.basis?.let { comparisonBasisLabel(it) },
-                leadValueStyle = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = stringResource(R.string.home_analytics_preview_open),
-                tint = OmnilogTheme.accents.Dashboard,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        snapshot.deltas.basis?.let {
-            Text(
-                text = comparisonBasisLabel(it),
-                style = MaterialTheme.typography.labelSmall,
-                color = OmnilogTheme.colors.appMuted,
-            )
-        }
-        MonthlyActivityPreview(buckets = snapshot.completionSessionsByMonth)
-    }
-}
-
-@Composable
-private fun MonthlyActivityPreview(
-    buckets: List<StatsBucket>,
-    modifier: Modifier = Modifier,
-) {
-    val visibleBuckets = buckets.takeLast(7)
-    val maxValue = visibleBuckets.maxOfOrNull { bucket -> bucket.value }?.coerceAtLeast(1) ?: 1
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            // Min, not fixed: the month labels scale with the system font and a hard height
-            // clips them at large scales (UX-09). The bars keep their own fixed height.
-            .heightIn(min = 56.dp),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        visibleBuckets.forEach { bucket ->
-            val description = stringResource(R.string.home_month_activity, bucket.label, bucket.value)
-            Column(
-                modifier = Modifier.weight(1f).clearAndSetSemantics { contentDescription = description },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(36.dp),
-                    contentAlignment = Alignment.BottomCenter,
-                ) {
-                    val barHeight = if (bucket.value == 0) 2 else {
-                        (36 * bucket.value / maxValue).coerceAtLeast(4)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(barHeight.dp)
-                            .background(
-                                if (bucket.value > 0) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine,
-                                RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp),
-                            ),
-                    )
-                }
-                Text(
-                    text = bucket.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogTheme.colors.appMuted,
-                    maxLines = 1,
                 )
             }
         }

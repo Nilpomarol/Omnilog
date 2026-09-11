@@ -854,4 +854,13 @@
     <string name="quick_progress_completed_message">S\'ha completat.</string>
     <string name="quick_progress_started_message">S\'ha començat.</string>
     <string name="quick_progress_resumed_message">S\'ha reprès.</string>
-  </resources>
+    <string name="home_rhythm_completed">completats</string>
+    <string name="home_rhythm_books">llibres</string>
+    <string name="home_rhythm_series">sèries</string>
+    <string name="home_rhythm_movies">pel·lícules</string>
+    <string name="home_rhythm_anime">animes</string>
+    <string name="home_rhythm_games">jocs</string>
+    <string name="home_rhythm_goals">objectius</string>
+    <string name="home_rhythm_goals_empty">Afegeix un objectiu</string>
+    <string name="home_rhythm_goals_description">%1$d de %2$d objectius completats. Obre els objectius</string>
+</resources>
