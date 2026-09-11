@@ -126,9 +126,8 @@ fun HomeLandingScreen(
     val activeCandidates = items
         .filter { it.currentSession?.status == TrackingStatus.InProgress }
         .sortedByDescending { it.latestActivityMillis() }
-    val plannedCandidates = items
-        .filter { it.currentSession?.status == TrackingStatus.Planned }
-        .sortedByDescending { it.latestActivityMillis() }
+    val today = LocalDate.now()
+    val plannedCandidates = remember(items, today) { prioritizeHomePlannedItems(items, today) }
     // Longest-stalled first: the whole point of the section is the titles you have stopped
     // noticing, so the ones you touched most recently are the least useful to surface.
     val pausedCandidates = items
@@ -835,83 +834,12 @@ private fun HomeCollectionCard(
             onProgressClick = if (canUpdate) ({ showQuickSheet = true }) else null,
         )
     } else {
-        // Keep the following card visible; height can grow with the system font size.
-        val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
-        val cardWidth = if (isActive) minOf(300.dp, (screenWidth - 32.dp) * 0.86f)
-            else minOf(256.dp, (screenWidth - 32.dp) * 0.8f)
-        Surface(
-            modifier = Modifier.width(cardWidth).heightIn(min = if (isActive) 132.dp else 96.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = if (isActive) OmnilogTheme.colors.appPanel else Color.Transparent,
-        ) {
-            Row(
-                modifier = Modifier.clickable(onClick = onClick).padding(if (isActive) 10.dp else 0.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MetadataCoverImage(
-                    coverUrl = trackedMedia.item.coverUrl,
-                    modifier = Modifier.width(if (isActive) 70.dp else 52.dp)
-                        .height(if (isActive) 105.dp else 78.dp),
-                    shape = RoundedCornerShape(5.dp),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = OmnilogTheme.colors.appInk,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = if (isActive) session.progressLabel(
-                            trackedMedia.item.progressTotal.takeUnless { trackedMedia.item.type == MediaType.Game },
-                            trackedMedia.item.type,
-                        ) else trackedMedia.creatorNames().firstOrNull()
-                            ?: stringResource(trackedMedia.item.type.dashboardSection().titleResId),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogTheme.colors.appMuted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (isActive && trackedMedia.item.type != MediaType.Game) {
-                        trackedMedia.item.progressTotal?.takeIf { it > 0 }?.let {
-                            ProgressBar(session.progressFraction(it), accent)
-                        }
-                    }
-                    if (canUpdate) {
-                        val actionDescription = stringResource(
-                            if (isActive) R.string.quick_progress_open else R.string.home_planned_start,
-                        )
-                        Button(
-                            onClick = { showQuickSheet = true },
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isActive) accent else Color.Transparent,
-                                contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary else accent,
-                            ),
-                        ) {
-                            Icon(
-                                imageVector = if (isActive) Icons.Filled.Add else Icons.Filled.PlayArrow,
-                                contentDescription = actionDescription,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Text(
-                                text = stringResource(if (isActive) R.string.home_progress_action else R.string.home_planned_start),
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.padding(start = 4.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        HomePlannedCard(
+            trackedMedia = trackedMedia,
+            accent = accent,
+            onClick = onClick,
+            onStartClick = if (canUpdate) ({ showQuickSheet = true }) else null,
+        )
     }
     if (showQuickSheet && canUpdate) {
         QuickProgressSheet(
@@ -922,6 +850,111 @@ private fun HomeCollectionCard(
             onDismiss = { showQuickSheet = false },
         )
     }
+}
+
+/**
+ * A borderless planned item: cover, title and collection at the top, and a small Començar button
+ * at the bottom. No card surface, so `Ara mateix` stays visually primary.
+ */
+@Composable
+private fun HomePlannedCard(
+    trackedMedia: TrackedMedia,
+    accent: Color,
+    onClick: () -> Unit,
+    onStartClick: (() -> Unit)?,
+) {
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val collectionLabel = formatCollectionDisplayName(
+        trackedMedia.collection?.name,
+        trackedMedia.item.collectionSortOrder,
+    )
+
+    // Two items plus ~24dp of the third cover (32dp page padding, two 10dp gaps). The floor keeps
+    // room for the Començar button, so narrow phones trade the peek for an intact button. Larger
+    // text grows every item's height uniformly.
+    Row(
+        modifier = Modifier.width(((screenWidth - 76.dp) / 2).coerceIn(180.dp, 232.dp))
+            .height(116.dp + 64.dp * (fontScale - 1f))
+            .clickable(onClick = onClick),
+    ) {
+        MetadataCoverImage(
+            coverUrl = trackedMedia.item.coverUrl,
+            modifier = Modifier.width(72.dp).height(108.dp),
+            shape = RoundedCornerShape(6.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+        )
+        Column(
+            // The button's 48dp touch target leaves 8dp below its 32dp visual, so the item is
+            // 8dp taller than the cover to line their bottom edges up.
+            modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 10.dp),
+        ) {
+            Text(
+                text = displayMediaTitle(trackedMedia.item.title),
+                style = MaterialTheme.typography.titleSmall,
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            collectionLabel?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            onStartClick?.let { onStart ->
+                Button(
+                    onClick = onStart,
+                    modifier = Modifier.heightIn(min = 32.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(start = 8.dp, end = 10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accent.copy(alpha = 0.12f),
+                        contentColor = accent,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.home_planned_start),
+                        modifier = Modifier.padding(start = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
+    }
+}
+@Composable
+private fun HomeMediaTypeLabel(type: MediaType) {
+    Text(
+        text = stringResource(when (type) {
+            MediaType.Anime -> R.string.media_type_anime
+            MediaType.Book -> R.string.media_type_book
+            MediaType.Movie -> R.string.media_type_movie
+            MediaType.TvShow -> R.string.media_type_tv_show
+            MediaType.Game -> R.string.media_type_game
+        }),
+        modifier = Modifier.padding(top = 2.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = when (type) {
+            MediaType.Anime -> OmnilogTheme.accents.Anime
+            MediaType.Book -> OmnilogTheme.accents.Books
+            MediaType.Movie -> OmnilogTheme.accents.Movie
+            MediaType.TvShow -> OmnilogTheme.accents.Series
+            MediaType.Game -> OmnilogTheme.accents.Games
+        },
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /** Equal geometry across the carousel, including titles with no known progress total. */
@@ -963,28 +996,7 @@ private fun HomeContinueCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = stringResource(
-                        when (trackedMedia.item.type) {
-                            MediaType.Anime -> R.string.media_type_anime
-                            MediaType.Book -> R.string.media_type_book
-                            MediaType.Movie -> R.string.media_type_movie
-                            MediaType.TvShow -> R.string.media_type_tv_show
-                            MediaType.Game -> R.string.media_type_game
-                        },
-                    ),
-                    modifier = Modifier.padding(top = 2.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = when (trackedMedia.item.type) {
-                        MediaType.Anime -> OmnilogTheme.accents.Anime
-                        MediaType.Book -> OmnilogTheme.accents.Books
-                        MediaType.Movie -> OmnilogTheme.accents.Movie
-                        MediaType.TvShow -> OmnilogTheme.accents.Series
-                        MediaType.Game -> OmnilogTheme.accents.Games
-                    },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                HomeMediaTypeLabel(trackedMedia.item.type)
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(

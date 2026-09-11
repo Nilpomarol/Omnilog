@@ -16,7 +16,7 @@ OmniLog should feel like a personal collection of stories: warm, tactile, calm, 
 
 Warm before minimal. Personal before editorial. Artwork before decoration. Whitespace before containers. Typography before borders. One strong action before many equal actions. Different content deserves different layouts. Data should feel like personal history.
 
-Home applies these principles through horizontal Continue cards, compact planned choices, one concise rhythm/objectives surface, an activity row, and a small paused shelf. Continue cards use a full-height, edge-aligned cover cropped to fill the artwork area, without text or status overlays. Other Home covers retain their image proportions. Progress changes animate gently.
+Home applies these principles through horizontal Continue cards, a single-row carousel of borderless planned items, one concise rhythm/objectives surface, an activity row, and a small paused shelf. Continue cards use a full-height, edge-aligned cover cropped to fill the artwork area, without text or status overlays. Planned items have no card surface: a 72 by 108 dp cover, top-aligned title and collection details, and a small tonal Començar button beneath them; they omit the media type. Paused items remain an 88 by 132 dp cover shelf. These distinctions preserve the visual priority of Continue cards. Progress changes animate gently.
 
 Keep actual progress, ratings, history, objectives, and personal choices central. Avoid generic greetings, quotes, decorative illustrations, hero banners, and social content without real supporting data.
 

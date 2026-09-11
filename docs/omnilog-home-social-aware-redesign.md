@@ -109,18 +109,19 @@ Rename the current `Següent a la llista` / planned surface to `Per començar`.
 
 The current Planned collection is not a manually ordered queue; it is a set of Planned items ordered by recent activity. Calling it `Següent` implies queue semantics that do not exist.
 
+Prioritize Planned items whose collection ID matches an item currently In Progress or a session completed in the last 30 calendar days (today included). Completion recency uses the recorded finish date, not the last edit time; missing and future finish dates do not qualify. Recent activity establishes the ranking within each priority tier. Items sharing a collection then fill its ranking positions in ascending collection order (for example, volume 3 before volume 4); missing positions follow numbered positions, and equal positions retain recent-activity order. Cards display the collection name and position when available. Apply this ranking before the eight-item Home limit, using the complete library regardless of the `Ara mateix` visibility filters. Items without a collection receive no collection priority.
+
 ### Layout
 
-Do not reuse the same poster component as `Ara mateix`.
+Use a single-row horizontal carousel of borderless items, with two items visible and a sliver of the third cover peeking. Using no card surface, border, or shadow keeps `Ara mateix` visually primary.
 
-Use compact horizontal cards or rows, for example:
+Each item has:
 
-- small cover
-- title
-- creator/collection or media type when useful
-- lightweight start action
+- a 72 by 108 dp cover on the left with 6 dp corners
+- top-aligned bold title (up to two lines) and collection name and position when available
+- a small tonal `▶ Començar` button at the bottom left of the text column (32 dp visual, 48 dp touch target) opening the existing start sheet, its bottom edge aligned with the cover's
 
-The section should fit more choices into less height than the current poster carousel.
+Items are sized so two fit with about 24 dp of the third cover showing (180–232 dp; on narrow phones the 180 dp floor keeps the button intact at the cost of the peek) and 116 dp tall at normal text size, with uniform height growth for larger text. Omit media type, author, progress bars, and status badges.
 
 If manual queue ordering is introduced later, a true `Següent` surface can be reconsidered.
 
