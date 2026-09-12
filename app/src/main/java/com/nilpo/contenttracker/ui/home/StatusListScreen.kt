@@ -68,7 +68,7 @@ fun StatusListScreen(
 
     Surface(modifier = modifier, color = OmnilogTheme.colors.appBackground) {
         LazyVerticalGrid(
-            columns = if (displayMode == HomeDisplayMode.Grid) GridCells.Fixed(2) else GridCells.Fixed(1),
+            columns = if (displayMode == HomeDisplayMode.Grid) GridCells.Fixed(3) else GridCells.Fixed(1),
             modifier = Modifier.fillMaxSize(),
             // A small top inset: the top bar already carries the page title, so the hero can sit close under it.
             contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 16.dp),

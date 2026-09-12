@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -184,7 +185,11 @@ fun MediaCard(
     }
 }
 
-/** Cover-first presentation for visually scanning a large library. */
+/**
+ * Cover-first tile for scanning a large library, titled underneath since many posters don't show
+ * their name. The status badge sits in the cover's corner and titles under way get a progress strip
+ * along its bottom edge.
+ */
 @Composable
 fun MediaGridCard(
     trackedMedia: TrackedMedia,
@@ -192,68 +197,63 @@ fun MediaGridCard(
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
-    val creator = trackedMedia.creatorNames().firstOrNull()
+    val total = item.progressTotal?.takeIf { it > 0 && item.type != MediaType.Game }
+    val fraction = total
+        ?.takeIf { session?.status == TrackingStatus.InProgress }
+        ?.let { session.progressFraction(it) }
+    val shape = RoundedCornerShape(6.dp)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(shape)
             .clickable(onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Box {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(CoverAspectRatio)
+                .clip(shape),
+        ) {
             MetadataCoverImage(
                 coverUrl = item.coverUrl,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(CoverAspectRatio),
-                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxSize(),
+                shape = shape,
             )
             if (session != null) {
                 CardStateIconBadge(
                     status = session.status,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(6.dp),
+                        .padding(5.dp),
                 )
+            }
+            if (session != null && fraction != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .background(Color.Black.copy(alpha = 0.45f)),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(fraction)
+                            .fillMaxHeight()
+                            .background(session.status.stateColor),
+                    )
+                }
             }
         }
         Text(
             text = displayMediaTitle(item.title),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
             color = OmnilogTheme.colors.appInk,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        if (creator != null) {
-            Text(
-                text = creator,
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (session != null) {
-            Text(
-                text = session.progressLabel(
-                    item.progressTotal.takeUnless { item.type == MediaType.Game },
-                    item.type,
-                ),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = session.status.stateColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.progressTotal != null && item.type != MediaType.Game) {
-                CardProgressBar(
-                    fraction = session.progressFraction(item.progressTotal),
-                    color = session.status.stateColor,
-                )
-            }
-        }
     }
 }
 

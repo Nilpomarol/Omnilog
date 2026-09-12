@@ -166,7 +166,7 @@ fun HomeScreen(
                 uiState.displayMode == HomeDisplayMode.Grid &&
                 uiState.browseMode == HomeBrowseMode.Items
             ) {
-                GridCells.Fixed(2)
+                GridCells.Fixed(3)
             } else {
                 GridCells.Fixed(1)
             },
