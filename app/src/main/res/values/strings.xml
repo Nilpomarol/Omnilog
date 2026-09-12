@@ -121,8 +121,6 @@
     <string name="timeline_kicker_revisit">Sessió #%1$d</string>
     <string name="timeline_progress_current">%1$d %2$s</string>
     <string name="timeline_entry_accessibility">%1$s. %2$s. %3$s.</string>
-    <string name="home_objectives_title">Objectius personals</string>
-    <string name="home_objectives_open">Obre els objectius</string>
     <string name="home_redesign_placeholder">Aquest espai serà el resum visual d\'Omnilog: lectures, visionats, partides, estadístiques i activitat recent.</string>
     <string name="dashboard_search_in_section">Busca \"%1$s\" a %2$s</string>
     <string name="stats_title">Estadístiques</string>
@@ -245,17 +243,9 @@
     <string name="empty_import_movies">Importa des d\'IMDb</string>
 
     <string name="empty_filtered_title">Cap element amb aquests filtres</string>
-    <plurals name="home_objectives_summary_on_track">
-        <item quantity="one">%1$d al dia</item>
-        <item quantity="other">%1$d al dia</item>
-    </plurals>
     <plurals name="home_objectives_summary_behind">
         <item quantity="one">%1$d endarrerit</item>
         <item quantity="other">%1$d endarrerits</item>
-    </plurals>
-    <plurals name="home_objectives_summary_completed">
-        <item quantity="one">%1$d completat</item>
-        <item quantity="other">%1$d completats</item>
     </plurals>
     <plurals name="empty_filtered_body">
         <item quantity="one">Tens 1 element a %2$s, però no coincideix amb els filtres actuals.</item>
@@ -638,6 +628,10 @@
     <string name="sort_direction_descending">Descendent</string>
     <string name="sort_direction_asc">Asc</string>
     <string name="sort_direction_desc">Desc</string>
+    <string name="view_list">Vista de llista</string>
+    <string name="view_grid">Vista de graella</string>
+    <string name="status_list_count">%1$d elements de tots els tipus</string>
+    <string name="show_all">Mostra-ho tot</string>
     <string name="export_backup">Exporta còpia</string>
     <string name="import_backup">Importa còpia</string>
     <string name="import_mal_xml">Importa MyAnimeList XML</string>

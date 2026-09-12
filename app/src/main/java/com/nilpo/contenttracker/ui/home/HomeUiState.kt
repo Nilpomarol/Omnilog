@@ -14,6 +14,7 @@ data class HomeUiState(
     val searchQuery: String = "",
     val statusFilter: TrackingStatus? = null,
     val browseMode: HomeBrowseMode = HomeBrowseMode.Items,
+    val displayMode: HomeDisplayMode = HomeDisplayMode.List,
     val sortMode: HomeSortMode = HomeSortMode.Recent,
     val sortDirection: HomeSortDirection = HomeSortDirection.Descending,
     val advancedFilters: HomeAdvancedFilters = HomeAdvancedFilters(),
@@ -48,6 +49,11 @@ enum class HomeBrowseMode {
     Items,
     Collections,
     Authors,
+}
+
+enum class HomeDisplayMode {
+    List,
+    Grid,
 }
 
 internal enum class HomeGroupMode {

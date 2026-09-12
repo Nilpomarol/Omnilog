@@ -84,6 +84,7 @@ class HomeViewModel(
     private val searchQuery = MutableStateFlow("")
     private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
     private val browseMode = MutableStateFlow(HomeBrowseMode.Items)
+    private val displayMode = MutableStateFlow(HomeDisplayMode.List)
     private val sortMode = MutableStateFlow(HomeSortMode.Recent)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Descending)
     private val advancedFilters = MutableStateFlow(HomeAdvancedFilters())
@@ -172,6 +173,9 @@ class HomeViewModel(
         .combine(mediaRepository.observeObjectives()) { state, objectives -> state.copy(objectives = objectives) }
         .combine(browseMode) { state, selectedBrowseMode ->
             state.copy(browseMode = selectedBrowseMode)
+        }
+        .combine(displayMode) { state, selectedDisplayMode ->
+            state.copy(displayMode = selectedDisplayMode)
         }
         .stateIn(
             scope = viewModelScope,
@@ -555,6 +559,10 @@ class HomeViewModel(
 
     fun updateBrowseMode(mode: HomeBrowseMode) {
         browseMode.value = mode
+    }
+
+    fun updateDisplayMode(mode: HomeDisplayMode) {
+        displayMode.value = mode
     }
 
     fun updateSortMode(mode: HomeSortMode) {

@@ -1,5 +1,10 @@
 package com.nilpo.contenttracker.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +61,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
@@ -84,6 +92,7 @@ import com.nilpo.contenttracker.ui.common.writeHiddenActiveSections
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.timeline.TimelineRecentActivity
+import com.nilpo.contenttracker.ui.timeline.timelineCompactDate
 import java.time.LocalDate
 
 @Composable
@@ -95,10 +104,13 @@ fun HomeLandingScreen(
     onStatsClick: () -> Unit,
     onTimelineClick: () -> Unit,
     onObjectivesClick: () -> Unit,
+    onStatusClick: (TrackingStatus) -> Unit,
     onAddToSection: (MediaSection) -> Unit,
     onImportBackup: () -> Unit,
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
     onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit = { _, _ -> },
+    searchOpen: Boolean = false,
+    onSearchOpenChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
@@ -111,6 +123,20 @@ fun HomeLandingScreen(
     val dashboardListState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val normalizedSearchQuery = searchQuery.trim()
+    val searchFocusRequester = remember { FocusRequester() }
+    val closeSearch = {
+        searchQuery = ""
+        showSearchOverlay = false
+        focusManager.clearFocus()
+        onSearchOpenChange(false)
+    }
+    // The header's search icon slides the field in above the list, ready to type.
+    LaunchedEffect(searchOpen) {
+        if (searchOpen) {
+            searchFocusRequester.requestFocus()
+        }
+    }
+    BackHandler(enabled = searchOpen, onBack = closeSearch)
     val searchMatches = items
         .filter { it.matchesDashboardQuery(normalizedSearchQuery) }
         .sortedBy { displayMediaTitle(it.item.title).lowercase() }
@@ -144,128 +170,136 @@ fun HomeLandingScreen(
         modifier = modifier,
         color = OmnilogTheme.colors.appBackground,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = dashboardListState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 16.dp, end = 16.dp, top = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp),
-                contentPadding = PaddingValues(bottom = 24.dp),
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Search sits behind the header's icon, so Ara mateix leads Home. The field unrolls from
+            // under the header and pushes the list down, rather than appearing and jumping it.
+            // The padding is inside the animated content so it collapses along with the field.
+            AnimatedVisibility(
+                visible = searchOpen,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
             ) {
-                item {
+                Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp)) {
                     DashboardSearch(
                         query = searchQuery,
                         onQueryChange = {
                             searchQuery = it
                             showSearchOverlay = it.isNotBlank()
                         },
-                        onClear = {
-                            searchQuery = ""
-                            showSearchOverlay = false
-                        },
+                        onClose = closeSearch,
                         onClick = {
                             if (searchQuery.isNotBlank()) {
                                 showSearchOverlay = true
                             }
                         },
+                        focusRequester = searchFocusRequester,
                     )
                 }
-
-                if (items.isEmpty()) {
-                    item {
-                        EmptyHomeState(
-                            onAddToSection = onAddToSection,
-                            onImportBackup = onImportBackup,
-                        )
-                    }
-                } else {
-                    item {
-                        HomeActiveCarousel(
-                            title = stringResource(R.string.home_active_title),
-                            items = activeItemsVisible,
-                            hiddenSections = MediaSection.entries.filter { it in hiddenActiveSections },
-                            onShowAllSections = {
-                                activeFilterPreferences.writeHiddenActiveSections(emptySet())
-                            },
-                            onMediaClick = onMediaClick,
-                            onQuickCommitProgress = onQuickCommitProgress,
-                            onQuickComplete = onQuickComplete,
-                            isFiltered = hiddenActiveSections.isNotEmpty() && activeCandidates.isNotEmpty(),
-                        )
-                    }
-
-                    item {
-                        HomeCarousel(
-                            title = stringResource(R.string.home_planned_title),
-                            items = plannedItems,
-                            onMediaClick = onMediaClick,
-                            emptyText = stringResource(R.string.home_planned_empty),
-                            onQuickCommitProgress = onQuickCommitProgress,
-                            onQuickComplete = onQuickComplete,
-                        )
-                    }
-
-                    item {
-                        HomeRhythmCard(
-                            items = items,
-                            objectives = objectiveProgress,
-                            onStatsClick = onStatsClick,
-                            onObjectivesClick = onObjectivesClick,
-                        )
-                    }
-                    item {
-                        TimelineRecentActivity(
-                            entries = timelineEntries,
-                            onEntryClick = { onTimelineClick() },
-                            maxEntries = 1,
-                            onViewAll = onTimelineClick,
-                        )
-                    }
-
-                    if (pausedItems.isNotEmpty()) {
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    state = dashboardListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 16.dp, end = 16.dp, top = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                ) {
+                    if (items.isEmpty()) {
                         item {
-                            HomeCarousel(
-                                title = stringResource(R.string.home_paused_title),
-                                items = pausedItems,
+                            EmptyHomeState(
+                                onAddToSection = onAddToSection,
+                                onImportBackup = onImportBackup,
+                            )
+                        }
+                    } else {
+                        item {
+                            HomeActiveCarousel(
+                                title = stringResource(R.string.home_active_title),
+                                items = activeItemsVisible,
+                                hiddenSections = MediaSection.entries.filter { it in hiddenActiveSections },
+                                onShowAllSections = {
+                                    activeFilterPreferences.writeHiddenActiveSections(emptySet())
+                                },
                                 onMediaClick = onMediaClick,
                                 onQuickCommitProgress = onQuickCommitProgress,
                                 onQuickComplete = onQuickComplete,
+                                isFiltered = hiddenActiveSections.isNotEmpty() && activeCandidates.isNotEmpty(),
+                                onShowAll = { onStatusClick(TrackingStatus.InProgress) },
                             )
                         }
-                    }
 
+                        item {
+                            HomeCarousel(
+                                title = stringResource(R.string.home_planned_title),
+                                items = plannedItems,
+                                onMediaClick = onMediaClick,
+                                emptyText = stringResource(R.string.home_planned_empty),
+                                onQuickCommitProgress = onQuickCommitProgress,
+                                onQuickComplete = onQuickComplete,
+                                onShowAll = { onStatusClick(TrackingStatus.Planned) },
+                            )
+                        }
+
+                        item {
+                            HomeRhythmCard(
+                                items = items,
+                                objectives = objectiveProgress,
+                                onStatsClick = onStatsClick,
+                                onObjectivesClick = onObjectivesClick,
+                            )
+                        }
+                        item {
+                            TimelineRecentActivity(
+                                entries = timelineEntries,
+                                onViewAll = onTimelineClick,
+                            )
+                        }
+
+                        if (pausedItems.isNotEmpty()) {
+                            item {
+                                HomeCarousel(
+                                    title = stringResource(R.string.home_paused_title),
+                                    items = pausedItems,
+                                    onMediaClick = onMediaClick,
+                                    onQuickCommitProgress = onQuickCommitProgress,
+                                    onQuickComplete = onQuickComplete,
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-            if (normalizedSearchQuery.isNotEmpty() && showSearchOverlay) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(top = 76.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) {
-                            focusManager.clearFocus()
-                            showSearchOverlay = false
+                // This box starts just below the field, so the results sit a few dp under it.
+                if (normalizedSearchQuery.isNotEmpty() && showSearchOverlay) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(top = 6.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                focusManager.clearFocus()
+                                showSearchOverlay = false
+                            },
+                    )
+                    DashboardSearchOverlay(
+                        query = normalizedSearchQuery,
+                        matches = searchMatches,
+                        onMediaClick = {
+                            closeSearch()
+                            onMediaClick(it)
                         },
-                )
-                DashboardSearchOverlay(
-                    query = normalizedSearchQuery,
-                    matches = searchMatches,
-                    onMediaClick = {
-                        searchQuery = ""
-                        onMediaClick(it)
-                    },
-                    onSectionSearch = { section ->
-                        val query = normalizedSearchQuery
-                        searchQuery = ""
-                        onSectionSearch(section, query)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(start = 16.dp, top = 76.dp, end = 16.dp),
-                )
+                        onSectionSearch = { section ->
+                            val query = normalizedSearchQuery
+                            closeSearch()
+                            onSectionSearch(section, query)
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(start = 16.dp, top = 6.dp, end = 16.dp),
+                    )
+                }
             }
         }
     }
@@ -275,8 +309,9 @@ fun HomeLandingScreen(
 private fun DashboardSearch(
     query: String,
     onQueryChange: (String) -> Unit,
-    onClear: () -> Unit,
+    onClose: () -> Unit,
     onClick: () -> Unit,
+    focusRequester: FocusRequester,
 ) {
     Surface(
         modifier = Modifier
@@ -301,6 +336,7 @@ private fun DashboardSearch(
                 onValueChange = onQueryChange,
                 modifier = Modifier
                     .weight(1f)
+                    .focusRequester(focusRequester)
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused && query.isNotBlank()) {
                             onClick()
@@ -326,23 +362,22 @@ private fun DashboardSearch(
                     }
                 },
             )
-            if (query.isNotBlank()) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onClear,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.cancel),
-                        tint = OmnilogTheme.colors.appMuted,
-                    )
-                }
+            // Always shown: with the field opened from the header, this is how it goes away again.
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onClose,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.cancel),
+                    tint = OmnilogTheme.colors.appMuted,
+                )
             }
         }
     }
@@ -520,9 +555,10 @@ private fun HomeCarousel(
     emptyText: String? = null,
     onQuickCommitProgress: ((TrackedMedia, Int) -> Unit)? = null,
     onQuickComplete: ((TrackedMedia, QuickCompletion) -> Unit)? = null,
+    onShowAll: (() -> Unit)? = null,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DashboardSectionTitle(title = title)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DashboardSectionTitle(title = title, onClick = onShowAll)
         if (items.isEmpty()) {
             emptyText?.let { EmptyCarouselState(text = it) }
         } else {
@@ -555,9 +591,10 @@ private fun HomeActiveCarousel(
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit,
     onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit,
     isFiltered: Boolean,
+    onShowAll: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DashboardSectionTitle(title = title) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DashboardSectionTitle(title = title, onClick = onShowAll) {
             if (hiddenSections.isNotEmpty()) {
                 ActiveFilterIndicator(
                     hiddenSections = hiddenSections,
@@ -618,10 +655,13 @@ private fun EmptyCarouselState(text: String) {
 @Composable
 private fun DashboardSectionTitle(
     title: String,
+    onClick: (() -> Unit)? = null,
     trailingContent: @Composable (() -> Unit)? = null,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -633,6 +673,16 @@ private fun DashboardSectionTitle(
             color = OmnilogTheme.colors.appInk,
         )
         trailingContent?.invoke()
+        // The heading itself opens the full list, marked with the same arrow as Activitat recent
+        // rather than a pill button competing with the section's own controls.
+        if (onClick != null) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.show_all),
+                modifier = Modifier.size(18.dp),
+                tint = OmnilogTheme.accents.Dashboard,
+            )
+        }
     }
 }
 
@@ -650,9 +700,12 @@ private fun ActiveFilterIndicator(
     } else {
         stringResource(R.string.home_active_hidden_sections_indicator, hiddenSections.size)
     }
+    // A plain clickable rather than Surface(onClick): that one reserves a 48dp height, which pushed
+    // Ara mateix's cards down. Compose still extends the touch area to the 48dp minimum.
     Surface(
-        onClick = onShowAll,
-        modifier = modifier,
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onShowAll),
         shape = RoundedCornerShape(999.dp),
         color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.14f),
         border = BorderStroke(1.dp, OmnilogTheme.accents.Dashboard.copy(alpha = 0.38f)),
@@ -846,7 +899,10 @@ private fun HomeMediaTypeLabel(type: MediaType) {
     )
 }
 
-/** Equal geometry across the carousel, including titles with no known progress total. */
+/**
+ * Home's hero: the largest cards on the page, with equal geometry across the carousel, including
+ * titles with no known progress total.
+ */
 @Composable
 private fun HomeContinueCard(
     trackedMedia: TrackedMedia,
@@ -857,45 +913,64 @@ private fun HomeContinueCard(
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
     // Accessibility changes the whole carousel's height uniformly, never individual cards.
-    val cardHeight = 132.dp + 100.dp * (fontScale - 1f)
+    val cardHeight = 164.dp + 110.dp * (fontScale - 1f)
     val session = trackedMedia.currentSession
     val total = trackedMedia.item.progressTotal
         ?.takeIf { it > 0 && trackedMedia.item.type != MediaType.Game }
+    // When you last touched it, so the card reads as your own recent history, not just a title.
+    val lastActive = trackedMedia.latestActivityMillis().takeIf { it > 0 }?.let {
+        java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().timelineCompactDate()
+    }
 
+    // Wide enough to lead the page, narrow enough that the next card still peeks in.
     Surface(
-        modifier = Modifier.width(minOf(300.dp, (screenWidth - 32.dp) * 0.86f)).height(cardHeight),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.width(minOf(340.dp, (screenWidth - 32.dp) * 0.86f)).height(cardHeight),
+        shape = RoundedCornerShape(14.dp),
         color = OmnilogTheme.colors.appPanel,
     ) {
         Row(modifier = Modifier.fillMaxSize().clickable(onClick = onClick)) {
             MetadataCoverImage(
                 coverUrl = trackedMedia.item.coverUrl,
-                modifier = Modifier.width(96.dp).fillMaxHeight(),
+                modifier = Modifier.width(110.dp).fillMaxHeight(),
                 shape = RoundedCornerShape(0.dp),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             )
             Column(
                 modifier = Modifier.weight(1f).fillMaxHeight()
-                    .padding(start = 10.dp, end = 6.dp, top = 10.dp, bottom = 6.dp),
+                    .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
             ) {
                 Text(
                     text = displayMediaTitle(trackedMedia.item.title),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                     color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                HomeMediaTypeLabel(trackedMedia.item.type)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    HomeMediaTypeLabel(trackedMedia.item.type)
+                    lastActive?.let {
+                        Text(
+                            text = " · $it",
+                            modifier = Modifier.padding(top = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
                         Text(
                             text = session.progressLabel(total, trackedMedia.item.type),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogTheme.colors.appMuted,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogTheme.colors.appInk,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -904,18 +979,18 @@ private fun HomeContinueCard(
                         }
                     }
                     onProgressClick?.let { onProgress ->
-                        // Small visual control with a full 48dp touch target.
+                        // Visible enough to be the card's one action, still inside a 48dp target.
                         IconButton(onClick = onProgress, modifier = Modifier.size(48.dp)) {
                             Box(
-                                modifier = Modifier.size(28.dp)
-                                    .background(accent.copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
+                                modifier = Modifier.size(36.dp)
+                                    .background(accent.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Add,
                                     contentDescription = stringResource(R.string.quick_progress_open),
                                     tint = accent,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(22.dp),
                                 )
                             }
                         }

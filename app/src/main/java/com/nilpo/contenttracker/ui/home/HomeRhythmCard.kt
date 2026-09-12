@@ -1,6 +1,8 @@
 package com.nilpo.contenttracker.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,14 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
@@ -32,6 +35,8 @@ import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.core.stats.StatsSnapshot
 import com.nilpo.contenttracker.ui.common.ObjectiveMediaIcon
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
 import com.nilpo.contenttracker.ui.common.objectiveAccent
 import com.nilpo.contenttracker.ui.common.paceStatus
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,7 +50,10 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 
-/** A calendar-year overview, with independent destinations for activity and goals. */
+/**
+ * A calendar-year overview in one full-width card: activity on top, goals as a row along the
+ * bottom. Each part keeps its own destination.
+ */
 @Composable
 internal fun HomeRhythmCard(
     items: List<TrackedMedia>,
@@ -65,9 +73,8 @@ internal fun HomeRhythmCard(
         StatsCalculator(today = today).calculate(items, StatsFilters(period = StatsPeriod.Year(year)))
     }
     val yearGoals = objectives.filter { it.objective.endDate.year == year }
-    val fontScale = LocalDensity.current.fontScale
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.home_rhythm_title),
@@ -77,57 +84,51 @@ internal fun HomeRhythmCard(
                 color = OmnilogTheme.colors.appInk,
             )
             Box {
-                TextButton(onClick = { menuOpen = true }, contentPadding = PaddingValues(start = 8.dp)) {
+                // Not a TextButton: its 48dp minimum height pushed the card away from this header.
+                // Compose still extends a small clickable's touch area to the 48dp minimum.
+                Row(
+                    Modifier.clip(RoundedCornerShape(8.dp))
+                        .clickable(role = Role.Button) { menuOpen = true }
+                        .padding(start = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         if (year == today.year) stringResource(R.string.stats_period_this_year) else year.toString(),
+                        style = MaterialTheme.typography.labelLarge,
                         color = OmnilogTheme.colors.appInk,
                     )
                     Icon(Icons.Default.KeyboardArrowDown, null, tint = OmnilogTheme.colors.appInk)
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                OmnilogDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     years.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(if (option == today.year) stringResource(R.string.stats_period_this_year) else option.toString()) },
+                        OmnilogDropdownItem(
+                            text = if (option == today.year) stringResource(R.string.stats_period_this_year) else option.toString(),
+                            selected = option == year,
+                            accent = OmnilogTheme.accents.Dashboard,
                             onClick = { year = option; menuOpen = false },
                         )
                     }
                 }
             }
         }
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            // Keep the goals beside the chart; reserve stacking for enlarged text.
-            val wide = maxWidth >= 560.dp && fontScale <= 1.3f
-            val stacked = maxWidth < 300.dp || fontScale > 1.3f
-            val activity: @Composable (Modifier) -> Unit = { modifier ->
-                Surface(
-                    onClick = onStatsClick,
-                    modifier = modifier,
-                    shape = RoundedCornerShape(16.dp),
-                    color = OmnilogTheme.colors.appPanel,
+        // One container rather than two tiles, so the module reads as a whole and the goals no longer
+        // stretch to the chart's height. The Surface clips each part's ripple to the card's corners.
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = OmnilogTheme.colors.appPanel,
+        ) {
+            Column {
+                Column(
+                    Modifier.fillMaxWidth().clickable(onClick = onStatsClick).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Column(
-                        Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        RhythmLead(snapshot)
-                        RhythmChart(snapshot, year, today, compact = fontScale > 1.3f)
-                        RhythmTotals(snapshot)
-                    }
+                    RhythmLead(snapshot)
+                    RhythmChart(snapshot, year, today)
+                    RhythmTotals(snapshot)
                 }
-            }
-            val goals: @Composable (Modifier) -> Unit = { modifier ->
-                RhythmGoals(yearGoals, today, onObjectivesClick, modifier)
-            }
-            if (stacked) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    activity(Modifier.fillMaxWidth())
-                    goals(Modifier.fillMaxWidth())
-                }
-            } else {
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    activity(Modifier.weight(1f).fillMaxHeight())
-                    goals(Modifier.width(if (wide) 164.dp else 124.dp).fillMaxHeight())
-                }
+                HorizontalDivider(Modifier.padding(horizontal = 12.dp), color = OmnilogTheme.colors.appLine)
+                RhythmGoals(yearGoals, today, onObjectivesClick)
             }
         }
     }
@@ -141,7 +142,7 @@ private fun RhythmLead(snapshot: StatsSnapshot) {
     val delta = intMetricDelta(snapshot.deltas.completionSessions)
     val basis = snapshot.deltas.basis?.takeIf { delta != null }?.let { comparisonBasisLabelShort(it) }
     val description = metricDescription(label, value, delta, basis)
-    // Figure, change, and label side by side: stacking them stretched the goals tile beside it.
+    // Figure, change, and label side by side, to keep the card short.
     Row(
         Modifier.clearAndSetSemantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
@@ -159,39 +160,58 @@ private fun RhythmLead(snapshot: StatsSnapshot) {
 }
 
 @Composable
-private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate, compact: Boolean) {
+private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate) {
     val locale = LocalConfiguration.current.locales[0]
     val buckets = (1..12).map { month ->
         snapshot.completionSessionsByMonth.firstOrNull { it.key == YearMonth.of(year, month).toString() }
     }
-    val maximum = buckets.maxOf { it?.value ?: 0 }.coerceAtLeast(1)
+    val values = buckets.map { it?.value ?: 0 }
+    val highest = values.maxOrNull() ?: 0
+    val maximum = highest.coerceAtLeast(1)
+    // Only the busiest month carries its number; the rest read against it.
+    val peak = values.indexOf(highest).takeIf { highest > 0 }
     // Months still to come stay blank, so they don't read as months where nothing was finished.
     val lastMonth = if (year == today.year) today.monthValue else 12
     val colors = MediaType.entries.associateWith { it.objectiveAccent() }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column {
+        // Columns stand on a shared baseline, wide enough at full card width to read as a chart
+        // rather than a row of dots. A month with nothing finished is simply the bare baseline.
+        // The minimum height keeps the card steady between years; large text may still grow it.
         Row(
-            Modifier.fillMaxWidth().height(40.dp),
+            Modifier.fillMaxWidth().heightIn(min = 64.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            buckets.forEachIndexed { index, bucket ->
-                val value = bucket?.value ?: 0
+            values.forEachIndexed { index, value ->
                 val past = index < lastMonth
                 val description = stringResource(
                     R.string.home_month_activity,
                     YearMonth.of(year, index + 1).month.getDisplayName(TextStyle.FULL, locale),
                     value,
                 )
-                Box(
-                    Modifier.weight(1f).fillMaxHeight().clearAndSetSemantics { if (past) contentDescription = description },
-                    contentAlignment = Alignment.BottomCenter,
+                Column(
+                    Modifier.weight(1f).clearAndSetSemantics { if (past) contentDescription = description },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    if (past) {
+                    if (index == peak) {
+                        Text(
+                            value.toString(),
+                            modifier = Modifier.wrapContentWidth(unbounded = true),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                    if (past && value > 0) {
                         Column(
-                            Modifier.width(8.dp).height(if (value == 0) 2.dp else (40f * value / maximum).coerceAtLeast(5f).dp)
-                                .clip(RoundedCornerShape(4.dp)).background(OmnilogTheme.colors.appLine),
+                            Modifier.width(14.dp).height((48f * value / maximum).coerceAtLeast(4f).dp)
+                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                .background(OmnilogTheme.colors.appLine),
                         ) {
-                            bucket?.segments?.filter { it.value > 0 }?.forEach { segment ->
+                            buckets[index]?.segments?.filter { it.value > 0 }?.forEach { segment ->
                                 Box(Modifier.fillMaxWidth().weight(segment.value.toFloat()).background(colors.getValue(segment.mediaType)))
                             }
                         }
@@ -199,22 +219,24 @@ private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate, co
                 }
             }
         }
-        // On compact cards each label spans two bars, leaving all twelve bars visible.
-        Row(Modifier.fillMaxWidth()) {
-            (1..12 step if (compact) 2 else 1).forEach { month ->
-                val current = year == today.year && month == today.monthValue
-                Text(
-                    YearMonth.of(year, month).month.getDisplayName(TextStyle.NARROW, locale).uppercase(locale),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (current) FontWeight.Bold else null,
-                    color = when {
-                        current -> OmnilogTheme.colors.appInk
-                        month > lastMonth -> OmnilogTheme.colors.appMuted.copy(alpha = 0.45f)
-                        else -> OmnilogTheme.colors.appMuted
-                    },
-                    textAlign = if (compact) TextAlign.Start else TextAlign.Center,
-                )
+        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+        Spacer(Modifier.height(6.dp))
+        // Quarter marks only — a letter under every bar was cramped. Each is centred on its bar and may
+        // overhang the empty neighbouring cells, so large text needs no separate layout.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            (1..12).forEach { month ->
+                if (month % 3 != 1) {
+                    Spacer(Modifier.weight(1f))
+                } else {
+                    Text(
+                        YearMonth.of(year, month).month.getDisplayName(TextStyle.NARROW, locale).uppercase(locale),
+                        modifier = Modifier.weight(1f).wrapContentWidth(unbounded = true),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (month > lastMonth) OmnilogTheme.colors.appMuted.copy(alpha = 0.45f) else OmnilogTheme.colors.appMuted,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
             }
         }
     }
@@ -256,58 +278,53 @@ private fun RhythmTotals(snapshot: StatsSnapshot) {
     }
 }
 
+/** The goals as one line along the card's foot: `2 / 5 objectius · 1 endarrerit`. */
 @Composable
-private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClick: () -> Unit, modifier: Modifier) {
+private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClick: () -> Unit) {
     val accent = OmnilogTheme.accents.Completed
     val completed = goals.count { it.isComplete }
     val behind = goals.count { it.paceStatus(today) == ObjectiveStatus.Behind }
     val behindLabel = if (behind > 0) pluralStringResource(R.plurals.home_objectives_summary_behind, behind, behind) else null
+    val emptyLabel = stringResource(R.string.home_rhythm_goals_empty)
+    val goalsLabel = stringResource(R.string.home_rhythm_goals)
     val description = if (goals.isEmpty()) {
-        stringResource(R.string.home_rhythm_goals_empty)
+        emptyLabel
     } else {
         listOfNotNull(stringResource(R.string.home_rhythm_goals_description, completed, goals.size), behindLabel).joinToString(". ")
     }
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = androidx.compose.ui.graphics.lerp(OmnilogTheme.colors.appPanel, accent, 0.18f),
-    ) {
-        Column(
-            Modifier.padding(horizontal = 6.dp, vertical = 12.dp).clearAndSetSemantics { contentDescription = description },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_rhythm_goals),
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint = accent,
-            )
-            if (goals.isEmpty()) {
-                // A bare "0 / 0" reads as a failure; invite a first goal instead.
-                Text(
-                    stringResource(R.string.home_rhythm_goals_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                    textAlign = TextAlign.Center,
-                )
-            } else {
-                Text("$completed / ${goals.size}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, color = OmnilogTheme.colors.appInk)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.home_rhythm_goals), style = MaterialTheme.typography.bodySmall, color = OmnilogTheme.colors.appMuted)
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(16.dp), tint = accent)
-                }
-                behindLabel?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = OmnilogTheme.accents.Dashboard,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+    val ink = OmnilogTheme.colors.appInk
+    val muted = OmnilogTheme.colors.appMuted
+    // Ochre, not the olive the card already uses, so it reads as a warning.
+    val warning = OmnilogTheme.accents.Paused
+    // One Text so the line wraps as a sentence at large font scales instead of overflowing.
+    val line = buildAnnotatedString {
+        if (goals.isEmpty()) {
+            withStyle(SpanStyle(color = muted)) { append(emptyLabel) }
+        } else {
+            withStyle(SpanStyle(color = ink, fontWeight = FontWeight.SemiBold)) { append("$completed / ${goals.size}") }
+            withStyle(SpanStyle(color = muted)) { append(" $goalsLabel") }
+            behindLabel?.let {
+                withStyle(SpanStyle(color = muted)) { append("  ·  ") }
+                withStyle(SpanStyle(color = warning, fontWeight = FontWeight.SemiBold)) { append(it) }
             }
         }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .clearAndSetSemantics { contentDescription = description }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_rhythm_goals),
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = accent,
+        )
+        Text(line, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(20.dp), tint = muted)
     }
 }

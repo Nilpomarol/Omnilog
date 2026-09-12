@@ -11,6 +11,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,15 +28,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -110,9 +114,11 @@ fun HomeScreen(
     duplicateStateForSuggestion: (MetadataSuggestion) -> MetadataDuplicateState,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onBrowseModeChange: (HomeBrowseMode) -> Unit,
+    onDisplayModeChange: (HomeDisplayMode) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
     onAdvancedFiltersChange: (HomeAdvancedFilters) -> Unit,
+    searchExpanded: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
@@ -152,45 +158,64 @@ fun HomeScreen(
         modifier = modifier,
         color = OmnilogTheme.colors.appBackground,
     ) {
-        LazyColumn(
+        LazyVerticalGrid(
+            columns = if (
+                uiState.displayMode == HomeDisplayMode.Grid &&
+                uiState.browseMode == HomeBrowseMode.Items
+            ) {
+                GridCells.Fixed(2)
+            } else {
+                GridCells.Fixed(1)
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DashboardStyleSearchBar(
-                        query = uiState.searchQuery,
-                        onQueryChange = { query ->
-                            onSearchQueryChange(query)
-                            onMetadataQueryChange(query)
-                        },
-                        onSearchSubmitted = onMetadataSearchSubmitted,
-                        isLoading = metadataUiState.isLoading,
-                        accent = section.themedAccent(),
-                    ) {
-                        IconButton(
-                            onClick = onManualAddClick,
-                            modifier = Modifier.size(40.dp),
+                    AnimatedVisibility(visible = searchExpanded || uiState.searchQuery.isNotBlank()) {
+                        DashboardStyleSearchBar(
+                            query = uiState.searchQuery,
+                            onQueryChange = { query ->
+                                onSearchQueryChange(query)
+                                onMetadataQueryChange(query)
+                            },
+                            onSearchSubmitted = onMetadataSearchSubmitted,
+                            isLoading = metadataUiState.isLoading,
+                            accent = section.themedAccent(),
+                            leadingIcon = Icons.Filled.Search,
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = stringResource(R.string.add_item),
-                                tint = section.themedAccent(),
-                            )
+                            if (uiState.searchQuery.isNotBlank()) {
+                                IconButton(
+                                    onClick = {
+                                        onSearchQueryChange("")
+                                        onMetadataQueryChange("")
+                                    },
+                                    modifier = Modifier.size(40.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = stringResource(R.string.clear_search),
+                                        tint = OmnilogTheme.colors.appMuted,
+                                    )
+                                }
+                            }
                         }
                     }
                     BrowseControls(
                         section = section,
                         statusFilter = uiState.statusFilter,
                         browseMode = uiState.browseMode,
+                        displayMode = uiState.displayMode,
                         sortMode = uiState.sortMode,
                         sortDirection = uiState.sortDirection,
                         advancedFilters = uiState.advancedFilters,
                         accent = section.themedAccent(),
                         onStatusFilterChange = onStatusFilterChange,
                         onBrowseModeChange = onBrowseModeChange,
+                        onDisplayModeChange = onDisplayModeChange,
                         onSortModeChange = onSortModeChange,
                         onSortDirectionChange = onSortDirectionChange,
                         onAdvancedFiltersClick = { filtersExpanded = true },
@@ -216,7 +241,7 @@ fun HomeScreen(
             }
 
             if (uiState.trackedItems.isEmpty() && uiState.searchQuery.isBlank()) {
-                item {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     if (sectionItemCount == 0) {
                         OmnilogEmptyState(
                             title = stringResource(section.emptyTitleResId),
@@ -267,7 +292,7 @@ fun HomeScreen(
                     } else {
                         group.items
                     }
-                    item(key = group.key) {
+                    item(key = group.key, span = { GridItemSpan(maxLineSpan) }) {
                         Column {
                             HomeGroupHeader(
                                 group = group,
@@ -308,17 +333,24 @@ fun HomeScreen(
                     }
                 }
             } else {
-                items(uiState.trackedItems) { trackedMedia ->
-                    MediaCard(
-                        trackedMedia = trackedMedia,
-                        accent = section.themedAccent(),
-                        onClick = { onMediaClick(trackedMedia) },
-                    )
+                items(uiState.trackedItems, key = { it.item.id }) { trackedMedia ->
+                    if (uiState.displayMode == HomeDisplayMode.Grid) {
+                        MediaGridCard(
+                            trackedMedia = trackedMedia,
+                            onClick = { onMediaClick(trackedMedia) },
+                        )
+                    } else {
+                        MediaCard(
+                            trackedMedia = trackedMedia,
+                            accent = section.themedAccent(),
+                            onClick = { onMediaClick(trackedMedia) },
+                        )
+                    }
                 }
             }
 
             if (showApiSection) {
-                item(key = "external_section_header") {
+                item(key = "external_section_header", span = { GridItemSpan(maxLineSpan) }) {
                     SearchSectionHeader(
                         title = stringResource(R.string.search_section_external),
                         count = if (metadataUiState.isLoading) null else apiResults.size,
@@ -328,13 +360,13 @@ fun HomeScreen(
 
                 when {
                     // The section search bar already spins while a query runs.
-                    metadataUiState.isLoading -> item {
+                    metadataUiState.isLoading -> item(span = { GridItemSpan(maxLineSpan) }) {
                         OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_search_loading),
                             accent = section.themedAccent(),
                         )
                     }
-                    metadataUiState.hasError -> item {
+                    metadataUiState.hasError -> item(span = { GridItemSpan(maxLineSpan) }) {
                         OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_search_error),
                             accent = section.themedAccent(),
@@ -345,13 +377,13 @@ fun HomeScreen(
                             ),
                         )
                     }
-                    metadataUiState.hasSearched && apiResults.isEmpty() -> item {
+                    metadataUiState.hasSearched && apiResults.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
                         OmnilogStatusPanel(
                             text = stringResource(R.string.metadata_search_empty),
                             accent = section.themedAccent(),
                         )
                     }
-                    else -> items(apiResults) { suggestion ->
+                    else -> items(apiResults, span = { GridItemSpan(maxLineSpan) }) { suggestion ->
                         val suggestionAccent = suggestion.mediaType.sectionAccent()
                         MetadataSuggestionRow(
                             suggestion = suggestion,
@@ -364,7 +396,7 @@ fun HomeScreen(
                 }
 
                 if (metadataUiState.hasPartialError) {
-                    item {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         OmnilogStatusPanel(
                             text = partialSearchFailureMessage(metadataUiState.failedSources.toList()),
                             accent = section.themedAccent(),
@@ -447,27 +479,26 @@ private fun BrowseControls(
     section: MediaSection,
     statusFilter: TrackingStatus?,
     browseMode: HomeBrowseMode,
+    displayMode: HomeDisplayMode,
     sortMode: HomeSortMode,
     sortDirection: HomeSortDirection,
     advancedFilters: HomeAdvancedFilters,
     accent: Color,
     onStatusFilterChange: (TrackingStatus?) -> Unit,
     onBrowseModeChange: (HomeBrowseMode) -> Unit,
+    onDisplayModeChange: (HomeDisplayMode) -> Unit,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
     onAdvancedFiltersClick: () -> Unit,
 ) {
-    val statusOptions: List<TrackingStatus?> = listOf(null) + TrackingStatus.entries
-
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        GroupModeSegmented(
-            section = section,
-            selectedMode = browseMode,
+        StatusFilterRow(
+            selectedStatus = statusFilter,
             accent = accent,
-            onModeSelected = onBrowseModeChange,
+            onStatusSelected = onStatusFilterChange,
         )
 
         Row(
@@ -476,16 +507,16 @@ private fun BrowseControls(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OmnilogDropdownChip(
-                selectedOption = statusFilter,
-                options = statusOptions,
-                optionLabel = { it?.label() ?: stringResource(R.string.filter_all_statuses) },
-                onOptionSelected = onStatusFilterChange,
+                selectedOption = browseMode,
+                options = HomeBrowseMode.entries,
+                optionLabel = { it.label(section) },
+                onOptionSelected = onBrowseModeChange,
                 modifier = Modifier.weight(1f),
-                isActive = { it != null },
-                optionColor = { it?.stateColor ?: accent },
-                optionIcon = { status, tint ->
+                isActive = { it != HomeBrowseMode.Items },
+                optionColor = { accent },
+                optionIcon = { mode, tint ->
                     Icon(
-                        painter = painterResource(status?.dropdownIconResId ?: R.drawable.ic_filter),
+                        painter = painterResource(mode.iconRes()),
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = tint,
@@ -522,6 +553,107 @@ private fun BrowseControls(
                 color = accent,
                 onClick = onAdvancedFiltersClick,
             )
+
+            DisplayModeToggle(
+                selectedMode = displayMode,
+                accent = accent,
+                enabled = browseMode == HomeBrowseMode.Items,
+                onModeSelected = onDisplayModeChange,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusFilterRow(
+    selectedStatus: TrackingStatus?,
+    accent: Color,
+    onStatusSelected: (TrackingStatus?) -> Unit,
+) {
+    val options: List<TrackingStatus?> = listOf(
+        null,
+        TrackingStatus.InProgress,
+        TrackingStatus.Planned,
+        TrackingStatus.Completed,
+        TrackingStatus.Paused,
+        TrackingStatus.Dropped,
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { status ->
+            val selected = status == selectedStatus
+            val color = status?.stateColor ?: accent
+            FilterChip(
+                selected = selected,
+                onClick = { onStatusSelected(status) },
+                label = {
+                    Text(status?.label() ?: stringResource(R.string.filter_all_statuses))
+                },
+                leadingIcon = status?.let {
+                    {
+                        Icon(
+                            painter = painterResource(it.dropdownIconResId),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = color.copy(alpha = 0.18f),
+                    selectedLabelColor = OmnilogTheme.colors.appInk,
+                    selectedLeadingIconColor = color,
+                ),
+                border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selected,
+                    borderColor = OmnilogTheme.colors.appLine,
+                    selectedBorderColor = color.copy(alpha = 0.55f),
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DisplayModeToggle(
+    selectedMode: HomeDisplayMode,
+    accent: Color,
+    enabled: Boolean,
+    onModeSelected: (HomeDisplayMode) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = OmnilogTheme.colors.appPanel,
+        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+    ) {
+        Row {
+            HomeDisplayMode.entries.forEach { mode ->
+                val selected = mode == selectedMode
+                IconButton(
+                    onClick = { onModeSelected(mode) },
+                    enabled = enabled,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .background(if (selected) accent.copy(alpha = 0.18f) else Color.Transparent),
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (mode == HomeDisplayMode.List) R.drawable.ic_view_list
+                            else R.drawable.ic_view_grid,
+                        ),
+                        contentDescription = stringResource(
+                            if (mode == HomeDisplayMode.List) R.string.view_list
+                            else R.string.view_grid,
+                        ),
+                        modifier = Modifier.size(17.dp),
+                        tint = if (selected) accent else OmnilogTheme.colors.appMuted,
+                    )
+                }
+            }
         }
     }
 }

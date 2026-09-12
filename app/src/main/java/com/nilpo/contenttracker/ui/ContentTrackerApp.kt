@@ -31,9 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -59,6 +61,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -134,6 +137,7 @@ import com.nilpo.contenttracker.ui.home.HomeLandingScreen
 import com.nilpo.contenttracker.ui.home.HomeUiEvent
 import com.nilpo.contenttracker.ui.home.HomeViewModel
 import com.nilpo.contenttracker.ui.home.MediaSection
+import com.nilpo.contenttracker.ui.home.StatusListScreen
 import com.nilpo.contenttracker.ui.home.creatorImageIsLogo
 import com.nilpo.contenttracker.ui.home.creatorDetailLabelResId
 import com.nilpo.contenttracker.ui.home.navIconResId
@@ -239,6 +243,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val backupActions = remember { BackupHeaderActions() }
     val profileHeaderActions = remember { ProfileHeaderActions() }
     val timelineHeaderActions = remember { TimelineHeaderActions() }
+    // Opened from the header's search icon; Home closes it when the search is dismissed or used.
+    var homeSearchOpen by rememberSaveable { mutableStateOf(false) }
+    var sectionSearchOpen by rememberSaveable { mutableStateOf(false) }
     val selectedMedia = (currentRoute as? AppRoute.MediaDetail)?.let { route ->
         uiState.allTrackedItems.firstOrNull { it.item.id == route.mediaItemId }
     }
@@ -862,6 +869,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         AppRoute.Timeline,
                         AppRoute.Profile,
                         AppRoute.Settings,
+                        is AppRoute.StatusList,
                             -> OmnilogTheme.accents.Dashboard
 
                         else -> currentSection.themedAccent()
@@ -871,6 +879,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         AppRoute.Timeline -> stringResource(R.string.timeline_title)
                         AppRoute.Profile -> "Perfil"
                         AppRoute.Settings -> "Configuració"
+                        is AppRoute.Section -> stringResource(route.section.titleResId)
+                        is AppRoute.StatusList -> stringResource(
+                            when (route.status) {
+                                TrackingStatus.Planned -> R.string.status_planned
+                                TrackingStatus.InProgress -> R.string.status_in_progress
+                                TrackingStatus.Completed -> R.string.status_completed
+                                TrackingStatus.Paused -> R.string.status_paused
+                                TrackingStatus.Dropped -> R.string.status_dropped
+                            },
+                        )
                         is AppRoute.AuthorDetail -> route.author
                         // The collection title belongs to its cover ribbon, just as an item's
                         // title belongs to the Detail hero. Keeping this bar empty avoids saying
@@ -885,11 +903,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute == AppRoute.Profile ||
                             currentRoute == AppRoute.Settings ||
                             currentRoute is AppRoute.AuthorDetail ||
-                            currentRoute is AppRoute.CollectionDetail,
+                            currentRoute is AppRoute.CollectionDetail ||
+                            currentRoute is AppRoute.StatusList,
                     showDetailActions = currentRoute is AppRoute.MediaDetail &&
                             !detailActions.isManagingExternalRatings,
                     showProfileAction = currentRoute !is AppRoute.MediaDetail &&
                             currentRoute !is AppRoute.AddMedia &&
+                            currentRoute !is AppRoute.Section &&
+                            currentRoute !is AppRoute.StatusList &&
                             currentRoute != AppRoute.Stats &&
                             currentRoute != AppRoute.Timeline &&
                             currentRoute != AppRoute.Profile &&
@@ -899,10 +920,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     // where neither belongs, and each hides on its own screen.
                     showHomeSettingsAction = currentRoute !is AppRoute.MediaDetail &&
                             currentRoute !is AppRoute.AddMedia &&
+                            currentRoute !is AppRoute.Section &&
+                            currentRoute !is AppRoute.StatusList &&
                             currentRoute != AppRoute.Stats &&
                             currentRoute != AppRoute.Timeline &&
                             currentRoute != AppRoute.Settings &&
                             currentRoute !is AppRoute.CollectionDetail,
+                    showHomeSearchAction = currentRoute == AppRoute.Home,
+                    showSectionActions = currentRoute is AppRoute.Section,
                     showTimelineSettingsAction = currentRoute == AppRoute.Timeline,
                     profileImagePath = profileImagePath,
                     // Only the detail page draws artwork under the bar, and only while it is
@@ -917,6 +942,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     onProfileEditCancelled = { profileHeaderActions.onCancelRequested() },
                     onProfileEditSaved = { profileHeaderActions.onSaveRequested() },
                     onSettingsRequested = openSettings,
+                    onHomeSearchRequested = { homeSearchOpen = true },
+                    onSectionSearchRequested = { sectionSearchOpen = !sectionSearchOpen },
+                    onSectionAddRequested = {
+                        (currentRoute as? AppRoute.Section)?.let { route ->
+                            viewModel.clearMetadataSearch()
+                            backStack.push(AppRoute.AddMedia(route.section))
+                        }
+                    },
                     onTimelineSettingsRequested = {
                         timelineHeaderActions.onSettingsRequested()
                     },
@@ -1043,6 +1076,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onStatsClick = { backStack.push(AppRoute.Stats) },
                                 onTimelineClick = { backStack.push(AppRoute.Timeline) },
                                 onObjectivesClick = openProfile,
+                                onStatusClick = { status -> backStack.push(AppRoute.StatusList(status)) },
                                 onAddToSection = { section ->
                                     viewModel.selectSection(section)
                                     viewModel.clearMetadataSearch()
@@ -1051,6 +1085,18 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onImportBackup = { backupActions.onImportBackupRequested() },
                                 onQuickCommitProgress = viewModel::quickCommitProgress,
                                 onQuickComplete = viewModel::quickComplete,
+                                searchOpen = homeSearchOpen,
+                                onSearchOpenChange = { homeSearchOpen = it },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route is AppRoute.StatusList) {
+                            StatusListScreen(
+                                items = uiState.allTrackedItems
+                                    .filter { it.currentSession?.status == route.status }
+                                    .sortedByDescending { it.currentSession?.updatedAtEpochMillis ?: 0L },
+                                onMediaClick = openTrackedMedia,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),
@@ -1345,9 +1391,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 },
                                 onStatusFilterChange = viewModel::updateStatusFilter,
                                 onBrowseModeChange = viewModel::updateBrowseMode,
+                                onDisplayModeChange = viewModel::updateDisplayMode,
                                 onSortModeChange = viewModel::updateSortMode,
                                 onSortDirectionChange = viewModel::updateSortDirection,
                                 onAdvancedFiltersChange = viewModel::updateAdvancedFilters,
+                                searchExpanded = sectionSearchOpen,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),
@@ -2749,6 +2797,8 @@ private fun OmnilogTopBar(
     showProfileAction: Boolean,
     showProfileControls: Boolean,
     showHomeSettingsAction: Boolean,
+    showHomeSearchAction: Boolean,
+    showSectionActions: Boolean,
     showTimelineSettingsAction: Boolean,
     profileImagePath: String?,
     overCover: Boolean,
@@ -2759,6 +2809,9 @@ private fun OmnilogTopBar(
     onProfileEditCancelled: () -> Unit,
     onProfileEditSaved: () -> Unit,
     onSettingsRequested: () -> Unit,
+    onHomeSearchRequested: () -> Unit,
+    onSectionSearchRequested: () -> Unit,
+    onSectionAddRequested: () -> Unit,
     onTimelineSettingsRequested: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -2944,6 +2997,31 @@ private fun OmnilogTopBar(
                     }
                 }
             } else {
+                if (showSectionActions) {
+                    IconButton(onClick = onSectionSearchRequested) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.search_label),
+                            tint = OmnilogTheme.colors.appMuted,
+                        )
+                    }
+                    IconButton(onClick = onSectionAddRequested) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.add_item),
+                            tint = accent,
+                        )
+                    }
+                }
+                if (showHomeSearchAction) {
+                    IconButton(onClick = onHomeSearchRequested) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.search_label),
+                            tint = OmnilogTheme.colors.appMuted,
+                        )
+                    }
+                }
                 if (showHomeSettingsAction) {
                     IconButton(onClick = onSettingsRequested) {
                         Icon(

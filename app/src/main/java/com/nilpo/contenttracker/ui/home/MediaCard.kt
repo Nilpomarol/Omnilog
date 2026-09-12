@@ -184,6 +184,79 @@ fun MediaCard(
     }
 }
 
+/** Cover-first presentation for visually scanning a large library. */
+@Composable
+fun MediaGridCard(
+    trackedMedia: TrackedMedia,
+    onClick: () -> Unit,
+) {
+    val item = trackedMedia.item
+    val session = trackedMedia.currentSession
+    val creator = trackedMedia.creatorNames().firstOrNull()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box {
+            MetadataCoverImage(
+                coverUrl = item.coverUrl,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(CoverAspectRatio),
+                shape = RoundedCornerShape(8.dp),
+            )
+            if (session != null) {
+                CardStateIconBadge(
+                    status = session.status,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp),
+                )
+            }
+        }
+        Text(
+            text = displayMediaTitle(item.title),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = OmnilogTheme.colors.appInk,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (creator != null) {
+            Text(
+                text = creator,
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (session != null) {
+            Text(
+                text = session.progressLabel(
+                    item.progressTotal.takeUnless { item.type == MediaType.Game },
+                    item.type,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = session.status.stateColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (item.progressTotal != null && item.type != MediaType.Game) {
+                CardProgressBar(
+                    fraction = session.progressFraction(item.progressTotal),
+                    color = session.status.stateColor,
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GenreChips(

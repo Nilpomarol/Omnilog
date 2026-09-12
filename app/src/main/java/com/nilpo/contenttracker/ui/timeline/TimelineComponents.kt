@@ -853,137 +853,139 @@ private fun TimelineEntry.rowDescription(): String = stringResource(
 @Composable
 fun TimelineRecentActivity(
     entries: List<TimelineEntry>,
-    onEntryClick: (Long) -> Unit,
     onViewAll: () -> Unit,
     modifier: Modifier = Modifier,
     excludedMediaTypes: Set<MediaType> = emptySet(),
-    maxEntries: Int = 1,
 ) {
     val preferences = rememberTimelinePreferences()
     val visibility by rememberTimelineVisibility(preferences)
-    // Already sorted newest-first upstream, so this stops at the first few rather than filtering
+    // Already sorted newest-first upstream, so this stops at the first match rather than filtering
     // and grouping the whole library.
-    val recentEntries = remember(entries, visibility, excludedMediaTypes, maxEntries) {
-        entries.asSequence()
-            .filter { entry ->
-                entry.date != null &&
-                    visibility.isVisible(entry.mediaType) &&
-                    entry.mediaType !in excludedMediaTypes &&
-                    (entry.kind != TimelineEntryKind.Progress || visibility.showsHistory(entry.mediaType))
-            }
-            .take(maxEntries)
-            .toList()
-    }
-    if (recentEntries.isEmpty()) return
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = androidx.compose.ui.graphics.Color.Transparent,
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // The heading is the way through, as on the objectives and analytics cards above. Only
-            // the heading — the rows below lead to their own titles, so making the whole card
-            // clickable would put two destinations under one press.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onViewAll),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.timeline_recent_title),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = stringResource(R.string.timeline_view_all),
-                    modifier = Modifier.size(18.dp),
-                    tint = OmnilogTheme.accents.Dashboard,
-                )
-            }
-            Column {
-                recentEntries.forEachIndexed { index, entry ->
-                    TimelineCompactRow(
-                        entry = entry,
-                        onClick = { onEntryClick(entry.mediaItemId) },
-                    )
-                    if (index < recentEntries.lastIndex) {
-                        HorizontalDivider(color = OmnilogTheme.colors.appLine)
-                    }
-                }
-            }
+    val entry = remember(entries, visibility, excludedMediaTypes) {
+        entries.firstOrNull { entry ->
+            entry.date != null &&
+                visibility.isVisible(entry.mediaType) &&
+                entry.mediaType !in excludedMediaTypes &&
+                (entry.kind != TimelineEntryKind.Progress || visibility.showsHistory(entry.mediaType))
         }
+    } ?: return
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onViewAll),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.timeline_recent_title),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.timeline_view_all),
+                modifier = Modifier.size(18.dp),
+                tint = OmnilogTheme.accents.Dashboard,
+            )
+        }
+        // Heading and entry share one destination, so a single press anywhere reaches the chronology.
+        TimelineLatestEntry(entry = entry, onClick = onViewAll)
     }
 }
 
-/** Dashboard-sized row: no card, no rail, no type label — the action's own colour carries the accent. */
+/**
+ * The latest entry, borderless: what happened leads in the outcome's colour, and the numbers behind
+ * it sit quietly on the line below.
+ */
 @Composable
-private fun TimelineCompactRow(entry: TimelineEntry, onClick: () -> Unit) {
+private fun TimelineLatestEntry(entry: TimelineEntry, onClick: () -> Unit) {
     val accent = entry.railAccent()
     val action = entry.actionText()
+    // ponytail: splits the composed sentence at its first " · " into status and detail; give
+    // actionText a structured form if a translation ever drops that separator.
+    val headline = action.substringBefore(" · ")
+    val detail = action.substringAfter(" · ", missingDelimiterValue = "")
     val dateText = entry.date?.timelineCompactDate()
         ?: stringResource(R.string.timeline_unknown_date)
-    val description = stringResource(
-        R.string.timeline_entry_accessibility,
-        displayMediaTitle(entry.mediaTitle),
-        action,
-        dateText,
-    )
+    val description = entry.rowDescription()
 
+    // No panel: El teu ritme above is already a card, and a second one read as a list of cards.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .clearAndSetSemantics { contentDescription = description }
-            .padding(vertical = 7.dp),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+            .clearAndSetSemantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // No accent dot. It repeated the colour the action line already carries, and it was the
-        // unlabelled half of the pair — the sentence reads without the dot, not the other way round.
-        // Its width is what stopped "+42 pàg · total 214" ellipsizing on a narrow screen.
         MetadataCoverImage(
             coverUrl = entry.coverUrl,
             modifier = Modifier
-                .width(30.dp)
-                .height(45.dp),
-            // Matches every other cover in this file. The default is 10.dp, which is a third of the
-            // width at this size — enough to read as a rounded chip rather than as a book jacket.
-            shape = RoundedCornerShape(3.dp),
+                .width(48.dp)
+                .height(72.dp),
+            shape = RoundedCornerShape(4.dp),
         )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = displayMediaTitle(entry.mediaTitle),
-                color = OmnilogTheme.colors.appInk,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = action,
-                color = accent,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = displayMediaTitle(entry.mediaTitle),
+                    modifier = Modifier.weight(1f),
+                    color = OmnilogTheme.colors.appInk,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = dateText,
+                    color = OmnilogTheme.colors.appMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .background(accent, CircleShape),
+                )
+                Text(
+                    text = headline,
+                    color = accent,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (detail.isNotEmpty()) {
+                Text(
+                    text = detail,
+                    color = OmnilogTheme.colors.appMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
-        Text(
-            text = dateText,
-            color = OmnilogTheme.colors.appMuted,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-        )
     }
 }
 
@@ -1048,7 +1050,8 @@ internal fun TimelineEntry.actionText(): String {
         TimelineEntryKind.Completion -> listOfNotNull(
             stringResource(R.string.timeline_completed),
             progress?.let { finalProgress ->
-                if (progressTotal != null) {
+                // Finishing at the total is the normal case, and "672 de 672" says the number twice.
+                if (progressTotal != null && finalProgress.value != progressTotal) {
                     stringResource(
                         R.string.timeline_completion_progress_total,
                         finalProgress.value,
