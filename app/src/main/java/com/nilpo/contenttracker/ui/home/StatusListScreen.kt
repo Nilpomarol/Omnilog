@@ -165,7 +165,11 @@ private fun StatusStoryHeader(
                 )
                 StoryTypeCounts(items)
             }
-            StatusDisplayToggle(selectedMode = displayMode, onModeSelected = onModeSelected)
+            DisplayModeToggle(
+                selectedMode = displayMode,
+                accent = OmnilogTheme.accents.Dashboard,
+                onModeSelected = onModeSelected,
+            )
         }
     }
 }
@@ -360,44 +364,6 @@ private val MediaType.labelResId: Int
         MediaType.TvShow -> R.string.media_type_tv_show
         MediaType.Game -> R.string.media_type_game
     }
-
-@Composable
-private fun StatusDisplayToggle(
-    selectedMode: HomeDisplayMode,
-    onModeSelected: (HomeDisplayMode) -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Row {
-            HomeDisplayMode.entries.forEach { mode ->
-                val selected = mode == selectedMode
-                IconButton(
-                    onClick = { onModeSelected(mode) },
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(
-                            if (selected) OmnilogTheme.accents.Dashboard.copy(alpha = 0.18f)
-                            else Color.Transparent,
-                        ),
-                ) {
-                    Icon(
-                        painter = painterResource(
-                            if (mode == HomeDisplayMode.List) R.drawable.ic_view_list else R.drawable.ic_view_grid,
-                        ),
-                        contentDescription = stringResource(
-                            if (mode == HomeDisplayMode.List) R.string.view_list else R.string.view_grid,
-                        ),
-                        tint = if (selected) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun MediaType.statusListAccent() = when (this) {

@@ -62,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
@@ -71,6 +72,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -618,40 +621,69 @@ private fun StatusFilterRow(
     }
 }
 
+/** List/grid switch for Home and the status lists: a pill with a sliding indicator, like [GroupModeSegmented]. */
 @Composable
-private fun DisplayModeToggle(
+internal fun DisplayModeToggle(
     selectedMode: HomeDisplayMode,
     accent: Color,
-    enabled: Boolean,
     onModeSelected: (HomeDisplayMode) -> Unit,
+    enabled: Boolean = true,
 ) {
+    // 34dp tall overall, matching the filter button and sort chip beside it.
+    val segmentWidth = 34.dp
+    val segmentHeight = 30.dp
+    val indicatorOffset by animateDpAsState(
+        targetValue = segmentWidth * selectedMode.ordinal,
+        animationSpec = tween(durationMillis = 220),
+        label = "displayModeIndicatorOffset",
+    )
+    val currentLabel = stringResource(
+        if (selectedMode == HomeDisplayMode.List) R.string.view_list else R.string.view_grid,
+    )
+    // Two modes, so the whole pill flips between them: no need to hit the exact half.
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        onClick = {
+            onModeSelected(
+                if (selectedMode == HomeDisplayMode.List) HomeDisplayMode.Grid else HomeDisplayMode.List,
+            )
+        },
+        enabled = enabled,
+        modifier = Modifier
+            .alpha(if (enabled) 1f else 0.38f)
+            .semantics { stateDescription = currentLabel },
+        shape = RoundedCornerShape(999.dp),
         color = OmnilogTheme.colors.appPanel,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
-        Row {
-            HomeDisplayMode.entries.forEach { mode ->
-                val selected = mode == selectedMode
-                IconButton(
-                    onClick = { onModeSelected(mode) },
-                    enabled = enabled,
-                    modifier = Modifier
-                        .size(34.dp)
-                        .background(if (selected) accent.copy(alpha = 0.18f) else Color.Transparent),
-                ) {
-                    Icon(
-                        painter = painterResource(
-                            if (mode == HomeDisplayMode.List) R.drawable.ic_view_list
-                            else R.drawable.ic_view_grid,
-                        ),
-                        contentDescription = stringResource(
-                            if (mode == HomeDisplayMode.List) R.string.view_list
-                            else R.string.view_grid,
-                        ),
-                        modifier = Modifier.size(17.dp),
-                        tint = if (selected) accent else OmnilogTheme.colors.appMuted,
+        Box(modifier = Modifier.padding(2.dp)) {
+            Box(
+                modifier = Modifier
+                    .offset(x = indicatorOffset)
+                    .size(segmentWidth, segmentHeight)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accent.copy(alpha = 0.20f)),
+            )
+            Row {
+                HomeDisplayMode.entries.forEach { mode ->
+                    val tint by animateColorAsState(
+                        targetValue = if (mode == selectedMode) accent else OmnilogTheme.colors.appMuted,
+                        animationSpec = tween(durationMillis = 220),
+                        label = "displayModeTint",
                     )
+                    Box(
+                        modifier = Modifier.size(segmentWidth, segmentHeight),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                if (mode == HomeDisplayMode.List) R.drawable.ic_view_list
+                                else R.drawable.ic_view_grid,
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp),
+                            tint = tint,
+                        )
+                    }
                 }
             }
         }
