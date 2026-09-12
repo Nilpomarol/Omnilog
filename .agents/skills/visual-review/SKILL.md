@@ -11,10 +11,34 @@ A successful compile is not visual validation.
 
 1. Identify the smallest representative state affected by the change.
 2. Prefer an existing deterministic `@Preview`; add a focused preview only when it provides lasting value.
-3. Render the preview with Android tooling when available; otherwise run the affected screen on emulator/device.
+3. Render the preview with Android CLI when available; otherwise run the affected screen on emulator/device.
 4. Inspect both pixels and semantics/layout information when available.
 5. Compare against the relevant requirement and Omnilog design rules, not merely against the previous implementation.
 6. Fix visible issues before declaring completion.
+
+## Android CLI
+
+With Android Studio open on the project, render a preview from the repository root:
+
+```powershell
+android studio render-compose-preview `
+  --output-image-file=preview.png `
+  --print-semantics `
+  <path-to-preview.kt> `
+  <PreviewComposableName>
+```
+
+Example:
+
+```powershell
+android studio render-compose-preview `
+  --output-image-file=home-preview.png `
+  --print-semantics `
+  app/src/debug/java/com/nilpo/contenttracker/ui/home/HomeLandingPreview.kt `
+  HomePopulatedDarkPreview
+```
+
+The project keeps reusable visual fixtures under `app/src/debug` so they cannot affect release behavior.
 
 ## Check
 
@@ -35,6 +59,8 @@ For layouts sensitive to text size, also inspect enlarged system text.
 ## Screenshot regression
 
 If a reference screenshot test exists, run it after the visual iteration. Update reference images only when the visual change is intentional and reviewed; never update snapshots merely to make a failing test green.
+
+The official Compose Preview Screenshot Testing plugin is experimental. Add or expand screenshot-test coverage selectively for stable, high-value visual contracts rather than snapshotting every component.
 
 ## Reporting
 
