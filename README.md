@@ -5,11 +5,11 @@ Omnilog is a native Android personal media tracker for anime, books, movies/TV, 
 ## What It Tracks
 
 - media items and collections
-- sessions and progress updates
+- sessions and progress/activity updates
 - personal ratings and notes
 - ownership
 - provider metadata and external ratings
-- imports from MyAnimeList XML, IMDb CSV, and StoryGraph CSV
+- imports from MyAnimeList, IMDb, and StoryGraph
 - backup export/import/restore
 
 ## Tech Stack
@@ -17,94 +17,78 @@ Omnilog is a native Android personal media tracker for anime, books, movies/TV, 
 - Kotlin
 - Jetpack Compose
 - Room
+- WorkManager
+- Navigation 3
 - Gradle wrapper
 - Android min SDK 26, target SDK 36, compile SDK 36
 
 ## Build
 
-From the repository root:
+From the repository root on Windows:
 
 ```powershell
-.\gradlew.bat assembleDebug
+.\gradlew.bat :app:assembleDebug --console=plain -q
 ```
 
 Run unit tests:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest
+.\gradlew.bat :app:testDebugUnitTest --console=plain -q
 ```
+
+Use the equivalent `./gradlew` commands on Unix-like systems.
 
 If Android Studio's bundled JBR is needed on Windows:
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
-.\gradlew.bat assembleDebug
 ```
 
 ## Provider Credentials
 
 Provider keys are optional. The app builds without them, but metadata enrichment may be limited.
 
-Supported keys:
+Supported keys include:
 
 - `TMDB_API_KEY`
 - `GOOGLE_BOOKS_API_KEY`
 - `RAWG_API_KEY`
-- `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` (optional game-company logo enrichment)
+- `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET`
 - `OMDB_API_KEY`
 - `MAL_CLIENT_ID`
 
-Do not commit real keys to this repository. Use environment variables or user-level Gradle properties instead.
+Do not commit real keys to this repository. Use environment variables, user-level Gradle properties, or the ignored root `gradle.properties` copied from `gradle.properties.example`.
 
-Environment variable example:
+For MAL account synchronization, register:
 
-```powershell
-$env:TMDB_API_KEY='your-key'
-.\gradlew.bat assembleDebug
+```text
+omnilog://mal-oauth
 ```
 
-User-level Gradle property example:
+as the OAuth redirect URI.
 
-```properties
-# C:\Users\<you>\.gradle\gradle.properties
-TMDB_API_KEY=your-key
-GOOGLE_BOOKS_API_KEY=your-key
-RAWG_API_KEY=your-key
-IGDB_CLIENT_ID=your-twitch-client-id
-IGDB_CLIENT_SECRET=your-twitch-client-secret
-OMDB_API_KEY=your-key
-MAL_CLIENT_ID=your-client-id
-```
-
-The root `gradle.properties` is local-only and ignored. Copy `gradle.properties.example` when setting up the project, or place credentials in user-level Gradle properties or environment variables.
-
-When both IGDB values are configured, game metadata refreshes use IGDB to add available developer and publisher logos beside their names. IGDB uses free Twitch developer credentials, but an Android app cannot keep a client secret private after distribution; use these direct credentials for local/development builds only. A production release should obtain IGDB access tokens through a small server-side proxy.
-
-For MAL account synchronization, register `omnilog://mal-oauth` as the application's OAuth redirect
-URI in MyAnimeList. Omnilog uses the authorization-code flow with PKCE, stores tokens behind Android
-Keystore encryption, and only sends data from Omnilog to MAL after the first bulk sync is confirmed.
-MAL-only titles are never deleted.
+Direct IGDB client-secret use is appropriate only for local/development builds; a distributed Android application cannot keep a client secret private.
 
 ## Documentation
 
-- [Roadmap](docs/omnilog-roadmap.md)
-- [Product and UX Delivery Record](docs/omnilog-product-ux-backlog.md)
-- [UI Design Direction](docs/omnilog-ui-design-v1.md)
-- [Warm Personal Visual Style](docs/omnilog-warm-personal-style.md)
-- [Home Structure and Social Boundaries](docs/omnilog-home-social-aware-redesign.md)
-- [Stats System Plan](docs/omnilog-stats-system-plan.md)
-- [Stats Improvement Delivery Record](docs/omnilog-stats-improvement-plan.md)
-- [Content Consumption Timeline](docs/omnilog-content-consumption-timeline-plan.md)
-- [Import Enrichment Implementation Plan](docs/omnilog-import-enrichment-implementation-plan.md)
-- [Import and Enrichment Release Readiness](docs/omnilog-import-enrichment-release-readiness.md)
-- [Add Flow and Book Metadata Status](docs/add-and-book-metadata-remake-plan.md)
-- [Development Guide](docs/development-guide.md)
+Start with the [documentation index](docs/README.md).
+
+Most development tasks should only need:
+
+- [Agent instructions](AGENTS.md)
+- [Current roadmap](docs/current/roadmap.md)
+- [Current design direction](docs/current/design.md)
+- [Development guide](docs/current/development-guide.md)
+- one relevant document under [`docs/features/`](docs/features/)
+
+Historical implementation plans and delivery records live under `docs/archive/` and are intentionally non-authoritative.
 
 ## Project Guardrails
 
-- Keep imports additive; only backup restore may replace data.
-- Preserve sessions, progress history, ratings, reviews, ownership, and collections during metadata work.
-- Keep provider imports discoverable in the Settings import hub; contextual section actions must invoke only the importer that matches that section.
+- Keep imports additive; backup restore is the normal destructive replace-all flow.
+- Preserve sessions, progress/activity history, ratings, reviews/notes, ownership, and collections during metadata operations.
+- Keep provider imports discoverable in Settings; contextual entry points should launch only the matching provider flow.
 - Ask before introducing major new frameworks or dependencies.
-- Keep secrets out of tracked files.
+- Keep secrets and local-machine configuration out of tracked files.
+- Prefer focused changes over broad architecture rewrites.
