@@ -25,8 +25,8 @@ Minimum Android SDK 26; target/compile SDK 36.
 - Room remains authoritative for user tracking data.
 - Provider metadata may enrich local items but must not own or replace user history.
 - Imports are additive and should skip duplicates unless the user explicitly chooses otherwise.
-- Backup restore is the only normal destructive replace flow.
-- Metadata refresh/linking must preserve sessions, progress history, personal ratings, reviews, ownership, and collections unless the user explicitly requests a destructive action.
+- Backup restore is the normal destructive replace-all flow.
+- Metadata refresh/linking must preserve sessions, progress/activity history, personal ratings, reviews/notes, ownership, and collections unless the user explicitly requests a destructive action.
 - MAL synchronization must not delete MAL-only titles.
 - Never commit API keys, client secrets, keystores, APKs/AABs, or local machine configuration.
 
@@ -41,19 +41,19 @@ Important production areas:
 - `app/src/main/java/com/nilpo/contenttracker/core/repository/MediaRepository.kt` — main repository contract.
 - `app/src/main/java/com/nilpo/contenttracker/core/repository/OfflineMediaRepository.kt` — local persistence plus several import/backup/metadata operations.
 - `app/src/main/java/com/nilpo/contenttracker/core/repository/*MetadataRepository.kt` — external metadata providers.
-- `app/src/main/java/com/nilpo/contenttracker/core/imports` — import-related code.
+- `app/src/main/java/com/nilpo/contenttracker/core/imports` — import/enrichment code.
 - `app/src/main/java/com/nilpo/contenttracker/core/mal` — MyAnimeList synchronization.
 - `app/src/main/java/com/nilpo/contenttracker/core/refresh` — background metadata refresh.
 - `app/src/main/java/com/nilpo/contenttracker/core/stats` — statistics logic.
-- `app/src/main/java/com/nilpo/contenttracker/core/timeline` — activity/timeline logic.
+- `app/src/main/java/com/nilpo/contenttracker/core/timeline` — chronology derivation.
 - `app/src/main/java/com/nilpo/contenttracker/ui/ContentTrackerApp.kt` — current top-level app/navigation/orchestration entry point.
-- `app/src/main/java/com/nilpo/contenttracker/ui/home` — Home, library sections, filtering/sorting/grouping.
-- `app/src/main/java/com/nilpo/contenttracker/ui/detail` — media detail and session editing.
+- `app/src/main/java/com/nilpo/contenttracker/ui/home` — Home and library-section state/UI.
+- `app/src/main/java/com/nilpo/contenttracker/ui/detail` — item detail, sessions, Activity.
 - `app/src/main/java/com/nilpo/contenttracker/ui/add` — search/add flow.
 - `app/src/main/java/com/nilpo/contenttracker/ui/imports` — import UI.
 - `app/src/main/java/com/nilpo/contenttracker/ui/settings` — settings and import hub.
 - `app/src/main/java/com/nilpo/contenttracker/ui/stats` — Stats UI.
-- `app/src/main/java/com/nilpo/contenttracker/ui/timeline` — Timeline/activity UI.
+- `app/src/main/java/com/nilpo/contenttracker/ui/timeline` — Timeline UI.
 - `app/src/main/java/com/nilpo/contenttracker/ui/common` — shared UI helpers.
 - `app/src/main/java/com/nilpo/contenttracker/ui/theme` — Omnilog theme, colors, typography.
 
@@ -61,21 +61,30 @@ Do not infer architecture only from file names. Read the relevant implementation
 
 ## Documentation Authority
 
-Read only the documentation needed for the task.
+Start at `docs/README.md` and load only what the task needs.
 
-- `README.md` — project overview, credentials, high-level guardrails.
-- `docs/development-guide.md` — practical implementation, testing, and Git guidance.
-- `docs/omnilog-roadmap.md` — standing product direction; dated build/status notes are historical, not proof of current state.
-- `docs/omnilog-ui-design-v1.md` — general UI/design direction.
-- `docs/omnilog-home-social-aware-redesign.md` — authoritative Home direction where it conflicts with older Home guidance.
-- `docs/omnilog-stats-system-plan.md` and `docs/omnilog-stats-improvement-plan.md` — Stats model and delivered refinement history.
-- `docs/omnilog-content-consumption-timeline-plan.md` — Timeline behavior/design.
-- `docs/omnilog-import-enrichment-implementation-plan.md` — import/enrichment implementation context.
-- `docs/omnilog-import-enrichment-release-readiness.md` — release validation for import/enrichment work.
-- `docs/ai-assisted-repository-audit.md` — advisory report for improving agent workflows; it is not a product specification.
+Authority order:
 
-If two documents conflict, prefer the document that explicitly supersedes the other or the more narrowly scoped current specification.
-Do not treat old delivery notes or completed checklists as current requirements without verifying code and newer docs.
+1. this file for repository-wide guardrails;
+2. `docs/current/` for current cross-cutting product/engineering/design direction;
+3. the relevant `docs/features/` document for feature semantics;
+4. source code and tests for implementation details not fixed by the docs above;
+5. `docs/audits/` for advisory improvement reports;
+6. `docs/archive/` only for explicit historical investigation.
+
+Key current documents:
+
+- `docs/current/roadmap.md` — active priorities.
+- `docs/current/design.md` — global visual/design direction.
+- `docs/current/home.md` — authoritative Home direction.
+- `docs/current/development-guide.md` — build/test/setup/validation.
+- `docs/features/activity.md` — per-session Activity semantics.
+- `docs/features/timeline.md` — library chronology semantics.
+- `docs/features/stats.md` — Stats definitions.
+- `docs/features/imports.md` — import/enrichment behavior.
+- `docs/features/add-and-book-metadata.md` — add flow and remaining edition work.
+
+Archived plans are non-authoritative even when they contain useful historical reasoning.
 
 ## Change Discipline
 
@@ -111,7 +120,7 @@ Omnilog should feel editorial, warm, restrained, and cover-led rather than like 
 - Keep user tracking information visually distinct from provider metadata.
 - Preserve accessibility, touch targets, readable contrast, and large-text behavior.
 
-For Home specifically, follow `docs/omnilog-home-social-aware-redesign.md` when it conflicts with older Home implementation or design guidance.
+For Home specifically, follow `docs/current/home.md` when it conflicts with older implementation patterns.
 
 A visual UI change is not complete merely because it compiles.
 When the environment supports it, render or run the affected state and inspect the actual output before considering the task finished.
@@ -147,7 +156,7 @@ Run broader checks when touching shared architecture, persistence, imports, migr
 
 When changing Room schema/entities/DAO behavior, verify the relevant migration/schema behavior rather than relying only on compilation.
 
-High-value tests exist around imports, duplicate detection, metadata refresh/linking, ratings, stats, backup/restore, navigation, and detail behavior. Search for the closest existing test before creating a new pattern.
+Search for the closest existing test before creating a new test pattern.
 
 ## Git And Secrets
 
