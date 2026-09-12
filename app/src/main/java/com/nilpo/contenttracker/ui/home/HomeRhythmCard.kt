@@ -51,8 +51,9 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 
 /**
- * A calendar-year overview in one full-width card: activity on top, goals as a row along the
- * bottom. Each part keeps its own destination.
+ * A calendar-year overview in one full-width card: the year's figure beside a compact month chart,
+ * the per-format totals under them, and goals as a row along the bottom. Each part keeps its own
+ * destination.
  */
 @Composable
 internal fun HomeRhythmCard(
@@ -121,10 +122,19 @@ internal fun HomeRhythmCard(
             Column {
                 Column(
                     Modifier.fillMaxWidth().clickable(onClick = onStatsClick).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    RhythmLead(snapshot)
-                    RhythmChart(snapshot, year, today)
+                    // Figure on the left, chart on the right: the headline number reads first, and the
+                    // chart only needs to show the year's shape, not dominate the card.
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+                        RhythmLead(snapshot)
+                        Box(
+                            Modifier.padding(horizontal = 12.dp).width(1.dp).fillMaxHeight()
+                                .background(OmnilogTheme.colors.appLine),
+                        )
+                        RhythmChart(snapshot, year, today, Modifier.weight(1f))
+                    }
+                    HorizontalDivider(color = OmnilogTheme.colors.appLine)
                     RhythmTotals(snapshot)
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 12.dp), color = OmnilogTheme.colors.appLine)
@@ -142,43 +152,37 @@ private fun RhythmLead(snapshot: StatsSnapshot) {
     val delta = intMetricDelta(snapshot.deltas.completionSessions)
     val basis = snapshot.deltas.basis?.takeIf { delta != null }?.let { comparisonBasisLabelShort(it) }
     val description = metricDescription(label, value, delta, basis)
-    // Figure, change, and label side by side, to keep the card short.
-    Row(
-        Modifier.clearAndSetSemantics { contentDescription = description },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    // Capped so a long comparison label wraps under the figure instead of squeezing the chart.
+    Column(
+        Modifier.widthIn(max = 140.dp).clearAndSetSemantics { contentDescription = description },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = OmnilogTheme.colors.appInk, maxLines = 1)
-        delta?.let { DeltaChip(text = it.text, color = deltaChipColor(it.value)) }
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = OmnilogTheme.colors.appMuted, maxLines = 1)
-            basis?.let {
-                Text(it, style = MaterialTheme.typography.labelSmall, color = OmnilogTheme.colors.appMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = OmnilogTheme.colors.appInk, maxLines = 1)
+            delta?.let { DeltaChip(text = it.text, color = deltaChipColor(it.value)) }
+        }
+        Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = OmnilogTheme.colors.appMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        basis?.let {
+            Text(it, style = MaterialTheme.typography.labelSmall, color = OmnilogTheme.colors.appMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
-private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate) {
+private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate, modifier: Modifier = Modifier) {
     val locale = LocalConfiguration.current.locales[0]
     val buckets = (1..12).map { month ->
         snapshot.completionSessionsByMonth.firstOrNull { it.key == YearMonth.of(year, month).toString() }
     }
     val values = buckets.map { it?.value ?: 0 }
-    val highest = values.maxOrNull() ?: 0
-    val maximum = highest.coerceAtLeast(1)
-    // Only the busiest month carries its number; the rest read against it.
-    val peak = values.indexOf(highest).takeIf { highest > 0 }
+    val maximum = (values.maxOrNull() ?: 0).coerceAtLeast(1)
     // Months still to come stay blank, so they don't read as months where nothing was finished.
     val lastMonth = if (year == today.year) today.monthValue else 12
     val colors = MediaType.entries.associateWith { it.objectiveAccent() }
-    Column {
-        // Columns stand on a shared baseline, wide enough at full card width to read as a chart
-        // rather than a row of dots. A month with nothing finished is simply the bare baseline.
-        // The minimum height keeps the card steady between years; large text may still grow it.
+    Column(modifier) {
+        // Columns stand on a shared baseline. A month with nothing finished is simply the bare baseline.
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp),
+            Modifier.fillMaxWidth().height(48.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -189,26 +193,14 @@ private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate) {
                     YearMonth.of(year, index + 1).month.getDisplayName(TextStyle.FULL, locale),
                     value,
                 )
-                Column(
-                    Modifier.weight(1f).clearAndSetSemantics { if (past) contentDescription = description },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clearAndSetSemantics { if (past) contentDescription = description },
+                    contentAlignment = Alignment.BottomCenter,
                 ) {
-                    if (index == peak) {
-                        Text(
-                            value.toString(),
-                            modifier = Modifier.wrapContentWidth(unbounded = true),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    }
                     if (past && value > 0) {
                         Column(
-                            Modifier.width(14.dp).height((48f * value / maximum).coerceAtLeast(4f).dp)
-                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            Modifier.fillMaxWidth(0.7f).height((48f * value / maximum).coerceAtLeast(4f).dp)
+                                .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                                 .background(OmnilogTheme.colors.appLine),
                         ) {
                             buckets[index]?.segments?.filter { it.value > 0 }?.forEach { segment ->
@@ -220,23 +212,18 @@ private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate) {
             }
         }
         HorizontalDivider(color = OmnilogTheme.colors.appLine)
-        Spacer(Modifier.height(6.dp))
-        // Quarter marks only — a letter under every bar was cramped. Each is centred on its bar and may
-        // overhang the empty neighbouring cells, so large text needs no separate layout.
+        Spacer(Modifier.height(4.dp))
+        // A narrow initial under every bar; each may overhang its cell, so large text needs no separate layout.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             (1..12).forEach { month ->
-                if (month % 3 != 1) {
-                    Spacer(Modifier.weight(1f))
-                } else {
-                    Text(
-                        YearMonth.of(year, month).month.getDisplayName(TextStyle.NARROW, locale).uppercase(locale),
-                        modifier = Modifier.weight(1f).wrapContentWidth(unbounded = true),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (month > lastMonth) OmnilogTheme.colors.appMuted.copy(alpha = 0.45f) else OmnilogTheme.colors.appMuted,
-                        maxLines = 1,
-                        softWrap = false,
-                    )
-                }
+                Text(
+                    YearMonth.of(year, month).month.getDisplayName(TextStyle.NARROW, locale).uppercase(locale),
+                    modifier = Modifier.weight(1f).wrapContentWidth(unbounded = true),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (month > lastMonth) OmnilogTheme.colors.appMuted.copy(alpha = 0.45f) else OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
             }
         }
     }

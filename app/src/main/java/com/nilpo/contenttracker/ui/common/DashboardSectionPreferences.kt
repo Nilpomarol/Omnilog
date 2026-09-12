@@ -65,11 +65,12 @@ fun SharedPreferences.readHiddenActiveSections(): Set<MediaSection> {
     val migrated = getStringSet(LegacyDashboardSectionsKey, null)?.mapNotNullTo(mutableSetOf()) { name ->
         MediaSection.entries.firstOrNull { it.name == name }
     } ?: if (getBoolean(LegacyHideGamesKey, false)) setOf(MediaSection.Games) else emptySet()
-    edit()
-        .putStringSet(HiddenActiveSectionsKey, migrated.mapTo(mutableSetOf()) { it.name })
-        .remove(LegacyDashboardSectionsKey)
-        .remove(LegacyHideGamesKey)
-        .apply()
+    // Not chained: layoutlib's preview editor returns null from put/remove, which crashed previews.
+    edit().apply {
+        putStringSet(HiddenActiveSectionsKey, migrated.mapTo(mutableSetOf()) { it.name })
+        remove(LegacyDashboardSectionsKey)
+        remove(LegacyHideGamesKey)
+    }.apply()
     return migrated
 }
 

@@ -90,9 +90,9 @@ import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
 import com.nilpo.contenttracker.ui.common.writeHiddenActiveSections
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
+import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.timeline.TimelineRecentActivity
-import com.nilpo.contenttracker.ui.timeline.timelineCompactDate
 import java.time.LocalDate
 
 @Composable
@@ -771,7 +771,6 @@ private fun HomeCollectionCard(
     } else if (isActive) {
         HomeContinueCard(
             trackedMedia = trackedMedia,
-            accent = accent,
             onClick = onClick,
             onProgressClick = if (canUpdate) ({ showQuickSheet = true }) else null,
         )
@@ -875,156 +874,120 @@ private fun HomePlannedCard(
         }
     }
 }
-@Composable
-private fun HomeMediaTypeLabel(type: MediaType) {
-    Text(
-        text = stringResource(when (type) {
-            MediaType.Anime -> R.string.media_type_anime
-            MediaType.Book -> R.string.media_type_book
-            MediaType.Movie -> R.string.media_type_movie
-            MediaType.TvShow -> R.string.media_type_tv_show
-            MediaType.Game -> R.string.media_type_game
-        }),
-        modifier = Modifier.padding(top = 2.dp),
-        style = MaterialTheme.typography.labelSmall,
-        color = when (type) {
-            MediaType.Anime -> OmnilogTheme.accents.Anime
-            MediaType.Book -> OmnilogTheme.accents.Books
-            MediaType.Movie -> OmnilogTheme.accents.Movie
-            MediaType.TvShow -> OmnilogTheme.accents.Series
-            MediaType.Game -> OmnilogTheme.accents.Games
-        },
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
 /**
- * Home's hero: the largest cards on the page, with equal geometry across the carousel, including
- * titles with no known progress total.
+ * Home's hero: a poster tile carrying only the title and progress over the artwork, with equal
+ * geometry across the carousel, including titles with no known progress total.
  */
 @Composable
 private fun HomeContinueCard(
     trackedMedia: TrackedMedia,
-    accent: Color,
     onClick: () -> Unit,
     onProgressClick: (() -> Unit)?,
 ) {
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
-    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
-    // Accessibility changes the whole carousel's height uniformly, never individual cards.
-    val cardHeight = 164.dp + 110.dp * (fontScale - 1f)
-    val session = trackedMedia.currentSession
-    val total = trackedMedia.item.progressTotal
-        ?.takeIf { it > 0 && trackedMedia.item.type != MediaType.Game }
-    // When you last touched it, so the card reads as your own recent history, not just a title.
-    val lastActive = trackedMedia.latestActivityMillis().takeIf { it > 0 }?.let {
-        java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().timelineCompactDate()
+    // About three and a half posters in view (16dp page padding, three 10dp gaps), so the carousel
+    // visibly continues. The card is the 2:3 poster itself; larger text just rises further up it.
+    val cardWidth = ((screenWidth - 46.dp) / 3.5f).coerceIn(100.dp, 150.dp)
+    val type = trackedMedia.item.type
+    // The text sits on a dark scrim in either theme, so it takes the dark-theme accents.
+    val accent = when (type) {
+        MediaType.Anime -> OmnilogColors.Anime
+        MediaType.Book -> OmnilogColors.Books
+        MediaType.Movie -> OmnilogColors.Movie
+        MediaType.TvShow -> OmnilogColors.Series
+        MediaType.Game -> OmnilogColors.Games
     }
+    val session = trackedMedia.currentSession
+    val total = trackedMedia.item.progressTotal?.takeIf { it > 0 && type != MediaType.Game }
+    val shape = RoundedCornerShape(10.dp)
+    // The scrim is kept light to show the artwork, so a soft shadow keeps text legible on busy covers.
+    val legible = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 6f)
 
-    // Wide enough to lead the page, narrow enough that the next card still peeks in.
-    Surface(
-        modifier = Modifier.width(minOf(340.dp, (screenWidth - 32.dp) * 0.86f)).height(cardHeight),
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.colors.appPanel,
+    Box(
+        modifier = Modifier
+            .width(cardWidth)
+            .height(cardWidth * 1.5f)
+            .clip(shape)
+            .clickable(onClick = onClick),
     ) {
-        Row(modifier = Modifier.fillMaxSize().clickable(onClick = onClick)) {
-            MetadataCoverImage(
-                coverUrl = trackedMedia.item.coverUrl,
-                modifier = Modifier.width(110.dp).fillMaxHeight(),
-                shape = RoundedCornerShape(0.dp),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        MetadataCoverImage(
+            coverUrl = trackedMedia.item.coverUrl,
+            modifier = Modifier.fillMaxSize(),
+            shape = shape,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0.5f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.7f),
+                    ),
+                ),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, bottom = 7.dp),
+        ) {
+            Text(
+                text = displayMediaTitle(trackedMedia.item.title),
+                style = MaterialTheme.typography.titleSmall.copy(shadow = legible),
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            Column(
-                modifier = Modifier.weight(1f).fillMaxHeight()
-                    .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
-            ) {
+            val progress = session.progressLabel(total, type)
+            if (total != null) {
+                // The bar alone carries progress on the poster; the figure stays for screen readers.
+                val fraction = ((session?.progressCurrent ?: 0).toFloat() / total).coerceIn(0f, 1f)
+                Box(
+                    Modifier
+                        .padding(top = 5.dp)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White.copy(alpha = 0.3f))
+                        .clearAndSetSemantics { contentDescription = progress },
+                ) {
+                    Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(accent))
+                }
+            } else {
+                // Without a total (games, open-ended titles) there is nothing to fill, so keep the figure.
                 Text(
-                    text = displayMediaTitle(trackedMedia.item.title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
-                    maxLines = 2,
+                    text = progress,
+                    style = MaterialTheme.typography.labelSmall.copy(shadow = legible),
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    HomeMediaTypeLabel(trackedMedia.item.type)
-                    lastActive?.let {
-                        Text(
-                            text = " · $it",
-                            modifier = Modifier.padding(top = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                Spacer(Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        Text(
-                            text = session.progressLabel(total, trackedMedia.item.type),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmnilogTheme.colors.appInk,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (total != null) {
-                            ProgressBar(session.progressFraction(total), accent)
-                        }
-                    }
-                    onProgressClick?.let { onProgress ->
-                        // Visible enough to be the card's one action, still inside a 48dp target.
-                        IconButton(onClick = onProgress, modifier = Modifier.size(48.dp)) {
-                            Box(
-                                modifier = Modifier.size(36.dp)
-                                    .background(accent.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Add,
-                                    contentDescription = stringResource(R.string.quick_progress_open),
-                                    tint = accent,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                        }
-                    }
+            }
+        }
+        onProgressClick?.let { onProgress ->
+            // In the top corner so the text below keeps the poster's full width on narrow cards.
+            // A small visual; Compose extends the touch area to 48dp.
+            IconButton(
+                onClick = onProgress,
+                modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(36.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .background(Color.Black.copy(alpha = 0.75f), androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.quick_progress_open),
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ProgressBar(
-    fraction: Float,
-    color: Color,
-) {
-    val animatedFraction by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = fraction.coerceIn(0f, 1f),
-        animationSpec = androidx.compose.animation.core.tween(250),
-        label = "Home progress",
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(5.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(OmnilogTheme.colors.appLine),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(animatedFraction)
-                .height(5.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color),
-        )
     }
 }
 
@@ -1154,12 +1117,6 @@ private fun TrackedMedia.matchesDashboardQuery(query: String): Boolean {
         item.genres.any { it.contains(query, ignoreCase = true) } ||
         item.tags.any { it.contains(query, ignoreCase = true) } ||
         collection?.name?.contains(query, ignoreCase = true) == true
-}
-
-private fun TrackingSession?.progressFraction(progressTotal: Int?): Float {
-    val current = this?.progressCurrent ?: 0
-    if (progressTotal == null || progressTotal <= 0) return 0f
-    return current.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
 }
 
 private fun TrackedMedia.latestActivityMillis(): Long =
