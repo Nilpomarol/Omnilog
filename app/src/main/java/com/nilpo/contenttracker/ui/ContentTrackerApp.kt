@@ -880,14 +880,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         AppRoute.Profile -> "Perfil"
                         AppRoute.Settings -> "Configuració"
                         is AppRoute.Section -> stringResource(route.section.titleResId)
-                        is AppRoute.StatusList -> stringResource(
-                            when (route.status) {
-                                TrackingStatus.Planned -> R.string.status_planned
-                                TrackingStatus.InProgress -> R.string.status_in_progress
-                                TrackingStatus.Completed -> R.string.status_completed
-                                TrackingStatus.Paused -> R.string.status_paused
-                                TrackingStatus.Dropped -> R.string.status_dropped
-                            },
+                        // The page's story headline stands in for the bare status name, so the
+                        // screen does not open with two titles saying the same thing.
+                        is AppRoute.StatusList -> com.nilpo.contenttracker.ui.home.statusStoryHeadline(
+                            status = route.status,
+                            count = uiState.allTrackedItems.count { it.currentSession?.status == route.status },
                         )
                         is AppRoute.AuthorDetail -> route.author
                         // The collection title belongs to its cover ribbon, just as an item's
@@ -1093,10 +1090,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             )
                         } else if (route is AppRoute.StatusList) {
                             StatusListScreen(
+                                status = route.status,
                                 items = uiState.allTrackedItems
                                     .filter { it.currentSession?.status == route.status }
                                     .sortedByDescending { it.currentSession?.updatedAtEpochMillis ?: 0L },
                                 onMediaClick = openTrackedMedia,
+                                onQuickCommitProgress = viewModel::quickCommitProgress,
+                                onQuickComplete = viewModel::quickComplete,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),

@@ -88,7 +88,6 @@ import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
-import com.nilpo.contenttracker.ui.common.writeHiddenActiveSections
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
@@ -118,7 +117,7 @@ fun HomeLandingScreen(
     val activeFilterPreferences = rememberActiveFilterPreferences()
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearchOverlay by rememberSaveable { mutableStateOf(false) }
-    // Settings owns the Ara mateix filter; Home renders the result and offers a way out.
+    // Settings owns the Ara mateix filter; Home only renders the result.
     val hiddenActiveSections by rememberHiddenActiveSections(activeFilterPreferences)
     val dashboardListState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
@@ -217,10 +216,6 @@ fun HomeLandingScreen(
                             HomeActiveCarousel(
                                 title = stringResource(R.string.home_active_title),
                                 items = activeItemsVisible,
-                                hiddenSections = MediaSection.entries.filter { it in hiddenActiveSections },
-                                onShowAllSections = {
-                                    activeFilterPreferences.writeHiddenActiveSections(emptySet())
-                                },
                                 onMediaClick = onMediaClick,
                                 onQuickCommitProgress = onQuickCommitProgress,
                                 onQuickComplete = onQuickComplete,
@@ -264,6 +259,7 @@ fun HomeLandingScreen(
                                     onMediaClick = onMediaClick,
                                     onQuickCommitProgress = onQuickCommitProgress,
                                     onQuickComplete = onQuickComplete,
+                                    onShowAll = { onStatusClick(TrackingStatus.Paused) },
                                 )
                             }
                         }
@@ -585,8 +581,6 @@ private fun HomeCarousel(
 private fun HomeActiveCarousel(
     title: String,
     items: List<TrackedMedia>,
-    hiddenSections: List<MediaSection>,
-    onShowAllSections: () -> Unit,
     onMediaClick: (TrackedMedia) -> Unit,
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit,
     onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit,
@@ -594,14 +588,7 @@ private fun HomeActiveCarousel(
     onShowAll: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DashboardSectionTitle(title = title, onClick = onShowAll) {
-            if (hiddenSections.isNotEmpty()) {
-                ActiveFilterIndicator(
-                    hiddenSections = hiddenSections,
-                    onShowAll = onShowAllSections,
-                )
-            }
-        }
+        DashboardSectionTitle(title = title, onClick = onShowAll)
         if (items.isEmpty()) {
             EmptyCarouselState(
                 text = if (isFiltered) {
@@ -644,19 +631,11 @@ private fun EmptyCarouselState(text: String) {
     }
 }
 
-/**
- * The section heading: bold, friendly type, open space, and an optional control
- * riding at the end of it.
- *
- * [trailingContent] should stay compact. The row's height is whatever its tallest child is, so a
- * control with a 48.dp minimum — a Material `TextButton`, say — silently sets the height of every
- * heading on the page.
- */
+/** The section heading: bold, friendly type, open space, and an arrow when it opens a full list. */
 @Composable
 private fun DashboardSectionTitle(
     title: String,
     onClick: (() -> Unit)? = null,
-    trailingContent: @Composable (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -672,7 +651,6 @@ private fun DashboardSectionTitle(
             fontWeight = FontWeight.Bold,
             color = OmnilogTheme.colors.appInk,
         )
-        trailingContent?.invoke()
         // The heading itself opens the full list, marked with the same arrow as Activitat recent
         // rather than a pill button competing with the section's own controls.
         if (onClick != null) {
@@ -680,53 +658,6 @@ private fun DashboardSectionTitle(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = stringResource(R.string.show_all),
                 modifier = Modifier.size(18.dp),
-                tint = OmnilogTheme.accents.Dashboard,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActiveFilterIndicator(
-    hiddenSections: List<MediaSection>,
-    onShowAll: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val label = if (hiddenSections.size == 1) {
-        stringResource(
-            R.string.home_active_hidden_section_indicator,
-            stringResource(hiddenSections.single().titleResId),
-        )
-    } else {
-        stringResource(R.string.home_active_hidden_sections_indicator, hiddenSections.size)
-    }
-    // A plain clickable rather than Surface(onClick): that one reserves a 48dp height, which pushed
-    // Ara mateix's cards down. Compose still extends the touch area to the 48dp minimum.
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onShowAll),
-        shape = RoundedCornerShape(999.dp),
-        color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, OmnilogTheme.accents.Dashboard.copy(alpha = 0.38f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 9.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.accents.Dashboard,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.home_active_hidden_sections_show_all),
-                modifier = Modifier.size(14.dp),
                 tint = OmnilogTheme.accents.Dashboard,
             )
         }
@@ -744,40 +675,30 @@ private fun HomeCollectionCard(
 ) {
     val session = trackedMedia.currentSession
     val isActive = session?.status == TrackingStatus.InProgress
-    val isPaused = session?.status == TrackingStatus.Paused
     var showQuickSheet by remember(trackedMedia.item.id) { mutableStateOf(false) }
-    val canUpdate = session?.status in setOf(TrackingStatus.InProgress, TrackingStatus.Planned) &&
+    // Starting a planned title and resuming a paused one go through the same sheet, which promotes
+    // either to In progress.
+    val canUpdate = session?.status in setOf(TrackingStatus.InProgress, TrackingStatus.Planned, TrackingStatus.Paused) &&
         onQuickCommitProgress != null && onQuickComplete != null
-    val title = displayMediaTitle(trackedMedia.item.title)
-    if (isPaused) {
-        Column(
-            modifier = Modifier.width(88.dp).clickable(onClick = onClick),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            MetadataCoverImage(
-                coverUrl = trackedMedia.item.coverUrl,
-                modifier = Modifier.width(88.dp).height(132.dp),
-                shape = RoundedCornerShape(5.dp),
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appInk,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    } else if (isActive) {
+    if (isActive) {
         HomeContinueCard(
             trackedMedia = trackedMedia,
             onClick = onClick,
             onProgressClick = if (canUpdate) ({ showQuickSheet = true }) else null,
         )
     } else {
+        val isPaused = session?.status == TrackingStatus.Paused
+        val item = trackedMedia.item
         HomePlannedCard(
             trackedMedia = trackedMedia,
             accent = accent,
+            // For something already begun, where you left off says more than which collection it is in.
+            detail = if (isPaused) {
+                session.progressLabel(item.progressTotal?.takeIf { item.type != MediaType.Game }, item.type)
+            } else {
+                formatCollectionDisplayName(trackedMedia.collection?.name, item.collectionSortOrder)
+            },
+            actionLabel = stringResource(if (isPaused) R.string.home_paused_resume else R.string.home_planned_start),
             onClick = onClick,
             onStartClick = if (canUpdate) ({ showQuickSheet = true }) else null,
         )
@@ -794,22 +715,20 @@ private fun HomeCollectionCard(
 }
 
 /**
- * A borderless planned item: cover, title and collection at the top, and a small Començar button
- * at the bottom. No card surface, so `Ara mateix` stays visually primary.
+ * A borderless planned or paused item: cover, title and [detail] at the top, and a small action
+ * button (Començar or Reprèn) at the bottom. No card surface, so `Ara mateix` stays visually primary.
  */
 @Composable
 private fun HomePlannedCard(
     trackedMedia: TrackedMedia,
     accent: Color,
+    detail: String?,
+    actionLabel: String,
     onClick: () -> Unit,
     onStartClick: (() -> Unit)?,
 ) {
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
-    val collectionLabel = formatCollectionDisplayName(
-        trackedMedia.collection?.name,
-        trackedMedia.item.collectionSortOrder,
-    )
 
     // Two items plus ~24dp of the third cover (32dp page padding, two 10dp gaps). The floor keeps
     // room for the Començar button, so narrow phones trade the peek for an intact button. Larger
@@ -837,7 +756,7 @@ private fun HomePlannedCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            collectionLabel?.let {
+            detail?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.labelSmall,
@@ -864,7 +783,7 @@ private fun HomePlannedCard(
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
-                        text = stringResource(R.string.home_planned_start),
+                        text = actionLabel,
                         modifier = Modifier.padding(start = 4.dp),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,

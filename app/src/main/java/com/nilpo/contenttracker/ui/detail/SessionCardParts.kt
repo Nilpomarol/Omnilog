@@ -277,9 +277,13 @@ fun LocalDate.formatSessionDate(now: LocalDate = LocalDate.now()): String {
  * changes — are the things that actually happened, so the most recent of those is what counts.
  */
 @Composable
-fun sessionRecencyLabel(session: TrackingSession): String? {
-    val updated = session.lastActivityDate() ?: return null
-    val days = ChronoUnit.DAYS.between(updated, LocalDate.now())
+fun sessionRecencyLabel(session: TrackingSession): String? =
+    session.lastActivityDate()?.let { recencyLabel(it) }
+
+/** [date] as `avui`, `ahir`, `fa 3 dies`, `fa 2 setmanes` or `fa 4 mesos`; null for a future date. */
+@Composable
+fun recencyLabel(date: LocalDate): String? {
+    val days = ChronoUnit.DAYS.between(date, LocalDate.now())
     if (days < 0) return null
 
     return when {
