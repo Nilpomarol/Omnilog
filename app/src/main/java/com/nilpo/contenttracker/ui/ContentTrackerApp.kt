@@ -939,7 +939,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     onProfileEditCancelled = { profileHeaderActions.onCancelRequested() },
                     onProfileEditSaved = { profileHeaderActions.onSaveRequested() },
                     onSettingsRequested = openSettings,
-                    onHomeSearchRequested = { homeSearchOpen = true },
+                    // A second tap closes it again, like the field's own cross.
+                    onHomeSearchRequested = { homeSearchOpen = !homeSearchOpen },
                     onSectionSearchRequested = { sectionSearchOpen = !sectionSearchOpen },
                     onSectionAddRequested = {
                         (currentRoute as? AppRoute.Section)?.let { route ->

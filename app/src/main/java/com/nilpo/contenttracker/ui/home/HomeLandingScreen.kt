@@ -123,16 +123,16 @@ fun HomeLandingScreen(
     val focusManager = LocalFocusManager.current
     val normalizedSearchQuery = searchQuery.trim()
     val searchFocusRequester = remember { FocusRequester() }
-    val closeSearch = {
-        searchQuery = ""
-        showSearchOverlay = false
-        focusManager.clearFocus()
-        onSearchOpenChange(false)
-    }
-    // The header's search icon slides the field in above the list, ready to type.
+    val closeSearch = { onSearchOpenChange(false) }
+    // The header's search icon slides the field in above the list, ready to type. Closing — from the
+    // cross, back, or the icon again — clears the query and drops focus, which hides the keyboard.
     LaunchedEffect(searchOpen) {
         if (searchOpen) {
             searchFocusRequester.requestFocus()
+        } else {
+            searchQuery = ""
+            showSearchOverlay = false
+            focusManager.clearFocus()
         }
     }
     BackHandler(enabled = searchOpen, onBack = closeSearch)
