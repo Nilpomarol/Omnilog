@@ -22,7 +22,6 @@ private fun DisplayModeTogglePreview() {
                 val accent = OmnilogTheme.accents.Dashboard
                 DisplayModeToggle(HomeDisplayMode.List, accent, onModeSelected = {})
                 DisplayModeToggle(HomeDisplayMode.Grid, accent, onModeSelected = {})
-                DisplayModeToggle(HomeDisplayMode.Grid, accent, onModeSelected = {}, enabled = false)
             }
         }
     }

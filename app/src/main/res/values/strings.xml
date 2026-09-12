@@ -583,7 +583,7 @@
     <string name="delete_collection_message">Vols eliminar la col·lecció %1$s? Els elements no s\'eliminaran.</string>
     <string name="search_label">Cerca</string>
     <string name="filter_status">Filtra per estat</string>
-    <string name="filter_all_statuses">Tots els estats</string>
+    <string name="filter_all_short">Tot</string>
     <string name="filter_more">Filtres</string>
     <string name="filter_sheet_title">Filtres</string>
     <string name="filter_clear_all">Esborra-ho tot</string>
@@ -603,7 +603,8 @@
     <string name="filter_any_rating">Qualsevol</string>
     <string name="filter_rating_at_least">%1$d+</string>
     <string name="filter_selected_count">%1$d seleccionats</string>
-    <string name="browse_items">Elements</string>
+    <string name="browse_none">Sense agrupar</string>
+    <string name="group_by_label">Agrupa</string>
     <string name="browse_collections">Col·leccions</string>
     <string name="browse_authors">Autors</string>
     <string name="browse_studios">Estudis</string>
