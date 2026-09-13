@@ -39,7 +39,7 @@ data class TrackedMedia(
     }
 
     val revisitCount: Int
-        get() = revisitSessionIds.size
+        get() = orderedSessions.count(::isRevisit)
 
     /**
      * Which time through this title [session] was, counting from 1. Derived from position rather
@@ -51,5 +51,10 @@ data class TrackedMedia(
         return if (index < 0) session.sessionNumber else index + 1
     }
 
-    fun isRevisit(session: TrackingSession): Boolean = session.id in revisitSessionIds
+    /**
+     * Whether [session] represents a revisit that has actually begun. A later planned session is
+     * structurally the next visit, but planning it is not the same as having revisited the title.
+     */
+    fun isRevisit(session: TrackingSession): Boolean =
+        session.id in revisitSessionIds && session.status != TrackingStatus.Planned
 }
