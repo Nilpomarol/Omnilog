@@ -2205,7 +2205,7 @@ private fun MediaType.addTitle(): String {
 }
 
 @Composable
-private fun ConsumptionPlatformType.label(): String {
+internal fun ConsumptionPlatformType.label(): String {
     return when (this) {
         ConsumptionPlatformType.Physical -> stringResource(R.string.platform_type_physical)
         ConsumptionPlatformType.DigitalStore -> stringResource(R.string.platform_type_digital_store)

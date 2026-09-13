@@ -587,7 +587,22 @@
     <string name="filter_more">Filtres</string>
     <string name="filter_sheet_title">Filtres</string>
     <string name="filter_clear_all">Esborra-ho tot</string>
-    <string name="filter_apply">Aplica</string>
+    <plurals name="filter_result_count">
+        <item quantity="one">%1$d resultat</item>
+        <item quantity="other">%1$d resultats</item>
+    </plurals>
+    <plurals name="filter_active_count">
+        <item quantity="one">%1$d filtre</item>
+        <item quantity="other">%1$d filtres</item>
+    </plurals>
+    <string name="filter_type">Tipus</string>
+    <string name="filter_platform">Plataforma</string>
+    <string name="filter_release_year">Any</string>
+    <string name="filter_length">Llargada</string>
+    <string name="filter_any">Qualsevol</string>
+    <string name="filter_range">%1$d–%2$d</string>
+    <string name="filter_range_units">%1$d–%2$d %3$s</string>
+    <string name="filter_other">Altres</string>
     <string name="filter_authors">Autors</string>
     <string name="filter_studios">Estudis</string>
     <string name="filter_directors">Directors</string>
@@ -600,7 +615,6 @@
     <string name="filter_no_matches">No hi ha coincidències.</string>
     <string name="filter_external_rating">Nota mitjana</string>
     <string name="filter_my_rating">La meva nota</string>
-    <string name="filter_any_rating">Qualsevol</string>
     <string name="filter_rating_at_least">%1$d+</string>
     <string name="filter_selected_count">%1$d seleccionats</string>
     <string name="browse_none">Sense agrupar</string>

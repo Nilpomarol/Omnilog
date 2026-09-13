@@ -8,7 +8,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,15 +22,20 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -38,24 +44,24 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.RangeSliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,12 +73,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -87,6 +98,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
@@ -97,15 +109,17 @@ import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
+import com.nilpo.contenttracker.ui.add.label
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
 import com.nilpo.contenttracker.ui.common.OmnilogEmptyState
 import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(
@@ -237,15 +251,12 @@ fun HomeScreen(
                     )
                     if (filtersExpanded) {
                         AdvancedFiltersSheet(
-                            currentFilters = uiState.advancedFilters,
+                            filters = uiState.advancedFilters,
                             section = section,
                             availableItems = sectionItems,
-                            accent = section.themedAccent(),
+                            resultCount = uiState.trackedItems.size,
+                            onFiltersChange = onAdvancedFiltersChange,
                             onDismiss = { filtersExpanded = false },
-                            onApply = {
-                                onAdvancedFiltersChange(it)
-                                filtersExpanded = false
-                            },
                         )
                     }
                 }
@@ -505,34 +516,31 @@ private fun BrowseControls(
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SortMenu(
-                    sortMode = sortMode,
-                    sortDirection = sortDirection,
-                    accent = accent,
-                    onSortModeChange = onSortModeChange,
-                    onSortDirectionChange = onSortDirectionChange,
-                )
-                GroupMenu(
+            SortMenu(
+                sortMode = sortMode,
+                sortDirection = sortDirection,
+                accent = accent,
+                onSortModeChange = onSortModeChange,
+                onSortDirectionChange = onSortDirectionChange,
+            )
+            GroupMenu(
+                section = section,
+                browseMode = browseMode,
+                accent = accent,
+                onBrowseModeChange = onBrowseModeChange,
+            )
+            // Takes whatever width is left, so an active filter's label shortens instead of widening the row.
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                FiltersButton(
+                    filters = advancedFilters,
                     section = section,
-                    browseMode = browseMode,
-                    accent = accent,
-                    onBrowseModeChange = onBrowseModeChange,
+                    onClick = onAdvancedFiltersClick,
+                    onClear = { onAdvancedFiltersChange(HomeAdvancedFilters()) },
                 )
             }
-            AdvancedFiltersButton(
-                activeCount = advancedFilters.activeCount,
-                accent = accent,
-                onClick = onAdvancedFiltersClick,
-            )
             // Grouped lists are always rows, so the switch steps aside rather than sitting there disabled.
             AnimatedVisibility(visible = browseMode == HomeBrowseMode.Items) {
                 DisplayModeToggle(
@@ -546,9 +554,6 @@ private fun BrowseControls(
             NarrowedSummary(
                 visibleCount = visibleCount,
                 tabCount = statusFilter?.let { statusCounts[it] ?: 0 } ?: sectionItems.size,
-                filters = advancedFilters,
-                accent = accent,
-                onClearFilters = { onAdvancedFiltersChange(HomeAdvancedFilters()) },
             )
         }
     }
@@ -605,6 +610,7 @@ private fun PillText(text: String, color: Color) {
         fontWeight = FontWeight.SemiBold,
         color = color,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -679,28 +685,66 @@ private fun ArrangeButton(
     }
 }
 
+/**
+ * The way into the filter sheet. Idle it is just the icon; while filters are on it grows into a filled
+ * pill naming the one filter (or how many there are) with its own clear button, so filters can be
+ * dropped without opening the sheet. The label ellipsizes rather than widening the row.
+ */
 @Composable
-private fun AdvancedFiltersButton(
-    activeCount: Int,
-    accent: Color,
+private fun FiltersButton(
+    filters: HomeAdvancedFilters,
+    section: MediaSection,
     onClick: () -> Unit,
+    onClear: () -> Unit,
 ) {
-    IconButton(onClick = onClick) {
-        BadgedBox(
-            badge = {
-                if (activeCount > 0) {
-                    Badge(containerColor = accent, contentColor = MaterialTheme.colorScheme.onPrimary) {
-                        Text(activeCount.toString())
-                    }
-                }
-            },
-        ) {
+    val labels = filters.labels(section)
+    val filtersLabel = stringResource(R.string.filter_more)
+    if (labels.isEmpty()) {
+        IconButton(onClick = onClick) {
             Icon(
                 painter = painterResource(R.drawable.ic_filter),
-                contentDescription = stringResource(R.string.filter_more),
+                contentDescription = filtersLabel,
                 modifier = Modifier.size(20.dp),
-                tint = if (activeCount > 0) accent else OmnilogTheme.colors.appMuted,
+                tint = OmnilogTheme.colors.appMuted,
             )
+        }
+    } else {
+        val ink = OmnilogTheme.colors.appBackground
+        Row(
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .clip(RoundedCornerShape(10.dp))
+                .background(OmnilogTheme.colors.appInk),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // No filter icon here: the filled pill with its clear button already reads as an active
+            // filter, and the label needs that width far more on a narrow row.
+            Row(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .clickable(onClickLabel = filtersLabel, onClick = onClick)
+                    .heightIn(min = 36.dp)
+                    .padding(start = 14.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PillText(
+                    labels.singleOrNull() ?: pluralStringResource(R.plurals.filter_active_count, labels.size, labels.size),
+                    ink,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(width = 36.dp, height = 36.dp)
+                    .clickable(role = Role.Button, onClick = onClear),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.empty_filtered_clear),
+                    modifier = Modifier.size(16.dp),
+                    tint = ink,
+                )
+            }
         }
     }
 }
@@ -822,49 +866,19 @@ private fun GroupMenu(
     }
 }
 
-/** What search and filters are hiding: how much of the tab remains, and which filters did it. */
+/** How much of the chosen status search and filters leave visible; the filter pill names the filters. */
 @Composable
 private fun NarrowedSummary(
     visibleCount: Int,
     tabCount: Int,
-    filters: HomeAdvancedFilters,
-    accent: Color,
-    onClearFilters: () -> Unit,
 ) {
-    val summary = listOfNotNull(
-        stringResource(R.string.list_item_count, visibleCount, tabCount),
-        (filters.authors + filters.genres).sorted().joinToString(", ").ifEmpty { null },
-        filters.minimumExternalRating?.let {
-            "${stringResource(R.string.filter_external_rating)} ${stringResource(R.string.filter_rating_at_least, it)}"
-        },
-        filters.minimumUserRating?.let {
-            "${stringResource(R.string.filter_my_rating)} ${stringResource(R.string.filter_rating_at_least, it)}"
-        },
-    ).joinToString(" · ")
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 40.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = summary,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.labelMedium,
-            color = OmnilogTheme.colors.appMuted,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (filters.isActive) {
-            TextButton(
-                onClick = onClearFilters,
-                colors = ButtonDefaults.textButtonColors(contentColor = accent),
-            ) {
-                Text(stringResource(R.string.empty_filtered_clear))
-            }
-        }
-    }
+    Text(
+        text = stringResource(R.string.list_item_count, visibleCount, tabCount),
+        modifier = Modifier.padding(vertical = 4.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = OmnilogTheme.colors.appMuted,
+        maxLines = 1,
+    )
 }
 
 /** List/grid switch for Home and the status lists: a pill with a sliding indicator. */
@@ -937,189 +951,506 @@ private fun HomeBrowseMode.iconRes(): Int = when (this) {
     HomeBrowseMode.Authors -> R.drawable.ic_group_authors
 }
 
+/** Stops a scroll inside the sheet from dragging the sheet itself once the content reaches its end. */
+private val SheetScrollIsolation = object : NestedScrollConnection {
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
+        Offset(x = 0f, y = available.y)
+
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+        Velocity(x = 0f, y = available.y)
+}
+
+private val RatingThresholds = listOf(5, 6, 7, 8, 9)
+private const val MaxHistogramBins = 24
+private val RangeThumbSize = 22.dp
+
+/**
+ * The filter sheet, applied as you go: every change lands immediately, so there is nothing to confirm
+ * and removing a filter is one gesture. Short, fixed choices are pills, long lists are a search box over
+ * a checklist, and spans are a histogram over a two-thumb slider. Each offers only what the section's
+ * items carry.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AdvancedFiltersSheet(
-    currentFilters: HomeAdvancedFilters,
+    filters: HomeAdvancedFilters,
     section: MediaSection,
     availableItems: List<TrackedMedia>,
-    accent: Color,
+    resultCount: Int,
+    onFiltersChange: (HomeAdvancedFilters) -> Unit,
     onDismiss: () -> Unit,
-    onApply: (HomeAdvancedFilters) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var draft by remember(currentFilters) { mutableStateOf(currentFilters) }
-    var authorQuery by remember { mutableStateOf("") }
-    var genreQuery by remember { mutableStateOf("") }
-    var authorsExpanded by remember(currentFilters) { mutableStateOf(currentFilters.authors.isNotEmpty()) }
-    var genresExpanded by remember(currentFilters) { mutableStateOf(currentFilters.genres.isNotEmpty()) }
-    val authors = remember(availableItems) {
-        availableItems.flatMap { it.creatorNames() }
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .distinct()
-            .sorted()
+    val options = remember(availableItems) { filterOptions(availableItems) }
+    // Lengths only compare within one unit, so the filter waits until the section or the type filter
+    // settles on a single type (films count minutes, series episodes).
+    val lengthType = filters.types.singleOrNull() ?: section.types.singleOrNull()
+    val lengthValues = remember(availableItems, lengthType) {
+        availableItems
+            .filter { it.item.type == lengthType }
+            .mapNotNull { it.item.progressTotal?.takeIf { total -> total > 0 } }
     }
-    val genres = remember(availableItems) {
-        availableItems.flatMap { it.item.genres }
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .distinct()
-            .sorted()
-    }
-    val visibleAuthors = authors.filter { it.contains(authorQuery, ignoreCase = true) }
-    val visibleGenres = genres.filter { it.contains(genreQuery, ignoreCase = true) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = OmnilogTheme.colors.appPanel,
+        // The page ground rather than the panel tone, so unselected pills stand out against it.
+        containerColor = OmnilogTheme.colors.appBackground,
     ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding(),
         ) {
-            val sheetScrollIsolation = remember {
-                object : NestedScrollConnection {
-                    override fun onPostScroll(
-                        consumed: Offset,
-                        available: Offset,
-                        source: NestedScrollSource,
-                    ): Offset = Offset(x = 0f, y = available.y)
-
-                    override suspend fun onPostFling(
-                        consumed: Velocity,
-                        available: Velocity,
-                    ): Velocity = Velocity(x = 0f, y = available.y)
-                }
-            }
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = maxHeight * 0.82f)
-                    .nestedScroll(sheetScrollIsolation)
+                    .heightIn(max = maxHeight * 0.85f)
+                    .nestedScroll(SheetScrollIsolation)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.filter_sheet_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.filter_sheet_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = OmnilogTheme.colors.appInk,
+                        )
+                        Text(
+                            text = pluralStringResource(R.plurals.filter_result_count, resultCount, resultCount),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OmnilogTheme.colors.appMuted,
+                        )
+                    }
                     TextButton(
-                        onClick = { draft = HomeAdvancedFilters() },
-                        enabled = draft.isActive,
+                        onClick = { onFiltersChange(HomeAdvancedFilters()) },
+                        enabled = filters.isActive,
                     ) {
                         Text(stringResource(R.string.filter_clear_all))
                     }
                 }
 
-                SearchableFilterDropdown(
-                    title = stringResource(section.creatorFilterLabelResId),
-                    query = authorQuery,
-                    onQueryChange = { authorQuery = it },
-                    expanded = authorsExpanded,
-                    onExpandedChange = { authorsExpanded = it },
-                    options = visibleAuthors,
-                    selectedOptions = draft.authors,
-                    accent = accent,
-                    onOptionToggle = { author ->
-                        draft = draft.copy(authors = draft.authors.toggle(author))
-                    },
-                )
+                if (options.types.size > 1) {
+                    FilterSection(stringResource(R.string.filter_type)) {
+                        PillFlow {
+                            options.types.keys.sortedBy { it.ordinal }.forEach { type ->
+                                ToggleFilterPill(
+                                    label = stringResource(type.labelResId),
+                                    count = options.types[type],
+                                    selected = type in filters.types,
+                                    // Another type can mean another unit, so a length span set for the old one goes.
+                                    onClick = {
+                                        onFiltersChange(filters.copy(types = filters.types.toggle(type), lengthRange = null))
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
 
-                SearchableFilterDropdown(
-                    title = stringResource(R.string.filter_genres),
-                    query = genreQuery,
-                    onQueryChange = { genreQuery = it },
-                    expanded = genresExpanded,
-                    onExpandedChange = { genresExpanded = it },
-                    options = visibleGenres,
-                    selectedOptions = draft.genres,
-                    accent = accent,
-                    onOptionToggle = { genre ->
-                        draft = draft.copy(genres = draft.genres.toggle(genre))
-                    },
-                )
+                FilterSection(stringResource(R.string.filter_my_rating)) {
+                    PillFlow {
+                        RatingThresholds.forEach { minimum ->
+                            ToggleFilterPill(
+                                label = stringResource(R.string.filter_rating_at_least, minimum),
+                                selected = filters.minimumUserRating == minimum,
+                                onClick = {
+                                    onFiltersChange(
+                                        filters.copy(minimumUserRating = minimum.takeIf { filters.minimumUserRating != it }),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
 
-                RatingFilterSection(
-                    title = stringResource(R.string.filter_external_rating),
-                    selectedMinimum = draft.minimumExternalRating,
-                    accent = accent,
-                    onSelected = { draft = draft.copy(minimumExternalRating = it) },
-                )
-                RatingFilterSection(
-                    title = stringResource(R.string.filter_my_rating),
-                    selectedMinimum = draft.minimumUserRating,
-                    accent = accent,
-                    onSelected = { draft = draft.copy(minimumUserRating = it) },
-                )
+                FilterSection(stringResource(R.string.filter_external_rating)) {
+                    PillFlow {
+                        RatingThresholds.forEach { minimum ->
+                            ToggleFilterPill(
+                                label = stringResource(R.string.filter_rating_at_least, minimum),
+                                selected = filters.minimumExternalRating == minimum,
+                                onClick = {
+                                    onFiltersChange(
+                                        filters.copy(minimumExternalRating = minimum.takeIf { filters.minimumExternalRating != it }),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
 
-                Button(
-                    onClick = { onApply(draft) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.filter_apply))
+                if (lengthType != null) {
+                    lengthValues.spanOrNull()?.let { bounds ->
+                        val unit = progressUnitLabel(lengthType, bounds.last)
+                        RangeFilter(
+                            title = stringResource(R.string.filter_length),
+                            values = lengthValues,
+                            bounds = bounds,
+                            selected = filters.lengthRange,
+                            format = { stringResource(R.string.filter_range_units, it.first, it.last, unit) },
+                            onSelectedChange = { onFiltersChange(filters.copy(lengthRange = it)) },
+                        )
+                    }
+                }
+
+                if (options.authors.isNotEmpty()) {
+                    SearchableFilterDropdown(
+                        title = stringResource(section.creatorFilterLabelResId),
+                        counts = options.authors,
+                        selected = filters.authors,
+                        onToggle = { onFiltersChange(filters.copy(authors = filters.authors.toggle(it))) },
+                    )
+                }
+                if (options.genres.isNotEmpty()) {
+                    SearchableFilterDropdown(
+                        title = stringResource(R.string.filter_genres),
+                        counts = options.genres,
+                        selected = filters.genres,
+                        onToggle = { onFiltersChange(filters.copy(genres = filters.genres.toggle(it))) },
+                    )
+                }
+
+                options.releaseYears.spanOrNull()?.let { bounds ->
+                    RangeFilter(
+                        title = stringResource(R.string.filter_release_year),
+                        values = options.releaseYears,
+                        bounds = bounds,
+                        selected = filters.releaseYears,
+                        format = { stringResource(R.string.filter_range, it.first, it.last) },
+                        onSelectedChange = { onFiltersChange(filters.copy(releaseYears = it)) },
+                    )
+                }
+
+                if (options.platformTypes.isNotEmpty()) {
+                    FilterSection(stringResource(R.string.filter_platform)) {
+                        PillFlow {
+                            options.platformTypes.keys.sortedBy { it.ordinal }.forEach { platformType ->
+                                ToggleFilterPill(
+                                    label = platformType.label(),
+                                    count = options.platformTypes[platformType],
+                                    selected = platformType in filters.platformTypes,
+                                    onClick = {
+                                        onFiltersChange(filters.copy(platformTypes = filters.platformTypes.toggle(platformType)))
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (options.ownedCount > 0) {
+                    FilterSection(stringResource(R.string.filter_other)) {
+                        PillFlow {
+                            ToggleFilterPill(
+                                label = stringResource(R.string.owned_label),
+                                count = options.ownedCount,
+                                selected = filters.ownedOnly,
+                                onClick = { onFiltersChange(filters.copy(ownedOnly = !filters.ownedOnly)) },
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+/** What a section's items can be filtered by, each value with how many items carry it. */
+private class FilterOptions(
+    val authors: Map<String, Int>,
+    val genres: Map<String, Int>,
+    val types: Map<MediaType, Int>,
+    val platformTypes: Map<ConsumptionPlatformType, Int>,
+    val releaseYears: List<Int>,
+    val ownedCount: Int,
+)
+
+private fun filterOptions(items: List<TrackedMedia>) = FilterOptions(
+    authors = items.flatMap { it.creatorNames().cleanValues() }.groupingBy { it }.eachCount(),
+    genres = items.flatMap { it.item.genres.cleanValues() }.groupingBy { it }.eachCount(),
+    types = items.groupingBy { it.item.type }.eachCount(),
+    platformTypes = items.mapNotNull { it.currentSession?.platform?.type }.groupingBy { it }.eachCount(),
+    releaseYears = items.mapNotNull { it.item.releaseYear },
+    ownedCount = items.count { it.item.isOwned },
+)
+
+private fun List<String>.cleanValues(): List<String> = map(String::trim).filter(String::isNotBlank).distinct()
+
+/** The lowest to highest value, or null when there is nothing to choose between. */
+private fun List<Int>.spanOrNull(): IntRange? = if (distinct().size < 2) null else min()..max()
+
+/**
+ * Counts [values] into at most [MaxHistogramBins] equal-width bins covering [bounds]: a span of a few
+ * years gets a bar per year, a span of a thousand pages bars of about forty.
+ */
+internal fun histogram(values: List<Int>, bounds: IntRange): List<Pair<IntRange, Int>> {
+    val span = bounds.last - bounds.first + 1
+    val width = (span + MaxHistogramBins - 1) / MaxHistogramBins
+    val binCount = (span + width - 1) / width
+    val counts = IntArray(binCount)
+    values.forEach { counts[((it - bounds.first) / width).coerceIn(0, binCount - 1)]++ }
+    return counts.mapIndexed { index, count ->
+        (bounds.first + index * width)..(bounds.first + (index + 1) * width - 1) to count
+    }
+}
+
+/** A titled block, with the current choice at the end of the title line when there is one to show. */
+@Composable
+private fun FilterSection(
+    title: String,
+    value: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = OmnilogTheme.colors.appInk,
+            )
+            value?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
+        }
+        content()
+    }
+}
+
+/** Pills that wrap onto further lines, so nothing in the sheet scrolls sideways. */
+@Composable
+private fun PillFlow(content: @Composable () -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        content()
+    }
+}
+
+@Composable
+private fun ToggleFilterPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    count: Int? = null,
+) {
+    FilterPill(selected = selected, role = Role.Checkbox, onClick = onClick) { content ->
+        PillText(label, content)
+        count?.let {
+            Text(
+                text = it.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = content.copy(alpha = 0.65f),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+/**
+ * A span of years or lengths. A histogram shows how the section's items spread across it, with the
+ * bars inside the chosen span inked, above a slim two-thumb slider whose ends are labelled with the
+ * lowest and highest value. The full span means no filter; the list refilters when a thumb is let go,
+ * so dragging stays smooth, while the bars and the title's value follow the thumbs live.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RangeFilter(
+    title: String,
+    values: List<Int>,
+    bounds: IntRange,
+    selected: IntRange?,
+    format: @Composable (IntRange) -> String,
+    onSelectedChange: (IntRange?) -> Unit,
+) {
+    val full = bounds.first.toFloat()..bounds.last.toFloat()
+    var draft by remember(selected, bounds) {
+        mutableStateOf(
+            selected?.let { it.first.coerceIn(bounds).toFloat()..it.last.coerceIn(bounds).toFloat() } ?: full,
+        )
+    }
+    val shown = draft.start.roundToInt()..draft.endInclusive.roundToInt()
+    val bins = remember(values, bounds) { histogram(values, bounds) }
+
+    FilterSection(
+        title = title,
+        value = if (shown == bounds) stringResource(R.string.filter_any) else format(shown),
+    ) {
+        Column {
+            // Inset by half a thumb so the bars line up with the stretch of track the thumbs travel.
+            RangeHistogram(
+                bins = bins,
+                selected = shown,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .padding(horizontal = RangeThumbSize / 2),
+            )
+            RangeSlider(
+                value = draft,
+                onValueChange = { draft = it },
+                valueRange = full,
+                onValueChangeFinished = {
+                    val range = draft.start.roundToInt()..draft.endInclusive.roundToInt()
+                    onSelectedChange(range.takeIf { it != bounds })
+                },
+                startThumb = { RangeThumb() },
+                endThumb = { RangeThumb() },
+                track = { RangeTrack(it) },
+            )
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = bounds.first.toString(),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+                Text(
+                    text = bounds.last.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RangeHistogram(
+    bins: List<Pair<IntRange, Int>>,
+    selected: IntRange,
+    modifier: Modifier = Modifier,
+) {
+    val peak = bins.maxOf { it.second }.coerceAtLeast(1)
+    val inside = OmnilogTheme.colors.appInk
+    val outside = OmnilogTheme.colors.appMuted.copy(alpha = 0.25f)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        bins.forEach { (range, count) ->
+            val inSpan = range.last >= selected.first && range.first <= selected.last
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    // Empty bins keep a sliver so the baseline reads as continuous.
+                    .fillMaxHeight(if (count == 0) 0.05f else 0.15f + 0.85f * count / peak)
+                    .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                    .background(if (inSpan) inside else outside),
+            )
+        }
+    }
+}
+
+/** An ink dot with a ring of the sheet's ground, so it sits cleanly over the track. */
+@Composable
+private fun RangeThumb() {
+    Box(
+        modifier = Modifier
+            .size(RangeThumbSize)
+            .clip(CircleShape)
+            .background(OmnilogTheme.colors.appInk)
+            .border(4.dp, OmnilogTheme.colors.appBackground, CircleShape),
+    )
+}
+
+/** A thin rounded track, inked between the two thumbs. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RangeTrack(state: RangeSliderState) {
+    val inactive = OmnilogTheme.colors.appMuted.copy(alpha = 0.25f)
+    val active = OmnilogTheme.colors.appInk
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp),
+    ) {
+        val span = state.valueRange.endInclusive - state.valueRange.start
+        val start = if (span == 0f) 0f else (state.activeRangeStart - state.valueRange.start) / span
+        val end = if (span == 0f) 1f else (state.activeRangeEnd - state.valueRange.start) / span
+        val radius = CornerRadius(size.height / 2)
+        drawRoundRect(color = inactive, cornerRadius = radius)
+        drawRoundRect(
+            color = active,
+            topLeft = Offset(size.width * start, 0f),
+            size = Size(size.width * (end - start), size.height),
+            cornerRadius = radius,
+        )
+    }
+}
+
+/**
+ * A long list of values such as authors or genres: a search field that opens a checklist, most common
+ * first with how many items carry each. The field's supporting line names what is already chosen, so
+ * the choice stays visible with the list closed.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SearchableFilterDropdown(
     title: String,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    options: List<String>,
-    selectedOptions: Set<String>,
-    accent: Color,
-    onOptionToggle: (String) -> Unit,
+    counts: Map<String, Int>,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
 ) {
-    val dropdownScrollIsolation = remember {
-        object : NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset = Offset(x = 0f, y = available.y)
-
-            override suspend fun onPostFling(
-                consumed: Velocity,
-                available: Velocity,
-            ): Velocity = Velocity(x = 0f, y = available.y)
-        }
+    var query by rememberSaveable { mutableStateOf("") }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val bringIntoView = remember { BringIntoViewRequester() }
+    // Re-asked as the keyboard slides in, so the field and its list settle above the keyboard, where the
+    // matches stay visible while typing, instead of underneath it.
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    LaunchedEffect(expanded, imeBottom) {
+        if (expanded) bringIntoView.bringIntoView()
+    }
+    val options = remember(counts, query) {
+        val term = query.trim()
+        counts.keys
+            .filter { it.contains(term, ignoreCase = true) }
+            .sortedWith(compareByDescending<String> { counts.getValue(it) }.thenBy { it })
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = Modifier.bringIntoViewRequester(bringIntoView),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         OutlinedTextField(
             value = query,
             onValueChange = {
-                onQueryChange(it)
-                if (!expanded) onExpandedChange(true)
+                query = it
+                expanded = true
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { if (it.isFocused) expanded = true },
             singleLine = true,
+            shape = RoundedCornerShape(12.dp),
             label = { Text(title) },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = {
-                IconButton(onClick = { onExpandedChange(!expanded) }) {
+                IconButton(onClick = { expanded = !expanded }) {
                     Icon(
-                        imageVector = if (expanded) {
-                            Icons.Filled.KeyboardArrowUp
-                        } else {
-                            Icons.Filled.KeyboardArrowDown
-                        },
+                        imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                         contentDescription = null,
+                    )
+                }
+            },
+            supportingText = if (selected.isEmpty()) {
+                null
+            } else {
+                {
+                    Text(
+                        text = selected.sorted().joinToString(", "),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             },
@@ -1128,24 +1459,22 @@ private fun SearchableFilterDropdown(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                color = OmnilogTheme.colors.appPanel.copy(alpha = 0.55f),
-                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+                color = OmnilogTheme.colors.appPanel,
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
-                        .nestedScroll(dropdownScrollIsolation)
+                        .heightIn(max = 240.dp)
+                        .nestedScroll(SheetScrollIsolation)
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
                     options.forEach { option ->
-                        FilterChoiceRow(
+                        FilterCheckRow(
                             label = option,
-                            selected = option in selectedOptions,
-                            accent = accent,
-                            onClick = { onOptionToggle(option) },
+                            count = counts[option],
+                            checked = option in selected,
+                            onClick = { onToggle(option) },
                         )
                     }
                     if (options.isEmpty()) {
@@ -1162,63 +1491,79 @@ private fun SearchableFilterDropdown(
 }
 
 @Composable
-private fun FilterChoiceRow(
+private fun FilterCheckRow(
     label: String,
-    selected: Boolean,
-    accent: Color,
+    checked: Boolean,
     onClick: () -> Unit,
+    count: Int? = null,
 ) {
-    Surface(
-        onClick = onClick,
-        color = Color.Transparent,
-        contentColor = OmnilogTheme.colors.appInk,
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onClick() })
+            .heightIn(min = 44.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Checkbox(checked = selected, onCheckedChange = { onClick() })
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+            colors = CheckboxDefaults.colors(
+                checkedColor = OmnilogTheme.colors.appInk,
+                checkmarkColor = OmnilogTheme.colors.appBackground,
+                uncheckedColor = OmnilogTheme.colors.appMuted,
+            ),
+        )
+        Text(
+            text = label,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = OmnilogTheme.colors.appInk,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        count?.let {
             Text(
-                text = label,
-                color = if (selected) accent else OmnilogTheme.colors.appInk,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                text = it.toString(),
+                modifier = Modifier.padding(start = 8.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** One short label per active filter value, in the order the sheet lists them. */
 @Composable
-private fun RatingFilterSection(
-    title: String,
-    selectedMinimum: Int?,
-    accent: Color,
-    onSelected: (Int?) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = title, style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = selectedMinimum == null,
-                onClick = { onSelected(null) },
-                label = { Text(stringResource(R.string.filter_any_rating)) },
-            )
-            (5..9).forEach { minimum ->
-                FilterChip(
-                    selected = selectedMinimum == minimum,
-                    onClick = { onSelected(minimum) },
-                    label = { Text(stringResource(R.string.filter_rating_at_least, minimum)) },
-                    colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = accent.copy(alpha = 0.20f),
-                        selectedLabelColor = OmnilogTheme.colors.appInk,
-                    ),
-                )
-            }
-        }
+private fun HomeAdvancedFilters.labels(section: MediaSection): List<String> = buildList {
+    types.sortedBy { it.ordinal }.forEach { add(stringResource(it.labelResId)) }
+    minimumUserRating?.let {
+        add("${stringResource(R.string.filter_my_rating)} ${stringResource(R.string.filter_rating_at_least, it)}")
     }
+    minimumExternalRating?.let {
+        add("${stringResource(R.string.filter_external_rating)} ${stringResource(R.string.filter_rating_at_least, it)}")
+    }
+    lengthRange?.let { range ->
+        val lengthType = types.singleOrNull() ?: section.types.singleOrNull()
+        add(
+            if (lengthType != null) {
+                stringResource(R.string.filter_range_units, range.first, range.last, progressUnitLabel(lengthType, range.last))
+            } else {
+                stringResource(R.string.filter_range, range.first, range.last)
+            },
+        )
+    }
+    addAll(authors.sorted())
+    addAll(genres.sorted())
+    releaseYears?.let {
+        add("${stringResource(R.string.filter_release_year)} ${stringResource(R.string.filter_range, it.first, it.last)}")
+    }
+    platformTypes.sortedBy { it.ordinal }.forEach { add(it.label()) }
+    if (ownedOnly) add(stringResource(R.string.owned_label))
 }
 
-private fun Set<String>.toggle(value: String): Set<String> =
+private fun <T> Set<T>.toggle(value: T): Set<T> =
     if (value in this) this - value else this + value
 
 

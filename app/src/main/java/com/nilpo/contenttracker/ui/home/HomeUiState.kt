@@ -1,6 +1,9 @@
 package com.nilpo.contenttracker.ui.home
 
+import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalRecommendation
+import com.nilpo.contenttracker.core.model.MediaItem
+import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -33,16 +36,15 @@ data class HomeAdvancedFilters(
     val genres: Set<String> = emptySet(),
     val minimumExternalRating: Int? = null,
     val minimumUserRating: Int? = null,
+    val types: Set<MediaType> = emptySet(),
+    val platformTypes: Set<ConsumptionPlatformType> = emptySet(),
+    val releaseYears: IntRange? = null,
+    /** In the unit of [MediaItem.progressTotal]: pages, episodes, minutes or hours. */
+    val lengthRange: IntRange? = null,
+    val ownedOnly: Boolean = false,
 ) {
-    val activeCount: Int
-        get() = authors.size.coerceAtMost(1) +
-            genres.size.coerceAtMost(1) +
-            (if (minimumExternalRating != null) 1 else 0) +
-            (if (minimumUserRating != null) 1 else 0)
-
     val isActive: Boolean
-        get() = authors.isNotEmpty() || genres.isNotEmpty() ||
-            minimumExternalRating != null || minimumUserRating != null
+        get() = this != HomeAdvancedFilters()
 }
 
 enum class HomeBrowseMode {

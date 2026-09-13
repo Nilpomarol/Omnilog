@@ -356,7 +356,7 @@ private fun TrackingStatus.storyAccent(): Color = when (this) {
     TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
 }
 
-private val MediaType.labelResId: Int
+internal val MediaType.labelResId: Int
     get() = when (this) {
         MediaType.Anime -> R.string.media_type_anime
         MediaType.Book -> R.string.media_type_book
