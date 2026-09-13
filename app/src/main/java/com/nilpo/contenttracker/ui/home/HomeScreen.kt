@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,7 +51,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +59,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -68,10 +71,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -177,9 +178,9 @@ fun HomeScreen(
             } else {
                 GridCells.Fixed(1)
             },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxSize(),
+            // A small top inset: the top bar already carries the section title, so the controls sit close under it.
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -232,7 +233,7 @@ fun HomeScreen(
                         onSortModeChange = onSortModeChange,
                         onSortDirectionChange = onSortDirectionChange,
                         onAdvancedFiltersClick = { filtersExpanded = true },
-                        onClearAdvancedFilters = { onAdvancedFiltersChange(HomeAdvancedFilters()) },
+                        onAdvancedFiltersChange = onAdvancedFiltersChange,
                     )
                     if (filtersExpanded) {
                         AdvancedFiltersSheet(
@@ -466,9 +467,9 @@ private fun SearchSectionHeader(
 }
 
 /**
- * The library's controls, quietest first: status as typographic tabs carrying their own counts, then
- * one toolbar line for order, filters and layout. A summary appears only while search or filters hide
- * part of the chosen tab, so the tab's count never has to be second-guessed.
+ * The library's controls: status as colour-coded pills, then one line to arrange what is left, with
+ * order and grouping as separate outlined menus, and filters beside the layout switch. A summary
+ * appears only while search or filters hide part of the chosen status.
  */
 @Composable
 private fun BrowseControls(
@@ -489,37 +490,44 @@ private fun BrowseControls(
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
     onAdvancedFiltersClick: () -> Unit,
-    onClearAdvancedFilters: () -> Unit,
+    onAdvancedFiltersChange: (HomeAdvancedFilters) -> Unit,
 ) {
     val statusCounts = remember(sectionItems) {
         sectionItems.groupingBy { it.currentSession?.status }.eachCount()
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        StatusTabs(
+        StatusPills(
             selectedStatus = statusFilter,
             counts = statusCounts,
             totalCount = sectionItems.size,
-            accent = accent,
             onStatusSelected = onStatusFilterChange,
         )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SortMenu(
-                section = section,
-                sortMode = sortMode,
-                sortDirection = sortDirection,
-                browseMode = browseMode,
-                accent = accent,
-                onSortModeChange = onSortModeChange,
-                onSortDirectionChange = onSortDirectionChange,
-                onBrowseModeChange = onBrowseModeChange,
-                modifier = Modifier.weight(1f),
-            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SortMenu(
+                    sortMode = sortMode,
+                    sortDirection = sortDirection,
+                    accent = accent,
+                    onSortModeChange = onSortModeChange,
+                    onSortDirectionChange = onSortDirectionChange,
+                )
+                GroupMenu(
+                    section = section,
+                    browseMode = browseMode,
+                    accent = accent,
+                    onBrowseModeChange = onBrowseModeChange,
+                )
+            }
             AdvancedFiltersButton(
                 activeCount = advancedFilters.activeCount,
                 accent = accent,
@@ -531,7 +539,6 @@ private fun BrowseControls(
                     selectedMode = displayMode,
                     accent = accent,
                     onModeSelected = onDisplayModeChange,
-                    modifier = Modifier.padding(start = 4.dp),
                 )
             }
         }
@@ -541,7 +548,7 @@ private fun BrowseControls(
                 tabCount = statusFilter?.let { statusCounts[it] ?: 0 } ?: sectionItems.size,
                 filters = advancedFilters,
                 accent = accent,
-                onClearFilters = onClearAdvancedFilters,
+                onClearFilters = { onAdvancedFiltersChange(HomeAdvancedFilters()) },
             )
         }
     }
@@ -555,16 +562,60 @@ private val StatusTabOrder = listOf(
     TrackingStatus.Dropped,
 )
 
-/** Status as text tabs over a hairline: the chosen one is inked and underlined in its status colour. */
+/** A filter's shape: a soft rounded pill, filled with [selectedColor] while it is the active choice. */
 @Composable
-private fun StatusTabs(
+private fun FilterPill(
+    selected: Boolean,
+    role: Role,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selectedColor: Color = OmnilogTheme.colors.appInk,
+    content: @Composable RowScope.(contentColor: Color) -> Unit,
+) {
+    val container by animateColorAsState(
+        targetValue = if (selected) selectedColor else OmnilogTheme.colors.appPanel,
+        animationSpec = tween(durationMillis = 220),
+        label = "pillContainer",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) OmnilogTheme.colors.appBackground else OmnilogTheme.colors.appInk,
+        animationSpec = tween(durationMillis = 220),
+        label = "pillContent",
+    )
+    Row(
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .clip(RoundedCornerShape(10.dp))
+            .background(container)
+            .selectable(selected = selected, role = role, onClick = onClick)
+            .heightIn(min = 36.dp)
+            .padding(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        content(contentColor)
+    }
+}
+
+@Composable
+private fun PillText(text: String, color: Color) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = color,
+        maxLines = 1,
+    )
+}
+
+/** Status as single-choice pills carrying their counts; the chosen one fills with its status colour. */
+@Composable
+private fun StatusPills(
     selectedStatus: TrackingStatus?,
     counts: Map<TrackingStatus?, Int>,
     totalCount: Int,
-    accent: Color,
     onStatusSelected: (TrackingStatus?) -> Unit,
 ) {
-    val hairline = OmnilogTheme.colors.appLine
     // Statuses with nothing in them stay out of the way; a selected one stays so it can be left.
     val options = listOf<TrackingStatus?>(null) +
         StatusTabOrder.filter { (counts[it] ?: 0) > 0 || it == selectedStatus }
@@ -572,54 +623,25 @@ private fun StatusTabs(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBehind {
-                val stroke = 1.dp.toPx()
-                drawRect(hairline, topLeft = Offset(0f, size.height - stroke), size = Size(size.width, stroke))
-            }
             .horizontalScroll(rememberScrollState())
             .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         options.forEach { status ->
             val selected = status == selectedStatus
-            val statusColor = status?.stateColor ?: accent
-            val ink by animateColorAsState(
-                targetValue = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
-                animationSpec = tween(durationMillis = 220),
-                label = "statusTabInk",
-            )
-            val rule by animateColorAsState(
-                targetValue = if (selected) statusColor else statusColor.copy(alpha = 0f),
-                animationSpec = tween(durationMillis = 220),
-                label = "statusTabRule",
-            )
-            Row(
-                modifier = Modifier
-                    .selectable(
-                        selected = selected,
-                        onClick = { onStatusSelected(status) },
-                        role = Role.Tab,
-                    )
-                    .drawBehind {
-                        val stroke = 2.dp.toPx()
-                        drawRect(rule, topLeft = Offset(0f, size.height - stroke), size = Size(size.width, stroke))
-                    }
-                    .heightIn(min = 46.dp)
-                    .padding(bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = status?.label() ?: stringResource(R.string.filter_all_short),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = ink,
-                    maxLines = 1,
-                )
+            val statusColor = status?.stateColor
+            FilterPill(
+                selected = selected,
+                role = Role.Tab,
+                onClick = { onStatusSelected(status) },
+                selectedColor = statusColor ?: OmnilogTheme.colors.appInk,
+            ) { content ->
+                PillText(status?.label() ?: stringResource(R.string.filter_all_short), content)
                 Text(
                     text = (if (status == null) totalCount else counts[status] ?: 0).toString(),
                     style = MaterialTheme.typography.labelMedium,
-                    color = OmnilogTheme.colors.appMuted,
+                    color = content.copy(alpha = 0.65f),
                     maxLines = 1,
                 )
             }
@@ -628,20 +650,69 @@ private fun StatusTabs(
 }
 
 /**
- * Order and grouping behind one quiet anchor that reads as the current arrangement. Choosing the
- * current order again reverses it, so direction needs no control of its own.
+ * An arrangement control, set apart from the filled filter pills: an outlined stadium that takes
+ * [activeColor] while it changes the list from its default.
  */
 @Composable
+private fun ArrangeButton(
+    onClick: () -> Unit,
+    onClickLabel: String,
+    modifier: Modifier = Modifier,
+    active: Boolean = false,
+    activeColor: Color = OmnilogTheme.colors.appInk,
+    content: @Composable RowScope.(contentColor: Color) -> Unit,
+) {
+    val contentColor = if (active) activeColor else OmnilogTheme.colors.appInk
+    val shape = RoundedCornerShape(999.dp)
+    Row(
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .clip(shape)
+            .border(1.dp, if (active) activeColor else OmnilogTheme.colors.appLine, shape)
+            .clickable(onClickLabel = onClickLabel, role = Role.DropdownList, onClick = onClick)
+            .heightIn(min = 34.dp)
+            .padding(horizontal = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        content(contentColor)
+    }
+}
+
+@Composable
+private fun AdvancedFiltersButton(
+    activeCount: Int,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick) {
+        BadgedBox(
+            badge = {
+                if (activeCount > 0) {
+                    Badge(containerColor = accent, contentColor = MaterialTheme.colorScheme.onPrimary) {
+                        Text(activeCount.toString())
+                    }
+                }
+            },
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_filter),
+                contentDescription = stringResource(R.string.filter_more),
+                modifier = Modifier.size(20.dp),
+                tint = if (activeCount > 0) accent else OmnilogTheme.colors.appMuted,
+            )
+        }
+    }
+}
+
+/** Order behind its own outlined button. Choosing the current order again reverses it. */
+@Composable
 private fun SortMenu(
-    section: MediaSection,
     sortMode: HomeSortMode,
     sortDirection: HomeSortDirection,
-    browseMode: HomeBrowseMode,
     accent: Color,
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
-    onBrowseModeChange: (HomeBrowseMode) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val arrowRes = if (sortDirection == HomeSortDirection.Ascending) R.drawable.ic_arrow_up else R.drawable.ic_arrow_down
@@ -649,52 +720,23 @@ private fun SortMenu(
         if (sortDirection == HomeSortDirection.Ascending) R.string.sort_direction_ascending
         else R.string.sort_direction_descending,
     )
-    val anchorLabel = listOfNotNull(
-        sortMode.label(),
-        browseMode.takeIf { it != HomeBrowseMode.Items }?.label(section),
-    ).joinToString(" · ")
+    val sortLabel = stringResource(R.string.sort_label)
 
-    Box(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .clickable(onClickLabel = stringResource(R.string.sort_label)) { expanded = true }
-                .semantics { stateDescription = directionLabel }
-                .heightIn(min = 40.dp)
-                .padding(end = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    Box {
+        ArrangeButton(
+            onClick = { expanded = true },
+            onClickLabel = sortLabel,
+            modifier = Modifier.semantics { stateDescription = directionLabel },
+        ) { content ->
             Icon(
                 painter = painterResource(arrowRes),
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
-                tint = accent,
+                tint = content,
             )
-            Text(
-                text = anchorLabel,
-                modifier = Modifier.weight(1f, fill = false),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = OmnilogTheme.colors.appInk,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = OmnilogTheme.colors.appMuted,
-            )
+            PillText(sortMode.label(), content)
         }
         OmnilogDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            Text(
-                text = stringResource(R.string.sort_label),
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 2.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = OmnilogTheme.colors.appMuted,
-            )
             HomeSortMode.entries.forEach { mode ->
                 val selected = mode == sortMode
                 OmnilogDropdownItem(
@@ -726,17 +768,38 @@ private fun SortMenu(
                     },
                 )
             }
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 4.dp),
-                color = OmnilogTheme.colors.appLine,
+        }
+    }
+}
+
+/** Grouping behind its own outlined button, which takes the section accent while the list is grouped. */
+@Composable
+private fun GroupMenu(
+    section: MediaSection,
+    browseMode: HomeBrowseMode,
+    accent: Color,
+    onBrowseModeChange: (HomeBrowseMode) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val grouped = browseMode != HomeBrowseMode.Items
+    val groupLabel = stringResource(R.string.group_by_label)
+
+    Box {
+        ArrangeButton(
+            onClick = { expanded = true },
+            onClickLabel = groupLabel,
+            active = grouped,
+            activeColor = accent,
+        ) { content ->
+            Icon(
+                painter = painterResource(browseMode.iconRes()),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = content,
             )
-            Text(
-                text = stringResource(R.string.group_by_label),
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 2.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = OmnilogTheme.colors.appMuted,
-            )
+            PillText(if (grouped) browseMode.label(section) else groupLabel, content)
+        }
+        OmnilogDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             HomeBrowseMode.entries.forEach { mode ->
                 OmnilogDropdownItem(
                     text = mode.label(section),
@@ -872,32 +935,6 @@ private fun HomeBrowseMode.iconRes(): Int = when (this) {
     HomeBrowseMode.Items -> R.drawable.ic_group_items
     HomeBrowseMode.Collections -> R.drawable.ic_group_collections
     HomeBrowseMode.Authors -> R.drawable.ic_group_authors
-}
-
-@Composable
-private fun AdvancedFiltersButton(
-    activeCount: Int,
-    accent: Color,
-    onClick: () -> Unit,
-) {
-    IconButton(onClick = onClick) {
-        BadgedBox(
-            badge = {
-                if (activeCount > 0) {
-                    Badge(containerColor = accent, contentColor = MaterialTheme.colorScheme.onPrimary) {
-                        Text(activeCount.toString())
-                    }
-                }
-            },
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_filter),
-                contentDescription = stringResource(R.string.filter_more),
-                modifier = Modifier.size(20.dp),
-                tint = if (activeCount > 0) accent else OmnilogTheme.colors.appMuted,
-            )
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
