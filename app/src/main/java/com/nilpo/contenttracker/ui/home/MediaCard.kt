@@ -1,14 +1,13 @@
 package com.nilpo.contenttracker.ui.home
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +25,9 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -35,34 +37,31 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
-import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
-import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
-import com.nilpo.contenttracker.ui.common.OwnedBadge
+import com.nilpo.contenttracker.ui.common.PartialStar
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
-import com.nilpo.contenttracker.ui.common.formatExternalRating
-import com.nilpo.contenttracker.ui.common.progressLabel
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import com.nilpo.contenttracker.ui.common.progressLabel
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import kotlin.math.roundToInt
 
-private val CardPadding = 6.dp
 private const val CoverAspectRatio = 2f / 3f
-// Every card is pinned to this height so lists read as an even stack. It has to fit the
-// tallest the information column can get: a two-line title, collection, creator, one genre
-// row, and the full progress footer.
-private val BaseCardBodyHeight = 156.dp
-private const val MaxVisibleGenres = 2
+// Every row is pinned to the cover's height so the list reads as an even stack of posters.
+private val BaseRowHeight = 126.dp
+// Matches the 10dp every list leaves between rows.
+private val RowDividerGap = 10.dp
+private const val StarCount = 5
 
+/**
+ * Cover-led list row: the title, its collection and who made it, over one line saying where you
+ * are with it (progress while under way, your stars otherwise) and a status chip.
+ */
 @Composable
 fun MediaCard(
     trackedMedia: TrackedMedia,
@@ -72,114 +71,103 @@ fun MediaCard(
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
-    val primaryExternalRating = trackedMedia.primaryExternalRating
     val creator = trackedMedia.creatorNames().firstOrNull()
-    val collection = formatCollectionDisplayName(
-        trackedMedia.collection?.name,
-        item.collectionSortOrder,
-    )
-    val genres = item.genres.take(MaxVisibleGenres)
-    val additionalGenreCount = (item.genres.size - genres.size).coerceAtLeast(0)
-    // Text is measured in sp and the card in dp, so the pin has to track the system font
-    // setting or larger text would clip. fontScale is global, so cards stay uniform.
-    val bodyHeight = BaseCardBodyHeight * LocalDensity.current.fontScale
+    val collection = formatCollectionDisplayName(trackedMedia.collection?.name, item.collectionSortOrder)
+    val fraction = trackedMedia.coverProgressFraction()
+    val rating = session?.ratingHalfPoints
+    // Text is measured in sp and the row in dp, so the pin tracks the system font setting.
+    val rowHeight = BaseRowHeight * LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val dividerColor = OmnilogTheme.colors.appLine
+    val coverShape = RoundedCornerShape(6.dp)
 
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+            // The divider hangs under each row, RowDividerGap below the cover, so it sits centred
+            // in the lists' matching gap between rows.
+            .drawBehind {
+                val stroke = 1.dp.toPx()
+                val y = size.height - stroke / 2
+                drawLine(dividerColor, Offset(0f, y), Offset(size.width, y), stroke)
+            }
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(bottom = RowDividerGap)
+            .height(rowHeight),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
+        MetadataCoverImage(
+            coverUrl = item.coverUrl,
             modifier = Modifier
-                .padding(CardPadding)
-                .height(bodyHeight),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                .fillMaxHeight()
+                .aspectRatio(CoverAspectRatio)
+                .shadow(elevation = 4.dp, shape = coverShape),
+            shape = coverShape,
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(vertical = 2.dp),
         ) {
-            // The row is a fixed height, so the cover fills it and derives its width from
-            // the 2:3 poster ratio. Nothing is cropped and no gap opens up underneath.
-            MetadataCoverImage(
-                coverUrl = item.coverUrl,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .aspectRatio(CoverAspectRatio),
-                shape = RoundedCornerShape(6.dp),
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+            Row(verticalAlignment = Alignment.Top) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
+                    Text(
+                        text = displayMediaTitle(item.title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = OmnilogTheme.colors.appInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (collection != null) {
                         Text(
-                            text = displayMediaTitle(item.title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = OmnilogTheme.colors.appInk,
-                            maxLines = 2,
+                            text = collection,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accent,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (collection != null) {
-                            Text(
-                                text = collection,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = accent,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (creator != null) {
-                            Text(
-                                text = creator,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = OmnilogTheme.colors.appMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (genres.isNotEmpty()) {
-                            GenreChips(
-                                genres = genres,
-                                additionalGenreCount = additionalGenreCount,
-                            )
-                        }
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        if (item.isOwned) {
-                            OwnedBadge()
-                        }
-                        if (session != null) {
-                            CardStateIconBadge(status = session.status)
-                        }
-                        trailingAction?.invoke()
+                    if (creator != null) {
+                        Text(
+                            text = creator,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
-
-                CardProgressFooter(
-                    session = session,
-                    progressTotal = item.progressTotal.takeUnless { item.type == MediaType.Game },
-                    mediaType = item.type,
-                    progressColor = session?.status?.stateColor ?: accent,
-                    accent = accent,
-                    externalRatingScore = item.externalRatingScore,
-                    externalRatingMax = item.externalRatingMax,
-                    externalRatingSource = primaryExternalRating?.source,
-                )
+                trailingAction?.invoke()
+            }
+            Spacer(Modifier.weight(1f))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    when {
+                        session == null -> Unit
+                        fraction != null -> CardProgress(fraction = fraction, color = session.status.stateColor)
+                        rating != null -> CardStars(halfPoints = rating, accent = accent)
+                        // Games under way have no total to bar against, so their count stands alone.
+                        session.status == TrackingStatus.InProgress && session.progressCurrent > 0 -> Text(
+                            text = session.progressLabel(null, item.type),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                if (session != null) {
+                    CardStatusChip(status = session.status)
+                }
             }
         }
     }
@@ -197,10 +185,7 @@ fun MediaGridCard(
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
-    val total = item.progressTotal?.takeIf { it > 0 && item.type != MediaType.Game }
-    val fraction = total
-        ?.takeIf { session?.status == TrackingStatus.InProgress }
-        ?.let { session.progressFraction(it) }
+    val fraction = trackedMedia.coverProgressFraction()
     val shape = RoundedCornerShape(6.dp)
 
     Column(
@@ -230,20 +215,7 @@ fun MediaGridCard(
                 )
             }
             if (session != null && fraction != null) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .background(Color.Black.copy(alpha = 0.45f)),
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(fraction)
-                            .fillMaxHeight()
-                            .background(session.status.stateColor),
-                    )
-                }
+                CoverProgressStrip(fraction = fraction, color = session.status.stateColor)
             }
         }
         Text(
@@ -257,177 +229,96 @@ fun MediaGridCard(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GenreChips(
-    genres: List<String>,
-    additionalGenreCount: Int,
-) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        maxItemsInEachRow = MaxVisibleGenres + 1,
-        maxLines = 1,
+private fun BoxScope.CoverProgressStrip(fraction: Float, color: Color) {
+    Box(
+        Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .height(4.dp)
+            .background(Color.Black.copy(alpha = 0.45f)),
     ) {
-        genres.forEach { genre ->
-            GenreChip(text = genre)
-        }
-        if (additionalGenreCount > 0) {
-            GenreChip(text = "+$additionalGenreCount")
-        }
-    }
-}
-
-@Composable
-private fun GenreChip(text: String) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = OmnilogTheme.colors.appLine,
-        contentColor = OmnilogTheme.colors.appMuted,
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Box(
+            Modifier
+                .fillMaxWidth(fraction)
+                .fillMaxHeight()
+                .background(color),
         )
     }
 }
 
 @Composable
-private fun CardProgressFooter(
-    session: TrackingSession?,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    progressColor: Color,
-    accent: Color,
-    externalRatingScore: Double?,
-    externalRatingMax: Double?,
-    externalRatingSource: ExternalRatingSource?,
-) {
-    val isGame = mediaType == MediaType.Game
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
+private fun CardProgress(fraction: Float, color: Color) {
+    val pill = RoundedCornerShape(999.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .weight(1f)
+                .height(5.dp)
+                .background(OmnilogTheme.colors.appLine, pill),
         ) {
-            Text(
-                text = session.progressLabel(progressTotal, mediaType),
-                modifier = Modifier.weight(1f, fill = false),
-                style = if (isGame) {
-                    MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp)
-                } else {
-                    MaterialTheme.typography.bodySmall
-                },
-                fontWeight = if (isGame) FontWeight.ExtraBold else FontWeight.SemiBold,
-                color = if (isGame) accent else OmnilogTheme.colors.appMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            CardRatings(
-                personalRating = session?.ratingHalfPoints,
-                externalRatingScore = externalRatingScore,
-                externalRatingMax = externalRatingMax,
-                externalRatingSource = externalRatingSource,
-                mediaType = mediaType,
-                accent = accent,
+            Box(
+                Modifier
+                    .fillMaxWidth(fraction)
+                    .fillMaxHeight()
+                    .background(color, pill),
             )
         }
-        if (progressTotal != null && progressTotal > 0) {
-            CardProgressBar(
-                fraction = session.progressFraction(progressTotal),
-                color = progressColor,
-            )
-        }
-        CardDates(session = session)
+        Text(
+            text = "${(fraction * 100).roundToInt()}%",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = OmnilogTheme.colors.appMuted,
+            maxLines = 1,
+        )
     }
 }
 
+/** Your rating as five stars over the ten-point scale, so each star holds four half points. */
 @Composable
-private fun CardRatings(
-    /** Half points; see [RatingHalfPoints]. */
-    personalRating: Int?,
-    externalRatingScore: Double?,
-    externalRatingMax: Double?,
-    externalRatingSource: ExternalRatingSource?,
-    mediaType: MediaType,
-    accent: Color,
-) {
-    val externalRating = if (externalRatingScore != null && externalRatingMax != null) {
-        formatExternalRating(
-            score = externalRatingScore,
-            maxScore = externalRatingMax,
-            mediaType = mediaType,
-            source = externalRatingSource,
-        ).let { formatted ->
-            if (mediaType == MediaType.Game && externalRatingSource == ExternalRatingSource.Steam) {
-                formatted
-            } else {
-                formatted.removeSuffix("/10")
-            }
-        }
-    } else {
-        null
-    }
-    if (personalRating == null && externalRating == null) return
-
+private fun CardStars(halfPoints: Int, accent: Color) {
+    val figure = formatRatingHalfPoints(halfPoints)
+    val description = stringResource(R.string.library_row_personal_rating, figure)
     Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.clearAndSetSemantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(1.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        personalRating?.let { halfPoints ->
-            val figure = formatRatingHalfPoints(halfPoints)
-            val description = stringResource(R.string.library_row_personal_rating, figure)
-            Row(
-                modifier = Modifier.clearAndSetSemantics { contentDescription = description },
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_kpi_rating),
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(15.dp),
-                )
-                Text(
-                    text = "$figure/10",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = accent,
-                )
-            }
+        repeat(StarCount) { index ->
+            PartialStar(
+                fill = ((halfPoints - index * 4) / 4f).coerceIn(0f, 1f),
+                starSize = 22.dp,
+                accent = accent,
+            )
         }
-        externalRating?.let { value ->
-            val description = if (
-                mediaType == MediaType.Game && externalRatingSource == ExternalRatingSource.Steam
-            ) {
-                stringResource(R.string.library_row_external_rating_percentage, value)
-            } else {
-                stringResource(R.string.library_row_external_rating, value)
-            }
-            Row(
-                modifier = Modifier.clearAndSetSemantics { contentDescription = description },
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_external_rating),
-                    contentDescription = null,
-                    tint = OmnilogTheme.colors.appMuted,
-                    modifier = Modifier.size(12.dp),
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-        }
+        Text(
+            text = figure,
+            modifier = Modifier.padding(start = 6.dp),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = OmnilogTheme.colors.appMuted,
+        )
     }
+}
+
+/** The status on a chip tinted with its colour, text in ink so it reads on either theme. */
+@Composable
+private fun CardStatusChip(status: TrackingStatus) {
+    val color = status.stateColor
+    Text(
+        text = status.label(),
+        modifier = Modifier
+            .background(color.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 11.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = OmnilogTheme.colors.appInk,
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -450,41 +341,6 @@ private fun CardStateIconBadge(
                 .size(13.dp),
         )
     }
-}
-
-@Composable
-private fun CardProgressBar(fraction: Float, color: Color) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(OmnilogTheme.colors.appLine),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(4.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color),
-        )
-    }
-}
-
-@Composable
-private fun CardDates(session: TrackingSession?) {
-    val parts = buildList {
-        session?.startedAt?.let { add(stringResource(R.string.session_started_at, it.formatDate())) }
-        session?.finishedAt?.let { add(stringResource(R.string.session_finished_at, it.formatDate())) }
-    }
-    if (parts.isEmpty()) return
-    Text(
-        text = parts.joinToString(" · "),
-        style = MaterialTheme.typography.labelSmall,
-        color = OmnilogTheme.colors.appMuted,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
 }
 
 private val TrackingStatus.stateColor: Color
@@ -516,11 +372,9 @@ private fun TrackingStatus.label(): String = when (this) {
     TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
 }
 
-private fun TrackingSession?.progressFraction(progressTotal: Int?): Float {
-    val current = this?.progressCurrent ?: 0
-    if (progressTotal == null || progressTotal <= 0) return 0f
-    return current.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
+/** How far along a title under way is; null when there's no total to measure against. */
+private fun TrackedMedia.coverProgressFraction(): Float? {
+    val session = currentSession?.takeIf { it.status == TrackingStatus.InProgress } ?: return null
+    val total = item.progressTotal?.takeIf { it > 0 && item.type != MediaType.Game } ?: return null
+    return (session.progressCurrent.toFloat() / total).coerceIn(0f, 1f)
 }
-
-private fun LocalDate.formatDate(): String =
-    format(DateTimeFormatter.ofPattern("dd/MM/yy"))

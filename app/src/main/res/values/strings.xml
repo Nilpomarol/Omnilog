@@ -341,8 +341,6 @@
     <string name="detail_current_session">Sessió actual</string>
     <string name="detail_history">Historial</string>
     <string name="edit_current_session">Edita seguiment</string>
-    <string name="session_started_at">Començat: %1$s</string>
-    <string name="session_finished_at">Acabat: %1$s</string>
     <string name="session_updated_at">Actualitzat: %1$s</string>
     <string name="session_dates">Dates</string>
     <string name="session_started_label">Data d\'inici</string>
@@ -521,8 +519,6 @@
     <string name="field_final_progress">Progrés final</string>
     <string name="field_rating">Nota</string>
     <string name="library_row_personal_rating">La teva nota: %1$s de 10</string>
-    <string name="library_row_external_rating">Nota externa: %1$s de 10</string>
-    <string name="library_row_external_rating_percentage">Nota externa de Steam: %1$s</string>
     <string name="field_notes">Notes</string>
     <string name="notes_placeholder">Afegeix una nota...</string>
     <string name="field_status">Estat</string>
