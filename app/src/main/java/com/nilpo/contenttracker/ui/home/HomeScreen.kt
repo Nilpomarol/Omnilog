@@ -118,8 +118,20 @@ fun HomeScreen(
     val section = uiState.selectedSection
     var filtersExpanded by remember { mutableStateOf(false) }
     val groupMode = uiState.browseMode.groupMode()
-    val groupedItems = remember(uiState.trackedItems, uiState.browseMode, uiState.sortMode, uiState.sortDirection) {
-        buildHomeGroups(uiState.trackedItems, groupMode, uiState.sortMode, uiState.sortDirection)
+    val groupedItems = remember(
+        uiState.trackedItems,
+        uiState.browseMode,
+        uiState.sortMode,
+        uiState.sortDirection,
+        uiState.advancedFilters.authors,
+    ) {
+        buildHomeGroups(
+            items = uiState.trackedItems,
+            groupMode = groupMode,
+            sortMode = uiState.sortMode,
+            sortDirection = uiState.sortDirection,
+            selectedCreators = uiState.advancedFilters.authors,
+        )
     }
     val collapsedGroupKeysState = remember(section, uiState.browseMode, groupedItems.map { it.key }) {
         mutableStateOf(
