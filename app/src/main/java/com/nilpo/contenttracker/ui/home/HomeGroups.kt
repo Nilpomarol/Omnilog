@@ -38,7 +38,13 @@ internal fun buildHomeGroups(
     groupMode: HomeGroupMode,
     sortMode: HomeSortMode = HomeSortMode.Recent,
     sortDirection: HomeSortDirection = HomeSortDirection.Descending,
+    selectedCreators: Set<String> = emptySet(),
 ): List<HomeDisplayGroup> {
+    val normalizedSelectedCreators = selectedCreators
+        .map(String::normalizedGroupValue)
+        .filter(String::isNotBlank)
+        .toSet()
+
     return when (groupMode) {
         HomeGroupMode.None -> emptyList()
         HomeGroupMode.Status -> TrackingStatus.entries.mapNotNull { status ->
@@ -52,28 +58,32 @@ internal fun buildHomeGroups(
                 status = status,
             )
         }
-        HomeGroupMode.Collection -> {
-            val grouped = items.groupBy { it.collection }.toList()
-            sortCollectionGroups(grouped, sortMode, sortDirection)
-                .map { (collection, groupItems) ->
-                    HomeDisplayGroup(
-                        key = collection?.let { "collection:${it.id}" } ?: "collection:none",
-                        type = HomeGroupType.Collection,
-                        title = collection?.name ?: "",
-                        items = groupItems,
-                        collection = collection,
-                    )
-                }
-        }
+        HomeGroupMode.Collection -> items
+            .groupBy { it.collection }
+            .map { (collection, groupItems) ->
+                HomeDisplayGroup(
+                    key = collection?.let { "collection:${it.id}" } ?: "collection:none",
+                    type = HomeGroupType.Collection,
+                    title = collection?.name ?: "",
+                    items = groupItems,
+                    collection = collection,
+                )
+            }
+            .sortGroupedLibrary(sortMode, sortDirection)
         HomeGroupMode.Author -> items
             .flatMap { trackedMedia ->
-                trackedMedia.creatorNames()
-                    .map { author -> author to trackedMedia }
-                    .ifEmpty { listOf("" to trackedMedia) }
+                val creators = trackedMedia.creatorNames()
+                    .filter { creator ->
+                        normalizedSelectedCreators.isEmpty() ||
+                            creator.normalizedGroupValue() in normalizedSelectedCreators
+                    }
+                when {
+                    creators.isNotEmpty() -> creators.map { author -> author to trackedMedia }
+                    normalizedSelectedCreators.isEmpty() -> listOf("" to trackedMedia)
+                    else -> emptyList()
+                }
             }
             .groupBy({ it.first }, { it.second })
-            .toList()
-            .sortedBy { it.first.lowercase() }
             .map { (author, groupItems) ->
                 HomeDisplayGroup(
                     key = "author:${author.lowercase()}",
@@ -85,7 +95,45 @@ internal fun buildHomeGroups(
                     imageIsLogo = groupItems.creditsACompany(),
                 )
             }
+            .sortGroupedLibrary(sortMode, sortDirection)
     }
+}
+
+/**
+ * Grouped views sort the groups themselves, not whichever flat item happened to be first.
+ * Empty/unknown buckets remain last because they are fallbacks rather than real library entities.
+ */
+private fun List<HomeDisplayGroup>.sortGroupedLibrary(
+    sortMode: HomeSortMode,
+    sortDirection: HomeSortDirection,
+): List<HomeDisplayGroup> {
+    val named = filter { it.title.isNotBlank() }
+    val unknown = filter { it.title.isBlank() }
+
+    val comparator: Comparator<HomeDisplayGroup> = when (sortMode) {
+        HomeSortMode.Title -> compareBy { it.title.lowercase() }
+        HomeSortMode.Recent -> compareBy<HomeDisplayGroup> { group ->
+            group.items.maxOfOrNull { it.currentSession?.updatedAtEpochMillis ?: 0L } ?: 0L
+        }.thenBy { it.title.lowercase() }
+        HomeSortMode.Rating -> compareBy<HomeDisplayGroup> { group ->
+            val average = group.items.mapNotNull { it.currentSession?.ratingHalfPoints }.average()
+            if (average.isNaN()) -1.0 else average
+        }.thenBy { it.title.lowercase() }
+        HomeSortMode.Progress -> compareBy<HomeDisplayGroup> { group ->
+            if (group.items.isEmpty()) {
+                -1.0
+            } else {
+                group.items.count { it.currentSession?.status == TrackingStatus.Completed }
+                    .toDouble() / group.items.size
+            }
+        }.thenBy { it.title.lowercase() }
+    }
+
+    val sorted = when (sortDirection) {
+        HomeSortDirection.Ascending -> named.sortedWith(comparator)
+        HomeSortDirection.Descending -> named.sortedWith(comparator.reversed())
+    }
+    return sorted + unknown
 }
 
 /**
@@ -100,43 +148,7 @@ private fun List<TrackedMedia>.creditsACompany(): Boolean =
 
 private val CompanyCreditedTypes = setOf(MediaType.Anime, MediaType.Game)
 
-/**
- * Sorts named collection groups by [sortMode]/[sortDirection].
- * The "no collection" bucket is always placed last regardless of sort.
- */
-private fun sortCollectionGroups(
-    groups: List<Pair<MediaCollection?, List<TrackedMedia>>>,
-    sortMode: HomeSortMode,
-    sortDirection: HomeSortDirection,
-): List<Pair<MediaCollection?, List<TrackedMedia>>> {
-    val named = groups.filter { it.first != null }
-    val noCollection = groups.filter { it.first == null }
-
-    val comparator: Comparator<Pair<MediaCollection?, List<TrackedMedia>>> = when (sortMode) {
-        HomeSortMode.Title -> compareBy { it.first!!.name.lowercase() }
-        HomeSortMode.Recent -> compareBy {
-            it.second.maxOfOrNull { tm -> tm.currentSession?.updatedAtEpochMillis ?: 0L } ?: 0L
-        }
-        HomeSortMode.Rating -> compareBy {
-            val avg = it.second.mapNotNull { tm -> tm.currentSession?.ratingHalfPoints }.average()
-            if (avg.isNaN()) -1.0 else avg
-        }
-        HomeSortMode.Progress -> compareBy {
-            val size = it.second.size
-            if (size == 0) -1.0
-            else it.second.count { tm -> tm.currentSession?.status == TrackingStatus.Completed }
-                .toDouble() / size
-        }
-    }
-
-    val sorted = if (sortDirection == HomeSortDirection.Descending) {
-        named.sortedWith(comparator.reversed())
-    } else {
-        named.sortedWith(comparator)
-    }
-
-    return sorted + noCollection
-}
+private fun String.normalizedGroupValue(): String = trim().lowercase()
 
 internal fun List<TrackedMedia>.collectionCoverStack(limit: Int = 3): List<String> =
     sortedWith(
