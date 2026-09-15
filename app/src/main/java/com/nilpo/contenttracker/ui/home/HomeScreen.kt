@@ -322,7 +322,8 @@ fun HomeScreen(
                                     fadeOut(tween(110)),
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(top = 4.dp),
+                                    // Same gap as between rows, so a header's hairline sits centred above the first item.
+                                    modifier = Modifier.padding(top = 10.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     groupItems.forEach { trackedMedia ->

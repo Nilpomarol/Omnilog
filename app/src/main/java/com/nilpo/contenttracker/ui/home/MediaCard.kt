@@ -52,11 +52,11 @@ import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlin.math.roundToInt
 
-private const val CoverAspectRatio = 2f / 3f
+internal const val CoverAspectRatio = 2f / 3f
 // Every row is pinned to the cover's height so the list reads as an even stack of posters.
-private val BaseRowHeight = 132.dp
+internal val BaseRowHeight = 132.dp
 // Matches the 10dp every list leaves between rows.
-private val RowDividerGap = 10.dp
+internal val RowDividerGap = 10.dp
 private const val StarCount = 5
 
 /**
@@ -266,7 +266,7 @@ private fun BoxScope.CoverProgressStrip(fraction: Float, color: Color) {
 }
 
 @Composable
-private fun CardProgress(fraction: Float, color: Color) {
+internal fun CardProgress(fraction: Float, color: Color) {
     val pill = RoundedCornerShape(999.dp)
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -298,7 +298,7 @@ private fun CardProgress(fraction: Float, color: Color) {
 
 /** Your rating as five stars over the ten-point scale, so each star holds four half points. */
 @Composable
-private fun CardStars(halfPoints: Int, accent: Color) {
+internal fun CardStars(halfPoints: Int, accent: Color) {
     val figure = formatRatingHalfPoints(halfPoints)
     val description = stringResource(R.string.library_row_personal_rating, figure)
     Row(
