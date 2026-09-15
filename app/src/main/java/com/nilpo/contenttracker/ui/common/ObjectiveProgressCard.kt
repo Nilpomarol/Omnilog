@@ -373,8 +373,8 @@ private val shortDateYear: DateTimeFormatter = DateTimeFormatter.ofPattern("d MM
 fun MediaType?.objectiveAccent(): Color = when (this) {
     MediaType.Anime -> OmnilogTheme.accents.Anime
     MediaType.Book -> OmnilogTheme.accents.Books
-    MediaType.Movie -> OmnilogTheme.accents.Dashboard
-    MediaType.TvShow -> OmnilogTheme.accents.Tv
+    MediaType.Movie -> OmnilogTheme.accents.Movie
+    MediaType.TvShow -> OmnilogTheme.accents.Series
     MediaType.Game -> OmnilogTheme.accents.Games
     null -> OmnilogTheme.accents.Dashboard
 }

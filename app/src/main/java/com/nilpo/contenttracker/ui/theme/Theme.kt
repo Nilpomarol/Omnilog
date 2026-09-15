@@ -27,16 +27,17 @@ import com.nilpo.contenttracker.R
  */
 object OmnilogColors {
     val Dashboard = Color(0xFFA6B58B)
-    val Anime = Color(0xFFC99A85)
-    val Books = Color(0xFFB9AC87)
-    val Tv = Color(0xFF4FA8A8)
-    val Games = Color(0xFFD4B96A)
+    // Sakura pink for anime; the others keep their hues with more chroma than the earlier muted set.
+    val Anime = Color(0xFFF4A3C1)
+    val Books = Color(0xFFE3A566)
+    val Tv = Color(0xFF3FC2B6)
+    val Games = Color(0xFFEBC84E)
 
     // "Cinema i TV" is one navigation section but two media types, and Stats and Profile both show
     // them apart. Films keep the section's own colour; series get their own so the pair never has
     // to be told apart by icon alone.
     val Movie = Tv
-    val Series = Color(0xFF5E8FC4)
+    val Series = Color(0xFF72A7EC)
 
     val Planned = Color(0xFF9DA7B2)
     val InProgress = Color(0xFF5E8FC4)
@@ -87,12 +88,12 @@ val DarkAccents = OmnilogAccents(
 
 val LightAccents = OmnilogAccents(
     Dashboard = Color(0xFF526345),
-    Anime = Color(0xFF92553F),
-    Books = Color(0xFF76613E),
-    Tv = Color(0xFF326E6E),
-    Games = Color(0xFF796222),
-    Movie = Color(0xFF326E6E),
-    Series = Color(0xFF38689A),
+    Anime = Color(0xFFB03A68),
+    Books = Color(0xFF94541A),
+    Tv = Color(0xFF0A7370),
+    Games = Color(0xFF7D6400),
+    Movie = Color(0xFF0A7370),
+    Series = Color(0xFF2C64B0),
     Planned = Color(0xFF596672),
     InProgress = Color(0xFF38689A),
     Completed = Color(0xFF3D6F4F),
