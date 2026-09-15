@@ -730,6 +730,7 @@ private fun CompletionForm(
     accent: Color,
     onRatingChange: (Int?) -> Unit,
     onFinishedAtChange: (LocalDate) -> Unit,
+    dateLabel: String = stringResource(R.string.session_finished_label),
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -748,6 +749,7 @@ private fun CompletionForm(
         HorizontalDivider(color = OmnilogTheme.colors.appLine)
         CompletionDateRow(
             date = finishedAt,
+            label = dateLabel,
             accent = accent,
             onDateChange = onFinishedAtChange,
         )
@@ -758,6 +760,7 @@ private fun CompletionForm(
 @Composable
 private fun CompletionDateRow(
     date: LocalDate,
+    label: String,
     accent: Color,
     onDateChange: (LocalDate) -> Unit,
 ) {
@@ -771,7 +774,7 @@ private fun CompletionDateRow(
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = stringResource(R.string.session_finished_label),
+                text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = OmnilogTheme.colors.appMuted,
             )
@@ -823,3 +826,156 @@ private fun CompletionDateRow(
 
 private val quickDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMM ''yy", Locale.getDefault())
+
+/** A status picked from the detail page's session card, with what that change asked for. */
+data class StatusChange(
+    val status: TrackingStatus,
+    val progress: Int,
+    /** Half points; see [RatingHalfPoints]. */
+    val ratingHalfPoints: Int?,
+    /** The day a Completed or Dropped session ended; null for the states that do not end one. */
+    val date: LocalDate?,
+)
+
+/**
+ * The short form behind each state in the session card's menu, built from this sheet's own parts.
+ *
+ * - In progress and Paused ask where you are: the progress rail.
+ * - Completed asks for a verdict and a day, with progress run to the total. An item with no total
+ *   (a game's hours) keeps the rail, since there is no total to run it to.
+ * - Dropped asks all three: an abandoned session stops somewhere and still earns an opinion.
+ *
+ * Paused carries no date because the repository keeps finish dates for ended sessions only; a pause
+ * is recorded as that day's transition.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StatusChangeSheet(
+    trackedMedia: TrackedMedia,
+    targetStatus: TrackingStatus,
+    targetLabel: String,
+    accent: Color,
+    onConfirm: (StatusChange) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val session = trackedMedia.currentSession ?: return
+    val item = trackedMedia.item
+    val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }?.takeIf { it > 0 }
+    val ends = targetStatus == TrackingStatus.Completed || targetStatus == TrackingStatus.Dropped
+    val asksProgress = targetStatus != TrackingStatus.Completed || total == null
+
+    var draftText by remember(session.id, targetStatus) {
+        mutableStateOf(
+            if (targetStatus == TrackingStatus.Completed && total != null) {
+                total.toString()
+            } else {
+                session.progressCurrent.toString()
+            },
+        )
+    }
+    val draft = draftText.toIntOrNull()?.coerceIn(0, total ?: Int.MAX_VALUE)
+    var ratingDraft by remember(session.id) { mutableStateOf(session.ratingHalfPoints) }
+    var endDate by remember(session.id) { mutableStateOf(session.finishedAt ?: LocalDate.now()) }
+    // The repository refuses an end before the start, so the sheet says no up front instead of the
+    // save silently doing nothing.
+    val startedAt = session.startedAt
+    val dateValid = !ends || startedAt == null || !endDate.isBefore(startedAt)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = OmnilogTheme.colors.appPanel,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MetadataCoverImage(
+                    coverUrl = item.coverUrl,
+                    modifier = Modifier.size(width = 40.dp, height = 60.dp),
+                    shape = RoundedCornerShape(6.dp),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.status_change_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogTheme.colors.appMuted,
+                    )
+                    Text(
+                        text = displayMediaTitle(item.title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = OmnilogTheme.colors.appInk,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            if (asksProgress) {
+                QuickProgressRail(
+                    text = draftText,
+                    total = total,
+                    mediaType = item.type,
+                    accent = accent,
+                    onTextChange = { draftText = it },
+                )
+            }
+
+            if (ends) {
+                CompletionForm(
+                    rating = ratingDraft,
+                    finishedAt = endDate,
+                    accent = accent,
+                    onRatingChange = { ratingDraft = it },
+                    onFinishedAtChange = { endDate = it },
+                    dateLabel = stringResource(
+                        if (targetStatus == TrackingStatus.Dropped) {
+                            R.string.session_date_dropped
+                        } else {
+                            R.string.session_finished_label
+                        },
+                    ),
+                )
+            }
+
+            Button(
+                onClick = {
+                    draft?.let { value ->
+                        onConfirm(
+                            StatusChange(
+                                status = targetStatus,
+                                progress = value,
+                                ratingHalfPoints = ratingDraft,
+                                date = endDate.takeIf { ends },
+                            ),
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = draft != null && dateValid,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent,
+                    contentColor = contentColorOn(accent),
+                ),
+            ) {
+                Text(
+                    text = stringResource(R.string.status_change_confirm, targetLabel),
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
+        }
+    }
+}

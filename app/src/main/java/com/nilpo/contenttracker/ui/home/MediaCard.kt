@@ -238,6 +238,9 @@ fun MediaGridCard(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = OmnilogTheme.colors.appInk,
+            // Two lines reserved even for a short title, so every tile — and every carousel of
+            // them — is the same height.
+            minLines = 2,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )

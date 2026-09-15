@@ -1,5 +1,11 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +75,14 @@ import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
+/**
+ * The page's one strong action, and the quiet ones beside it.
+ *
+ * The log button takes the room; ownership, collection and a new session recede to an icon with a
+ * one-word caption under it, tinted with the accent once they are on. The caption stays one word —
+ * the collection's full name already heads the title. With nothing to log, the quiet actions share
+ * the row between them.
+ */
 @Composable
 fun DetailQuickActionsSection(
     item: MediaItem,
@@ -76,59 +90,85 @@ fun DetailQuickActionsSection(
     library: List<TrackedMedia>,
     currentSession: TrackingSession?,
     accent: Color,
+    onLogProgress: (() -> Unit)?,
     onSaveItemDetails: (String, Long?, String?, Double?, Int?, Boolean) -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showCollectionDialog by rememberSaveable(item.id) { mutableStateOf(false) }
     var showNewSessionDialog by rememberSaveable(item.id) { mutableStateOf(false) }
+    val logSession = currentSession?.takeIf { onLogProgress != null }
+    // Beside the log button each action is a narrow icon-over-caption column; on their own they
+    // share the row as icon-and-label pairs, which read as actions rather than floating glyphs.
+    val stacked = logSession != null
 
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            QuietQuickAction(
-                text = if (item.isOwned) {
-                    stringResource(R.string.owned_label)
-                } else {
-                    stringResource(R.string.owned_action_add)
-                },
-                icon = painterResource(R.drawable.ic_owned_badge),
-                accent = accent,
-                selected = item.isOwned,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onSaveItemDetails(
-                        item.title,
-                        item.collectionId,
-                        null,
-                        item.collectionSortOrder,
-                        item.effectiveProgressTotal(),
-                        !item.isOwned,
-                    )
-                },
-            )
-            QuietQuickAction(
-                text = formatCollectionDisplayName(collection?.name, item.collectionSortOrder)
-                    ?: stringResource(R.string.collection_action_add),
-                icon = painterResource(R.drawable.ic_group_collections),
-                accent = accent,
-                selected = collection != null,
-                modifier = Modifier.weight(1f),
-                onClick = { showCollectionDialog = true },
-            )
+        val quietModifier = if (stacked) Modifier else Modifier.weight(1f)
+
+        if (logSession != null && onLogProgress != null) {
+            Button(
+                onClick = onLogProgress,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Text(
+                    text = logActionLabel(status = logSession.status, mediaType = item.type),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            QuietDivider(modifier = Modifier.padding(start = 8.dp))
         }
+
+        QuietQuickAction(
+            text = stringResource(if (item.isOwned) R.string.owned_label else R.string.owned_caption),
+            icon = painterResource(R.drawable.ic_owned_badge),
+            accent = accent,
+            selected = item.isOwned,
+            stacked = stacked,
+            modifier = quietModifier,
+            onClick = {
+                onSaveItemDetails(
+                    item.title,
+                    item.collectionId,
+                    null,
+                    item.collectionSortOrder,
+                    item.effectiveProgressTotal(),
+                    !item.isOwned,
+                )
+            },
+        )
+        QuietDivider()
+        QuietQuickAction(
+            text = stringResource(R.string.collection_action_add),
+            icon = painterResource(R.drawable.ic_group_collections),
+            accent = accent,
+            selected = collection != null,
+            stacked = stacked,
+            modifier = quietModifier,
+            onClick = { showCollectionDialog = true },
+        )
         if (currentSession?.status != TrackingStatus.Planned) {
+            QuietDivider()
             QuietQuickAction(
                 text = stringResource(R.string.new_session_title),
                 icon = rememberVectorPainter(Icons.Filled.Add),
                 accent = accent,
                 selected = false,
-                modifier = Modifier.fillMaxWidth(),
+                stacked = stacked,
+                modifier = quietModifier,
                 onClick = { showNewSessionDialog = true },
             )
         }
@@ -175,8 +215,9 @@ fun DetailQuickActionsSection(
 }
 
 /**
- * A secondary action: a soft fill and no outline, tinted with the accent once it is on. The session
- * card's log button stays the page's one strong action.
+ * A secondary action with no surface of its own, taking the accent once it is on: an icon over a
+ * one-word caption when [stacked], an icon beside its label otherwise. Both are the log button's
+ * 48dp tall, so the row adds no whitespace of its own above or below.
  */
 @Composable
 private fun QuietQuickAction(
@@ -184,20 +225,42 @@ private fun QuietQuickAction(
     icon: Painter,
     accent: Color,
     selected: Boolean,
+    stacked: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
-        contentColor = OmnilogTheme.colors.appInk,
-    ) {
+    val tint = if (selected) accent else OmnilogTheme.colors.appMuted
+    val actionModifier = modifier
+        .heightIn(min = 48.dp)
+        .widthIn(min = 64.dp)
+        .clip(RoundedCornerShape(12.dp))
+        .clickable(onClick = onClick)
+        .padding(horizontal = 4.dp)
+
+    if (stacked) {
+        Column(
+            modifier = actionModifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+        ) {
+            Icon(
+                painter = icon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = tint,
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    } else {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = actionModifier,
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -205,18 +268,27 @@ private fun QuietQuickAction(
                 painter = icon,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                tint = if (selected) accent else OmnilogTheme.colors.appMuted,
+                tint = tint,
             )
             Text(
                 text = text,
                 modifier = Modifier.padding(start = 8.dp),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
+                color = if (selected) accent else OmnilogTheme.colors.appInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
     }
+}
+
+@Composable
+private fun QuietDivider(modifier: Modifier = Modifier) {
+    VerticalDivider(
+        modifier = modifier.height(28.dp),
+        color = OmnilogTheme.colors.appLine,
+    )
 }
 
 @Composable

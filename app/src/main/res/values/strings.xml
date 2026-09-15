@@ -336,6 +336,14 @@
     <string name="back">Enrere</string>
     <string name="detail_current_session">Sessió actual</string>
     <string name="detail_history">Historial</string>
+    <plurals name="detail_history_sessions">
+        <item quantity="one">%1$d sessió</item>
+        <item quantity="other">%1$d sessions</item>
+    </plurals>
+    <string name="detail_credits">Crèdits</string>
+    <string name="owned_caption">Propietat</string>
+    <string name="status_change_title">Canvia l\'estat</string>
+    <string name="status_change_confirm">Canvia a %1$s</string>
     <string name="edit_current_session">Edita seguiment</string>
     <string name="session_updated_at">Actualitzat: %1$s</string>
     <string name="session_dates">Dates</string>
@@ -392,14 +400,13 @@
     <string name="detail_ratings">Valoracions</string>
     <string name="detail_rating_yours">La teva nota</string>
     <string name="detail_credits_show_more">Mostra\'n %1$d més</string>
-    <string name="detail_related_collection_title">Més de «%1$s»</string>
+    <string name="detail_related_collection_title">Més de %1$s</string>
     <string name="detail_related_collection_fallback">Més de la col·lecció</string>
     <string name="detail_related_title">Relacionats de la teva biblioteca</string>
     <string name="detail_external_recommendations">Recomanacions externes</string>
     <string name="detail_external_recommendation_loading">Buscant recomanacions...</string>
     <string name="detail_external_recommendation_error">No s\'han pogut carregar les recomanacions.</string>
     <string name="detail_external_recommendation_retry">Torna-ho a provar</string>
-    <string name="detail_external_recommendation_add">Afegeix</string>
     <string name="new_session_title">Nova sessió</string>
     <string name="create_session">Crea sessió</string>
     <string name="add_with_status">Afegeix com a %1$s</string>

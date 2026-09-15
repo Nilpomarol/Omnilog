@@ -1,11 +1,15 @@
 package com.nilpo.contenttracker.ui.detail
 
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -84,28 +88,29 @@ fun ActivityAction(
             )
         }
     } else {
-        // Named, counted, and larger than the edit button beside it, because it does more than edit
-        // does: this is the way into the whole record of the session, and matching it to a bare 32dp
-        // disc made the card's most substantial feature its least visible control.
-        //
-        // What went wrong before was tone, not shape. An earlier pill failed on `appInk` at 8% behind
-        // muted content, which reads as a disabled control; taking Material's own tonal pair — the
-        // same one the edit disc uses — makes a pill and a disc read as one family at any size.
-        FilledTonalButton(
-            onClick = { showSheet = true },
-            modifier = Modifier.height(36.dp),
-            contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
+        // On the live session card this is a quiet link beside the dates rather than a control: it
+        // is more to read about the session, and a tonal pill there competed with the log button
+        // and looked like nothing else on the page.
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { showSheet = true }
+                .heightIn(min = 40.dp)
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_history),
                 contentDescription = null,
-                modifier = Modifier.size(17.dp),
+                tint = OmnilogTheme.colors.appMuted,
+                modifier = Modifier.size(14.dp),
             )
             Text(
                 text = stringResource(R.string.activity_open, count),
-                modifier = Modifier.padding(start = 7.dp),
+                modifier = Modifier.padding(start = 5.dp),
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
             )
         }

@@ -1,5 +1,18 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.runtime.remember
+import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.ui.common.QuickCompletion
+import com.nilpo.contenttracker.ui.common.StatusChangeSheet
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.filled.ArrowDropDown
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -59,17 +72,18 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 
 // ─────────────────────────────────────────────────────────────
-// Entry point — swaps between read card and full edit screen
+// Entry point — the card, its status menu, and what they open
 // ─────────────────────────────────────────────────────────────
 
 @Composable
 fun CurrentSessionSection(
+    trackedMedia: TrackedMedia,
     session: TrackingSession,
     progressTotal: Int?,
     mediaType: MediaType,
     accent: Color,
-    onLogProgress: (() -> Unit)?,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
+    onQuickComplete: (QuickCompletion) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
@@ -79,19 +93,74 @@ fun CurrentSessionSection(
     modifier: Modifier = Modifier,
 ) {
     var showEditor by rememberSaveable(session.id) { mutableStateOf(false) }
+    // A state picked from the card's menu, waiting on its sheet.
+    var pendingStatus by rememberSaveable(session.id) { mutableStateOf<TrackingStatus?>(null) }
 
     SessionCard(
         session = session,
         progressTotal = progressTotal,
         mediaType = mediaType,
-        onLogProgress = onLogProgress,
         onEditClick = { showEditor = true },
+        onStatusSelected = { status ->
+            if (status == TrackingStatus.Planned) {
+                // Back on the list: nothing to ask, so no sheet. Progress and dates are kept as
+                // they are; the editor is the place to clear them.
+                onUpdateSessionDetails(
+                    session.id,
+                    status,
+                    session.progressCurrent,
+                    session.ratingHalfPoints,
+                    session.notes,
+                    session.startedAt,
+                    null,
+                )
+            } else {
+                pendingStatus = status
+            }
+        },
         onDeleteProgressUpdate = onDeleteProgressUpdate,
         onDeleteStatusEvent = onDeleteStatusEvent,
         onUpdateStatusEventDate = onUpdateStatusEventDate,
         onUpdateProgressUpdate = onUpdateProgressUpdate,
         modifier = modifier,
     )
+
+    pendingStatus?.let { target ->
+        val targetVisual = sessionStateVisual(target)
+        StatusChangeSheet(
+            trackedMedia = trackedMedia,
+            targetStatus = target,
+            targetLabel = targetVisual.label,
+            accent = targetVisual.color,
+            onConfirm = { change ->
+                pendingStatus = null
+                if (change.status == TrackingStatus.Completed) {
+                    // The quick path, so finishing from here gets the same undo as finishing from Home.
+                    onQuickComplete(
+                        QuickCompletion(
+                            progress = change.progress,
+                            ratingHalfPoints = change.ratingHalfPoints,
+                            finishedAt = change.date ?: LocalDate.now(),
+                        ),
+                    )
+                } else {
+                    onUpdateSessionDetails(
+                        session.id,
+                        change.status,
+                        change.progress,
+                        change.ratingHalfPoints,
+                        session.notes,
+                        // Only leaving Planned stamps a start. A paused or reopened session began
+                        // when it began, and inventing today would misfile it in stats.
+                        session.startedAt
+                            ?: LocalDate.now().takeIf { session.status == TrackingStatus.Planned },
+                        change.date,
+                    )
+                }
+            },
+            onDismiss = { pendingStatus = null },
+        )
+    }
 
     if (showEditor) {
         Dialog(
@@ -121,22 +190,22 @@ fun CurrentSessionSection(
 // ─────────────────────────────────────────────────────────────
 
 /**
- * The live session, and the page's centre of gravity.
+ * The live session, straight on the page rather than inside a panel.
  *
- * A plain panel in the page's warm neutral. The status is a tinted chip and a rating is five stars,
- * as on the library rows, so the only saturated object left is the log button: the one thing to do
- * here is the one thing that stands out.
+ * The whole section opens the session editor. The status on its first line is a control of its own: a
+ * menu of the five states, each opening the short sheet that change needs. The position sits opposite
+ * it, one plain bar under both, then the dates and a quiet link into the session's activity.
  *
- * There is one hero slot rather than a layout per status. What fills it is decided by the data — a
- * rating if there is one, the progress figure if there is not.
+ * The log button lives in the action row below, and the rating stands beside the providers' scores
+ * further down rather than being repeated here.
  */
 @Composable
 private fun SessionCard(
     session: TrackingSession,
     progressTotal: Int?,
     mediaType: MediaType,
-    onLogProgress: (() -> Unit)?,
     onEditClick: () -> Unit,
+    onStatusSelected: (TrackingStatus) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
@@ -144,34 +213,56 @@ private fun SessionCard(
     modifier: Modifier = Modifier,
 ) {
     val visual = sessionStateVisual(session.status)
-    val state = visual.color
+    val recency = sessionRecencyLabel(session)
 
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = OmnilogTheme.colors.appPanel,
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(
+                onClickLabel = stringResource(R.string.edit_current_session),
+                onClick = onEditClick,
+            ),
     ) {
+        // Start 4 plus the status menu's own 4 puts the status mark on the gutter; see DetailScreen.
         Column(
-            modifier = Modifier.padding(16.dp),
-            // 14dp between six blocks was most of why this card ran tall. The blocks are distinct
-            // enough at 11 — the chip, the figure, the graphic and the dates are different shapes and
-            // different weights, and none of them needed a gap to be told apart from its neighbour.
-            verticalArrangement = Arrangement.spacedBy(11.dp),
+            modifier = Modifier.padding(start = 4.dp, end = 8.dp, bottom = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Planned no longer forks off its own anatomy. It is the in-progress card at zero: the
-            // same chip-and-edit row, the same figure — now showing the total instead of a current —
-            // and the same track, empty rather than partway full. One less shape for the eye to
-            // learn, at the cost of a row that used to be bare artwork now stating the obvious: zero.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SessionStateChip(visual = visual)
+                StatusMenu(current = session.status, onStatusSelected = onStatusSelected)
+                Spacer(modifier = Modifier.weight(1f))
+                ProgressFigure(
+                    session = session,
+                    progressTotal = progressTotal,
+                    mediaType = mediaType,
+                )
+            }
+
+            SessionProgressBar(
+                progressCurrent = session.progressCurrent,
+                progressTotal = progressTotal,
+                color = visual.color,
+                track = OmnilogTheme.colors.appLine,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+
+            // Nothing at all when nothing is known: the status line has already said where things stand.
+            if (session.startedAt != null || session.finishedAt != null || recency != null) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(start = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    SessionDatesRow(
+                        session = session,
+                        mediaType = mediaType,
+                        modifier = Modifier.weight(1f),
+                        compact = true,
+                        trailing = recency,
+                    )
                     ActivityAction(
                         updates = session.progressUpdates,
                         statusEvents = session.statusEvents,
@@ -181,134 +272,129 @@ private fun SessionCard(
                         sessionStatus = session.status,
                         progressTotal = progressTotal,
                         mediaType = mediaType,
-                        accent = state,
+                        accent = visual.color,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                         onUpdateProgressUpdate = onUpdateProgressUpdate,
                         onDeleteStatusEvent = onDeleteStatusEvent,
                         onUpdateStatusEventDate = onUpdateStatusEventDate,
                     )
-                    IconButton(onClick = onEditClick) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = stringResource(R.string.edit),
-                            tint = OmnilogTheme.colors.appMuted,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
                 }
             }
-
-            // The hero slot. A rating is a verdict and a progress figure is a position; when both
-            // exist the verdict is the more interesting of the two, so it takes the slot and the
-            // position drops to the caption under its own graphic.
-            val rating = session.ratingHalfPoints
-            if (rating != null) {
-                SessionStars(halfPoints = rating, accent = state, starSize = 26.dp)
-            } else {
-                ProgressFigure(
-                    session = session,
-                    progressTotal = progressTotal,
-                    mediaType = mediaType,
-                    color = state,
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SessionProgressGraphic(
-                    progressCurrent = session.progressCurrent,
-                    progressTotal = progressTotal,
-                    mediaType = mediaType,
-                    progressUpdates = session.progressUpdates,
-                    color = state,
-                    track = OmnilogTheme.colors.appLine,
-                )
-                progressCaption(
-                    session = session,
-                    progressTotal = progressTotal,
-                    mediaType = mediaType,
-                    ratingHasHero = rating != null,
-                )?.let { caption ->
-                    Text(
-                        text = caption,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-            }
-
-            // Nothing at all when nothing is known. The row already drops itself in that case, and
-            // the line that used to take its place — "Sense dates registrades" — spent a row of the
-            // card announcing an absence the reader can see for themselves.
-            SessionDatesRow(
-                session = session,
-                mediaType = mediaType,
-                trailing = sessionRecencyLabel(session),
-            )
 
             session.notes?.takeIf { it.isNotBlank() }?.let { notes ->
                 Text(
                     text = notes,
+                    modifier = Modifier.padding(start = 4.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = OmnilogTheme.colors.appInk.copy(alpha = 0.72f),
                 )
             }
-
-            StartAction(session = session, mediaType = mediaType, onLogProgress = onLogProgress, accent = state)
         }
     }
 }
 
 /**
- * The card's one saturated object, and the reason the card is worth tapping.
+ * The status, in serif with its own mark and a caret, opening a menu of all five states.
  *
- * Everything else on the card is accent-at-low-alpha, muted ink or artwork, so the eye lands here
- * without the button having to be large. It was a slab: full width at the default button height,
- * which on a planned card left a control taller than everything above it put together. Trimmed to
- * the height of a row instead, full width since it is the last thing on the card.
+ * Picking the current one does nothing; picking another hands it to [onStatusSelected], which decides
+ * whether that change needs a sheet.
  */
 @Composable
-private fun StartAction(
-    session: TrackingSession,
-    mediaType: MediaType,
-    onLogProgress: (() -> Unit)?,
-    accent: Color,
+private fun StatusMenu(
+    current: TrackingStatus,
+    onStatusSelected: (TrackingStatus) -> Unit,
 ) {
-    val log = onLogProgress ?: return
-    Button(
-        onClick = log,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(ActionHeight),
-        shape = RoundedCornerShape(11.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = accent,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-    ) {
-        Text(
-            text = logActionLabel(status = session.status, mediaType = mediaType),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.ExtraBold,
-        )
+    var expanded by remember { mutableStateOf(false) }
+    val visual = sessionStateVisual(current)
+
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClickLabel = stringResource(R.string.status_change_title)) {
+                    expanded = true
+                }
+                .padding(start = 4.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(visual.icon),
+                contentDescription = null,
+                tint = visual.color,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = visual.label,
+                modifier = Modifier.padding(start = 8.dp),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontFamily = SerifFontFamily,
+                    fontWeight = FontWeight.Normal,
+                ),
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 1,
+            )
+            Icon(
+                imageVector = Icons.Filled.ArrowDropDown,
+                contentDescription = null,
+                tint = OmnilogTheme.colors.appMuted,
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(12.dp),
+            containerColor = OmnilogTheme.colors.appPanel,
+        ) {
+            TrackingStatus.entries.forEach { status ->
+                val option = sessionStateVisual(status)
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = option.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = OmnilogTheme.colors.appInk,
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(option.icon),
+                            contentDescription = null,
+                            tint = option.color,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    },
+                    trailingIcon = if (status == current) {
+                        {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = OmnilogTheme.colors.appMuted,
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        expanded = false
+                        if (status != current) onStatusSelected(status)
+                    },
+                )
+            }
+        }
     }
 }
 
-private val ActionHeight = 40.dp
-
 /**
- * Where the session has got to, as the largest thing on the card.
+ * `214 / 384 pàgines   56%` — the count in serif ink, the scale and share muted beside it.
  *
- * The figure is the count on its own; the unit and the total are the caption beside it. The old card
- * set the whole sentence — "12 / 28 episodis" — at one weight, which made the number as hard to find
- * as everything around it.
+ * The bare count on its own: a medium with no total, a game's hours, has no scale to show.
  */
 @Composable
 private fun ProgressFigure(
     session: TrackingSession,
     progressTotal: Int?,
     mediaType: MediaType,
-    color: Color,
 ) {
     val total = progressTotal?.takeIf { it > 0 }
     val current = if (total != null) {
@@ -318,83 +404,44 @@ private fun ProgressFigure(
     }
     val unit = progressUnitLabel(mediaType = mediaType, value = total ?: current)
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Bottom,
-    ) {
+    Row(verticalAlignment = Alignment.Bottom) {
         Text(
             text = current.toString(),
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = color,
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = SerifFontFamily,
+                fontWeight = FontWeight.Normal,
+            ),
+            color = OmnilogTheme.colors.appInk,
         )
         Text(
-            text = if (total != null) {
-                stringResource(R.string.session_progress_of_suffix, total, unit)
-            } else {
-                unit
-            },
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 8.dp, bottom = 5.dp),
+            text = if (total != null) " / $total $unit" else " $unit",
+            modifier = Modifier.padding(bottom = 3.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = color,
+            color = OmnilogTheme.colors.appMuted,
+            maxLines = 1,
         )
-        if (total != null && total > 0) {
+        if (total != null) {
             Text(
                 text = "${current * 100 / total}%",
-                modifier = Modifier.padding(bottom = 5.dp),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = color,
+                modifier = Modifier.padding(start = 14.dp, bottom = 3.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
             )
         }
     }
 }
 
 /**
- * The line under the graphic, or nothing when the figure above has already said it.
- *
- * Books get one either way: pages remaining is the number a reader actually wants, and the fore-edge
- * can show the proportion but cannot say how many are left.
- */
-@Composable
-private fun progressCaption(
-    session: TrackingSession,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    ratingHasHero: Boolean,
-): String? {
-    val total = progressTotal?.takeIf { it > 0 }
-
-    if (mediaType == MediaType.Book && total != null) {
-        val left = (total - session.progressCurrent).coerceAtLeast(0)
-        if (left > 0) return pluralStringResource(R.plurals.session_pages_left, left, left)
-    }
-    if (!ratingHasHero) return null
-
-    val current = if (total != null) {
-        session.progressCurrent.coerceAtMost(total)
-    } else {
-        session.progressCurrent
-    }
-    val unit = progressUnitLabel(mediaType = mediaType, value = total ?: current)
-    return if (total != null) {
-        stringResource(R.string.session_progress_of, current, total, unit)
-    } else {
-        stringResource(R.string.session_progress_plain, current, unit)
-    }
-}
-
-/**
- * What the button offers, which depends on where the session is and not only on what it holds.
+ * What the log button offers, which depends on where the session is and not only on what it holds.
  *
  * Planned and Paused are both "tell me where you are" as far as the sheet behind this is concerned,
- * but they are not the same invitation, and a button reading `Registra episodi` on something you have
+ * but they are not the same invitation, and a button reading `Registra episodis` on something you have
  * not started is asking the wrong question.
  */
 @Composable
-private fun logActionLabel(status: TrackingStatus, mediaType: MediaType): String = when (status) {
+internal fun logActionLabel(status: TrackingStatus, mediaType: MediaType): String = when (status) {
     TrackingStatus.Planned -> sessionStartActionLabel(mediaType)
     TrackingStatus.Paused -> sessionResumeActionLabel(mediaType)
     else -> logProgressLabel(mediaType)

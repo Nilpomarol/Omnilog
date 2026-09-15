@@ -216,6 +216,12 @@ private val BodyFontFamily = FontFamily(
     Font(R.font.lato_bold, weight = FontWeight.Bold),
 )
 
+/**
+ * Libre Baskerville, used selectively for identity — detail titles and headings — while Lato stays the
+ * working face for controls and figures. Only the regular cut ships, so it is never set bold.
+ */
+val SerifFontFamily = FontFamily(Font(R.font.libre_baskerville, weight = FontWeight.Normal))
+
 private val BaseTypography = Typography()
 
 private val OmnilogTypography = Typography(

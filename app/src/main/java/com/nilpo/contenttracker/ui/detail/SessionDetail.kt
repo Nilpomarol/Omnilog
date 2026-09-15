@@ -112,14 +112,12 @@ fun SessionDetail(
             SessionStars(halfPoints = halfPoints, accent = state, starSize = 18.dp)
         }
 
-        SessionProgressGraphic(
+        SessionProgressBar(
             progressCurrent = session.progressCurrent,
             progressTotal = progressTotal,
-            mediaType = mediaType,
-            progressUpdates = session.progressUpdates,
             color = state,
-            compact = true,
             track = OmnilogTheme.colors.appLine,
+            thickness = 4.dp,
         )
 
         SessionDatesRow(

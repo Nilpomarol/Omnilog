@@ -1,5 +1,13 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,23 +57,13 @@ import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import coil3.compose.AsyncImage
 
 /**
- * The work's reference page: compact facts first, then the pieces that need room to breathe.
+ * The work's reference facts — language, length, year — and its tags, behind the `Dades` disclosure.
  *
- * This deliberately leaves title, collection, genres and progress in the hero/session area. The
- * values below are the item record rather than a second version of the same introduction.
- *
- * [accent] is the item's own media-type accent. Everything tinted here takes it, so a game's page
- * is not dressed in the books purple — which is what happened while these tints were hard-coded.
+ * Title, collection and genres stay in the header; this is the record behind them rather than a second
+ * introduction.
  */
 @Composable
-fun ItemDetailsSection(
-    item: MediaItem,
-    credits: List<MediaCredit>,
-    contributors: ContributorDirectory,
-    accent: Color,
-    onAuthorClick: (String, MediaCreditRole) -> Unit,
-    modifier: Modifier = Modifier,
-) {
+internal fun DetailFactsBlock(item: MediaItem, modifier: Modifier = Modifier) {
     val primaryFacts = listOfNotNull(
         item.language?.takeUnless { item.type == MediaType.Game }?.let {
             DetailFact(R.string.metadata_language, languageLabel(it))
@@ -77,22 +75,14 @@ fun ItemDetailsSection(
     )
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        DetailSectionTitle(text = stringResource(R.string.detail_item_details))
-
         if (primaryFacts.isNotEmpty()) {
             DetailFacts(primaryFacts, columns = 3)
         }
         item.tags.takeIf { it.isNotEmpty() }?.let { tags ->
             DetailTagList(tags)
         }
-
-        item.synopsis?.takeIf { it.isNotBlank() }?.let { synopsis ->
-            DetailSynopsis(synopsis, accent)
-        }
-
-        CreditGroups(credits, contributors, item.type, accent, onAuthorClick)
     }
 }
 
@@ -130,11 +120,13 @@ private fun DetailFactCell(fact: DetailFact, modifier: Modifier = Modifier) {
     ) {
         DetailFieldLabel(stringResource(fact.labelRes))
         // A size up from the label rather than a shade of bold on the same size: the value is the
-        // fact and the label names it, and the old titleMedium left the two nearly indistinguishable.
+        // fact and the label names it.
         Text(
             text = fact.value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.ExtraBold,
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = SerifFontFamily,
+                fontWeight = FontWeight.Normal,
+            ),
             color = OmnilogTheme.colors.appInk,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -155,37 +147,48 @@ private fun DetailTagList(tags: List<String>) {
     }
 }
 
+/**
+ * The synopsis straight on the page under the actions: no label, a few lines, and a chevron for the
+ * rest. It is what a returning reader skims first, so it no longer waits inside a section.
+ */
 @Composable
-private fun DetailSynopsis(body: String, accent: Color) {
-    var expanded by remember(body) { mutableStateOf(false) }
+internal fun DetailSynopsis(body: String, modifier: Modifier = Modifier) {
+    var expanded by rememberSaveable(body) { mutableStateOf(false) }
     val plainBody = remember(body) { plainSynopsis(body).orEmpty() }
     val canExpand = plainBody.length > SynopsisCollapseThreshold
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "synopsisChevron",
+    )
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        DetailFieldLabel(stringResource(R.string.metadata_summary))
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(enabled = canExpand) { expanded = !expanded }
+            .animateContentSize(),
+    ) {
         SynopsisText(
             body = body,
             style = MaterialTheme.typography.bodyLarge,
             color = OmnilogTheme.colors.appInk.copy(alpha = 0.9f),
-            maxLines = if (canExpand && !expanded) 7 else Int.MAX_VALUE,
+            maxLines = if (canExpand && !expanded) SynopsisCollapsedLines else Int.MAX_VALUE,
             overflow = TextOverflow.Ellipsis,
         )
         if (canExpand) {
-            TextButton(
-                modifier = Modifier.align(Alignment.Start),
-                onClick = { expanded = !expanded },
-            ) {
-                Text(
-                    text = stringResource(if (expanded) R.string.show_less else R.string.show_more),
-                    color = accent,
-                )
-            }
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(if (expanded) R.string.show_less else R.string.show_more),
+                tint = OmnilogTheme.colors.appMuted,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .rotate(chevronRotation),
+            )
         }
     }
 }
 
 @Composable
-private fun CreditGroups(
+internal fun CreditGroups(
     credits: List<MediaCredit>,
     contributors: ContributorDirectory,
     mediaType: MediaType,
@@ -455,7 +458,8 @@ private data class DetailFact(
     val value: String,
 )
 
-private const val SynopsisCollapseThreshold = 320
+private const val SynopsisCollapseThreshold = 240
+private const val SynopsisCollapsedLines = 5
 private const val CreditPreviewCount = 6
 private val PerformerRoles = setOf(MediaCreditRole.Cast, MediaCreditRole.VoiceActor)
 private val CompanyRoles = setOf(

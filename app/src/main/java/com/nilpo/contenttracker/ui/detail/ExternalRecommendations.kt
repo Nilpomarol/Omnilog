@@ -101,7 +101,6 @@ internal fun ExternalRecommendationsSection(
                 ) { recommendation ->
                     ExternalRecommendationCard(
                         recommendation = recommendation,
-                        accent = accent,
                         onClick = { onRecommendationClick(recommendation.suggestion) },
                     )
                 }
@@ -114,7 +113,6 @@ internal fun ExternalRecommendationsSection(
 @Composable
 private fun ExternalRecommendationCard(
     recommendation: ExternalRecommendation,
-    accent: Color,
     onClick: () -> Unit,
 ) {
     val suggestion = recommendation.suggestion
@@ -140,6 +138,8 @@ private fun ExternalRecommendationCard(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = OmnilogTheme.colors.appInk,
+            // Reserved like the library tiles, so the carousel keeps one height.
+            minLines = 2,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
@@ -150,12 +150,6 @@ private fun ExternalRecommendationCard(
             color = OmnilogTheme.colors.appMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = stringResource(R.string.detail_external_recommendation_add),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = accent,
         )
     }
 }
