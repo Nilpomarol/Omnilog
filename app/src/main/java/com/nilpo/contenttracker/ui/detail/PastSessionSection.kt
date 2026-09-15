@@ -3,8 +3,8 @@ package com.nilpo.contenttracker.ui.detail
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +20,7 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 
 @Composable
@@ -49,14 +50,12 @@ fun PastSessionSection(
         onUpdateProgressUpdate = onUpdateProgressUpdate,
         onDelete = onDeleteSession,
         trailingContent = {
-            FilledTonalIconButton(
-                onClick = { isEditing = true },
-                modifier = Modifier.size(32.dp),
-            ) {
+            IconButton(onClick = { isEditing = true }) {
                 Icon(
                     imageVector = Icons.Filled.Edit,
                     contentDescription = stringResource(R.string.edit),
-                    modifier = Modifier.size(16.dp),
+                    tint = OmnilogTheme.colors.appMuted,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         },

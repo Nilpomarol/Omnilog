@@ -180,10 +180,7 @@ import com.nilpo.contenttracker.ui.settings.SettingsScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.timeline.TimelineScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import androidx.compose.ui.graphics.lerp
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
-import com.nilpo.contenttracker.ui.theme.OnCoverInk
-import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -2901,15 +2898,13 @@ private fun OmnilogTopBar(
     onTimelineSettingsRequested: () -> Unit,
     onBack: () -> Unit,
 ) {
-    // Over the detail page's backdrop the bar has no surface of its own: the artwork shows through
-    // and the header's own scrim is what keeps these icons legible. That scrim stays dark in both
-    // themes, so the ink on it does too — the reasoning `OnCoverInk` exists for.
-    // Over the backdrop the bar fades in with the scroll rather than switching: it is transparent
-    // while artwork is behind it and solid once the page has moved past, so content never collides
-    // with the bar or the status bar on the way up.
+    // Over the detail page's backdrop the bar has no surface of its own. The artwork behind it is
+    // washed in the page's own background, so the theme's ink stays legible on it throughout. The
+    // surface fades in with the scroll rather than switching, so content never collides with the bar
+    // or the status bar on the way up.
     val opacity = if (overCover) detailActions.barOpacity else 1f
-    val barInk = lerp(OnCoverInk, OmnilogTheme.colors.appInk, opacity)
-    val barMuted = lerp(OnCoverMuted, OmnilogTheme.colors.appMuted, opacity)
+    val barInk = OmnilogTheme.colors.appInk
+    val barMuted = OmnilogTheme.colors.appMuted
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(

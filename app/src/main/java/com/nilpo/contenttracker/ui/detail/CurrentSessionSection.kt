@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,7 +49,6 @@ import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
-import com.nilpo.contenttracker.ui.common.RatingMeter
 import com.nilpo.contenttracker.ui.common.TrackingDateRange
 import com.nilpo.contenttracker.ui.common.TrackingNotesField
 import com.nilpo.contenttracker.ui.common.TrackingProgressField
@@ -125,18 +123,12 @@ fun CurrentSessionSection(
 /**
  * The live session, and the page's centre of gravity.
  *
- * Three things changed from the card this replaces, and they are all the same change: the state is
- * the card's subject, so the state gets the colour. The status chip is filled rather than washed, the
- * progress graphic and the button are drawn in the same accent, and the tinted border that used to
- * outline the whole panel is gone — a border spends a colour on the shape of the card rather than on
- * anything the card is saying.
- *
- * The panel itself is flat `appPanel` at 18dp with no elevation, which is what every surface built
- * since already does: `TimelineRecapCard`, and the library panel inside `ProfileHeroCard`.
+ * A plain panel in the page's warm neutral. The status is a tinted chip and a rating is five stars,
+ * as on the library rows, so the only saturated object left is the log button: the one thing to do
+ * here is the one thing that stands out.
  *
  * There is one hero slot rather than a layout per status. What fills it is decided by the data — a
- * rating if there is one, the progress figure if there is not — and that is what let the five
- * per-status summary composables this file used to carry collapse into a single arrangement.
+ * rating if there is one, the progress figure if there is not.
  */
 @Composable
 private fun SessionCard(
@@ -156,17 +148,11 @@ private fun SessionCard(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        // Sunk below the panel the rest of the app uses, and neutral: the artwork supplies the
-        // colour, and the veil behind the content fades into this exact value.
-        color = cardGround(),
+        shape = RoundedCornerShape(16.dp),
+        color = OmnilogTheme.colors.appPanel,
     ) {
-        // The artwork is drawn behind the content across the card's whole area, and the Surface's
-        // shape clips it, so it bleeds off the corner rather than sitting inside a frame of its own.
         Column(
-            modifier = Modifier
-                .sessionCardArtwork(mediaType)
-                .padding(16.dp),
+            modifier = Modifier.padding(16.dp),
             // 14dp between six blocks was most of why this card ran tall. The blocks are distinct
             // enough at 11 — the chip, the figure, the graphic and the dates are different shapes and
             // different weights, and none of them needed a gap to be told apart from its neighbour.
@@ -201,14 +187,12 @@ private fun SessionCard(
                         onDeleteStatusEvent = onDeleteStatusEvent,
                         onUpdateStatusEventDate = onUpdateStatusEventDate,
                     )
-                    FilledTonalIconButton(
-                        onClick = onEditClick,
-                        modifier = Modifier.size(32.dp),
-                    ) {
+                    IconButton(onClick = onEditClick) {
                         Icon(
                             imageVector = Icons.Filled.Edit,
                             contentDescription = stringResource(R.string.edit),
-                            modifier = Modifier.size(16.dp),
+                            tint = OmnilogTheme.colors.appMuted,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
@@ -219,7 +203,7 @@ private fun SessionCard(
             // position drops to the caption under its own graphic.
             val rating = session.ratingHalfPoints
             if (rating != null) {
-                RatingMeter(ratingHalfPoints = rating, accent = state)
+                SessionStars(halfPoints = rating, accent = state, starSize = 26.dp)
             } else {
                 ProgressFigure(
                     session = session,
@@ -236,7 +220,7 @@ private fun SessionCard(
                     mediaType = mediaType,
                     progressUpdates = session.progressUpdates,
                     color = state,
-                    track = cardTrack(),
+                    track = OmnilogTheme.colors.appLine,
                 )
                 progressCaption(
                     session = session,

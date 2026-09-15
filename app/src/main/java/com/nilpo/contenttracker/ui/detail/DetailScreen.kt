@@ -1,6 +1,5 @@
 package com.nilpo.contenttracker.ui.detail
 
-import android.app.Activity
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +19,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,17 +27,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.core.view.WindowCompat
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
@@ -65,7 +60,6 @@ import com.nilpo.contenttracker.ui.common.formatCompactCount
 import com.nilpo.contenttracker.ui.common.formatExternalRating
 import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
-import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.LocalDate
 
 /** How far the session card rides up over the tail of the backdrop's fade. */
@@ -177,23 +171,6 @@ fun DetailScreen(
         1f
     } else {
         (detailListState.firstVisibleItemScrollOffset / barFadeDistancePx).coerceIn(0f, 1f)
-    }
-
-    // The header puts a dark scrim behind the status bar in both themes, so on light the app-wide
-    // rule — dark icons on a pale background — points the wrong way and the clock disappears into
-    // the artwork. While the backdrop is up there the icons are forced pale; once the bar has taken
-    // its own surface back, or when the page is left, they go back to whatever the theme wants.
-    val view = LocalView.current
-    val statusBarOverArtwork = metadata.coverUrl.isNullOrBlank().not() &&
-            headerActions.barOpacity < 0.5f
-    val themeWantsLightIcons = OmnilogTheme.colors.appBackground.luminance() < 0.5f
-    DisposableEffect(view, statusBarOverArtwork, themeWantsLightIcons) {
-        val window = (view.context as? Activity)?.window
-        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
-        controller?.isAppearanceLightStatusBars = !(statusBarOverArtwork || themeWantsLightIcons)
-        onDispose {
-            controller?.isAppearanceLightStatusBars = !themeWantsLightIcons
-        }
     }
 
     headerActions.onLinkMetadataRequested = onLinkMediaMetadata

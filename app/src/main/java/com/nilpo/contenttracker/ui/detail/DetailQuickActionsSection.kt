@@ -38,7 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -96,7 +97,7 @@ fun DetailQuickActionsSection(
                 } else {
                     stringResource(R.string.owned_action_add)
                 },
-                iconResId = R.drawable.ic_owned_badge,
+                icon = painterResource(R.drawable.ic_owned_badge),
                 accent = accent,
                 selected = item.isOwned,
                 modifier = Modifier.weight(1f),
@@ -114,7 +115,7 @@ fun DetailQuickActionsSection(
             QuietQuickAction(
                 text = formatCollectionDisplayName(collection?.name, item.collectionSortOrder)
                     ?: stringResource(R.string.collection_action_add),
-                iconResId = R.drawable.ic_group_collections,
+                icon = painterResource(R.drawable.ic_group_collections),
                 accent = accent,
                 selected = collection != null,
                 modifier = Modifier.weight(1f),
@@ -122,8 +123,12 @@ fun DetailQuickActionsSection(
             )
         }
         if (currentSession?.status != TrackingStatus.Planned) {
-            NewSessionAction(
+            QuietQuickAction(
+                text = stringResource(R.string.new_session_title),
+                icon = rememberVectorPainter(Icons.Filled.Add),
                 accent = accent,
+                selected = false,
+                modifier = Modifier.fillMaxWidth(),
                 onClick = { showNewSessionDialog = true },
             )
         }
@@ -169,36 +174,35 @@ fun DetailQuickActionsSection(
     }
 }
 
+/**
+ * A secondary action: a soft fill and no outline, tinted with the accent once it is on. The session
+ * card's log button stays the page's one strong action.
+ */
 @Composable
 private fun QuietQuickAction(
     text: String,
-    @androidx.annotation.DrawableRes iconResId: Int,
+    icon: Painter,
     accent: Color,
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val containerColor = if (selected) accent.copy(alpha = 0.14f) else OmnilogTheme.colors.appPanel
-    val borderColor = if (selected) accent.copy(alpha = 0.60f) else OmnilogTheme.colors.appLine
-    val contentColor = if (selected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appInk.copy(alpha = 0.85f)
-
     Surface(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 44.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = containerColor,
-        border = BorderStroke(if (selected) 1.5.dp else 1.dp, borderColor),
-        contentColor = contentColor,
+        modifier = modifier.heightIn(min = 48.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) accent.copy(alpha = 0.16f) else OmnilogTheme.colors.appPanel,
+        contentColor = OmnilogTheme.colors.appInk,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painter = painterResource(iconResId),
+                painter = icon,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = if (selected) accent else OmnilogTheme.colors.appMuted,
@@ -210,44 +214,6 @@ private fun QuietQuickAction(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun NewSessionAction(
-    accent: Color,
-    onClick: () -> Unit,
-) {
-    val contentColor = if (accent.luminance() > 0.5f) Color(0xFF1C1B1F) else Color.White
-
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = accent,
-            contentColor = contentColor,
-        ),
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = contentColor,
-            )
-            Text(
-                text = stringResource(R.string.new_session_title),
-                modifier = Modifier.padding(start = 6.dp),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
             )
         }
     }
