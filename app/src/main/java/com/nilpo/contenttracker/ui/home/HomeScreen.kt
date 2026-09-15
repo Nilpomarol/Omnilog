@@ -108,6 +108,7 @@ import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
+import androidx.compose.material3.HorizontalDivider
 import com.nilpo.contenttracker.ui.add.label
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
@@ -387,15 +388,20 @@ fun HomeScreen(
                             accent = section.themedAccent(),
                         )
                     }
-                    else -> items(apiResults, span = { GridItemSpan(maxLineSpan) }) { suggestion ->
-                        val suggestionAccent = suggestion.mediaType.sectionAccent()
-                        MetadataSuggestionRow(
-                            suggestion = suggestion,
-                            accent = suggestionAccent,
-                            duplicateState = duplicateStateForSuggestion(suggestion),
-                            borderColor = suggestionAccent.copy(alpha = 0.55f),
-                            onClick = { onApiSuggestionSelected(suggestion) },
-                        )
+                    // One block so the hairlines sit evenly instead of fighting the grid's item spacing.
+                    else -> item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column {
+                            apiResults.forEachIndexed { index, suggestion ->
+                                if (index > 0) HorizontalDivider(color = OmnilogTheme.colors.appLine)
+                                MetadataSuggestionRow(
+                                    suggestion = suggestion,
+                                    accent = suggestion.mediaType.sectionAccent(),
+                                    duplicateState = duplicateStateForSuggestion(suggestion),
+                                    horizontalPadding = 0.dp,
+                                    onClick = { onApiSuggestionSelected(suggestion) },
+                                )
+                            }
+                        }
                     }
                 }
 

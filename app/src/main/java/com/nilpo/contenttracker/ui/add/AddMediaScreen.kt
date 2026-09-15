@@ -45,6 +45,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.Dp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -894,7 +895,7 @@ private fun MetadataSearchResults(
             }
             uiState.suggestions.forEachIndexed { index, suggestion ->
                 if (index > 0) AddHairline()
-                AddSearchResultRow(
+                MetadataSuggestionRow(
                     suggestion = suggestion,
                     accent = suggestion.mediaType.sectionAccent(),
                     duplicateState = duplicateStateForSuggestion(suggestion),
@@ -910,21 +911,24 @@ private fun MetadataSearchResults(
  * the provider's score. Rows are split by hairlines rather than boxed, the way the lists are.
  */
 @Composable
-private fun AddSearchResultRow(
+internal fun MetadataSuggestionRow(
     suggestion: MetadataSuggestion,
     accent: Color,
     duplicateState: MetadataDuplicateState,
+    showSource: Boolean = true,
+    horizontalPadding: Dp = DetailGutter,
     onClick: () -> Unit,
 ) {
     val facts = listOfNotNull(
         suggestion.mediaType.label(),
         suggestion.multiSeasonCount()?.let { stringResource(R.string.metadata_multi_season_count, it) },
         suggestion.releaseYear?.toString(),
-        suggestion.source.displayName(),
+        suggestion.source.displayName().takeIf { showSource },
     )
 
     AddPickRow(
         coverUrl = suggestion.coverUrl,
+        horizontalPadding = horizontalPadding,
         onClick = onClick,
         trailing = {
             val marker = duplicateState.marker()
@@ -975,13 +979,14 @@ private fun AddPickRow(
     coverUrl: String?,
     onClick: () -> Unit,
     trailing: @Composable () -> Unit,
+    horizontalPadding: Dp = DetailGutter,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = DetailGutter, vertical = 12.dp),
+            .padding(horizontal = horizontalPadding, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -2164,105 +2169,6 @@ internal fun DashboardStyleSearchBar(
     }
 }
 
-@Composable
-internal fun MetadataSuggestionRow(
-    suggestion: MetadataSuggestion,
-    accent: Color,
-    duplicateState: MetadataDuplicateState,
-    showSourceChip: Boolean = true,
-    borderColor: Color = OmnilogTheme.colors.appLine,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, borderColor),
-    ) {
-        Box {
-            Row(
-                modifier = Modifier.padding(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MetadataCoverImage(
-                    coverUrl = suggestion.coverUrl,
-                    modifier = Modifier.size(width = 58.dp, height = 86.dp),
-                    shape = RoundedCornerShape(6.dp),
-                )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = displayMediaTitle(suggestion.title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogTheme.colors.appInk,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ResultChip(text = suggestion.mediaType.label(), accent = accent)
-                        suggestion.multiSeasonCount()?.let { seasonCount ->
-                            ResultChip(
-                                text = stringResource(R.string.metadata_multi_season_count, seasonCount),
-                                accent = accent,
-                            )
-                        }
-                        suggestion.releaseYear?.let { ResultChip(text = it.toString(), accent = accent) }
-                        if (showSourceChip) {
-                            ResultChip(text = suggestion.source.displayName())
-                        }
-                    }
-                    suggestion.creators.firstOrNull()?.let { creator ->
-                        Text(
-                            text = creator,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    suggestion.externalRating?.let { rating ->
-                        val source = suggestion.externalRatings.firstOrNull { candidate ->
-                            candidate.score == rating.score && candidate.maxScore == rating.maxScore
-                        }?.source
-                        Text(
-                            text = formatExternalRating(
-                                score = rating.score,
-                                maxScore = rating.maxScore,
-                                mediaType = suggestion.mediaType,
-                                source = source,
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = accent,
-                        )
-                    }
-                }
-            }
-            val duplicateMarker = duplicateState.marker()
-            if (duplicateMarker != null) {
-                Icon(
-                    imageVector = duplicateMarker.icon,
-                    contentDescription = stringResource(duplicateMarker.contentDescriptionResId),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp),
-                    tint = duplicateMarker.tint,
-                )
-            }
-        }
-    }
-}
-
 internal class DuplicateMarker(
     val icon: ImageVector,
     val tint: Color,
@@ -2304,33 +2210,6 @@ private fun MetadataSuggestion.multiSeasonCount(): Int? {
     if (source != MetadataSource.Tmdb || mediaType != MediaType.TvShow) return null
     val count = seasonSuggestions.count { it.seasonNumber > 0 }
     return count.takeIf { it > 1 }
-}
-
-@Composable
-internal fun ResultChip(
-    text: String,
-    accent: Color? = null,
-    modifier: Modifier = Modifier,
-) {
-    val chipColor = accent?.copy(alpha = 0.18f) ?: OmnilogTheme.colors.appLine.copy(alpha = 0.46f)
-    val textColor = accent ?: OmnilogTheme.colors.appMuted
-    Box(
-        modifier = modifier
-            .background(
-                color = chipColor,
-                shape = RoundedCornerShape(999.dp),
-            )
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = textColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
 }
 
 @Composable
