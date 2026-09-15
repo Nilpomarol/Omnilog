@@ -44,6 +44,7 @@ import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.creatorNames
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.PartialStar
+import com.nilpo.contenttracker.ui.common.compactProgressUnitLabel
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
@@ -53,13 +54,13 @@ import kotlin.math.roundToInt
 
 private const val CoverAspectRatio = 2f / 3f
 // Every row is pinned to the cover's height so the list reads as an even stack of posters.
-private val BaseRowHeight = 126.dp
+private val BaseRowHeight = 132.dp
 // Matches the 10dp every list leaves between rows.
 private val RowDividerGap = 10.dp
 private const val StarCount = 5
 
 /**
- * Cover-led list row: the title, its collection and who made it, over one line saying where you
+ * Cover-led list row: the title, its collection, who made it and its year, length and genre, over one line saying where you
  * are with it (progress while under way, your stars otherwise) and a status chip.
  */
 @Composable
@@ -75,6 +76,11 @@ fun MediaCard(
     val collection = formatCollectionDisplayName(trackedMedia.collection?.name, item.collectionSortOrder)
     val fraction = trackedMedia.coverProgressFraction()
     val rating = session?.ratingHalfPoints
+    val facts = listOfNotNull(
+        item.releaseYear?.toString(),
+        item.progressTotal?.takeIf { it > 0 }?.let { "$it ${compactProgressUnitLabel(item.type)}" },
+        item.genres.firstOrNull(),
+    ).joinToString(" · ")
     // Text is measured in sp and the row in dp, so the pin tracks the system font setting.
     val rowHeight = BaseRowHeight * LocalDensity.current.fontScale.coerceAtLeast(1f)
     val dividerColor = OmnilogTheme.colors.appLine
@@ -137,6 +143,15 @@ fun MediaCard(
                         Text(
                             text = creator,
                             style = MaterialTheme.typography.bodySmall,
+                            color = OmnilogTheme.colors.appMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (facts.isNotEmpty()) {
+                        Text(
+                            text = facts,
+                            style = MaterialTheme.typography.labelSmall,
                             color = OmnilogTheme.colors.appMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
