@@ -256,10 +256,6 @@
     <string name="empty_import_movies">Importa des d\'IMDb</string>
 
     <string name="empty_filtered_title">Cap element amb aquests filtres</string>
-    <plurals name="home_objectives_summary_behind">
-        <item quantity="one">%1$d endarrerit</item>
-        <item quantity="other">%1$d endarrerits</item>
-    </plurals>
     <plurals name="empty_filtered_body">
         <item quantity="one">Tens 1 element a %2$s, però no coincideix amb els filtres actuals.</item>
         <item quantity="other">Tens %1$d elements a %2$s, però cap coincideix amb els filtres actuals.</item>
@@ -878,7 +874,11 @@
     <string name="home_rhythm_movies">pel·lícules</string>
     <string name="home_rhythm_anime">animes</string>
     <string name="home_rhythm_games">jocs</string>
-    <string name="home_rhythm_goals">objectius</string>
     <string name="home_rhythm_goals_empty">Afegeix un objectiu</string>
-    <string name="home_rhythm_goals_description">%1$d de %2$d objectius completats. Obre els objectius</string>
+    <string name="home_rhythm_delta_more">%1$d més que %2$s</string>
+    <string name="home_rhythm_delta_less">%1$d menys que %2$s</string>
+    <string name="home_rhythm_delta_same">Els mateixos que %1$s</string>
+    <string name="home_rhythm_basis_same_period">a aquestes alçades del %1$d</string>
+    <string name="home_rhythm_basis_year">el %1$d</string>
+    <string name="home_rhythm_basis_previous_12_months">els 12 mesos anteriors</string>
 </resources>
