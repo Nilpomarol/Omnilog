@@ -1,14 +1,19 @@
 package com.nilpo.contenttracker.ui.home
 
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,7 +22,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,11 +41,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -176,8 +179,14 @@ internal fun SimpleGroupHeader(
 /**
  * A collection or a creator in a grouped list, drawn as one more list row rather than a panel: [image]
  * in a cover-sized slot, a serif name and what's in the group, then your average and how far along it
- * is, with the rows' hairline underneath. Expanding folds the image away to a slim heading over the
- * group's items; tapping anywhere else opens the collection or creator.
+ * is, with the rows' hairline underneath. Open, it is a slim serif heading over the group's items;
+ * tapping anywhere but the chevron opens the collection or creator.
+ *
+ * Folding swaps between those two layouts rather than morphing one into the other, since squeezing a
+ * cover and stepping a title's size down only ever looked like things breaking. The outgoing layout
+ * fades straight out, the card eases to its new height on the same curve the items below open or close
+ * on ([GroupItemsEnter], [GroupItemsExit]), and the incoming layout fades in once it has the room. The
+ * chevron is the one thing that stays, turning over as it goes.
  */
 @Composable
 private fun LibraryGroupCard(
@@ -191,6 +200,7 @@ private fun LibraryGroupCard(
     @StringRes collapseLabelResId: Int,
     image: @Composable BoxScope.() -> Unit,
 ) {
+    val title = group.resolvedTitle(section)
     val summary = group.items.collectionProgressSummary()
     val averageRating = group.items.collectionAverageRating()
     val unitLabel = group.items.firstOrNull()?.item?.type.collectionItemUnitLabel()
@@ -206,36 +216,19 @@ private fun LibraryGroupCard(
     // cover 2:3. Every group gets this one width, so the names beside the images line up.
     val slotWidth = (rowHeight - CoverStackStep * 2) * CoverAspectRatio + CoverStackStep * 2
     val dividerColor = OmnilogTheme.colors.appLine
-    val transition = updateTransition(
-        targetState = isCollapsed,
-        label = "group_card_transition",
-    )
-    val slotAnimatedWidth = transition.animateDp(
-        transitionSpec = { tween(220) },
-        label = "group_slot_width",
-    ) { collapsed -> if (collapsed) slotWidth else 0.dp }
-    val slotAnimatedHeight = transition.animateDp(
-        transitionSpec = { tween(220) },
-        label = "group_slot_height",
-    ) { collapsed -> if (collapsed) rowHeight else 0.dp }
-    val slotGap = transition.animateDp(
-        transitionSpec = { tween(220) },
-        label = "group_slot_gap",
-    ) { collapsed -> if (collapsed) 14.dp else 0.dp }
-    val contentHeight = transition.animateDp(
-        transitionSpec = { tween(220) },
-        label = "group_content_height",
-    ) { collapsed -> if (collapsed) rowHeight else 48.dp }
-    val slotAlpha = transition.animateFloat(
-        transitionSpec = { tween(140) },
-        label = "group_slot_alpha",
-    ) { collapsed -> if (collapsed) 1f else 0f }
-    val arrowRotation = transition.animateFloat(
-        transitionSpec = { tween(180) },
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (isCollapsed) 0f else 180f,
+        animationSpec = tween(GroupFoldMillis, easing = FastOutSlowInEasing),
         label = "group_arrow_rotation",
-    ) { collapsed -> if (collapsed) 0f else 180f }
+    )
+    // Level with the folded title's first line, then centred on the open heading.
+    val arrowTop by animateDpAsState(
+        targetValue = if (isCollapsed) 0.dp else (OpenHeadingHeight - ChevronSize) / 2,
+        animationSpec = tween(GroupFoldMillis, easing = FastOutSlowInEasing),
+        label = "group_arrow_top",
+    )
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
@@ -246,60 +239,87 @@ private fun LibraryGroupCard(
             // No clip: it would slice the image's shadow flat along the row's left edge.
             .clickable(onClick = onOpen)
             .padding(bottom = RowDividerGap),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .width(slotAnimatedWidth.value)
-                .height(slotAnimatedHeight.value)
-                .alpha(slotAlpha.value),
-            contentAlignment = Alignment.Center,
-            content = image,
-        )
-        Spacer(modifier = Modifier.width(slotGap.value))
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .height(contentHeight.value)
-                .clipToBounds()
-                .padding(vertical = if (isCollapsed) 2.dp else 0.dp),
-            verticalArrangement = if (isCollapsed) Arrangement.SpaceBetween else Arrangement.Center,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = if (isCollapsed) Alignment.Top else Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+        AnimatedContent(
+            targetState = isCollapsed,
+            modifier = Modifier.fillMaxWidth(),
+            transitionSpec = {
+                // The fades overlap: run back to back, both layouts were invisible for a moment and the
+                // list blinked.
+                fadeIn(tween(220, delayMillis = 60)) togetherWith fadeOut(tween(120)) using
+                    SizeTransform { _, _ -> tween(GroupFoldMillis, easing = FastOutSlowInEasing) }
+            },
+            contentAlignment = Alignment.TopStart,
+            label = "group_fold",
+        ) { collapsed ->
+            if (collapsed) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(rowHeight),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Text(
-                        text = group.resolvedTitle(section),
-                        style = (if (isCollapsed) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium)
-                            .copy(fontFamily = SerifFontFamily, fontWeight = FontWeight.Normal),
-                        color = OmnilogTheme.colors.appInk,
-                        maxLines = if (isCollapsed) 2 else 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Box(
+                        modifier = Modifier
+                            .width(slotWidth)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                        content = image,
                     )
-                    AnimatedVisibility(
-                        visible = isCollapsed,
-                        enter = fadeIn(tween(150, delayMillis = 50)),
-                        exit = fadeOut(tween(70)) + shrinkVertically(tween(110), shrinkTowards = Alignment.Top),
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(vertical = 2.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(
-                            text = facts,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Column(
+                            // Clear of the chevron, which floats over this corner.
+                            modifier = Modifier.padding(end = ChevronSize),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleLarge
+                                    .copy(fontFamily = SerifFontFamily, fontWeight = FontWeight.Normal),
+                                color = OmnilogTheme.colors.appInk,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = facts,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = OmnilogTheme.colors.appMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            averageRating?.let { rating ->
+                                CardStars(halfPoints = (rating * 2).roundToInt(), accent = accent)
+                            }
+                            CardProgress(fraction = summary.progressFraction, color = accent)
+                        }
                     }
                 }
-                AnimatedVisibility(
-                    visible = !isCollapsed,
-                    enter = fadeIn(tween(120, delayMillis = 60)),
-                    exit = fadeOut(tween(60)),
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(OpenHeadingHeight)
+                        .padding(end = ChevronSize),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium
+                            .copy(fontFamily = SerifFontFamily, fontWeight = FontWeight.Normal),
+                        color = OmnilogTheme.colors.appInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         text = stringResource(R.string.collection_item_count, group.items.size),
                         style = MaterialTheme.typography.bodySmall,
@@ -307,33 +327,45 @@ private fun LibraryGroupCard(
                         maxLines = 1,
                     )
                 }
-                IconButton(
-                    onClick = onToggle,
-                    modifier = Modifier.size(if (isCollapsed) 32.dp else 48.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = stringResource(if (isCollapsed) expandLabelResId else collapseLabelResId),
-                        modifier = Modifier.graphicsLayer { rotationZ = arrowRotation.value },
-                        tint = OmnilogTheme.colors.appMuted,
-                    )
-                }
             }
-            AnimatedVisibility(
-                visible = isCollapsed,
-                enter = fadeIn(tween(150, delayMillis = 60)),
-                exit = fadeOut(tween(70)) + shrinkVertically(tween(110), shrinkTowards = Alignment.Top),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    averageRating?.let { rating ->
-                        CardStars(halfPoints = (rating * 2).roundToInt(), accent = accent)
-                    }
-                    CardProgress(fraction = summary.progressFraction, color = accent)
-                }
-            }
+        }
+        IconButton(
+            onClick = onToggle,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = arrowTop)
+                .size(ChevronSize),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(if (isCollapsed) expandLabelResId else collapseLabelResId),
+                modifier = Modifier.graphicsLayer { rotationZ = arrowRotation },
+                tint = OmnilogTheme.colors.appMuted,
+            )
         }
     }
 }
+
+/** How long a group takes to fold or unfold; the card's height and the items below share it. */
+private const val GroupFoldMillis = 300
+private val ChevronSize = 40.dp
+private val OpenHeadingHeight = 48.dp
+
+/**
+ * The items under a group opening on the card's own curve. They fade in almost at once; held back any
+ * longer, the space they open sat empty.
+ */
+internal val GroupItemsEnter: EnterTransition =
+    expandVertically(tween(GroupFoldMillis, easing = FastOutSlowInEasing), expandFrom = Alignment.Top) +
+        fadeIn(tween(240, delayMillis = 60))
+
+/**
+ * The items under a group closing on the card's own curve, fading for most of it. Gone any sooner, they
+ * left a blank hole that then had to close.
+ */
+internal val GroupItemsExit: ExitTransition =
+    shrinkVertically(tween(GroupFoldMillis, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) +
+        fadeOut(tween(240))
 
 /**
  * Who made a group's titles, in the slot a collection's covers take.

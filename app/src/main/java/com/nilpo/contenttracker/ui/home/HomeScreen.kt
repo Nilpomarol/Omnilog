@@ -4,10 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -316,10 +312,8 @@ fun HomeScreen(
                             )
                             AnimatedVisibility(
                                 visible = !isCollapsed,
-                                enter = expandVertically(tween(300, delayMillis = 70), expandFrom = Alignment.Top) +
-                                    fadeIn(tween(180, delayMillis = 120)),
-                                exit = shrinkVertically(tween(210), shrinkTowards = Alignment.Top) +
-                                    fadeOut(tween(110)),
+                                enter = GroupItemsEnter,
+                                exit = GroupItemsExit,
                             ) {
                                 Column(
                                     // Same gap as between rows, so a header's hairline sits centred above the first item.
