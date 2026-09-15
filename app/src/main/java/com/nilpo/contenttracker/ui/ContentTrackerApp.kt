@@ -72,7 +72,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -2824,15 +2828,23 @@ private fun OmnilogNavItem(
     modifier: Modifier = Modifier,
 ) {
     val contentColor = if (selected) accent else OmnilogTheme.colors.appMuted
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    // Selection and press both go through one animated scale, so the icon never snaps between sizes.
+    val iconScale by animateFloatAsState(
+        targetValue = (if (selected) 28f / 26f else 1f) * (if (pressed) 1.1f else 1f),
+        animationSpec = tween(durationMillis = 220),
+        label = "navIconScale",
+    )
 
     // No pill behind the selected tab: the accent on the icon carries the selection on its own, and
     // a tinted rounded square around it was a second, louder signal saying the same thing. The
     // clickable still covers the full cell, so the target is unchanged by the box going away.
+    // Press feedback is the icon growing slightly instead of a ripple over the whole cell.
     Column(
         modifier = modifier
             .heightIn(min = 58.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(start = 4.dp, top = 7.dp, end = 4.dp, bottom = 11.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -2840,7 +2852,9 @@ private fun OmnilogNavItem(
         Icon(
             painter = painterResource(iconResId),
             contentDescription = null,
-            modifier = Modifier.size(if (selected) 28.dp else 26.dp),
+            modifier = Modifier
+                .size(26.dp)
+                .scale(iconScale),
             tint = contentColor,
         )
         Text(
