@@ -13,14 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -41,28 +40,21 @@ import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.ui.common.MediaMetadataUi
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
+import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
 import com.nilpo.contenttracker.ui.common.formatCompactCount
-import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
 import com.nilpo.contenttracker.ui.common.localizedSteamScoreDescriptor
 import com.nilpo.contenttracker.ui.common.logoRes
-import com.nilpo.contenttracker.ui.theme.DarkAccents
-import com.nilpo.contenttracker.ui.theme.DarkPalette
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
-import com.nilpo.contenttracker.ui.theme.OnCoverInk
-import com.nilpo.contenttracker.ui.theme.OnCoverMuted
 
 /**
  * How far the title block reaches back up into the app bar's own bottom padding.
  *
  * The bar is a 64dp box around a 24dp glyph, so a seam measured from the box arrives on screen with
- * some 20dp of the bar's padding already in it. Measuring from the box is what made the gap look
- * twice what it was asked for; this claws part of that padding back, so what is left below the
- * arrow is a real gap rather than an accounting one. It stops well short of the glyphs themselves —
- * the back arrow and the kebab keep the row to themselves.
+ * some 20dp of the bar's padding already in it. This claws part of that back, stopping well short of
+ * the glyphs themselves.
  */
 private val BarPaddingReclaim = 8.dp
 
@@ -70,52 +62,44 @@ private val BarPaddingReclaim = 8.dp
  * The header's rhythm: title block to genres, and genres to whatever follows the header.
  *
  * One value rather than two, so the session card sits as far below the genres as the genres sit
- * below the cover. The lower of the two is also exactly where the artwork fades into the page, so it
- * is doing a second job: giving that fade somewhere to happen that is not on top of any text.
+ * below the cover.
  */
 private val HeaderSeam = 14.dp
-
-/** Ink on the collection pill. Fixed, because the pill is an accent fill in both themes. */
-private val PillInk = Color(0xFF15120F)
 
 /** Height of the provider mark above the score. */
 private val LogoHeight = 22.dp
 
-/** The sharp cover that sits on the blurred one. */
-private val CoverWidth = 160.dp
-private val CoverHeight = 240.dp
+private val CoverWidth = 136.dp
+private val CoverHeight = 204.dp
+private val CoverShape = RoundedCornerShape(8.dp)
 
 /**
- * The source is decoded at this width and stretched to fill the screen.
+ * How much of the page's own background lies over the artwork at the top of the header.
  *
- * This is the blur. `Modifier.blur` is API 31+ and `minSdk` is 26, so resampling — not the
- * modifier — has to carry the effect on the devices that lack it. Decoding at 56px and letting
- * [ContentScale.Crop] scale it up gives a smooth wash everywhere, costs a fraction of the memory a
- * full-size backdrop would, and leaves [BlurRadius] with nothing to do but take the edge off the
- * interpolation on the devices that can.
+ * The wash is the page colour in both themes — ivory on light, charcoal on dark — so the title can use
+ * ordinary theme ink rather than forcing pale text onto a dark scrim. The artwork still tints the
+ * header, and the wash reaches the full background at the foot so the page carries on seamlessly.
+ */
+private const val WashTop = 0.78f
+
+/**
+ * The source is decoded at this width and stretched to fill the header.
+ *
+ * This is the blur. `Modifier.blur` is API 31+ and `minSdk` is 26, so resampling carries the effect
+ * on the devices that lack it; [BlurRadius] only takes the edge off the interpolation where it can.
  */
 private const val BackdropSampleWidth = 56
 
 private val BlurRadius = 18.dp
 
 /**
- * The item's own artwork, as the page's ground rather than as a picture on it.
+ * The item's identity: its cover and title over a soft wash of its own artwork.
  *
- * The cover is drawn twice: once sampled down and stretched across the whole header, once sharp at
- * [CoverWidth] with a shadow, because the near copy and the far copy are the same picture and
- * nothing else would separate them.
- *
- * The title sits *on* the artwork rather than below it, which is what the scrim is for: it stays
- * dark in both themes, because it exists to darken artwork and a pale one would not, and the text
- * on it is [OnCoverInk] for the same reason. Only the foot fades to `appBackground`, and that fade
- * is anchored to the bottom edge so it cannot ride up into the text when a long title wraps.
- *
- * An item with no cover gets no scrim and no fade — just the page's own background and ordinary
- * ink. A black band over nothing would be worse than no backdrop at all.
+ * An item with no cover gets no wash — just the page's own background.
  *
  * [topInset] is the space the app bar and status bar occupy; the artwork fills it. [overlap] is how
- * far the session card will ride up into the foot, which the header reserves so the card lands
- * below the header rather than on it.
+ * far the session card will ride up into the foot, which the header reserves so the card lands below
+ * the header rather than on it.
  */
 @Composable
 fun DetailBackdropHeader(
@@ -127,46 +111,22 @@ fun DetailBackdropHeader(
     onCreatorClick: ((String) -> Unit)? = null,
 ) {
     val background = OmnilogTheme.colors.appBackground
-    val hasArt = !metadata.coverUrl.isNullOrBlank()
 
     Box(modifier = modifier.fillMaxWidth()) {
-        if (hasArt) {
-            // matchParentSize, not fillMaxSize: these take their size from the Box rather than
-            // giving it one, so the column below is what decides how tall the header is.
-            // fillMaxSize would also be unbounded here — a LazyColumn item is measured with
-            // infinite max height.
+        if (!metadata.coverUrl.isNullOrBlank()) {
+            // matchParentSize, not fillMaxSize: these take their size from the Box rather than giving
+            // it one, so the column below decides how tall the header is.
             BackdropArt(
                 coverUrl = metadata.coverUrl,
                 modifier = Modifier.matchParentSize(),
             )
-
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .background(
                         Brush.verticalGradient(
-                            0.00f to Color.Black.copy(alpha = 0.44f),
-                            0.34f to Color.Black.copy(alpha = 0.28f),
-                            1.00f to Color.Black.copy(alpha = 0.62f),
-                        ),
-                    ),
-            )
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    // Exactly the strip reserved below the title block, never a pixel more. Sized
-                    // from the header's foot rather than as a fraction of it, because the header's
-                    // height moves with the title's line count. An earlier pass ran this 138dp up
-                    // from the bottom, which laid background over the figures row and washed it
-                    // out — invisible on dark, obvious on light.
-                    .height(overlap + HeaderSeam)
-                    .background(
-                        Brush.verticalGradient(
-                            0.00f to Color.Transparent,
-                            0.55f to background.copy(alpha = 0.55f),
-                            1.00f to background,
+                            0f to background.copy(alpha = WashTop),
+                            1f to background,
                         ),
                     ),
             )
@@ -176,29 +136,24 @@ fun DetailBackdropHeader(
             Spacer(modifier = Modifier.height(topInset - BarPaddingReclaim))
             TitleBlock(
                 metadata = metadata,
-                onArtwork = hasArt,
                 onCollectionClick = onCollectionClick,
                 onCreatorClick = onCreatorClick,
                 modifier = Modifier.padding(horizontal = DetailGutter),
             )
             if (metadata.genres.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(HeaderSeam))
-                DetailGenreRow(
-                    genres = metadata.genres,
-                    accent = if (hasArt) {
-                        metadata.mediaType.headerAccent()
-                    } else {
-                        metadata.mediaType.themeAccent()
-                    },
-                    // On artwork the pills are on the same dark scrim in both themes, so they take
-                    // the dark theme's panel as their base whatever the theme — the reasoning
-                    // [headerAccent] gives. Off artwork they are on the page and take the page's.
-                    panel = if (hasArt) DarkPalette.appPanel else OmnilogTheme.colors.appPanel,
-                    modifier = Modifier.padding(horizontal = DetailGutter),
+                // One quiet line rather than a row of pills: genres describe the work, they are not
+                // controls.
+                Text(
+                    text = metadata.genres.joinToString(" · "),
+                    modifier = Modifier.padding(start = DetailGutter, end = DetailGutter, top = HeaderSeam),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            // Whatever the session card rides up by, plus enough that it lands below the genres
-            // rather than on them.
+            // Whatever the session card rides up by, plus enough that it lands below the genres.
             Spacer(modifier = Modifier.height(overlap + HeaderSeam))
         }
     }
@@ -224,13 +179,7 @@ private fun BackdropArt(
                 .networkCachePolicy(CachePolicy.ENABLED)
                 .build()
         }
-    }
-
-    if (request == null) {
-        // No cover. The veil above renders the whole header as plain background, which is the
-        // graceful outcome — no placeholder art, no empty frame.
-        return
-    }
+    } ?: return
 
     AsyncImage(
         model = request,
@@ -245,53 +194,29 @@ private fun BackdropArt(
 }
 
 /**
- * Cover on the left, everything else on the right, and the right column is exactly as tall as the
- * cover.
+ * Cover on the left, everything else on the right, and the right column exactly as tall as the cover.
  *
- * The height is fixed rather than wrapped so the two sides always end on the same line. That budget
- * is what caps the title at two lines and the creators at one: an item whose title needs four lines
- * gets an ellipsis, not a column that outgrows the artwork beside it.
- *
- * Within that height the identity — collection, title, original title, creator — is packed at the
- * top, and the figures that describe the work rather than name it sit on the baseline. So the two
- * columns line up at both ends whether the title runs to one line or two.
+ * The identity — collection, title, original title, creator — is packed at the top and the figures
+ * sit on the cover's baseline, so both columns line up at both ends whatever the title's length.
  */
 @Composable
 private fun TitleBlock(
     metadata: MediaMetadataUi,
-    onArtwork: Boolean,
     onCollectionClick: (() -> Unit)?,
     onCreatorClick: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    // With a cover this text is on a dark scrim in both themes; without one it is on the page.
-    val ink = if (onArtwork) OnCoverInk else OmnilogTheme.colors.appInk
-    val muted = if (onArtwork) OnCoverMuted else OmnilogTheme.colors.appMuted
-
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        // Level with the cover, so the collection pill starts on the cover's own top edge.
         verticalAlignment = Alignment.Top,
     ) {
         MetadataCoverImage(
             coverUrl = metadata.coverUrl,
-            // The sharp cover and the blurred one are the same picture, so without a shadow the
-            // near one has nothing to separate it from the far one.
             modifier = Modifier
-                .then(
-                    if (onArtwork) {
-                        Modifier.shadow(
-                            elevation = 16.dp,
-                            shape = RoundedCornerShape(10.dp),
-                            ambientColor = Color.Black,
-                            spotColor = Color.Black,
-                        )
-                    } else {
-                        Modifier
-                    },
-                )
+                .shadow(elevation = 10.dp, shape = CoverShape)
                 .size(width = CoverWidth, height = CoverHeight),
+            shape = CoverShape,
         )
 
         Column(
@@ -305,17 +230,26 @@ private fun TitleBlock(
                     metadata.collectionName,
                     metadata.collectionSortOrder,
                 )?.let { collectionName ->
-                    CollectionPill(
+                    // Accent text, the way the library rows name a collection.
+                    Text(
                         text = collectionName,
-                        accent = metadata.mediaType.headerAccent(),
-                        onClick = onCollectionClick,
+                        modifier = if (onCollectionClick != null) {
+                            Modifier.clickable(onClick = onCollectionClick)
+                        } else {
+                            Modifier
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = metadata.mediaType.themeAccent(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Text(
                     text = displayMediaTitle(metadata.title),
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = ink,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -323,7 +257,7 @@ private fun TitleBlock(
                     Text(
                         text = originalTitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = muted,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -336,71 +270,27 @@ private fun TitleBlock(
                         } else {
                             Modifier
                         },
-                        style = MaterialTheme.typography.titleSmall,
-                        color = ink.copy(alpha = 0.88f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
 
-            HeaderFigures(
-                metadata = metadata,
-                onArtwork = onArtwork,
-                ink = ink,
-                muted = muted,
-            )
+            HeaderFigures(metadata = metadata)
         }
     }
 }
 
 /**
- * The collection, as a pill rather than a line of small caps.
+ * Score, audience, length — the figures that sit on the header's baseline.
  *
- * It is the one piece of the header that is a link, and on artwork a bare label had nothing to say
- * so. The accent is the media type's, which is also what makes the pill legible as a category at a
- * glance rather than as another line of text.
+ * Only what the item actually has is drawn. Games skip length because their total is tracked in
+ * hours played, which is a fact about the session rather than about the work.
  */
 @Composable
-private fun CollectionPill(
-    text: String,
-    accent: Color,
-    onClick: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier,
-        shape = RoundedCornerShape(999.dp),
-        // Solid, not a wash. At 22% over artwork the fill picked up whatever was behind it and the
-        // label went with it; a pill has to be its own surface to read as one.
-        color = accent,
-        contentColor = PillInk,
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/**
- * Score, audience, length — the three figures that sit on the header's baseline.
- *
- * Only what the item actually has is drawn, so a book with no vote count shows two columns rather
- * than a dash in the third. Games skip length because their total is tracked in hours played, which
- * is a fact about the session rather than about the work.
- */
-@Composable
-private fun HeaderFigures(
-    metadata: MediaMetadataUi,
-    onArtwork: Boolean,
-    ink: Color,
-    muted: Color,
-) {
+private fun HeaderFigures(metadata: MediaMetadataUi) {
     val rating = metadata.externalRatingScore?.let { score ->
         metadata.externalRatingMax?.let { maxScore ->
             formatExternalRatingCompact(
@@ -418,15 +308,11 @@ private fun HeaderFigures(
     }
     val audience = (metadata.externalRatingVoteCount?.toDouble() ?: metadata.popularityScore)
         ?.let(::formatCompactCount)
-    // Bare number against a unit label, not "752 pàgines" as one value: three equal columns cannot
-    // hold the long form, and it truncated to "752 pàgi…" on a real title.
+    // Bare number against a unit label: the long form truncated in the narrow column.
     val length = metadata.progressTotal
         ?.takeUnless { metadata.mediaType == MediaType.Game }
         ?.toString()
 
-    // Length is deliberately not here. It is the most duplicated figure on the page — the session
-    // card underneath already says "752 de 752 pàgines" — and dropping it is what buys the score
-    // the width to be the size it now is.
     val minor = listOfNotNull(
         audience?.let { stringResource(R.string.metadata_users) to it },
         length?.let { stringResource(metadata.totalUnitLabelRes()) to it },
@@ -435,7 +321,7 @@ private fun HeaderFigures(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
         if (rating != null) {
@@ -450,8 +336,7 @@ private fun HeaderFigures(
                     source = metadata.externalRatingSource,
                     descriptor = metadata.externalRatingScoreDescriptor,
                 ),
-                ink = ratingTint(ratingFraction, onArtwork) ?: ink,
-                muted = muted,
+                ink = ratingTint(ratingFraction) ?: OmnilogTheme.colors.appInk,
             )
         }
         minor.forEach { (label, value) ->
@@ -460,15 +345,15 @@ private fun HeaderFigures(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = muted,
+                    color = OmnilogTheme.colors.appMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = value,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = ink,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.colors.appInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -478,19 +363,10 @@ private fun HeaderFigures(
 }
 
 /**
- * The external score, given the weight of the header baseline.
+ * The external score, the one figure in the header that is a judgement rather than a measurement.
  *
- * It carries the provider mark instead of the provider name, which is both smaller and quicker to
- * recognise, and the figure runs a size larger than the counts beside it: this is the one number in
- * the header that is a judgement rather than a measurement.
- *
- * The denominator is gone. Every source is normalised onto ten before it reaches here, so "/10"
- * said the same thing on every item. Steam percent sign survives inside the formatter, where it
- * still distinguishes 87% approval from 8,7 out of 10.
- *
- * [verdict] is Steam's own words for the percentage — "Molt positives" under 87%. Steam is the one
- * source whose figure is a share of reviews rather than a mark out of ten, and the phrase is how
- * Steam itself makes that readable. Nothing else supplies one.
+ * It carries the provider mark instead of the provider name. [verdict] is Steam's own words for its
+ * percentage — the one source whose figure is a share of reviews rather than a mark out of ten.
  */
 @Composable
 private fun RatingFigure(
@@ -499,7 +375,6 @@ private fun RatingFigure(
     fallbackLabel: String,
     verdict: String?,
     ink: Color,
-    muted: Color,
 ) {
     Column {
         if (source?.logoRes() != null) {
@@ -510,15 +385,15 @@ private fun RatingFigure(
                 text = fallbackLabel,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = muted,
+                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
         Text(
             text = value,
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.ExtraBold,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
             color = ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -537,51 +412,23 @@ private fun RatingFigure(
 }
 
 /**
- * The score's own colour, or null to leave it in plain ink.
- *
- * Borrowed from the status accents rather than invented, because the app has already taught these
- * three: green is a thing gone well, amber a thing left hanging, red a thing abandoned. A score
- * reads on the same scale without a legend.
- *
- * The bands are deliberately wide and the top one deliberately generous — most external scores for
- * things a person chose to track land above 7,5, so amber and red carry real information when they
- * do appear. [GoodScore] and [FairScore] are fractions of the source's own maximum, so a 4,3 out of
- * 5 and an 8,6 out of 10 get the same colour.
- *
- * On artwork the dark-tuned accents are used whatever the theme, for the reason [headerAccent]
- * gives: the scrim under this text is dark in both. Off artwork the text is on the page, so the
- * theme's own set applies — the light values are the ones that clear 4.5:1 on paper.
+ * The score's own colour, borrowed from the status accents: green a thing gone well, amber a thing
+ * left hanging, red a thing abandoned. The bands are wide on purpose — most scores for things a person
+ * chose to track land high, so amber and red carry real information when they appear.
  */
 @Composable
-private fun ratingTint(fraction: Double?, onArtwork: Boolean): Color? {
+private fun ratingTint(fraction: Double?): Color? {
     if (fraction == null) return null
-    val accents = if (onArtwork) DarkAccents else OmnilogTheme.accents
     return when {
-        fraction >= GoodScore -> accents.Completed
-        fraction >= FairScore -> accents.Paused
-        else -> accents.Dropped
+        fraction >= GoodScore -> OmnilogTheme.accents.Completed
+        fraction >= FairScore -> OmnilogTheme.accents.Paused
+        else -> OmnilogTheme.accents.Dropped
     }
 }
 
 private const val GoodScore = 0.75
 private const val FairScore = 0.55
 
-/**
- * The media type's accent, taken from the theme-invariant set on purpose.
- *
- * The header's scrim is dark in both themes, so the pill drawn on it needs the values tuned for
- * dark — `OmnilogTheme.accents` would hand back the light-tuned ones on a paper theme and darken a
- * pill that is still sitting on artwork.
- */
-private fun MediaType.headerAccent(): Color = when (this) {
-    MediaType.Anime -> OmnilogColors.Anime
-    MediaType.Book -> OmnilogColors.Books
-    MediaType.Movie -> OmnilogColors.Movie
-    MediaType.TvShow -> OmnilogColors.Series
-    MediaType.Game -> OmnilogColors.Games
-}
-
-/** The same accent resolved for the active theme, for the parts of the header not on artwork. */
 @Composable
 private fun MediaType.themeAccent(): Color = when (this) {
     MediaType.Anime -> OmnilogTheme.accents.Anime

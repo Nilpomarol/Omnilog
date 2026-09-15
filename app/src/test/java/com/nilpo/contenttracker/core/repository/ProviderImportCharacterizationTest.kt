@@ -4,6 +4,7 @@ import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.BookEditionMetadata
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSeasonSuggestion
 import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.MyAnimeListImportItem
@@ -593,6 +594,40 @@ class ProviderImportCharacterizationTest {
         assertEquals(listOf("Primary Press", "Secondary Press"), merged.publishers)
         assertEquals(listOf("9780261103573", "0261103571"), merged.identifiers)
         assertEquals(openLibrary, mergeExactBookMatches(openLibrary, null))
+    }
+
+    @Test
+    fun `translated edition keeps the work title as the original title`() {
+        val work = MetadataSuggestion(
+            source = MetadataSource.OpenLibrary,
+            externalId = "/works/OL1W",
+            mediaType = MediaType.Book,
+            title = "Cien años de soledad",
+        )
+
+        val translated = BookEditionMetadata(externalId = "/books/OL1M", title = "Cent anys de solitud")
+            .toMetadataSuggestion(work)
+        val sameTitle = BookEditionMetadata(externalId = "/books/OL2M", title = "cien años de soledad")
+            .toMetadataSuggestion(work)
+
+        assertEquals("Cent anys de solitud", translated.title)
+        assertEquals("Cien años de soledad", translated.originalTitle)
+        assertEquals(null, sameTitle.originalTitle)
+    }
+
+    @Test
+    fun `season keeps the series original title in the season title format`() {
+        val series = MetadataSuggestion(
+            source = MetadataSource.Tmdb,
+            externalId = "70523",
+            mediaType = MediaType.TvShow,
+            title = "Money Heist",
+            originalTitle = "La casa de papel",
+        )
+        val season = MetadataSeasonSuggestion(externalId = "70523:1", seasonNumber = 1, title = "Part 1")
+
+        assertEquals("La casa de papel - Part 1", season.toMetadataSuggestion(series).originalTitle)
+        assertNull(season.toMetadataSuggestion(series.copy(originalTitle = null)).originalTitle)
     }
 
     private fun <T> assertIdempotent(rows: List<T>, duplicateKey: (T) -> String) {

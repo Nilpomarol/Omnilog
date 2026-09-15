@@ -51,6 +51,29 @@ class OfficialMalMetadataTest {
     }
 
     @Test
+    fun `official MAL details fall back to MAL's Romanized title without a previous original title`() {
+        val base = MetadataSuggestion(
+            source = MetadataSource.Jikan,
+            externalId = "16498",
+            mediaType = MediaType.Anime,
+            title = "Attack on Titan",
+        )
+        val details = JSONObject(
+            """
+            {
+              "id": 16498,
+              "title": "Shingeki no Kyojin",
+              "alternative_titles": {"en": "Attack on Titan", "ja": "進撃の巨人"}
+            }
+            """.trimIndent(),
+        )
+        val noEnglish = JSONObject("""{"id": 16498, "title": "Shingeki no Kyojin"}""")
+
+        assertEquals("Shingeki no Kyojin", details.toOfficialMalMetadataSuggestion(base).originalTitle)
+        assertEquals(null, noEnglish.toOfficialMalMetadataSuggestion(base).originalTitle)
+    }
+
+    @Test
     fun `Jikan uses its Latin-script title as the original title`() {
         val result = JSONObject(
             """

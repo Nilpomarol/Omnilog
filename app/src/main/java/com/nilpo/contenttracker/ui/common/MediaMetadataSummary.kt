@@ -421,6 +421,7 @@ fun MetadataCoverImage(
     coverUrl: String?,
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(10.dp),
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     val context = LocalContext.current
     val application = context.applicationContext as? ContentTrackerApplication
@@ -448,7 +449,7 @@ fun MetadataCoverImage(
                 model = request,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
             )
         } ?: Box(modifier = Modifier.fillMaxSize())
     }

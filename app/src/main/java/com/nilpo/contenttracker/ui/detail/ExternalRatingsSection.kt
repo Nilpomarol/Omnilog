@@ -1,16 +1,16 @@
 package com.nilpo.contenttracker.ui.detail
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,16 +26,14 @@ import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaType
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
-import com.nilpo.contenttracker.ui.common.logoWidth
 import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.displayName
 import com.nilpo.contenttracker.ui.common.formatCompactCount
 import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
-import com.nilpo.contenttracker.ui.common.logoRes
-import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
+import com.nilpo.contenttracker.ui.common.logoRes
+import com.nilpo.contenttracker.ui.common.logoWidth
+import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
 private const val UserRatingScale = 10
 private const val GoodScore = 0.75f
@@ -44,9 +42,8 @@ private const val FairScore = 0.55f
 /**
  * Every score for this work in one place — the user's own included.
  *
- * Each score is a compact horizontal card: its provider mark anchors the left edge, the source and
- * vote count sit in the middle, and the value is aligned on the right. This preserves the useful
- * context for every provider while avoiding a repeated stack of full-width progress meters.
+ * Each score is a row — provider mark, source and vote count, the value on the right — split from the
+ * next by a hairline, the way the library rows are, rather than a stack of bordered cards.
  */
 @Composable
 fun RatingsSection(
@@ -111,99 +108,84 @@ fun RatingsSection(
 
     val allDisplays = listOfNotNull(userDisplay).plus(providerDisplays)
     val maxLogoWidth = allDisplays
-        .maxOfOrNull { it.markSource.logoWidth(30.dp) }
-        ?: 30.dp
+        .maxOfOrNull { it.markSource.logoWidth(28.dp) }
+        ?: 28.dp
 
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        DetailSectionHeader(
-            title = stringResource(R.string.detail_ratings),
-            accent = accent,
+    Column(modifier = modifier) {
+        DetailSectionTitle(
+            text = stringResource(R.string.detail_ratings),
+            modifier = Modifier.padding(bottom = 4.dp),
         )
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            allDisplays.forEach { display ->
-                RatingCard(display, maxLogoWidth)
+        allDisplays.forEachIndexed { index, display ->
+            if (index > 0) {
+                HorizontalDivider(color = OmnilogTheme.colors.appLine)
             }
+            RatingRow(display, maxLogoWidth)
         }
     }
 }
 
-/** One provider or personal score, drawn as a compact, long card. */
+/** One provider or personal score. */
 @Composable
-private fun RatingCard(display: RatingDisplay, maxLogoWidth: Dp) {
-    val isPersonalRating = display.markSource == null
-    val isEmphasized = isPersonalRating || display.isPrimary
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = if (isEmphasized) display.tint.copy(alpha = 0.11f) else OmnilogTheme.colors.appPanel,
-        border = BorderStroke(
-            1.dp,
-            if (isPersonalRating) display.tint.copy(alpha = 0.55f) else OmnilogTheme.colors.appLine,
-        ),
+private fun RatingRow(display: RatingDisplay, maxLogoWidth: Dp) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier.width(maxLogoWidth),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            Box(
-                modifier = Modifier.width(maxLogoWidth),
-                contentAlignment = Alignment.CenterStart,
+            RatingMark(
+                source = display.markSource,
+                tint = display.tint,
+                height = 28.dp,
+                maxWidth = maxLogoWidth,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                RatingMark(
-                    source = display.markSource,
-                    tint = display.tint,
-                    height = 30.dp,
-                    maxWidth = maxLogoWidth,
+                Text(
+                    text = display.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.colors.appInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                if (display.isPrimary) {
                     Text(
-                        text = display.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = stringResource(R.string.primary_external_rating),
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = OmnilogTheme.colors.appInk,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (display.isPrimary) {
-                        Text(
-                            text = stringResource(R.string.primary_external_rating),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                display.subtitle?.let { subtitle ->
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
                         color = OmnilogTheme.colors.appMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            ScoreFigure(
-                score = display.score,
-                scale = display.scoreScale,
-                rankingPosition = display.rankingPosition,
-                tint = display.tint,
-            )
+            display.subtitle?.let { subtitle ->
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
+        ScoreFigure(
+            score = display.score,
+            scale = display.scoreScale,
+            rankingPosition = display.rankingPosition,
+            tint = display.tint,
+        )
     }
 }
 
@@ -214,7 +196,7 @@ private fun ScoreFigure(score: String, scale: String?, rankingPosition: Int?, ti
             Text(
                 text = score,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = tint,
             )
             scale?.let {

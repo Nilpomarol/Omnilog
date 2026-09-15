@@ -1,46 +1,20 @@
 package com.nilpo.contenttracker.ui.detail
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-
-import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.TrackedMedia
-import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.creatorNames
-import com.nilpo.contenttracker.ui.common.CoverScrim
-import com.nilpo.contenttracker.ui.common.MetadataCoverImage
-import com.nilpo.contenttracker.ui.common.displayMediaTitle
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
-import com.nilpo.contenttracker.ui.theme.OmnilogTheme
-import com.nilpo.contenttracker.ui.theme.OnCoverInk
+import com.nilpo.contenttracker.ui.home.MediaGridCard
 import java.text.Normalizer
 
 internal data class RelatedMediaMatch(
@@ -132,149 +106,25 @@ internal fun RelatedMediaSection(
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = DetailGutter),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(
                 items = relatedMedia,
                 key = { match -> match.trackedMedia.item.id },
             ) { match ->
-                RelatedMediaCard(
-                    match = match,
-                    onClick = { onMediaClick(match.trackedMedia) },
-                )
+                // The library grid's own tile, so a related title looks here as it does in its list.
+                Box(modifier = Modifier.width(RelatedTileWidth)) {
+                    MediaGridCard(
+                        trackedMedia = match.trackedMedia,
+                        onClick = { onMediaClick(match.trackedMedia) },
+                    )
+                }
             }
         }
     }
 }
 
-@Composable
-private fun RelatedMediaCard(
-    match: RelatedMediaMatch,
-    onClick: () -> Unit,
-) {
-    val item = match.trackedMedia.item
-    Surface(
-        modifier = Modifier
-            .width(104.dp)
-            .height(160.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MetadataCoverImage(
-                coverUrl = item.coverUrl,
-                modifier = Modifier.fillMaxSize(),
-                shape = RoundedCornerShape(8.dp),
-            )
-            CoverScrim()
-            RelatedStatusMarker(
-                status = match.trackedMedia.currentSession?.status,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp),
-            )
-            item.releaseYear?.let { year ->
-                YearMarker(
-                    text = year.toString(),
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(6.dp),
-                )
-            }
-            Text(
-                text = displayMediaTitle(item.title),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(6.dp),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = OnCoverInk,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun RelatedStatusMarker(
-    status: TrackingStatus?,
-    modifier: Modifier = Modifier,
-) {
-    val color = status?.stateColor ?: Color.White.copy(alpha = 0.28f)
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = color.copy(alpha = if (status == null) 0.10f else 0.92f),
-        contentColor = if (status == null) Color.White.copy(alpha = 0.34f) else Color.Black,
-    ) {
-        Box(
-            modifier = Modifier.size(20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (status != null) {
-                Icon(
-                    painter = painterResource(status.iconResId),
-                    contentDescription = status.label(),
-                    modifier = Modifier.size(13.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun YearMarker(
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = OmnilogTheme.colors.appInk,
-        )
-    }
-}
-
-private val TrackingStatus.iconResId: Int
-    get() = when (this) {
-        TrackingStatus.Planned -> R.drawable.ic_state_planned
-        TrackingStatus.InProgress -> R.drawable.ic_state_in_progress
-        TrackingStatus.Completed -> R.drawable.ic_state_completed
-        TrackingStatus.Paused -> R.drawable.ic_state_paused
-        TrackingStatus.Dropped -> R.drawable.ic_state_dropped
-    }
-
-private val TrackingStatus.stateColor: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = when (this) {
-        TrackingStatus.Planned -> OmnilogTheme.accents.Planned
-        TrackingStatus.InProgress -> OmnilogTheme.accents.InProgress
-        TrackingStatus.Completed -> OmnilogTheme.accents.Completed
-        TrackingStatus.Paused -> OmnilogTheme.accents.Paused
-        TrackingStatus.Dropped -> OmnilogTheme.accents.Dropped
-    }
-
-@Composable
-private fun TrackingStatus.label(): String = when (this) {
-    TrackingStatus.Planned -> stringResource(R.string.status_planned)
-    TrackingStatus.InProgress -> stringResource(R.string.status_in_progress)
-    TrackingStatus.Completed -> stringResource(R.string.status_completed)
-    TrackingStatus.Paused -> stringResource(R.string.status_paused)
-    TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
-}
+private val RelatedTileWidth = 104.dp
 
 private fun collectionMatchComparator(): Comparator<RelatedMediaMatch> {
     return compareBy<RelatedMediaMatch> {

@@ -401,9 +401,12 @@ internal fun JSONObject.toOfficialMalMetadataSuggestion(base: MetadataSuggestion
         title = englishTitle
             ?: optString("title").takeIf { it.isNotBlank() }
             ?: base.title,
-        // MAL only gives us the native-script Japanese alternative title. Keep a previously
-        // supplied rōmaji value (normally from AniList) instead of replacing it with kanji/kana.
-        originalTitle = base.originalTitle,
+        // Prefer a previously supplied rōmaji value (normally from AniList); otherwise MAL's main
+        // title is rōmaji when an English title exists. Kanji/kana alternatives are never used.
+        originalTitle = base.originalTitle ?: optString("title").takeIf {
+            englishTitle != null && it.isNotBlank() &&
+                !it.equals(englishTitle, ignoreCase = true) && !it.containsJapaneseScript()
+        },
         releaseYear = releaseYear ?: base.releaseYear,
         coverUrl = mainPicture
             ?.optString("large")

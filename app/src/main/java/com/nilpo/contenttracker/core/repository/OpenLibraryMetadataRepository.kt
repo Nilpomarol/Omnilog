@@ -199,7 +199,8 @@ class OpenLibraryMetadataRepository : MetadataRepository {
         val refreshedAuthorCredits = work.toOpenLibraryWorkAuthorCredits(creators).withVerifiedPortraits()
 
         return copy(
-            title = remoteTitle ?: title,
+            // Keep the saved (possibly translated) title; the work title is kept as the original.
+            originalTitle = remoteTitle?.takeUnless { it.equals(title, ignoreCase = true) } ?: originalTitle,
             synopsis = description ?: synopsis,
             genres = subjects.ifEmpty { genres },
             credits = refreshedAuthorCredits.ifEmpty { credits },

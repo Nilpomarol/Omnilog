@@ -12,15 +12,15 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -29,11 +29,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -52,11 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -64,7 +61,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
@@ -72,38 +68,19 @@ import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.creatorNames
-import com.nilpo.contenttracker.core.stats.StatsCalculator
-import com.nilpo.contenttracker.core.stats.StatsBucket
-import com.nilpo.contenttracker.core.stats.StatsFilters
-import com.nilpo.contenttracker.core.stats.StatsPeriod
-import com.nilpo.contenttracker.core.stats.ComparisonBasis
-import com.nilpo.contenttracker.core.stats.StatsSnapshot
-import com.nilpo.contenttracker.ui.common.CoverScrim
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.QuickCompletion
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.formatCollectionDisplayName
-import com.nilpo.contenttracker.ui.stats.MetricBand
-import com.nilpo.contenttracker.ui.stats.MetricBandLead
-import com.nilpo.contenttracker.ui.stats.MetricBandSupporting
-import com.nilpo.contenttracker.ui.stats.comparisonBasisLabel
-import com.nilpo.contenttracker.ui.stats.comparisonBasisLabelShort
-import com.nilpo.contenttracker.ui.stats.intMetricDelta
-import com.nilpo.contenttracker.ui.stats.ratingMetricDelta
 import com.nilpo.contenttracker.ui.common.progressLabel
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
-import com.nilpo.contenttracker.ui.common.writeHiddenActiveSections
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.timeline.TimelineRecentActivity
-import com.nilpo.contenttracker.ui.theme.OnCoverInk
-import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
-import java.text.NumberFormat
 import java.time.LocalDate
-import java.util.Locale
 
 @Composable
 fun HomeLandingScreen(
@@ -114,22 +91,33 @@ fun HomeLandingScreen(
     onStatsClick: () -> Unit,
     onTimelineClick: () -> Unit,
     onObjectivesClick: () -> Unit,
+    onStatusClick: (TrackingStatus) -> Unit,
     onAddToSection: (MediaSection) -> Unit,
     onImportBackup: () -> Unit,
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
     onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit = { _, _ -> },
+    searchOpen: Boolean = false,
+    searchQuery: String = "",
+    searchFocused: Boolean = false,
+    onSearchClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
-    val objectiveProgress = remember(items, uiState.objectives) { ObjectiveCalculator().calculate(items, uiState.objectives) }.filter { it.objective.archivedAtEpochMillis == null && !it.isExpired(LocalDate.now()) }
+    val objectiveProgress = remember(items, uiState.objectives) { ObjectiveCalculator().calculate(items, uiState.objectives) }.filter { it.objective.archivedAtEpochMillis == null }
     val activeFilterPreferences = rememberActiveFilterPreferences()
-    var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearchOverlay by rememberSaveable { mutableStateOf(false) }
-    // Settings owns the Ara mateix filter; Home renders the result and offers a way out.
+    // Settings owns the Ara mateix filter; Home only renders the result.
     val hiddenActiveSections by rememberHiddenActiveSections(activeFilterPreferences)
     val dashboardListState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val normalizedSearchQuery = searchQuery.trim()
+    val closeSearch = onSearchClose
+    // The field lives in the top bar. Typing, or focusing it again after tapping away from the
+    // results, brings them back over the list.
+    LaunchedEffect(searchQuery, searchFocused) {
+        if (searchFocused) showSearchOverlay = true
+    }
+    BackHandler(enabled = searchOpen, onBack = closeSearch)
     val searchMatches = items
         .filter { it.matchesDashboardQuery(normalizedSearchQuery) }
         .sortedBy { displayMediaTitle(it.item.title).lowercase() }
@@ -138,23 +126,13 @@ fun HomeLandingScreen(
     val activeCandidates = items
         .filter { it.currentSession?.status == TrackingStatus.InProgress }
         .sortedByDescending { it.latestActivityMillis() }
-    val plannedCandidates = items
-        .filter { it.currentSession?.status == TrackingStatus.Planned }
-        .sortedByDescending { it.latestActivityMillis() }
+    val today = LocalDate.now()
+    val plannedCandidates = remember(items, today) { prioritizeHomePlannedItems(items, today) }
     // Longest-stalled first: the whole point of the section is the titles you have stopped
     // noticing, so the ones you touched most recently are the least useful to surface.
     val pausedCandidates = items
         .filter { it.currentSession?.status == TrackingStatus.Paused }
         .sortedBy { it.currentSession?.updatedAtEpochMillis ?: 0L }
-    // Ordered strictly by finish date. A completion with no recorded finish date has no honest
-    // position on a recency axis, so it is left out rather than placed by a proxy: updatedAt moves
-    // whenever any field changes, which would promote a years-old entry the moment its notes were
-    // edited.
-    val completedCandidates = items
-        .mapNotNull { media -> media.completionDate()?.let { date -> media to date } }
-        .sortedByDescending { (_, date) -> date }
-        .map { (media, _) -> media }
-
     val isVisibleNow = { media: TrackedMedia ->
         media.item.type.dashboardSection() !in hiddenActiveSections
     }
@@ -162,7 +140,6 @@ fun HomeLandingScreen(
     val activeItemsVisible = activeCandidates.filter(isVisibleNow).take(8)
     val plannedItems = plannedCandidates.take(8)
     val pausedItems = pausedCandidates.take(8)
-    val completedItems = completedCandidates.take(8)
 
     LaunchedEffect(dashboardListState.isScrollInProgress) {
         if (dashboardListState.isScrollInProgress) {
@@ -174,410 +151,107 @@ fun HomeLandingScreen(
         modifier = modifier,
         color = OmnilogTheme.colors.appBackground,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = dashboardListState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 16.dp, end = 16.dp, top = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(bottom = 4.dp),
-            ) {
-                item {
-                    DashboardSearch(
-                        query = searchQuery,
-                        onQueryChange = {
-                            searchQuery = it
-                            showSearchOverlay = it.isNotBlank()
-                        },
-                        onClear = {
-                            searchQuery = ""
-                            showSearchOverlay = false
-                        },
-                        onClick = {
-                            if (searchQuery.isNotBlank()) {
-                                showSearchOverlay = true
-                            }
-                        },
-                    )
-                }
-
-                if (items.isEmpty()) {
-                    item {
-                        EmptyHomeState(
-                            onAddToSection = onAddToSection,
-                            onImportBackup = onImportBackup,
-                        )
-                    }
-                } else {
-                    item {
-                        HomeActiveCarousel(
-                            title = stringResource(R.string.home_active_title),
-                            items = activeItemsVisible,
-                            hiddenSections = MediaSection.entries.filter { it in hiddenActiveSections },
-                            onShowAllSections = {
-                                activeFilterPreferences.writeHiddenActiveSections(emptySet())
-                            },
-                            onMediaClick = onMediaClick,
-                            onQuickCommitProgress = onQuickCommitProgress,
-                            onQuickComplete = onQuickComplete,
-                            isFiltered = hiddenActiveSections.isNotEmpty() && activeCandidates.isNotEmpty(),
-                        )
-                    }
-
-                    item {
-                        HomeCarousel(
-                            title = stringResource(R.string.home_planned_title),
-                            items = plannedItems,
-                            onMediaClick = onMediaClick,
-                            emptyText = stringResource(R.string.home_planned_empty),
-                            onQuickCommitProgress = onQuickCommitProgress,
-                            onQuickComplete = onQuickComplete,
-                        )
-                    }
-
-                    item {
-                        DashboardObjectivesPreview(
-                            objectives = objectiveProgress,
-                            onClick = onObjectivesClick,
-                        )
-                    }
-
-                    item {
-                        DashboardAnalyticsPreview(
-                            items = items,
-                            onClick = onStatsClick,
-                        )
-                    }
-
-                    item {
-                        TimelineRecentActivity(
-                            entries = timelineEntries,
-                            onEntryClick = { mediaItemId ->
-                                items.firstOrNull { it.item.id == mediaItemId }?.let(onMediaClick)
-                            },
-                            onViewAll = onTimelineClick,
-                        )
-                    }
-
-                    // Below the goal and analytics cards: the rediscover-and-review half of the
-                    // library. Both hide when empty — unlike the two carousels above, which are
-                    // daily surfaces worth explaining, these are only worth space when populated.
-                    if (pausedItems.isNotEmpty()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Search takes over the header itself, so Ara mateix leads Home and the list never moves.
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    state = dashboardListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 16.dp, end = 16.dp, top = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                ) {
+                    if (items.isEmpty()) {
                         item {
-                            HomeCarousel(
-                                title = stringResource(R.string.home_paused_title),
-                                items = pausedItems,
+                            EmptyHomeState(
+                                onAddToSection = onAddToSection,
+                                onImportBackup = onImportBackup,
+                            )
+                        }
+                    } else {
+                        item {
+                            HomeActiveCarousel(
+                                title = stringResource(R.string.home_active_title),
+                                items = activeItemsVisible,
                                 onMediaClick = onMediaClick,
                                 onQuickCommitProgress = onQuickCommitProgress,
                                 onQuickComplete = onQuickComplete,
+                                isFiltered = hiddenActiveSections.isNotEmpty() && activeCandidates.isNotEmpty(),
+                                onShowAll = { onStatusClick(TrackingStatus.InProgress) },
                             )
                         }
-                    }
 
-                    if (completedItems.isNotEmpty()) {
                         item {
                             HomeCarousel(
-                                title = stringResource(R.string.home_completed_title),
-                                items = completedItems,
+                                title = stringResource(R.string.home_planned_title),
+                                items = plannedItems,
                                 onMediaClick = onMediaClick,
+                                emptyText = stringResource(R.string.home_planned_empty),
+                                onQuickCommitProgress = onQuickCommitProgress,
+                                onQuickComplete = onQuickComplete,
+                                onShowAll = { onStatusClick(TrackingStatus.Planned) },
                             )
                         }
-                    }
-                }
-            }
-            if (normalizedSearchQuery.isNotEmpty() && showSearchOverlay) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(top = 76.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) {
-                            focusManager.clearFocus()
-                            showSearchOverlay = false
-                        },
-                )
-                DashboardSearchOverlay(
-                    query = normalizedSearchQuery,
-                    matches = searchMatches,
-                    onMediaClick = {
-                        searchQuery = ""
-                        onMediaClick(it)
-                    },
-                    onSectionSearch = { section ->
-                        val query = normalizedSearchQuery
-                        searchQuery = ""
-                        onSectionSearch(section, query)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(start = 16.dp, top = 76.dp, end = 16.dp),
-                )
-            }
-        }
-    }
-}
 
-@Composable
-private fun DashboardAnalyticsPreview(
-    items: List<TrackedMedia>,
-    onClick: () -> Unit,
-) {
-    val snapshot = remember(items) {
-        StatsCalculator().calculate(items, StatsFilters(period = StatsPeriod.ThisYear))
-    }
+                        item {
+                            HomeRhythmCard(
+                                items = items,
+                                objectives = objectiveProgress,
+                                onStatsClick = onStatsClick,
+                                onObjectivesClick = onObjectivesClick,
+                            )
+                        }
+                        item {
+                            TimelineRecentActivity(
+                                entries = timelineEntries,
+                                onViewAll = onTimelineClick,
+                            )
+                        }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.home_analytics_preview_title),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                // Condensed here so it shares the title's line instead of costing the card a row.
-                // Each metric still announces the basis in full to screen readers.
-                snapshot.deltas.basis?.let { basis ->
-                    Text(
-                        text = comparisonBasisLabelShort(basis),
-                        modifier = Modifier.clearAndSetSemantics { },
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = OmnilogTheme.colors.appMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = stringResource(R.string.home_analytics_preview_open),
-                    modifier = Modifier.size(18.dp),
-                    tint = OmnilogTheme.accents.Dashboard,
-                )
-            }
-            DashboardPeriodMetrics(snapshot = snapshot)
-            MonthlyActivityPreview(buckets = snapshot.completionSessionsByMonth)
-        }
-    }
-}
-
-/**
- * The year's KPIs in one band: completion sessions as the lead figure, with the average rating and
- * revisit count as supporting values behind a rule. Each carries its change against the same period
- * of last year, and the basis is named once beneath the band rather than on every chip.
- *
- * Consumption totals deliberately do not appear here — they are per-medium values in units that
- * cannot be compared, and the statistics page shows them where that context exists.
- */
-@Composable
-private fun DashboardPeriodMetrics(
-    snapshot: StatsSnapshot,
-    modifier: Modifier = Modifier,
-) {
-    val basisLabel = snapshot.deltas.basis?.let { basis -> comparisonBasisLabel(basis) }
-
-    MetricBand(
-        modifier = modifier,
-        lead = {
-            MetricBandLead(
-                value = snapshot.completionSessions.toString(),
-                label = stringResource(R.string.home_analytics_preview_completed),
-                accent = OmnilogTheme.accents.Completed,
-                delta = intMetricDelta(snapshot.deltas.completionSessions),
-                basisLabel = basisLabel,
-                leadValueStyle = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.weight(1.1f),
-            )
-        },
-        supporting = {
-            MetricBandSupporting(
-                label = stringResource(R.string.home_analytics_average_rating_short),
-                accessibleLabel = stringResource(R.string.home_analytics_average_rating),
-                value = snapshot.averageRating?.let { average -> ratingFormat.format(average) } ?: "—",
-                accent = OmnilogTheme.colors.appInk,
-                delta = ratingMetricDelta(snapshot.deltas.averageRating),
-                basisLabel = basisLabel,
-                valueStyle = MaterialTheme.typography.titleMedium,
-            )
-            MetricBandSupporting(
-                label = stringResource(R.string.home_analytics_revisits_short),
-                accessibleLabel = stringResource(R.string.stats_summary_revisits),
-                value = snapshot.revisitCount.toString(),
-                accent = OmnilogTheme.accents.Books,
-                delta = intMetricDelta(snapshot.deltas.revisits),
-                basisLabel = basisLabel,
-                valueStyle = MaterialTheme.typography.titleMedium,
-            )
-        },
-    )
-}
-
-
-
-
-
-@Composable
-private fun MonthlyActivityPreview(
-    buckets: List<StatsBucket>,
-    modifier: Modifier = Modifier,
-) {
-    val visibleBuckets = buckets.takeLast(7)
-    val maxValue = visibleBuckets.maxOfOrNull { bucket -> bucket.value }?.coerceAtLeast(1) ?: 1
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            // Min, not fixed: the month labels scale with the system font and a hard height
-            // clips them at large scales (UX-09). The bars keep their own fixed height.
-            .heightIn(min = 92.dp),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        visibleBuckets.forEach { bucket ->
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(70.dp),
-                    contentAlignment = Alignment.BottomCenter,
-                ) {
-                    val barHeight = if (bucket.value == 0) 2 else {
-                        (70 * bucket.value / maxValue).coerceAtLeast(4)
-                    }
-                    if (bucket.segments.isNotEmpty()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(barHeight.dp)
-                                .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp)),
-                            verticalArrangement = Arrangement.Bottom,
-                        ) {
-                            bucket.segments.asReversed().forEach { segment ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(segment.value.toFloat())
-                                        .background(segment.mediaType.sectionAccent()),
+                        if (pausedItems.isNotEmpty()) {
+                            item {
+                                HomeCarousel(
+                                    title = stringResource(R.string.home_paused_title),
+                                    items = pausedItems,
+                                    onMediaClick = onMediaClick,
+                                    onQuickCommitProgress = onQuickCommitProgress,
+                                    onQuickComplete = onQuickComplete,
+                                    onShowAll = { onStatusClick(TrackingStatus.Paused) },
                                 )
                             }
                         }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(barHeight.dp)
-                                .background(
-                                    if (bucket.value > 0) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine.copy(alpha = 0.58f),
-                                    RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp),
-                                ),
-                        )
                     }
                 }
-                Text(
-                    text = bucket.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogTheme.colors.appMuted,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DashboardSearch(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClear: () -> Unit,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(999.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = null,
-                tint = if (query.isNotBlank()) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
-            )
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused && query.isNotBlank()) {
-                            onClick()
-                        }
-                    },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    color = OmnilogTheme.colors.appInk,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                cursorBrush = SolidColor(OmnilogTheme.accents.Dashboard),
-                decorationBox = { innerTextField ->
-                    Box {
-                        if (query.isBlank()) {
-                            Text(
-                                text = stringResource(R.string.search_label),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = OmnilogTheme.colors.appMuted,
-                            )
-                        }
-                        innerTextField()
-                    }
-                },
-            )
-            if (query.isNotBlank()) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onClear,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.cancel),
-                        tint = OmnilogTheme.colors.appMuted,
+                // This box starts just below the header's field, so the results sit a few dp under it.
+                if (normalizedSearchQuery.isNotEmpty() && showSearchOverlay) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(top = 6.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                focusManager.clearFocus()
+                                showSearchOverlay = false
+                            },
+                    )
+                    DashboardSearchOverlay(
+                        query = normalizedSearchQuery,
+                        matches = searchMatches,
+                        onMediaClick = {
+                            closeSearch()
+                            onMediaClick(it)
+                        },
+                        onSectionSearch = { section ->
+                            val query = normalizedSearchQuery
+                            closeSearch()
+                            onSectionSearch(section, query)
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(start = 16.dp, top = 6.dp, end = 16.dp),
                     )
                 }
             }
@@ -747,7 +421,7 @@ private fun DashboardSectionSearchRow(
  * A titled row of media tiles. Pass [emptyText] for a section that should explain itself when it
  * has nothing (the daily surfaces near the top); omit it and the caller is expected to skip the
  * section entirely instead. Pass the quick action callbacks to give each tile a button opening the
- * progress sheet — it only appears on tiles whose status can act on it (see [HomeMediaTile]).
+ * progress sheet — it only appears on tiles whose status can act on it (see [HomeCollectionCard]).
  */
 @Composable
 private fun HomeCarousel(
@@ -757,17 +431,18 @@ private fun HomeCarousel(
     emptyText: String? = null,
     onQuickCommitProgress: ((TrackedMedia, Int) -> Unit)? = null,
     onQuickComplete: ((TrackedMedia, QuickCompletion) -> Unit)? = null,
+    onShowAll: (() -> Unit)? = null,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DashboardSectionTitle(title = title)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DashboardSectionTitle(title = title, onClick = onShowAll)
         if (items.isEmpty()) {
             emptyText?.let { EmptyCarouselState(text = it) }
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(items) { trackedMedia ->
-                    HomeMediaTile(
+                items(items, key = { it.item.id }) { trackedMedia ->
+                    HomeCollectionCard(
                         trackedMedia = trackedMedia,
-                        accent = trackedMedia.item.type.sectionAccent(),
+                        accent = OmnilogTheme.accents.Dashboard,
                         onClick = { onMediaClick(trackedMedia) },
                         onQuickCommitProgress = onQuickCommitProgress?.let { commit ->
                             { value: Int -> commit(trackedMedia, value) }
@@ -786,22 +461,14 @@ private fun HomeCarousel(
 private fun HomeActiveCarousel(
     title: String,
     items: List<TrackedMedia>,
-    hiddenSections: List<MediaSection>,
-    onShowAllSections: () -> Unit,
     onMediaClick: (TrackedMedia) -> Unit,
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit,
     onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit,
     isFiltered: Boolean,
+    onShowAll: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DashboardSectionTitle(title = title) {
-            if (hiddenSections.isNotEmpty()) {
-                ActiveFilterIndicator(
-                    hiddenSections = hiddenSections,
-                    onShowAll = onShowAllSections,
-                )
-            }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DashboardSectionTitle(title = title, onClick = onShowAll)
         if (items.isEmpty()) {
             EmptyCarouselState(
                 text = if (isFiltered) {
@@ -812,10 +479,10 @@ private fun HomeActiveCarousel(
             )
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(items) { trackedMedia ->
-                    HomeMediaTile(
+                items(items, key = { it.item.id }) { trackedMedia ->
+                    HomeCollectionCard(
                         trackedMedia = trackedMedia,
-                        accent = trackedMedia.item.type.sectionAccent(),
+                        accent = OmnilogTheme.accents.Dashboard,
                         onClick = { onMediaClick(trackedMedia) },
                         onQuickCommitProgress = { onQuickCommitProgress(trackedMedia, it) },
                         onQuickComplete = { onQuickComplete(trackedMedia, it) },
@@ -844,92 +511,42 @@ private fun EmptyCarouselState(text: String) {
     }
 }
 
-/**
- * The carousel section heading: a title, a hairline reaching the far edge, and an optional control
- * riding at the end of it.
- *
- * [trailingContent] should stay compact. The row's height is whatever its tallest child is, so a
- * control with a 48.dp minimum — a Material `TextButton`, say — silently sets the height of every
- * heading on the page.
- */
+/** The section heading: bold, friendly type, open space, and an arrow when it opens a full list. */
 @Composable
 private fun DashboardSectionTitle(
     title: String,
-    trailingContent: @Composable (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = title,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.Bold,
             color = OmnilogTheme.colors.appInk,
         )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(OmnilogTheme.colors.appLine),
-        )
-        trailingContent?.invoke()
-    }
-}
-
-@Composable
-private fun ActiveFilterIndicator(
-    hiddenSections: List<MediaSection>,
-    onShowAll: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val label = if (hiddenSections.size == 1) {
-        stringResource(
-            R.string.home_active_hidden_section_indicator,
-            stringResource(hiddenSections.single().titleResId),
-        )
-    } else {
-        stringResource(R.string.home_active_hidden_sections_indicator, hiddenSections.size)
-    }
-    Surface(
-        onClick = onShowAll,
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = OmnilogTheme.accents.Dashboard.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, OmnilogTheme.accents.Dashboard.copy(alpha = 0.38f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 9.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.accents.Dashboard,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        // The heading itself opens the full list, marked with the same arrow as Activitat recent
+        // rather than a pill button competing with the section's own controls.
+        if (onClick != null) {
             Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.home_active_hidden_sections_show_all),
-                modifier = Modifier.size(14.dp),
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.show_all),
+                modifier = Modifier.size(18.dp),
                 tint = OmnilogTheme.accents.Dashboard,
             )
         }
     }
 }
 
-// A 2:3 poster, so the cover fills the tile without cropping. Keep the ratio if you resize:
-// the dashboard stacks several carousels, and tile height is what decides how many are reachable
-// without scrolling.
-private val TileWidth = 114.dp
-private val TileHeight = 171.dp
-
+/** Continue and planned cards retain the existing progress sheet and its tracking rules. */
 @Composable
-private fun HomeMediaTile(
+private fun HomeCollectionCard(
     trackedMedia: TrackedMedia,
     accent: Color,
     onClick: () -> Unit,
@@ -937,233 +554,239 @@ private fun HomeMediaTile(
     onQuickComplete: ((QuickCompletion) -> Unit)? = null,
 ) {
     val session = trackedMedia.currentSession
-    // Planned and Paused open the very same sheet as In progress. Starting something is just a
-    // progress commit that happens to promote the status, so there is no reason for the dashboard
-    // to offer a blind status flip that guesses you are at zero.
-    val quickActionsEnabled = onQuickCommitProgress != null && onQuickComplete != null &&
-        session != null &&
-        (
-            session.status == TrackingStatus.InProgress ||
-                session.status == TrackingStatus.Paused ||
-                session.status == TrackingStatus.Planned
-            )
+    val isActive = session?.status == TrackingStatus.InProgress
     var showQuickSheet by remember(trackedMedia.item.id) { mutableStateOf(false) }
-    LaunchedEffect(quickActionsEnabled) {
-        if (!quickActionsEnabled) showQuickSheet = false
+    // Starting a planned title and resuming a paused one go through the same sheet, which promotes
+    // either to In progress.
+    val canUpdate = session?.status in setOf(TrackingStatus.InProgress, TrackingStatus.Planned, TrackingStatus.Paused) &&
+        onQuickCommitProgress != null && onQuickComplete != null
+    if (isActive) {
+        HomeContinueCard(
+            trackedMedia = trackedMedia,
+            onClick = onClick,
+            onProgressClick = if (canUpdate) ({ showQuickSheet = true }) else null,
+        )
+    } else {
+        val isPaused = session?.status == TrackingStatus.Paused
+        val item = trackedMedia.item
+        HomePlannedCard(
+            trackedMedia = trackedMedia,
+            accent = accent,
+            // For something already begun, where you left off says more than which collection it is in.
+            detail = if (isPaused) {
+                session.progressLabel(item.progressTotal?.takeIf { item.type != MediaType.Game }, item.type)
+            } else {
+                formatCollectionDisplayName(trackedMedia.collection?.name, item.collectionSortOrder)
+            },
+            actionLabel = stringResource(if (isPaused) R.string.home_paused_resume else R.string.home_planned_start),
+            onClick = onClick,
+            onStartClick = if (canUpdate) ({ showQuickSheet = true }) else null,
+        )
     }
-
-    Surface(
-        modifier = Modifier
-            .width(TileWidth)
-            .height(TileHeight)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MetadataCoverImage(
-                coverUrl = trackedMedia.item.coverUrl,
-                modifier = Modifier.fillMaxSize(),
-            )
-            CardStatusIcon(
-                status = session?.status,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp),
-            )
-            CoverScrim()
-            if (quickActionsEnabled) {
-                // One destination, but the glyph still previews what the sheet will lead with:
-                // a play mark for something not currently running, a plus for adding to a total
-                // already in motion.
-                TileQuickActionButton(
-                    icon = if (session?.status == TrackingStatus.InProgress) {
-                        Icons.Filled.Add
-                    } else {
-                        Icons.Filled.PlayArrow
-                    },
-                    contentDescription = when (session?.status) {
-                        TrackingStatus.Paused -> stringResource(R.string.home_paused_resume)
-                        TrackingStatus.Planned -> stringResource(R.string.home_planned_start)
-                        else -> stringResource(R.string.quick_progress_open)
-                    },
-                    accent = accent,
-                    modifier = Modifier.align(Alignment.TopStart),
-                    onClick = { showQuickSheet = true },
-                )
-            } else if (session?.status == TrackingStatus.Completed && session.ratingHalfPoints != null) {
-                TileRatingBadge(
-                    ratingHalfPoints = session.ratingHalfPoints,
-                    accent = accent,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp),
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                // The title gets the full tile width.
-                Text(
-                    text = displayMediaTitle(trackedMedia.item.title),
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = OnCoverInk,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (session?.status == TrackingStatus.InProgress || session?.status == TrackingStatus.Paused) {
-                    trackedMedia.item.progressTotal
-                        .takeUnless { trackedMedia.item.type == MediaType.Game }
-                        ?.takeIf { it > 0 }
-                        ?.let { progressTotal ->
-                            ProgressBar(
-                                fraction = session.progressFraction(progressTotal),
-                                color = accent,
-                            )
-                        }
-                }
-            }
-        }
-    }
-
-    if (showQuickSheet && quickActionsEnabled) {
+    if (showQuickSheet && canUpdate) {
         QuickProgressSheet(
             trackedMedia = trackedMedia,
             accent = accent,
-            onCommit = {
-                onQuickCommitProgress?.invoke(it)
-                showQuickSheet = false
-            },
-            onComplete = {
-                onQuickComplete?.invoke(it)
-                showQuickSheet = false
-            },
+            onCommit = { onQuickCommitProgress?.invoke(it); showQuickSheet = false },
+            onComplete = { onQuickComplete?.invoke(it); showQuickSheet = false },
             onDismiss = { showQuickSheet = false },
         )
     }
 }
 
+/**
+ * A borderless planned or paused item: cover, title and [detail] at the top, and a small action
+ * button (Començar or Reprèn) at the bottom. No card surface, so `Ara mateix` stays visually primary.
+ */
 @Composable
-private fun TileQuickActionButton(
-    icon: ImageVector,
-    contentDescription: String,
+private fun HomePlannedCard(
+    trackedMedia: TrackedMedia,
     accent: Color,
-    modifier: Modifier = Modifier,
+    detail: String?,
+    actionLabel: String,
     onClick: () -> Unit,
+    onStartClick: (() -> Unit)?,
 ) {
-    // Filled like the status and owned pills opposite it, but a little larger: those are read-only
-    // badges, this one is the tile's only tap target and pill size was too small to hit reliably —
-    // the rounded corner clips the touch area that would otherwise extend past it.
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .clickable(
-                onClick = onClick,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ),
-        contentAlignment = Alignment.Center,
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
+
+    // Two items plus ~24dp of the third cover (32dp page padding, two 10dp gaps). The floor keeps
+    // room for the Començar button, so narrow phones trade the peek for an intact button. Larger
+    // text grows every item's height uniformly.
+    Row(
+        modifier = Modifier.width(((screenWidth - 76.dp) / 2).coerceIn(180.dp, 232.dp))
+            .height(116.dp + 64.dp * (fontScale - 1f))
+            .clickable(onClick = onClick),
     ) {
-        Surface(
-            shape = RoundedCornerShape(999.dp),
-            color = accent,
-            contentColor = Color.Black,
-            modifier = Modifier.size(24.dp),
+        MetadataCoverImage(
+            coverUrl = trackedMedia.item.coverUrl,
+            modifier = Modifier.width(72.dp).height(108.dp),
+            shape = RoundedCornerShape(6.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+        )
+        Column(
+            // The button's 48dp touch target leaves 8dp below its 32dp visual, so the item is
+            // 8dp taller than the cover to line their bottom edges up.
+            modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 10.dp),
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDescription,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CardStatusIcon(
-    status: TrackingStatus?,
-    modifier: Modifier = Modifier,
-) {
-    val color = status?.stateColor ?: Color.White.copy(alpha = 0.28f)
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = if (status == null) color.copy(alpha = 0.10f) else color,
-        contentColor = if (status == null) Color.White.copy(alpha = 0.34f) else Color.Black,
-    ) {
-        Box(
-            modifier = Modifier.size(24.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (status != null) {
-                Icon(
-                    painter = painterResource(status.iconResId),
-                    contentDescription = status.label(),
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TileRatingBadge(
-    ratingHalfPoints: Int,
-    accent: Color,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        // A pill rather than a circle: "7,5" does not fit a 24dp round badge, and rounding it
-        // for the tile would print a score the user never gave.
-        modifier = modifier.heightIn(min = 24.dp).widthIn(min = 24.dp),
-        shape = RoundedCornerShape(999.dp),
-        color = accent,
-        contentColor = Color.Black,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
             Text(
-                text = formatRatingHalfPoints(ratingHalfPoints),
-                modifier = Modifier.padding(horizontal = 6.dp),
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontSize = 13.sp,
-                    lineHeight = 13.sp,
-                ),
-                fontWeight = FontWeight.Black,
-                color = Color.Black,
-                maxLines = 1,
+                text = displayMediaTitle(trackedMedia.item.title),
+                style = MaterialTheme.typography.titleSmall,
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
+            detail?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            onStartClick?.let { onStart ->
+                Button(
+                    onClick = onStart,
+                    modifier = Modifier.heightIn(min = 32.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(start = 8.dp, end = 10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accent.copy(alpha = 0.12f),
+                        contentColor = accent,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = actionLabel,
+                        modifier = Modifier.padding(start = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
     }
 }
-
+/**
+ * Home's hero: a poster tile carrying only the title and progress over the artwork, with equal
+ * geometry across the carousel, including titles with no known progress total.
+ */
 @Composable
-private fun ProgressBar(
-    fraction: Float,
-    color: Color,
+private fun HomeContinueCard(
+    trackedMedia: TrackedMedia,
+    onClick: () -> Unit,
+    onProgressClick: (() -> Unit)?,
 ) {
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    // About three and a half posters in view (16dp page padding, three 10dp gaps), so the carousel
+    // visibly continues. The card is the 2:3 poster itself; larger text just rises further up it.
+    val cardWidth = ((screenWidth - 46.dp) / 3.5f).coerceIn(100.dp, 150.dp)
+    val type = trackedMedia.item.type
+    // The text sits on a dark scrim in either theme, so it takes the dark-theme accents.
+    val accent = when (type) {
+        MediaType.Anime -> OmnilogColors.Anime
+        MediaType.Book -> OmnilogColors.Books
+        MediaType.Movie -> OmnilogColors.Movie
+        MediaType.TvShow -> OmnilogColors.Series
+        MediaType.Game -> OmnilogColors.Games
+    }
+    val session = trackedMedia.currentSession
+    val total = trackedMedia.item.progressTotal?.takeIf { it > 0 && type != MediaType.Game }
+    val shape = RoundedCornerShape(10.dp)
+    // The scrim is kept light to show the artwork, so a soft shadow keeps text legible on busy covers.
+    val legible = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 6f)
+
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(5.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White.copy(alpha = 0.24f)),
+            .width(cardWidth)
+            .height(cardWidth * 1.5f)
+            .clip(shape)
+            .clickable(onClick = onClick),
     ) {
+        MetadataCoverImage(
+            coverUrl = trackedMedia.item.coverUrl,
+            modifier = Modifier.fillMaxSize(),
+            shape = shape,
+        )
         Box(
             modifier = Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(5.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color),
+                .fillMaxSize()
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0.5f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.7f),
+                    ),
+                ),
         )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, bottom = 7.dp),
+        ) {
+            Text(
+                text = displayMediaTitle(trackedMedia.item.title),
+                style = MaterialTheme.typography.titleSmall.copy(shadow = legible),
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val progress = session.progressLabel(total, type)
+            if (total != null) {
+                // The bar alone carries progress on the poster; the figure stays for screen readers.
+                val fraction = ((session?.progressCurrent ?: 0).toFloat() / total).coerceIn(0f, 1f)
+                Box(
+                    Modifier
+                        .padding(top = 5.dp)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White.copy(alpha = 0.3f))
+                        .clearAndSetSemantics { contentDescription = progress },
+                ) {
+                    Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(accent))
+                }
+            } else {
+                // Without a total (games, open-ended titles) there is nothing to fill, so keep the figure.
+                Text(
+                    text = progress,
+                    style = MaterialTheme.typography.labelSmall.copy(shadow = legible),
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        onProgressClick?.let { onProgress ->
+            // In the top corner so the text below keeps the poster's full width on narrow cards.
+            // A small visual; Compose extends the touch area to 48dp.
+            IconButton(
+                onClick = onProgress,
+                modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(36.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .background(Color.Black.copy(alpha = 0.75f), androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.quick_progress_open),
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1267,18 +890,6 @@ private fun TrackingStatus.label(): String =
         TrackingStatus.Dropped -> stringResource(R.string.status_dropped)
     }
 
-@Composable
-@ReadOnlyComposable
-private fun MediaType.sectionAccent(): Color =
-    when (this) {
-        MediaType.Anime -> MediaSection.Anime.themedAccent()
-        MediaType.Book -> MediaSection.Books.themedAccent()
-        MediaType.Movie,
-        MediaType.TvShow,
-            -> MediaSection.Movies.themedAccent()
-        MediaType.Game -> MediaSection.Games.themedAccent()
-    }
-
 private fun MediaType.dashboardSection(): MediaSection =
     when (this) {
         MediaType.Anime -> MediaSection.Anime
@@ -1307,26 +918,5 @@ private fun TrackedMedia.matchesDashboardQuery(query: String): Boolean {
         collection?.name?.contains(query, ignoreCase = true) == true
 }
 
-private fun TrackingSession?.progressFraction(progressTotal: Int?): Float {
-    val current = this?.progressCurrent ?: 0
-    if (progressTotal == null || progressTotal <= 0) return 0f
-    return current.toFloat().div(progressTotal.toFloat()).coerceIn(0f, 1f)
-}
-
 private fun TrackedMedia.latestActivityMillis(): Long =
     sessions.maxOfOrNull { it.updatedAtEpochMillis } ?: 0L
-
-/** The date this was finished, or null if it is not completed or carries no finish date. */
-private fun TrackedMedia.completionDate(): LocalDate? =
-    currentSession
-        ?.takeIf { it.status == TrackingStatus.Completed }
-        ?.finishedAt
-
-private val catalan = Locale("ca")
-
-/** Grouped thousands, so a year's reading reads as `1.482` rather than `1482`. */
-
-private val ratingFormat: NumberFormat = NumberFormat.getNumberInstance(catalan).apply {
-    minimumFractionDigits = 1
-    maximumFractionDigits = 1
-}

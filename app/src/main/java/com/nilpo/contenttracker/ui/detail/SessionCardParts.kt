@@ -1,6 +1,13 @@
 package com.nilpo.contenttracker.ui.detail
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.unit.Dp
+import com.nilpo.contenttracker.core.model.RatingHalfPoints
+import com.nilpo.contenttracker.ui.common.PartialStar
+import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -88,51 +95,61 @@ fun sessionStateVisual(status: TrackingStatus): SessionStateVisual = when (statu
 }
 
 /**
- * The state, filled rather than outlined.
- *
- * The old pill was the state colour at 14% behind a 32% border, on a card already outlined in the
- * same colour at 30% — three washes of one hue and no solid instance of it anywhere. Filling the chip
- * is what makes the state the loudest thing on the card, which is the point: the status is the single
- * fact the card exists to report.
+ * The state as the library rows show it: a chip tinted with the status colour, its label in ink so it
+ * reads on either theme.
  */
 @Composable
 fun SessionStateChip(
     visual: SessionStateVisual,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        // Fully rounded, like every other pill in the app — the title's ordinal badge, the genre
-        // row, the collection chip. A 7dp corner was this card's own invention and read as a button
-        // that had lost its label rather than as a piece of the same family.
-        shape = RoundedCornerShape(percent = 50),
-        color = visual.color,
-        contentColor = onStateColor(),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 9.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(painter = painterResource(visual.icon), contentDescription = null, modifier = Modifier.size(12.dp))
-            Text(
-                text = visual.label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
-        }
-    }
+    Text(
+        text = visual.label,
+        modifier = modifier
+            .background(visual.color.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 11.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = OmnilogTheme.colors.appInk,
+        maxLines = 1,
+    )
 }
 
 /**
- * Ink for text sitting on a filled state colour.
- *
- * The state accents are tuned to glow on charcoal in dark and to hold contrast as ink on paper in
- * light, so a chip filled with one needs the opposite tone on top in each theme. This mirrors what
- * the colour scheme already declares for its own filled surfaces.
+ * A rating as five stars and the figure, as the library rows show it. The scale is ten points, so
+ * each star holds four half points.
  */
 @Composable
-private fun onStateColor(): Color = MaterialTheme.colorScheme.onPrimary
+fun SessionStars(
+    halfPoints: Int,
+    accent: Color,
+    starSize: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val clamped = RatingHalfPoints.coerce(halfPoints)
+    val figure = formatRatingHalfPoints(clamped)
+    val description = stringResource(R.string.rating_value, figure)
+    Row(
+        modifier = modifier.clearAndSetSemantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(5) { index ->
+            PartialStar(
+                fill = ((clamped - index * 4) / 4f).coerceIn(0f, 1f),
+                starSize = starSize,
+                accent = accent,
+            )
+        }
+        Text(
+            text = figure,
+            modifier = Modifier.padding(start = 8.dp),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = OmnilogTheme.colors.appMuted,
+        )
+    }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Dates
@@ -277,9 +294,13 @@ fun LocalDate.formatSessionDate(now: LocalDate = LocalDate.now()): String {
  * changes — are the things that actually happened, so the most recent of those is what counts.
  */
 @Composable
-fun sessionRecencyLabel(session: TrackingSession): String? {
-    val updated = session.lastActivityDate() ?: return null
-    val days = ChronoUnit.DAYS.between(updated, LocalDate.now())
+fun sessionRecencyLabel(session: TrackingSession): String? =
+    session.lastActivityDate()?.let { recencyLabel(it) }
+
+/** [date] as `avui`, `ahir`, `fa 3 dies`, `fa 2 setmanes` or `fa 4 mesos`; null for a future date. */
+@Composable
+fun recencyLabel(date: LocalDate): String? {
+    val days = ChronoUnit.DAYS.between(date, LocalDate.now())
     if (days < 0) return null
 
     return when {

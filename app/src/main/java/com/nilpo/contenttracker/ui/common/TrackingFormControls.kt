@@ -409,7 +409,7 @@ internal fun ratingHalfPointsAt(x: Float, width: Float): Int {
  * carry no descriptions of their own.
  */
 @Composable
-private fun PartialStar(
+internal fun PartialStar(
     fill: Float,
     starSize: Dp,
     accent: Color,

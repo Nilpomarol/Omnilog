@@ -334,7 +334,7 @@ private fun com.nilpo.contenttracker.core.model.ObjectivePace.hintColor(muted: C
 
 @Composable
 @ReadOnlyComposable
-private fun ObjectiveStatus.chipStyle(muted: Color): Triple<String, Color, Boolean> = when (this) {
+internal fun ObjectiveStatus.chipStyle(muted: Color): Triple<String, Color, Boolean> = when (this) {
     ObjectiveStatus.Completed -> Triple("Completat", OmnilogTheme.accents.Completed, true)
     ObjectiveStatus.Ahead -> Triple("Avançat", OmnilogTheme.accents.Completed, false)
     ObjectiveStatus.OnTrack -> Triple("Al dia", OmnilogTheme.accents.Completed, false)
@@ -373,8 +373,8 @@ private val shortDateYear: DateTimeFormatter = DateTimeFormatter.ofPattern("d MM
 fun MediaType?.objectiveAccent(): Color = when (this) {
     MediaType.Anime -> OmnilogTheme.accents.Anime
     MediaType.Book -> OmnilogTheme.accents.Books
-    MediaType.Movie -> OmnilogTheme.accents.Dashboard
-    MediaType.TvShow -> OmnilogTheme.accents.Tv
+    MediaType.Movie -> OmnilogTheme.accents.Movie
+    MediaType.TvShow -> OmnilogTheme.accents.Series
     MediaType.Game -> OmnilogTheme.accents.Games
     null -> OmnilogTheme.accents.Dashboard
 }
@@ -412,11 +412,13 @@ fun objectiveDisplayTitle(
 fun objectiveProgressLabel(progress: ObjectiveProgress): String =
     "${progress.currentValue} de ${objectiveTargetLabel(progress.objective)}"
 
-fun objectiveTargetLabel(objective: Objective): String = when (objective.metric) {
-    ObjectiveMetric.CompletedTitles ->
-        "${objective.targetValue} ${completedTitleUnitLabel(objective.mediaType, objective.targetValue)}"
-    ObjectiveMetric.ProgressUnits ->
-        "${objective.targetValue} ${objectiveUnitLabel(objective.canonicalUnit(), objective.targetValue)}"
+fun objectiveTargetLabel(objective: Objective): String =
+    "${objective.targetValue} ${objectiveTargetUnitLabel(objective)}"
+
+/** The unit a goal counts in, pluralised for its target: `llibres`, `pàgines`. */
+fun objectiveTargetUnitLabel(objective: Objective): String = when (objective.metric) {
+    ObjectiveMetric.CompletedTitles -> completedTitleUnitLabel(objective.mediaType, objective.targetValue)
+    ObjectiveMetric.ProgressUnits -> objectiveUnitLabel(objective.canonicalUnit(), objective.targetValue)
 }
 
 fun objectiveUnitLabel(unit: ObjectiveUnit, value: Int): String = when (unit) {

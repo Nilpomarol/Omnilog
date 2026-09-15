@@ -84,6 +84,7 @@ class HomeViewModel(
     private val searchQuery = MutableStateFlow("")
     private val statusFilter = MutableStateFlow<TrackingStatus?>(null)
     private val browseMode = MutableStateFlow(HomeBrowseMode.Items)
+    private val displayMode = MutableStateFlow(HomeDisplayMode.List)
     private val sortMode = MutableStateFlow(HomeSortMode.Recent)
     private val sortDirection = MutableStateFlow(HomeSortDirection.Descending)
     private val advancedFilters = MutableStateFlow(HomeAdvancedFilters())
@@ -172,6 +173,9 @@ class HomeViewModel(
         .combine(mediaRepository.observeObjectives()) { state, objectives -> state.copy(objectives = objectives) }
         .combine(browseMode) { state, selectedBrowseMode ->
             state.copy(browseMode = selectedBrowseMode)
+        }
+        .combine(displayMode) { state, selectedDisplayMode ->
+            state.copy(displayMode = selectedDisplayMode)
         }
         .stateIn(
             scope = viewModelScope,
@@ -361,6 +365,9 @@ class HomeViewModel(
         selectedSection.value = section
         searchQuery.value = ""
         browseMode.value = HomeBrowseMode.Items
+        // Filter values belong to a section: an author, a page span or a year range picked in Books
+        // would otherwise silently hide items in Anime.
+        advancedFilters.value = HomeAdvancedFilters()
         metadataSearchState.value = MetadataSearchUiState()
     }
 
@@ -369,6 +376,7 @@ class HomeViewModel(
         selectedSection.value = section
         searchQuery.value = query
         browseMode.value = HomeBrowseMode.Items
+        advancedFilters.value = HomeAdvancedFilters()
         metadataSearchState.value = MetadataSearchUiState(query = query)
     }
 
@@ -555,6 +563,10 @@ class HomeViewModel(
 
     fun updateBrowseMode(mode: HomeBrowseMode) {
         browseMode.value = mode
+    }
+
+    fun updateDisplayMode(mode: HomeDisplayMode) {
+        displayMode.value = mode
     }
 
     fun updateSortMode(mode: HomeSortMode) {
@@ -1194,13 +1206,27 @@ private fun MetadataSuggestion?.isSameSuggestionAs(other: MetadataSuggestion?): 
     return source == other.source && externalId == other.externalId
 }
 
-private fun List<TrackedMedia>.filterByAdvancedFilters(filters: HomeAdvancedFilters): List<TrackedMedia> {
+internal fun List<TrackedMedia>.filterByAdvancedFilters(filters: HomeAdvancedFilters): List<TrackedMedia> {
     if (!filters.isActive) return this
 
     val selectedAuthors = filters.authors.map { it.normalizedFilterValue() }.toSet()
     val selectedGenres = filters.genres.map { it.normalizedFilterValue() }.toSet()
 
     return filter { trackedMedia ->
+        val item = trackedMedia.item
+        val matchesType = filters.types.isEmpty() || item.type in filters.types
+        val matchesPlatform = filters.platformTypes.isEmpty() ||
+            trackedMedia.currentSession?.platform?.type?.let { it in filters.platformTypes } == true
+        // A title without a year or a total cannot be placed in a span, so it never matches one.
+        val matchesReleaseYear = filters.releaseYears?.let { years ->
+            item.releaseYear?.let { it in years } == true
+        } ?: true
+        val matchesLength = filters.lengthRange?.let { range ->
+            item.progressTotal?.let { it in range } == true
+        } ?: true
+        val matchesOwned = !filters.ownedOnly || item.isOwned
+        if (!(matchesType && matchesPlatform && matchesReleaseYear && matchesLength && matchesOwned)) return@filter false
+
         val creators = trackedMedia.creatorNames().map { it.normalizedFilterValue() }
         val genres = trackedMedia.item.genres.map { it.normalizedFilterValue() }
         val matchesAuthor = selectedAuthors.isEmpty() || creators.any { it in selectedAuthors }

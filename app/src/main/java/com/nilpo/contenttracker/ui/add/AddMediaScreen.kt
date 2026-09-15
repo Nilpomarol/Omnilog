@@ -1926,6 +1926,8 @@ internal fun DashboardStyleSearchBar(
     isLoading: Boolean,
     accent: Color,
     leadingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    placeholder: String = stringResource(R.string.metadata_search_label),
+    fieldModifier: Modifier = Modifier,
     content: @Composable () -> Unit = {},
 ) {
     Surface(
@@ -1955,7 +1957,7 @@ internal fun DashboardStyleSearchBar(
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).then(fieldModifier),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearchSubmitted() }),
@@ -1968,7 +1970,7 @@ internal fun DashboardStyleSearchBar(
                     Box {
                         if (query.isBlank()) {
                             Text(
-                                text = stringResource(R.string.metadata_search_label),
+                                text = placeholder,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = OmnilogTheme.colors.appMuted,
@@ -2205,7 +2207,7 @@ private fun MediaType.addTitle(): String {
 }
 
 @Composable
-private fun ConsumptionPlatformType.label(): String {
+internal fun ConsumptionPlatformType.label(): String {
     return when (this) {
         ConsumptionPlatformType.Physical -> stringResource(R.string.platform_type_physical)
         ConsumptionPlatformType.DigitalStore -> stringResource(R.string.platform_type_digital_store)

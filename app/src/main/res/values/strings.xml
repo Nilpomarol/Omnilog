@@ -12,15 +12,31 @@
     <string name="home_empty_state">Afegeix el primer títol i Omnilog en seguirà el progrés, les notes i les estadístiques. Les dades es queden al teu dispositiu.</string>
     <string name="home_empty_import_backup">Importa una còpia de seguretat</string>
     <string name="home_active_title">Ara mateix</string>
-    <string name="home_active_hidden_section_indicator">Sense %1$s</string>
-    <string name="home_active_hidden_sections_indicator">%1$d tipus ocults</string>
-    <string name="home_active_hidden_sections_show_all">Mostra-ho tot</string>
     <string name="home_active_filtered_empty">Cap element en curs visible amb els filtres actuals.</string>
     <string name="home_active_empty">Res en curs ara mateix. Marca un títol com a En curs i el veuràs aquí.</string>
-    <string name="home_planned_title">Següent a la llista</string>
+    <string name="home_planned_title">Per començar</string>
     <string name="home_planned_empty">Res planificat. Marca un títol com a Planificat i el veuràs aquí.</string>
-    <string name="home_planned_start">Comença</string>
-    <string name="home_paused_title">En pausa</string>
+    <string name="home_planned_start">Començar</string>
+    <string name="home_paused_title">Per reprendre</string>
+    <plurals name="status_story_in_progress_headline">
+        <item quantity="one">Tens %1$d història oberta</item>
+        <item quantity="other">Tens %1$d històries obertes</item>
+    </plurals>
+    <plurals name="status_story_planned_headline">
+        <item quantity="one">%1$d títol t\'espera</item>
+        <item quantity="other">%1$d títols t\'esperen</item>
+    </plurals>
+    <plurals name="status_story_paused_headline">
+        <item quantity="one">%1$d història a mig camí</item>
+        <item quantity="other">%1$d històries a mig camí</item>
+    </plurals>
+    <string name="status_story_in_progress_spotlight">El darrer que has tocat</string>
+    <string name="status_story_planned_spotlight">El que fa més temps que espera</string>
+    <string name="status_story_paused_spotlight">El que fa més temps que està aturat</string>
+    <string name="status_story_percent">%1$d%% fet</string>
+    <string name="status_story_types_label">Total per tipus</string>    <string name="home_rhythm_title">El teu ritme</string>
+    <string name="home_progress_action">Progrés</string>
+    <string name="home_month_activity">%1$s: %2$d sessions completades</string>
     <string name="home_paused_resume">Reprèn</string>
     <string name="home_completed_title">Completats recentment</string>
     <string name="home_analytics_preview_title">El teu any en contingut</string>
@@ -29,9 +45,9 @@
     <string name="home_analytics_average_rating">nota mitjana</string>
     <string name="home_analytics_average_rating_short">Nota</string>
     <string name="home_analytics_revisits_short">Repeticions</string>
-    <string name="timeline_title">Activitat</string>
+    <string name="timeline_title">Cronologia</string>
     <string name="timeline_recent_title">Activitat recent</string>
-    <string name="timeline_view_all">Veure tota l’activitat</string>
+    <string name="timeline_view_all">Veure la cronologia</string>
     <string name="timeline_loading">Carregant l’activitat…</string>
     <string name="timeline_empty_title">Encara no hi ha activitat</string>
     <string name="timeline_empty_body">Registra progrés, comença una sessió o completa un títol per veure’n l’historial aquí.</string>
@@ -118,8 +134,6 @@
     <string name="timeline_kicker_revisit">Sessió #%1$d</string>
     <string name="timeline_progress_current">%1$d %2$s</string>
     <string name="timeline_entry_accessibility">%1$s. %2$s. %3$s.</string>
-    <string name="home_objectives_title">Objectius personals</string>
-    <string name="home_objectives_open">Obre els objectius</string>
     <string name="home_redesign_placeholder">Aquest espai serà el resum visual d\'Omnilog: lectures, visionats, partides, estadístiques i activitat recent.</string>
     <string name="dashboard_search_in_section">Busca \"%1$s\" a %2$s</string>
     <string name="stats_title">Estadístiques</string>
@@ -242,18 +256,6 @@
     <string name="empty_import_movies">Importa des d\'IMDb</string>
 
     <string name="empty_filtered_title">Cap element amb aquests filtres</string>
-    <plurals name="home_objectives_summary_on_track">
-        <item quantity="one">%1$d al dia</item>
-        <item quantity="other">%1$d al dia</item>
-    </plurals>
-    <plurals name="home_objectives_summary_behind">
-        <item quantity="one">%1$d endarrerit</item>
-        <item quantity="other">%1$d endarrerits</item>
-    </plurals>
-    <plurals name="home_objectives_summary_completed">
-        <item quantity="one">%1$d completat</item>
-        <item quantity="other">%1$d completats</item>
-    </plurals>
     <plurals name="empty_filtered_body">
         <item quantity="one">Tens 1 element a %2$s, però no coincideix amb els filtres actuals.</item>
         <item quantity="other">Tens %1$d elements a %2$s, però cap coincideix amb els filtres actuals.</item>
@@ -335,8 +337,6 @@
     <string name="detail_current_session">Sessió actual</string>
     <string name="detail_history">Historial</string>
     <string name="edit_current_session">Edita seguiment</string>
-    <string name="session_started_at">Començat: %1$s</string>
-    <string name="session_finished_at">Acabat: %1$s</string>
     <string name="session_updated_at">Actualitzat: %1$s</string>
     <string name="session_dates">Dates</string>
     <string name="session_started_label">Data d\'inici</string>
@@ -515,8 +515,6 @@
     <string name="field_final_progress">Progrés final</string>
     <string name="field_rating">Nota</string>
     <string name="library_row_personal_rating">La teva nota: %1$s de 10</string>
-    <string name="library_row_external_rating">Nota externa: %1$s de 10</string>
-    <string name="library_row_external_rating_percentage">Nota externa de Steam: %1$s</string>
     <string name="field_notes">Notes</string>
     <string name="notes_placeholder">Afegeix una nota...</string>
     <string name="field_status">Estat</string>
@@ -577,11 +575,26 @@
     <string name="delete_collection_message">Vols eliminar la col·lecció %1$s? Els elements no s\'eliminaran.</string>
     <string name="search_label">Cerca</string>
     <string name="filter_status">Filtra per estat</string>
-    <string name="filter_all_statuses">Tots els estats</string>
+    <string name="filter_all_short">Tot</string>
     <string name="filter_more">Filtres</string>
     <string name="filter_sheet_title">Filtres</string>
     <string name="filter_clear_all">Esborra-ho tot</string>
-    <string name="filter_apply">Aplica</string>
+    <plurals name="filter_result_count">
+        <item quantity="one">%1$d resultat</item>
+        <item quantity="other">%1$d resultats</item>
+    </plurals>
+    <plurals name="filter_active_count">
+        <item quantity="one">%1$d filtre</item>
+        <item quantity="other">%1$d filtres</item>
+    </plurals>
+    <string name="filter_type">Tipus</string>
+    <string name="filter_platform">Plataforma</string>
+    <string name="filter_release_year">Any</string>
+    <string name="filter_length">Llargada</string>
+    <string name="filter_any">Qualsevol</string>
+    <string name="filter_range">%1$d–%2$d</string>
+    <string name="filter_range_units">%1$d–%2$d %3$s</string>
+    <string name="filter_other">Altres</string>
     <string name="filter_authors">Autors</string>
     <string name="filter_studios">Estudis</string>
     <string name="filter_directors">Directors</string>
@@ -594,10 +607,10 @@
     <string name="filter_no_matches">No hi ha coincidències.</string>
     <string name="filter_external_rating">Nota mitjana</string>
     <string name="filter_my_rating">La meva nota</string>
-    <string name="filter_any_rating">Qualsevol</string>
     <string name="filter_rating_at_least">%1$d+</string>
     <string name="filter_selected_count">%1$d seleccionats</string>
-    <string name="browse_items">Elements</string>
+    <string name="browse_none">Sense agrupar</string>
+    <string name="group_by_label">Agrupa</string>
     <string name="browse_collections">Col·leccions</string>
     <string name="browse_authors">Autors</string>
     <string name="browse_studios">Estudis</string>
@@ -635,6 +648,10 @@
     <string name="sort_direction_descending">Descendent</string>
     <string name="sort_direction_asc">Asc</string>
     <string name="sort_direction_desc">Desc</string>
+    <string name="view_list">Vista de llista</string>
+    <string name="view_grid">Vista de graella</string>
+    <string name="status_list_count">%1$d elements de tots els tipus</string>
+    <string name="show_all">Mostra-ho tot</string>
     <string name="export_backup">Exporta còpia</string>
     <string name="import_backup">Importa còpia</string>
     <string name="import_mal_xml">Importa MyAnimeList XML</string>
@@ -851,4 +868,17 @@
     <string name="quick_progress_completed_message">S\'ha completat.</string>
     <string name="quick_progress_started_message">S\'ha començat.</string>
     <string name="quick_progress_resumed_message">S\'ha reprès.</string>
-  </resources>
+    <string name="home_rhythm_completed">completats</string>
+    <string name="home_rhythm_books">llibres</string>
+    <string name="home_rhythm_series">sèries</string>
+    <string name="home_rhythm_movies">pel·lícules</string>
+    <string name="home_rhythm_anime">animes</string>
+    <string name="home_rhythm_games">jocs</string>
+    <string name="home_rhythm_goals_empty">Afegeix un objectiu</string>
+    <string name="home_rhythm_delta_more">%1$d més que %2$s</string>
+    <string name="home_rhythm_delta_less">%1$d menys que %2$s</string>
+    <string name="home_rhythm_delta_same">Els mateixos que %1$s</string>
+    <string name="home_rhythm_basis_same_period">a aquestes alçades del %1$d</string>
+    <string name="home_rhythm_basis_year">el %1$d</string>
+    <string name="home_rhythm_basis_previous_12_months">els 12 mesos anteriors</string>
+</resources>

@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -80,16 +79,13 @@ fun ItemDetailsSection(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        DetailSectionHeader(
-            title = stringResource(R.string.detail_item_details),
-            accent = accent,
-        )
+        DetailSectionTitle(text = stringResource(R.string.detail_item_details))
 
         if (primaryFacts.isNotEmpty()) {
             DetailFacts(primaryFacts, columns = 3)
         }
         item.tags.takeIf { it.isNotEmpty() }?.let { tags ->
-            DetailTagList(tags, accent)
+            DetailTagList(tags)
         }
 
         item.synopsis?.takeIf { it.isNotBlank() }?.let { synopsis ->
@@ -146,32 +142,16 @@ private fun DetailFactCell(fact: DetailFact, modifier: Modifier = Modifier) {
     }
 }
 
+/** Tags are reference rather than controls, so they read as one line of text instead of a field of chips. */
 @Composable
-private fun DetailTagList(tags: List<String>, accent: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+private fun DetailTagList(tags: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         DetailFieldLabel(stringResource(R.string.metadata_tags))
-        androidx.compose.foundation.layout.FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            tags.forEach { tag ->
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Transparent,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        accent.copy(alpha = 0.75f),
-                    ),
-                ) {
-                    Text(
-                        text = tag,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = OmnilogTheme.colors.appInk,
-                    )
-                }
-            }
-        }
+        Text(
+            text = tags.joinToString(" · "),
+            style = MaterialTheme.typography.bodyMedium,
+            color = OmnilogTheme.colors.appInk,
+        )
     }
 }
 
@@ -401,62 +381,53 @@ private fun CreditCarousel(
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(credits) { credit ->
-            Surface(
-                modifier = Modifier.width(132.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = OmnilogTheme.colors.appPanel,
-                border = androidx.compose.foundation.BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-            ) {
-                Column {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(188.dp)
-                            .background(accent.copy(alpha = 0.18f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = credit.personName.firstOrNull()?.uppercase().orEmpty(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = accent,
-                        )
-                        val performerImage = credit.characterImageUrl
-                            ?: contributors.imageUrl(role, credit.personName)
-                            ?: credit.personImageUrl
-                        performerImage?.let { imageUrl ->
-                            AsyncImage(
-                                model = imageUrl,
-                                contentDescription = credit.personName,
-                                // Filling both axes, not just the width: with the height left to
-                                // the source image, a wide headshot measured shorter than the card
-                                // and left accent-coloured bands above and below it.
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                            )
-                        }
-                    }
-                    Column(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = credit.personName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = OmnilogTheme.colors.appInk,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = credit.characterName.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+            // A bare portrait with the name underneath, like the cover tiles, rather than a bordered card.
+            Column(modifier = Modifier.width(112.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(168.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(accent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = credit.personName.firstOrNull()?.uppercase().orEmpty(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = accent,
+                    )
+                    val performerImage = credit.characterImageUrl
+                        ?: contributors.imageUrl(role, credit.personName)
+                        ?: credit.personImageUrl
+                    performerImage?.let { imageUrl ->
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = credit.personName,
+                            // Filling both axes, not just the width: with the height left to the
+                            // source image, a wide headshot measured shorter than the frame and left
+                            // accent-coloured bands above and below it.
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
                         )
                     }
                 }
+                Text(
+                    text = credit.personName,
+                    modifier = Modifier.padding(top = 6.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.colors.appInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = credit.characterName.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

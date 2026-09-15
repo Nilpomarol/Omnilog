@@ -236,7 +236,7 @@ fun CollectionDetailScreen(
                         items = displayedItems,
                         key = { trackedMedia -> trackedMedia.item.id },
                     ) { trackedMedia ->
-                        Box(modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp)) {
+                        Box(modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp)) {
                         if (isReordering) {
                             val index = displayedItems.indexOfFirst { it.item.id == trackedMedia.item.id }
                             ReorderItemRow(

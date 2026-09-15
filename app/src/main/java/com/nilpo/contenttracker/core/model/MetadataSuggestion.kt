@@ -50,6 +50,9 @@ data class BookEditionMetadata(
         return work.copy(
             externalId = externalId,
             title = title ?: work.title,
+            // An edition is often a translation; the work title is usually the original.
+            originalTitle = work.originalTitle
+                ?: work.title.takeIf { title != null && !it.equals(title, ignoreCase = true) },
             releaseYear = releaseYear ?: work.releaseYear,
             language = language ?: work.language,
             progressTotal = pageCount ?: work.progressTotal,
@@ -81,7 +84,8 @@ data class MetadataSeasonSuggestion(
         return series.copy(
             externalId = externalId,
             title = "${series.title} - $title",
-            originalTitle = null,
+            // Mirrors the title format so seasons don't share one original title in duplicate checks.
+            originalTitle = series.originalTitle?.let { "$it - $title" },
             collectionTitle = series.title,
             releaseYear = releaseYear ?: series.releaseYear,
             language = series.language,

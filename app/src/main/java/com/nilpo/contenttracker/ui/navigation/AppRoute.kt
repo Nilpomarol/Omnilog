@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
 import com.nilpo.contenttracker.ui.home.MediaSection
+import com.nilpo.contenttracker.core.model.TrackingStatus
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -11,6 +12,9 @@ internal sealed interface AppRoute : NavKey {
 
     @Serializable
     data class Section(val section: MediaSection) : AppRoute
+
+    @Serializable
+    data class StatusList(val status: TrackingStatus) : AppRoute
 
     @Serializable
     data class MediaDetail(val mediaItemId: Long) : AppRoute
