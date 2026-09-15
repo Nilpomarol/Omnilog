@@ -355,7 +355,7 @@ fun QuickProgressSheet(
 private const val MaxTickedTotal = 40
 
 /** Diameter of the rail's thumb, and so the width the track is inset by at each end. */
-private val RailThumbSize = 26.dp
+private val RailThumbSize = 22.dp
 
 /**
  * Vertical slack trimmed off the rail. A [Slider] claims a 48 dp interactive height around a
@@ -403,7 +403,7 @@ private fun Modifier.railBleed(): Modifier = layout { measurable, constraints ->
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QuickProgressRail(
+internal fun QuickProgressRail(
     text: String,
     total: Int?,
     mediaType: MediaType,
@@ -496,14 +496,14 @@ private fun QuickProgressRail(
                             .size(RailThumbSize)
                             .clip(CircleShape)
                             .background(OmnilogTheme.colors.appPanel)
-                            .border(3.dp, accent, CircleShape),
+                            .border(2.5.dp, accent, CircleShape),
                     )
                 },
                 track = { sliderState ->
                     SliderDefaults.Track(
                         sliderState = sliderState,
                         modifier = Modifier
-                            .height(10.dp)
+                            .height(8.dp)
                             .drawWithContent {
                                 drawContent()
                                 if (!showTicks) return@drawWithContent
@@ -719,7 +719,7 @@ private fun FinishSwitch(
  * 0.13 and 0.35 relative luminance, where 0.5 would put white on every one of them and drop
  * several — the dark theme's Books violet among them — below 3.5:1.
  */
-private fun contentColorOn(accent: Color): Color =
+internal fun contentColorOn(accent: Color): Color =
     if (accent.luminance() > 0.179f) Color(0xFF12100E) else Color(0xFFFFF9F0)
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -257,6 +257,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val backupActions = remember { BackupHeaderActions() }
     val profileHeaderActions = remember { ProfileHeaderActions() }
     val timelineHeaderActions = remember { TimelineHeaderActions() }
+    val addMediaHeaderActions = remember { AddMediaHeaderActions() }
     // Opened from the header's search icon; Home closes it when the search is dismissed or used.
     var homeSearchOpen by rememberSaveable { mutableStateOf(false) }
     var homeSearchQuery by rememberSaveable { mutableStateOf("") }
@@ -366,6 +367,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val navigateBack: () -> Unit = {
         backStack.goBack()
         Unit
+    }
+    // The add flow steps back through its own pages before leaving, from the bar and system back alike.
+    val stepBackFromAddMedia: () -> Unit = {
+        if (!addMediaHeaderActions.onStepBack()) {
+            viewModel.clearMetadataSearch()
+            backStack.goBack()
+        }
     }
     val openProfile = {
         backStack.push(AppRoute.Profile)
@@ -927,6 +935,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         // the same thing twice before the collection itself has appeared.
                         is AppRoute.CollectionDetail -> ""
                         is AppRoute.MediaDetail -> ""
+                        is AppRoute.AddMedia -> addMediaHeaderActions.title
                         else -> null
                     },
                     showBackNavigation = currentRoute is AppRoute.MediaDetail ||
@@ -936,7 +945,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute == AppRoute.Settings ||
                             currentRoute is AppRoute.AuthorDetail ||
                             currentRoute is AppRoute.CollectionDetail ||
-                            currentRoute is AppRoute.StatusList,
+                            currentRoute is AppRoute.StatusList ||
+                            currentRoute is AppRoute.AddMedia,
                     showDetailActions = currentRoute is AppRoute.MediaDetail &&
                             !detailActions.isManagingExternalRatings,
                     showProfileAction = currentRoute !is AppRoute.MediaDetail &&
@@ -1010,6 +1020,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     },
                     onBack = if (detailActions.isManagingExternalRatings) {
                         detailActions.onCloseExternalRatings
+                    } else if (currentRoute is AppRoute.AddMedia) {
+                        stepBackFromAddMedia
                     } else if (currentRoute is AppRoute.CollectionDetail) {
                         collectionBackRequest ?: navigateBack
                     } else {
@@ -1055,6 +1067,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 onBack = {
                     if (currentRoute is AppRoute.Section && sectionSearchActive) {
                         closeSectionSearch()
+                    } else if (currentRoute is AppRoute.AddMedia) {
+                        stepBackFromAddMedia()
                     } else {
                         backStack.goBack()
                     }
@@ -1074,6 +1088,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 ?: route.section.defaultType
                             AddMediaScreen(
                                 initialMediaType = initialAddType,
+                                headerActions = addMediaHeaderActions,
                                 availableMediaTypes = route.section.types.toList(),
                                 library = uiState.allTrackedItems,
                                 initialCollection = targetCollection,
@@ -1118,10 +1133,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                         is DuplicateMatch.Possible -> MetadataDuplicateState.Possible
                                         DuplicateMatch.None -> MetadataDuplicateState.None
                                     }
-                                },
-                                onCancel = {
-                                    viewModel.clearMetadataSearch()
-                                    backStack.goBack()
                                 },
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -2737,6 +2748,16 @@ class ProfileHeaderActions {
 /** Lets the Activity screen expose its configuration sheet through the shared top bar. */
 class TimelineHeaderActions {
     var onSettingsRequested: () -> Unit = {}
+}
+
+/**
+ * What the add flow tells the top bar: the current step's title, and how to step back from it.
+ *
+ * [onStepBack] returns false on the first step, where back leaves the page instead.
+ */
+class AddMediaHeaderActions {
+    var title by mutableStateOf("")
+    var onStepBack: () -> Boolean = { false }
 }
 
 class BackupHeaderActions {
