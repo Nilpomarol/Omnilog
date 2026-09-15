@@ -1,10 +1,5 @@
 package com.nilpo.contenttracker.ui.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,7 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -35,9 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -60,12 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -109,31 +97,25 @@ fun HomeLandingScreen(
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
     onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit = { _, _ -> },
     searchOpen: Boolean = false,
-    onSearchOpenChange: (Boolean) -> Unit = {},
+    searchQuery: String = "",
+    searchFocused: Boolean = false,
+    onSearchClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val items = uiState.allTrackedItems
     val objectiveProgress = remember(items, uiState.objectives) { ObjectiveCalculator().calculate(items, uiState.objectives) }.filter { it.objective.archivedAtEpochMillis == null }
     val activeFilterPreferences = rememberActiveFilterPreferences()
-    var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearchOverlay by rememberSaveable { mutableStateOf(false) }
     // Settings owns the Ara mateix filter; Home only renders the result.
     val hiddenActiveSections by rememberHiddenActiveSections(activeFilterPreferences)
     val dashboardListState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val normalizedSearchQuery = searchQuery.trim()
-    val searchFocusRequester = remember { FocusRequester() }
-    val closeSearch = { onSearchOpenChange(false) }
-    // The header's search icon slides the field in above the list, ready to type. Closing — from the
-    // cross, back, or the icon again — clears the query and drops focus, which hides the keyboard.
-    LaunchedEffect(searchOpen) {
-        if (searchOpen) {
-            searchFocusRequester.requestFocus()
-        } else {
-            searchQuery = ""
-            showSearchOverlay = false
-            focusManager.clearFocus()
-        }
+    val closeSearch = onSearchClose
+    // The field lives in the top bar. Typing, or focusing it again after tapping away from the
+    // results, brings them back over the list.
+    LaunchedEffect(searchQuery, searchFocused) {
+        if (searchFocused) showSearchOverlay = true
     }
     BackHandler(enabled = searchOpen, onBack = closeSearch)
     val searchMatches = items
@@ -170,31 +152,7 @@ fun HomeLandingScreen(
         color = OmnilogTheme.colors.appBackground,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Search sits behind the header's icon, so Ara mateix leads Home. The field unrolls from
-            // under the header and pushes the list down, rather than appearing and jumping it.
-            // The padding is inside the animated content so it collapses along with the field.
-            AnimatedVisibility(
-                visible = searchOpen,
-                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-            ) {
-                Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp)) {
-                    DashboardSearch(
-                        query = searchQuery,
-                        onQueryChange = {
-                            searchQuery = it
-                            showSearchOverlay = it.isNotBlank()
-                        },
-                        onClose = closeSearch,
-                        onClick = {
-                            if (searchQuery.isNotBlank()) {
-                                showSearchOverlay = true
-                            }
-                        },
-                        focusRequester = searchFocusRequester,
-                    )
-                }
-            }
+            // Search takes over the header itself, so Ara mateix leads Home and the list never moves.
             Box(modifier = Modifier.weight(1f)) {
                 LazyColumn(
                     state = dashboardListState,
@@ -265,7 +223,7 @@ fun HomeLandingScreen(
                         }
                     }
                 }
-                // This box starts just below the field, so the results sit a few dp under it.
+                // This box starts just below the header's field, so the results sit a few dp under it.
                 if (normalizedSearchQuery.isNotEmpty() && showSearchOverlay) {
                     Box(
                         modifier = Modifier
@@ -296,84 +254,6 @@ fun HomeLandingScreen(
                             .padding(start = 16.dp, top = 6.dp, end = 16.dp),
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DashboardSearch(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClose: () -> Unit,
-    onClick: () -> Unit,
-    focusRequester: FocusRequester,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(999.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = null,
-                tint = if (query.isNotBlank()) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
-            )
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused && query.isNotBlank()) {
-                            onClick()
-                        }
-                    },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    color = OmnilogTheme.colors.appInk,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                cursorBrush = SolidColor(OmnilogTheme.accents.Dashboard),
-                decorationBox = { innerTextField ->
-                    Box {
-                        if (query.isBlank()) {
-                            Text(
-                                text = stringResource(R.string.search_label),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = OmnilogTheme.colors.appMuted,
-                            )
-                        }
-                        innerTextField()
-                    }
-                },
-            )
-            // Always shown: with the field opened from the header, this is how it goes away again.
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onClose,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = stringResource(R.string.cancel),
-                    tint = OmnilogTheme.colors.appMuted,
-                )
             }
         }
     }

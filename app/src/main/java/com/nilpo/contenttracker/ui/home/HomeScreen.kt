@@ -105,7 +105,6 @@ import com.nilpo.contenttracker.core.model.MetadataSuggestion
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.model.creatorNames
-import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
@@ -142,7 +141,6 @@ fun HomeScreen(
     onSortModeChange: (HomeSortMode) -> Unit,
     onSortDirectionChange: (HomeSortDirection) -> Unit,
     onAdvancedFiltersChange: (HomeAdvancedFilters) -> Unit,
-    searchExpanded: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val section = uiState.selectedSection
@@ -200,35 +198,7 @@ fun HomeScreen(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AnimatedVisibility(visible = searchExpanded || uiState.searchQuery.isNotBlank()) {
-                        DashboardStyleSearchBar(
-                            query = uiState.searchQuery,
-                            onQueryChange = { query ->
-                                onSearchQueryChange(query)
-                                onMetadataQueryChange(query)
-                            },
-                            onSearchSubmitted = onMetadataSearchSubmitted,
-                            isLoading = metadataUiState.isLoading,
-                            accent = section.themedAccent(),
-                            leadingIcon = Icons.Filled.Search,
-                        ) {
-                            if (uiState.searchQuery.isNotBlank()) {
-                                IconButton(
-                                    onClick = {
-                                        onSearchQueryChange("")
-                                        onMetadataQueryChange("")
-                                    },
-                                    modifier = Modifier.size(40.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = stringResource(R.string.clear_search),
-                                        tint = OmnilogTheme.colors.appMuted,
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // The search field lives in the top bar, so it stays put while the list scrolls.
                     BrowseControls(
                         section = section,
                         sectionItems = sectionItems,

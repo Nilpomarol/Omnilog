@@ -8,6 +8,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,6 +43,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -65,6 +73,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -122,6 +134,7 @@ import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
 import com.nilpo.contenttracker.core.imports.ImportCoverageItem
 import com.nilpo.contenttracker.core.imports.ImportIssueItem
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
+import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
@@ -245,7 +258,28 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val timelineHeaderActions = remember { TimelineHeaderActions() }
     // Opened from the header's search icon; Home closes it when the search is dismissed or used.
     var homeSearchOpen by rememberSaveable { mutableStateOf(false) }
+    var homeSearchQuery by rememberSaveable { mutableStateOf("") }
+    var homeSearchFocused by remember { mutableStateOf(false) }
     var sectionSearchOpen by rememberSaveable { mutableStateOf(false) }
+    // A list keeps its field in the header while a query is live, e.g. one handed over from Home.
+    val sectionSearchActive = sectionSearchOpen || uiState.searchQuery.isNotBlank()
+    // Closing clears the query, so reopening always starts from an empty field.
+    val closeHomeSearch = {
+        homeSearchOpen = false
+        homeSearchQuery = ""
+        homeSearchFocused = false
+    }
+    val closeSectionSearch = {
+        sectionSearchOpen = false
+        viewModel.updateSearchQuery("")
+        viewModel.updateMetadataSearchQuery("")
+    }
+    // Changing screen drops an open search, so coming back does not reopen an empty field with the
+    // keyboard up. A list's live query survives: it keeps the field showing on its own.
+    LaunchedEffect(currentRoute) {
+        sectionSearchOpen = false
+        if (currentRoute != AppRoute.Home) closeHomeSearch()
+    }
     val selectedMedia = (currentRoute as? AppRoute.MediaDetail)?.let { route ->
         uiState.allTrackedItems.firstOrNull { it.item.id == route.mediaItemId }
     }
@@ -939,9 +973,31 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     onProfileEditCancelled = { profileHeaderActions.onCancelRequested() },
                     onProfileEditSaved = { profileHeaderActions.onSaveRequested() },
                     onSettingsRequested = openSettings,
-                    // A second tap closes it again, like the field's own cross.
-                    onHomeSearchRequested = { homeSearchOpen = !homeSearchOpen },
-                    onSectionSearchRequested = { sectionSearchOpen = !sectionSearchOpen },
+                    onHomeSearchRequested = { homeSearchOpen = true },
+                    onSectionSearchRequested = { sectionSearchOpen = true },
+                    // Non-null while searching: the field then takes over the whole bar.
+                    searchQuery = when {
+                        currentRoute == AppRoute.Home && homeSearchOpen -> homeSearchQuery
+                        currentRoute is AppRoute.Section && sectionSearchActive -> uiState.searchQuery
+                        else -> null
+                    },
+                    onSearchQueryChange = { query ->
+                        if (currentRoute == AppRoute.Home) {
+                            homeSearchQuery = query
+                        } else {
+                            viewModel.updateSearchQuery(query)
+                            viewModel.updateMetadataSearchQuery(query)
+                        }
+                    },
+                    onSearchSubmitted = {
+                        if (currentRoute is AppRoute.Section) {
+                            viewModel.searchMetadataSuggestions(forceShortQuery = true)
+                        }
+                    },
+                    onSearchFocusChange = { homeSearchFocused = it },
+                    onSearchClose = {
+                        if (currentRoute == AppRoute.Home) closeHomeSearch() else closeSectionSearch()
+                    },
                     onSectionAddRequested = {
                         (currentRoute as? AppRoute.Section)?.let { route ->
                             viewModel.clearMetadataSearch()
@@ -993,7 +1049,15 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         ) { innerPadding ->
             NavDisplay(
                 backStack = backStack,
-                onBack = { backStack.goBack() },
+                // Back closes a list's search before leaving the list. It lives here because this
+                // handler outranks a BackHandler registered inside the entry.
+                onBack = {
+                    if (currentRoute is AppRoute.Section && sectionSearchActive) {
+                        closeSectionSearch()
+                    } else {
+                        backStack.goBack()
+                    }
+                },
                 entryProvider = { key ->
                     val route = key as AppRoute
                     NavEntry(key) {
@@ -1084,7 +1148,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onQuickCommitProgress = viewModel::quickCommitProgress,
                                 onQuickComplete = viewModel::quickComplete,
                                 searchOpen = homeSearchOpen,
-                                onSearchOpenChange = { homeSearchOpen = it },
+                                searchQuery = homeSearchQuery,
+                                searchFocused = homeSearchFocused,
+                                onSearchClose = closeHomeSearch,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),
@@ -1396,7 +1462,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onSortModeChange = viewModel::updateSortMode,
                                 onSortDirectionChange = viewModel::updateSortDirection,
                                 onAdvancedFiltersChange = viewModel::updateAdvancedFilters,
-                                searchExpanded = sectionSearchOpen,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),
@@ -2766,6 +2831,7 @@ private fun OmnilogNavItem(
     Column(
         modifier = modifier
             .heightIn(min = 58.dp)
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(start = 4.dp, top = 7.dp, end = 4.dp, bottom = 11.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
@@ -2812,6 +2878,11 @@ private fun OmnilogTopBar(
     onSettingsRequested: () -> Unit,
     onHomeSearchRequested: () -> Unit,
     onSectionSearchRequested: () -> Unit,
+    searchQuery: String?,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchSubmitted: () -> Unit,
+    onSearchFocusChange: (Boolean) -> Unit,
+    onSearchClose: () -> Unit,
     onSectionAddRequested: () -> Unit,
     onTimelineSettingsRequested: () -> Unit,
     onBack: () -> Unit,
@@ -2851,204 +2922,251 @@ private fun OmnilogTopBar(
             }
         },
         title = {
-            if (title == null) {
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.ExtraBold)) {
-                            append("Omni")
-                        }
-                        withStyle(
-                            SpanStyle(
-                                color = OmnilogTheme.colors.appInk,
-                                fontWeight = FontWeight.ExtraBold
-                            )
+            // Opening search fades the field in with a short slide from the icon's side; closing fades back.
+            AnimatedContent(
+                targetState = searchQuery != null,
+                transitionSpec = {
+                    if (targetState) {
+                        (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 12 }) togetherWith fadeOut(tween(120))
+                    } else {
+                        fadeIn(tween(220)) togetherWith fadeOut(tween(120))
+                    }
+                },
+                label = "topBarSearch",
+            ) { searching ->
+                if (searching) {
+                    val focusRequester = remember { FocusRequester() }
+                    // Opening from the icon lands in the field ready to type; a query handed over from
+                    // Home is there to read, so it does not pull the keyboard up.
+                    LaunchedEffect(Unit) {
+                        if (searchQuery.isNullOrEmpty()) focusRequester.requestFocus()
+                    }
+                    Box(modifier = Modifier.padding(end = 12.dp)) {
+                        DashboardStyleSearchBar(
+                            query = searchQuery.orEmpty(),
+                            onQueryChange = onSearchQueryChange,
+                            onSearchSubmitted = onSearchSubmitted,
+                            isLoading = false,
+                            accent = accent,
+                            leadingIcon = Icons.Filled.Search,
+                            placeholder = stringResource(R.string.search_label),
+                            fieldModifier = Modifier
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { onSearchFocusChange(it.isFocused) },
                         ) {
-                            append("log")
+                            IconButton(onClick = onSearchClose, modifier = Modifier.size(40.dp)) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.cancel),
+                                    tint = OmnilogTheme.colors.appMuted,
+                                )
+                            }
                         }
-                    },
-                    style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp),
-                )
-            } else if (title.isNotEmpty()) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                    }
+                } else if (title == null) {
+                    Text(
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(color = accent, fontWeight = FontWeight.ExtraBold)) {
+                                append("Omni")
+                            }
+                            withStyle(
+                                SpanStyle(
+                                    color = OmnilogTheme.colors.appInk,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            ) {
+                                append("log")
+                            }
+                        },
+                        style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp),
+                    )
+                } else if (title.isNotEmpty()) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         },
         actions = {
-            if (showDetailActions) {
-                Box {
-                    IconButton(onClick = { detailActions.isMenuExpanded = true }) {
-                        // No disc under this one. It sits on the blurred backdrop rather than on
-                        // the sharp cover, which is dark enough under the scrim that the dots hold
-                        // on their own.
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = null,
-                            tint = barMuted,
-                        )
-                        Text(
-                            text = "⋮",
-                            color = Color.Transparent,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = detailActions.isMenuExpanded,
-                        onDismissRequest = { detailActions.isMenuExpanded = false },
-                        shape = RoundedCornerShape(10.dp),
-                        containerColor = OmnilogTheme.colors.appPanel,
-                        tonalElevation = 0.dp,
-                        shadowElevation = 8.dp,
-                    ) {
-                        HeaderMenuItem(
-                            text = stringResource(
-                                if (detailActions.isEditingItemDetails) {
-                                    R.string.done_editing
-                                } else {
-                                    R.string.edit
-                                },
-                            ),
-                            onClick = {
-                                detailActions.isEditingItemDetails =
-                                    !detailActions.isEditingItemDetails
-                                detailActions.isMenuExpanded = false
-                            },
-                        )
-                        HeaderMenuItem(
-                            text = stringResource(R.string.detail_external_scores),
-                            onClick = {
-                                detailActions.isMenuExpanded = false
-                                detailActions.onManageExternalRatingsRequested()
-                            },
-                        )
-                        HeaderMenuItem(
-                            text = stringResource(
-                                if (detailActions.isRefreshingMetadata) {
-                                    R.string.refresh_metadata_loading
-                                } else {
-                                    R.string.refresh_metadata
-                                },
-                            ),
-                            enabled = !detailActions.isRefreshingMetadata,
-                            onClick = {
-                                detailActions.isMenuExpanded = false
-                                detailActions.onRefreshMetadataRequested()
-                            },
-                        )
-                        if (detailActions.showLinkMetadata) {
-                            HeaderMenuItem(
-                                text = stringResource(detailActions.linkMetadataLabelResId),
-                                enabled = !detailActions.isRefreshingMetadata,
-                                onClick = {
-                                    detailActions.isMenuExpanded = false
-                                    detailActions.onLinkMetadataRequested()
-                                },
+            // The icons fade and fold away, handing their room to the search field as it widens.
+            AnimatedVisibility(visible = searchQuery == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (showDetailActions) {
+                        Box {
+                            IconButton(onClick = { detailActions.isMenuExpanded = true }) {
+                                // No disc under this one. It sits on the blurred backdrop rather than on
+                                // the sharp cover, which is dark enough under the scrim that the dots hold
+                                // on their own.
+                                Icon(
+                                    imageVector = Icons.Filled.MoreVert,
+                                    contentDescription = null,
+                                    tint = barMuted,
+                                )
+                                Text(
+                                    text = "⋮",
+                                    color = Color.Transparent,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = detailActions.isMenuExpanded,
+                                onDismissRequest = { detailActions.isMenuExpanded = false },
+                                shape = RoundedCornerShape(10.dp),
+                                containerColor = OmnilogTheme.colors.appPanel,
+                                tonalElevation = 0.dp,
+                                shadowElevation = 8.dp,
+                            ) {
+                                HeaderMenuItem(
+                                    text = stringResource(
+                                        if (detailActions.isEditingItemDetails) {
+                                            R.string.done_editing
+                                        } else {
+                                            R.string.edit
+                                        },
+                                    ),
+                                    onClick = {
+                                        detailActions.isEditingItemDetails =
+                                            !detailActions.isEditingItemDetails
+                                        detailActions.isMenuExpanded = false
+                                    },
+                                )
+                                HeaderMenuItem(
+                                    text = stringResource(R.string.detail_external_scores),
+                                    onClick = {
+                                        detailActions.isMenuExpanded = false
+                                        detailActions.onManageExternalRatingsRequested()
+                                    },
+                                )
+                                HeaderMenuItem(
+                                    text = stringResource(
+                                        if (detailActions.isRefreshingMetadata) {
+                                            R.string.refresh_metadata_loading
+                                        } else {
+                                            R.string.refresh_metadata
+                                        },
+                                    ),
+                                    enabled = !detailActions.isRefreshingMetadata,
+                                    onClick = {
+                                        detailActions.isMenuExpanded = false
+                                        detailActions.onRefreshMetadataRequested()
+                                    },
+                                )
+                                if (detailActions.showLinkMetadata) {
+                                    HeaderMenuItem(
+                                        text = stringResource(detailActions.linkMetadataLabelResId),
+                                        enabled = !detailActions.isRefreshingMetadata,
+                                        onClick = {
+                                            detailActions.isMenuExpanded = false
+                                            detailActions.onLinkMetadataRequested()
+                                        },
+                                    )
+                                }
+                                HeaderMenuItem(
+                                    text = stringResource(R.string.delete),
+                                    destructive = true,
+                                    onClick = {
+                                        detailActions.isMenuExpanded = false
+                                        detailActions.onDeleteRequested()
+                                    },
+                                )
+                            }
+                        }
+                    } else if (showTimelineSettingsAction) {
+                        IconButton(onClick = onTimelineSettingsRequested) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = stringResource(R.string.timeline_settings_open),
+                                tint = OmnilogTheme.accents.Dashboard,
                             )
                         }
-                        HeaderMenuItem(
-                            text = stringResource(R.string.delete),
-                            destructive = true,
-                            onClick = {
-                                detailActions.isMenuExpanded = false
-                                detailActions.onDeleteRequested()
-                            },
-                        )
-                    }
-                }
-            } else if (showTimelineSettingsAction) {
-                IconButton(onClick = onTimelineSettingsRequested) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = stringResource(R.string.timeline_settings_open),
-                        tint = OmnilogTheme.accents.Dashboard,
-                    )
-                }
-            } else if (showProfileControls) {
-                // While editing, the bar carries the commit controls: the profile edits itself in
-                // place, so there is no form below to hold a Save button.
-                if (profileIsEditing) {
-                    TextButton(onClick = onProfileEditCancelled) {
-                        Text(
-                            text = "Cancel·la",
-                            color = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                    TextButton(onClick = onProfileEditSaved) {
-                        Text(
-                            text = "Desa",
-                            color = OmnilogTheme.accents.Dashboard,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                    }
-                } else {
-                    // Editing lives here rather than floating over the cover collage: the banner's
-                    // corners belong to the artwork, and the bar is where this screen's other
-                    // chrome already is.
-                    IconButton(onClick = onProfileEditRequested) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = "Edita el perfil",
-                            tint = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                }
-            } else {
-                if (showSectionActions) {
-                    IconButton(onClick = onSectionSearchRequested) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.search_label),
-                            tint = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                    IconButton(onClick = onSectionAddRequested) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = stringResource(R.string.add_item),
-                            tint = accent,
-                        )
-                    }
-                }
-                if (showHomeSearchAction) {
-                    IconButton(onClick = onHomeSearchRequested) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.search_label),
-                            tint = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                }
-                if (showHomeSettingsAction) {
-                    IconButton(onClick = onSettingsRequested) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = "Configuració",
-                            tint = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                }
-                if (showProfileAction) {
-                    IconButton(onClick = onProfileRequested) {
-                        if (profileImagePath != null) {
-                            AsyncImage(
-                                model = File(profileImagePath),
-                                contentDescription = stringResource(R.string.profile_menu),
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop,
-                            )
+                    } else if (showProfileControls) {
+                        // While editing, the bar carries the commit controls: the profile edits itself in
+                        // place, so there is no form below to hold a Save button.
+                        if (profileIsEditing) {
+                            TextButton(onClick = onProfileEditCancelled) {
+                                Text(
+                                    text = "Cancel·la",
+                                    color = OmnilogTheme.colors.appMuted,
+                                )
+                            }
+                            TextButton(onClick = onProfileEditSaved) {
+                                Text(
+                                    text = "Desa",
+                                    color = OmnilogTheme.accents.Dashboard,
+                                    fontWeight = FontWeight.ExtraBold,
+                                )
+                            }
                         } else {
-                            Icon(
-                                imageVector = Icons.Filled.AccountCircle,
-                                contentDescription = stringResource(R.string.profile_menu),
-                                tint = OmnilogTheme.colors.appMuted,
-                            )
+                            // Editing lives here rather than floating over the cover collage: the banner's
+                            // corners belong to the artwork, and the bar is where this screen's other
+                            // chrome already is.
+                            IconButton(onClick = onProfileEditRequested) {
+                                Icon(
+                                    imageVector = Icons.Filled.Edit,
+                                    contentDescription = "Edita el perfil",
+                                    tint = OmnilogTheme.colors.appMuted,
+                                )
+                            }
+                        }
+                    } else {
+                        if (showSectionActions) {
+                            IconButton(onClick = onSectionSearchRequested) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.search_label),
+                                    tint = OmnilogTheme.colors.appMuted,
+                                )
+                            }
+                            IconButton(onClick = onSectionAddRequested) {
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = stringResource(R.string.add_item),
+                                    tint = accent,
+                                )
+                            }
+                        }
+                        if (showHomeSearchAction) {
+                            IconButton(onClick = onHomeSearchRequested) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.search_label),
+                                    tint = OmnilogTheme.colors.appMuted,
+                                )
+                            }
+                        }
+                        if (showHomeSettingsAction) {
+                            IconButton(onClick = onSettingsRequested) {
+                                Icon(
+                                    imageVector = Icons.Filled.Settings,
+                                    contentDescription = "Configuració",
+                                    tint = OmnilogTheme.colors.appMuted,
+                                )
+                            }
+                        }
+                        if (showProfileAction) {
+                            IconButton(onClick = onProfileRequested) {
+                                if (profileImagePath != null) {
+                                    AsyncImage(
+                                        model = File(profileImagePath),
+                                        contentDescription = stringResource(R.string.profile_menu),
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.AccountCircle,
+                                        contentDescription = stringResource(R.string.profile_menu),
+                                        tint = OmnilogTheme.colors.appMuted,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
