@@ -195,8 +195,12 @@ class RawgMetadataRepository(
                 optJSONArray("developers").toCredits(MediaCreditRole.Developer, MetadataSource.Rawg)
             }
 
+        val title = steamMetadata?.title ?: rawgTitle ?: base.title
         base.copy(
-            title = steamMetadata?.title ?: rawgTitle ?: base.title,
+            title = title,
+            originalTitle = optString("name_original")
+                .takeIf { it.isNotBlank() && !it.equals(title, ignoreCase = true) }
+                ?: base.originalTitle,
             releaseYear = steamMetadata?.releaseYear ?: rawgReleaseYear ?: base.releaseYear,
             coverUrl = steamMetadata?.portraitCoverUrl
                 ?: rawgCoverUrl
