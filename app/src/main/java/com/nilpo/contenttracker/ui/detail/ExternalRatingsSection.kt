@@ -73,7 +73,23 @@ fun RatingsSection(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             RatingHeading(stringResource(R.string.detail_rating_yours))
-            RatingStars(halfPoints = userRating, starSize = 26.dp, accent = accent)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Slightly smaller stars leave room for the figure beside them in the narrow column.
+                RatingStars(halfPoints = userRating, starSize = 22.dp, accent = accent)
+                if (userRating != null) {
+                    Text(
+                        text = formatRatingHalfPoints(RatingHalfPoints.coerce(userRating)),
+                        // The stars already announce the value.
+                        modifier = Modifier.clearAndSetSemantics {},
+                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = SerifFontFamily),
+                        color = OmnilogTheme.colors.appInk,
+                        maxLines = 1,
+                    )
+                }
+            }
             if (userRating == null) {
                 Text(
                     text = stringResource(R.string.rating_none),
