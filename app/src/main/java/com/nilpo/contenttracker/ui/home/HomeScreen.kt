@@ -734,7 +734,7 @@ private fun FiltersButton(
 
 /** Order behind its own outlined button. Choosing the current order again reverses it. */
 @Composable
-private fun SortMenu(
+internal fun SortMenu(
     sortMode: HomeSortMode,
     sortDirection: HomeSortDirection,
     accent: Color,

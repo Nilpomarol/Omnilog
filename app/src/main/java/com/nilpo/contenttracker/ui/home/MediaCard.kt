@@ -71,10 +71,12 @@ fun MediaCard(
     trailingAction: (@Composable () -> Unit)? = null,
     /** Off inside a collection's own page, where the name would only repeat the header. */
     showCollection: Boolean = true,
+    /** Off on a creator's own page, where every row would repeat the header's name. */
+    showCreator: Boolean = true,
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
-    val creator = trackedMedia.creatorNames().firstOrNull()
+    val creator = trackedMedia.creatorNames().firstOrNull()?.takeIf { showCreator }
     val collection = formatCollectionDisplayName(trackedMedia.collection?.name, item.collectionSortOrder)
         .takeIf { showCollection }
     val fraction = trackedMedia.coverProgressFraction()

@@ -564,6 +564,7 @@
     <string name="list_item_count">%1$d/%2$d elements</string>
     <string name="collection_average_rating">Mitjana %.1f/10</string>
     <string name="collection_average_short">%.1f de mitjana</string>
+    <string name="author_works_title">A la teva biblioteca</string>
     <string name="collection_reorder_title">Ordena la col·lecció</string>
     <string name="collection_reorder_hint_drag">Arrossega els punts</string>
     <string name="collection_reorder_hint_arrows">Puja o baixa un lloc</string>

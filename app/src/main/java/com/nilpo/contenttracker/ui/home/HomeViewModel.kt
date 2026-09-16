@@ -1255,7 +1255,7 @@ private fun com.nilpo.contenttracker.core.model.MediaItem.externalRatingOnTen():
     return score / max * 10.0
 }
 
-private fun List<TrackedMedia>.sortByMode(
+internal fun List<TrackedMedia>.sortByMode(
     mode: HomeSortMode,
     direction: HomeSortDirection,
 ): List<TrackedMedia> {
@@ -1286,7 +1286,7 @@ private fun TrackedMedia.progressSortValue(): Double {
     }
 }
 
-private fun HomeSortMode.defaultDirection(): HomeSortDirection {
+internal fun HomeSortMode.defaultDirection(): HomeSortDirection {
     return when (this) {
         HomeSortMode.Title -> HomeSortDirection.Ascending
         HomeSortMode.Progress,

@@ -931,7 +931,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             status = route.status,
                             count = uiState.allTrackedItems.count { it.currentSession?.status == route.status },
                         )
-                        is AppRoute.AuthorDetail -> route.author
+                        is AppRoute.AuthorDetail -> ""
                         // The collection names itself in its header, so the bar stays empty there;
                         // reordering puts the mode's name here instead.
                         is AppRoute.CollectionDetail -> collectionTopBarTitle
@@ -957,7 +957,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute != AppRoute.Stats &&
                             currentRoute != AppRoute.Timeline &&
                             currentRoute != AppRoute.Profile &&
-                            currentRoute !is AppRoute.CollectionDetail,
+                            currentRoute !is AppRoute.CollectionDetail &&
+                            currentRoute !is AppRoute.AuthorDetail,
                     showProfileControls = currentRoute == AppRoute.Profile,
                     // Settings and Profile are a pack: shown together everywhere except the routes
                     // where neither belongs, and each hides on its own screen.
@@ -968,7 +969,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute != AppRoute.Stats &&
                             currentRoute != AppRoute.Timeline &&
                             currentRoute != AppRoute.Settings &&
-                            currentRoute !is AppRoute.CollectionDetail,
+                            currentRoute !is AppRoute.CollectionDetail &&
+                            currentRoute !is AppRoute.AuthorDetail,
                     showHomeSearchAction = currentRoute == AppRoute.Home,
                     showSectionActions = currentRoute is AppRoute.Section,
                     showTimelineSettingsAction = currentRoute == AppRoute.Timeline,
@@ -978,7 +980,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     // ordinary background and needs the bar's own surface back.
                     overCover = (currentRoute is AppRoute.MediaDetail &&
                             !detailActions.isManagingExternalRatings) ||
-                            currentRoute is AppRoute.CollectionDetail,
+                            currentRoute is AppRoute.CollectionDetail ||
+                            currentRoute is AppRoute.AuthorDetail,
                     detailActions = detailActions,
                     onProfileRequested = openProfile,
                     onProfileEditRequested = { profileHeaderActions.onEditRequested() },
@@ -1329,7 +1332,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             AuthorDetailScreen(
                                 authorName = route.author,
                                 authorImageUrl = uiState.allTrackedItems.creatorImageUrl(route.author),
-                                authorImageAspectRatio = uiState.allTrackedItems.creatorImageAspectRatio(route.author),
                                 imageIsLogo = route.section.creatorImageIsLogo,
                                 creatorLabelResId = route.section.creatorDetailLabelResId,
                                 items = uiState.allTrackedItems.filter { trackedMedia ->
@@ -1347,9 +1349,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 },
                                 accent = route.section.themedAccent(),
                                 onMediaClick = openTrackedMedia,
+                                topInset = innerPadding.calculateTopPadding(),
+                                onTopBarOpacityChange = { detailActions.barOpacity = it },
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(innerPadding),
+                                    .padding(bottom = innerPadding.calculateBottomPadding()),
                             )
                         } else if (route is AppRoute.CollectionDetail) {
                             val routeCollection = uiState.allTrackedItems

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -247,16 +248,7 @@ fun CollectionDetailScreen(
             draftOrderValues = sortedItems.toDraftOrderValues()
         }
     }
-    val barFadeDistancePx = with(LocalDensity.current) { BarFadeDistance.toPx() }
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            if (isReordering || listState.firstVisibleItemIndex > 0) {
-                1f
-            } else {
-                (listState.firstVisibleItemScrollOffset / barFadeDistancePx).coerceIn(0f, 1f)
-            }
-        }.collect { onTopBarOpacityChange(it) }
-    }
+    TopBarOpacityEffect(listState = listState, solid = isReordering, onOpacityChange = onTopBarOpacityChange)
     BackHandler(enabled = isReordering) {
         requestBack()
     }
@@ -558,6 +550,49 @@ private fun CollectionHeader(
     averageRating: Double?,
     progress: CollectionProgressSummary?,
 ) {
+    EditorialPageHeader(
+        overline = stringResource(R.string.collection_modal_title),
+        title = collection.name,
+        items = items,
+        accent = accent,
+        averageRating = averageRating,
+        image = if (items.isEmpty()) {
+            null
+        } else {
+            {
+                CollectionCoverStack(
+                    coverStack = items.collectionCoverStack(),
+                    itemCount = items.size,
+                    modifier = Modifier.size(width = 128.dp, height = 192.dp),
+                )
+            }
+        },
+    ) {
+        progress?.let { summary ->
+            CollectionProgress(
+                summary = summary,
+                accent = accent,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+    }
+}
+
+/**
+ * The head of a page about a group of works — a collection, an author, a studio — in the item page's
+ * layout: the group's picture where an item's cover sits, then an accent overline, the serif name, how
+ * many works and which years, the average score and whatever else the page adds under them.
+ */
+@Composable
+internal fun EditorialPageHeader(
+    overline: String,
+    title: String,
+    items: List<TrackedMedia>,
+    accent: Color,
+    averageRating: Double?,
+    image: (@Composable () -> Unit)?,
+    extra: @Composable ColumnScope.() -> Unit = {},
+) {
     val years = items.mapNotNull { it.item.releaseYear }
     val yearRange = when {
         years.isEmpty() -> null
@@ -575,26 +610,20 @@ private fun CollectionHeader(
             .padding(horizontal = DetailGutter),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        if (items.isNotEmpty()) {
-            CollectionCoverStack(
-                coverStack = items.collectionCoverStack(),
-                itemCount = items.size,
-                modifier = Modifier.size(width = 128.dp, height = 192.dp),
-            )
-        }
+        image?.invoke()
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = stringResource(R.string.collection_modal_title).uppercase(),
+                text = overline.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp,
                 color = accent,
             )
             BasicText(
-                text = collection.name,
+                text = title,
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontFamily = SerifFontFamily,
                     fontWeight = FontWeight.Normal,
@@ -632,13 +661,7 @@ private fun CollectionHeader(
                     )
                 }
             }
-            progress?.let { summary ->
-                CollectionProgress(
-                    summary = summary,
-                    accent = accent,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-            }
+            extra()
         }
     }
 }
@@ -1387,4 +1410,28 @@ private fun String?.toCollectionOrderOrNull(): Double? {
         ?.replace(',', '.')
         ?.toDoubleOrNull()
         ?.takeIf { it >= 0.0 }
+}
+
+/**
+ * Keeps a transparent app bar readable over a page that starts under it: clear while the header sits
+ * beneath, gaining its surface over the first stretch of scroll, and solid once the header has gone
+ * or whenever the page asks for it.
+ */
+@Composable
+internal fun TopBarOpacityEffect(
+    listState: LazyListState,
+    solid: Boolean,
+    onOpacityChange: (Float) -> Unit,
+) {
+    val fadeDistancePx = with(LocalDensity.current) { BarFadeDistance.toPx() }
+    val latestSolid by rememberUpdatedState(solid)
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            if (latestSolid || listState.firstVisibleItemIndex > 0) {
+                1f
+            } else {
+                (listState.firstVisibleItemScrollOffset / fadeDistancePx).coerceIn(0f, 1f)
+            }
+        }.collect { onOpacityChange(it) }
+    }
 }
