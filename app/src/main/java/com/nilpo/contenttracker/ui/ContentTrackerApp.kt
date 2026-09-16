@@ -222,6 +222,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         route == AppRoute.Home || route is AppRoute.Section
     } as? AppRoute ?: AppRoute.Home
     var collectionBackRequest by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var collectionTopBarTitle by remember { mutableStateOf("") }
     var showRestoreList by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
@@ -931,10 +932,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             count = uiState.allTrackedItems.count { it.currentSession?.status == route.status },
                         )
                         is AppRoute.AuthorDetail -> route.author
-                        // The collection title belongs to its cover ribbon, just as an item's
-                        // title belongs to the Detail hero. Keeping this bar empty avoids saying
-                        // the same thing twice before the collection itself has appeared.
-                        is AppRoute.CollectionDetail -> ""
+                        // The collection names itself in its header, so the bar stays empty there;
+                        // reordering puts the mode's name here instead.
+                        is AppRoute.CollectionDetail -> collectionTopBarTitle
                         is AppRoute.MediaDetail -> ""
                         is AppRoute.AddMedia -> addMediaHeaderActions.title
                         else -> null
@@ -976,8 +976,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     // Only the detail page draws artwork under the bar, and only while it is
                     // actually showing that page — the external-ratings page it can swap to has an
                     // ordinary background and needs the bar's own surface back.
-                    overCover = currentRoute is AppRoute.MediaDetail &&
-                            !detailActions.isManagingExternalRatings,
+                    overCover = (currentRoute is AppRoute.MediaDetail &&
+                            !detailActions.isManagingExternalRatings) ||
+                            currentRoute is AppRoute.CollectionDetail,
                     detailActions = detailActions,
                     onProfileRequested = openProfile,
                     onProfileEditRequested = { profileHeaderActions.onEditRequested() },
@@ -1366,6 +1367,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     onRegisterBackRequest = { handler ->
                                         collectionBackRequest = handler
                                     },
+                                    onTopBarTitleChange = { collectionTopBarTitle = it },
                                     onMediaClick = openTrackedMedia,
                                     onAddToCollection = { collection, nextOrder ->
                                         viewModel.clearMetadataSearch()
@@ -1398,7 +1400,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     },
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(innerPadding),
+                                        .padding(bottom = innerPadding.calculateBottomPadding()),
+                                    topInset = innerPadding.calculateTopPadding(),
+                                    onTopBarOpacityChange = { detailActions.barOpacity = it },
                                 )
                             }
                         } else if (route is AppRoute.Section) {

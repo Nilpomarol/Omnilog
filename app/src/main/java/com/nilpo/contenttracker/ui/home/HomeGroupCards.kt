@@ -420,7 +420,7 @@ private const val LogoMountAspectRatio = 4f / 3f
 private val LogoMountMargin = 10.dp
 
 @Composable
-private fun CollectionCoverStack(
+internal fun CollectionCoverStack(
     coverStack: List<String>,
     itemCount: Int,
     modifier: Modifier = Modifier,

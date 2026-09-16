@@ -220,7 +220,7 @@ fun DetailQuickActionsSection(
  * 48dp tall, so the row adds no whitespace of its own above or below.
  */
 @Composable
-private fun QuietQuickAction(
+internal fun QuietQuickAction(
     text: String,
     icon: Painter,
     accent: Color,
@@ -284,7 +284,7 @@ private fun QuietQuickAction(
 }
 
 @Composable
-private fun QuietDivider(modifier: Modifier = Modifier) {
+internal fun QuietDivider(modifier: Modifier = Modifier) {
     VerticalDivider(
         modifier = modifier.height(28.dp),
         color = OmnilogTheme.colors.appLine,

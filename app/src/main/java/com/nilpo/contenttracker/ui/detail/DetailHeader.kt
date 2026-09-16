@@ -42,7 +42,7 @@ import com.nilpo.contenttracker.ui.theme.SerifFontFamily
  * some 20dp of the bar's padding already in it. This claws part of that back, stopping well short of
  * the glyphs themselves.
  */
-private val BarPaddingReclaim = 8.dp
+internal val BarPaddingReclaim = 8.dp
 
 private val CoverWidth = 128.dp
 private val CoverHeight = 192.dp

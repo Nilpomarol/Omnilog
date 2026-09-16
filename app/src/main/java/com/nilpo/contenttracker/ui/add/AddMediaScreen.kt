@@ -694,9 +694,58 @@ private fun RowScope.AddSaveButton(
     }
 }
 
+/**
+ * The floating primary action in the app's own primary colour, for flows with no status to wear.
+ * Like [AddSaveButton], a disabled one stays opaque and lifted so its label can say why.
+ */
+@Composable
+internal fun RowScope.FloatingPrimaryAction(
+    text: String,
+    onClick: () -> Unit,
+    icon: ImageVector? = null,
+    enabled: Boolean = true,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .weight(1f)
+            .height(54.dp),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = OmnilogTheme.colors.appPanel,
+            disabledContentColor = OmnilogTheme.colors.appMuted,
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 6.dp,
+            pressedElevation = 2.dp,
+            disabledElevation = 6.dp,
+        ),
+    ) {
+        if (icon != null && enabled) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 /** A secondary way forward: the save button's shape and lift, in paper rather than a status colour. */
 @Composable
-private fun RowScope.FloatingSecondaryAction(
+internal fun RowScope.FloatingSecondaryAction(
     text: String,
     onClick: () -> Unit,
     icon: ImageVector? = null,

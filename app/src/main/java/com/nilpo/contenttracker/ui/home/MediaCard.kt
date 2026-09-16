@@ -69,11 +69,14 @@ fun MediaCard(
     accent: Color,
     onClick: () -> Unit,
     trailingAction: (@Composable () -> Unit)? = null,
+    /** Off inside a collection's own page, where the name would only repeat the header. */
+    showCollection: Boolean = true,
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
     val creator = trackedMedia.creatorNames().firstOrNull()
     val collection = formatCollectionDisplayName(trackedMedia.collection?.name, item.collectionSortOrder)
+        .takeIf { showCollection }
     val fraction = trackedMedia.coverProgressFraction()
     val rating = session?.ratingHalfPoints
     val facts = listOfNotNull(
