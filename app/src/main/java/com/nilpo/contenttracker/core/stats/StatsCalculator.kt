@@ -7,6 +7,7 @@ import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.endsSession
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -768,6 +769,7 @@ class StatsCalculator(
     }
 
     private fun TrackingSession.statsDate(): LocalDate? {
+        if (status.endsSession) return latestCompletionDate()
         return finishedAt
             ?: startedAt
             ?: updatedAtEpochMillis.takeIf { millis -> millis > 0L }?.let { millis ->
@@ -812,7 +814,7 @@ class StatsCalculator(
 fun TrackingSession.completionDates(): List<LocalDate?> {
     val recorded = statusEvents
         .filter { it.status == TrackingStatus.Completed }
-        .map { it.occurredOn }
+        .map { event -> event.occurredOn.takeIf { event.hasKnownDate } }
     return recorded.ifEmpty {
         if (status == TrackingStatus.Completed) listOf(finishedAt) else emptyList()
     }

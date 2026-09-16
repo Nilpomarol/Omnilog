@@ -183,6 +183,7 @@ fun SessionStatusEventEntity.toDomain(): SessionStatusEvent = SessionStatusEvent
             .atZone(ZoneId.systemDefault())
             .toLocalDate(),
     createdAtEpochMillis = createdAtEpochMillis,
+    hasKnownDate = hasKnownDate,
 )
 
 fun TrackingSessionEntity.toDomain(

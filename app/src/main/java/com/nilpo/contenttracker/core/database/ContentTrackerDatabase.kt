@@ -35,7 +35,7 @@ import com.nilpo.contenttracker.core.database.entity.TrackingSessionEntity
         MetadataRefreshRunEntity::class,
         MetadataRefreshItemEntity::class,
     ],
-    version = 36,
+    version = 37,
     exportSchema = true,
 )
 abstract class ContentTrackerDatabase : RoomDatabase() {

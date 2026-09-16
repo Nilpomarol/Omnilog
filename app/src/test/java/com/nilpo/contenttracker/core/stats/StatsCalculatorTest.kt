@@ -19,6 +19,39 @@ class StatsCalculatorTest {
     private val calculator = StatsCalculator(today)
 
     @Test
+    fun unknownCompletionEventIsNotPlacedInTheCurrentPeriod() {
+        val item = trackedMedia(
+            id = 1,
+            type = MediaType.Game,
+            sessions = listOf(
+                session(
+                    id = 1,
+                    mediaItemId = 1,
+                    status = TrackingStatus.Completed,
+                    statusEvents = listOf(
+                        SessionStatusEvent(
+                            id = 1,
+                            sessionId = 1,
+                            status = TrackingStatus.Completed,
+                            occurredOn = today,
+                            createdAtEpochMillis = 1,
+                            hasKnownDate = false,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val snapshot = calculator.calculate(
+            items = listOf(item),
+            filters = StatsFilters(StatsPeriod.ThisYear, setOf(MediaType.Game)),
+        )
+
+        assertEquals(0, snapshot.completionSessions)
+        assertEquals(0, snapshot.uniqueTitlesCompleted)
+    }
+
+    @Test
     fun reopeningDoesNotEraseARecordedCompletionFromStats() {
         val completionDay = LocalDate.of(2026, 5, 4)
         val item = trackedMedia(

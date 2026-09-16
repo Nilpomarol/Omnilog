@@ -321,7 +321,7 @@ fun recencyLabel(date: LocalDate): String? {
 /** The most recent date something actually happened: finishing, a sitting, or a status change. */
 fun TrackingSession.lastActivityDate(): LocalDate? {
     val historyDates = progressUpdates.filter { it.hasKnownDate }.map { it.loggedAt } +
-        statusEvents.map { it.occurredOn }
+        statusEvents.filter { it.hasKnownDate }.map { it.occurredOn }
     return (historyDates + listOfNotNull(finishedAt)).maxOrNull()
 }
 

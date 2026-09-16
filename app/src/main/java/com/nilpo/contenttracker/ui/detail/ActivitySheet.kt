@@ -329,7 +329,7 @@ internal fun activityRows(
     val statusRows = rawStatuses.map { event ->
         if (event.status == TrackingStatus.Completed) {
             val finalUpdate = orderedUpdates.lastOrNull { update ->
-                update.hasKnownDate && update.loggedAt == event.occurredOn &&
+                event.hasKnownDate && update.hasKnownDate && update.loggedAt == event.occurredOn &&
                     update.createdAtEpochMillis <= event.createdAtEpochMillis
             }
             if (finalUpdate != null) {
@@ -572,7 +572,7 @@ private fun ActivityStatusBody(row: ActivityRow.Status, mediaType: MediaType, ac
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
-                    text = row.event.occurredOn.formatActivityDate(),
+                    text = row.event.dateLabel(),
                     color = OmnilogTheme.colors.appMuted,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
@@ -609,7 +609,7 @@ private fun ActivityStatusBody(row: ActivityRow.Status, mediaType: MediaType, ac
         }
     } else {
         Text(
-            text = row.event.occurredOn.formatActivityDate(),
+            text = row.event.dateLabel(),
             color = OmnilogTheme.colors.appMuted,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
@@ -701,6 +701,13 @@ private fun ActivityRow.Entry.dateLabel(): String = if (update.hasKnownDate) {
     stringResource(R.string.activity_date_unknown)
 }
 
+@Composable
+private fun SessionStatusEvent.dateLabel(): String = if (hasKnownDate) {
+    occurredOn.formatActivityDate()
+} else {
+    stringResource(R.string.activity_date_unknown)
+}
+
 internal fun MilestoneKind.labelRes(): Int = when (this) {
     MilestoneKind.Started -> R.string.activity_started
     MilestoneKind.Finished -> R.string.activity_finished
@@ -734,7 +741,7 @@ private fun ActivityRow.describe(mediaType: MediaType): String = when (this) {
     )
 
     is ActivityRow.Status -> {
-        val base = event.occurredOn.formatActivityDate() + " · " + stringResource(event.statusLabelRes())
+        val base = event.dateLabel() + " · " + stringResource(event.statusLabelRes())
         if (update != null && runningTotal != null) {
             base + " · +" + update.amount + " " + progressUnitLabel(mediaType = mediaType, value = update.amount) + " · " + runningTotal
         } else {

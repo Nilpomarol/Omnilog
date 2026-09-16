@@ -58,4 +58,6 @@ data class SessionStatusEvent(
     val status: TrackingStatus,
     val occurredOn: LocalDate,
     val createdAtEpochMillis: Long,
+    /** False when [occurredOn] is an ordering placeholder rather than a claimed calendar day. */
+    val hasKnownDate: Boolean = true,
 )

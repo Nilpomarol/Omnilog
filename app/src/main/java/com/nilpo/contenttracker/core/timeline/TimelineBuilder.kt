@@ -86,7 +86,7 @@ class TimelineBuilder {
         // Pauses and resumes come from the status log, which is the only place a repeated transition
         // survives. They are paired up before anything is emitted, because whether a pause is worth
         // showing depends on how it ended.
-        pauseSpans(session.statusEvents).forEach { span ->
+        pauseSpans(session.statusEvents.filter(SessionStatusEvent::hasKnownDate)).forEach { span ->
             // Set aside and picked up again the same day: that is a tap and its correction, not a
             // break in a reading history. Dropping both is also the only way to undo an accidental
             // pause, since the log itself is append-only — see `TimelineBuilder.pauseSpans`.
@@ -101,7 +101,10 @@ class TimelineBuilder {
         // Terminal transitions are history, even when the session is later reopened. The session
         // fields are only the current snapshot; using them alone made old completions disappear.
         session.statusEvents
-            .filter { it.status == TrackingStatus.Completed || it.status == TrackingStatus.Dropped }
+            .filter { event ->
+                event.hasKnownDate &&
+                    (event.status == TrackingStatus.Completed || event.status == TrackingStatus.Dropped)
+            }
             .forEach { event ->
                 val isCompletion = event.status == TrackingStatus.Completed
                 val terminal = TimelineEntry(
@@ -151,7 +154,7 @@ class TimelineBuilder {
         // produce nothing — inventing one would put the event on a day it did not happen.
         if (
             session.status == TrackingStatus.Dropped && session.finishedAt != null &&
-            session.statusEvents.none { it.status == TrackingStatus.Dropped }
+            session.statusEvents.none { it.status == TrackingStatus.Dropped && it.hasKnownDate }
         ) {
             entries += TimelineEntry(
                 stableKey = "dropped:${media.item.id}:${session.id}",
@@ -175,7 +178,7 @@ class TimelineBuilder {
 
         if (
             session.status == TrackingStatus.Completed && session.finishedAt != null &&
-            session.statusEvents.none { it.status == TrackingStatus.Completed }
+            session.statusEvents.none { it.status == TrackingStatus.Completed && it.hasKnownDate }
         ) {
             val finishedAt = session.finishedAt
             val completion = TimelineEntry(
@@ -340,7 +343,7 @@ class TimelineBuilder {
             statusEvents.firstOrNull { event ->
                 event.status == TrackingStatus.InProgress &&
                     (event.previousStatus == TrackingStatus.Planned || event.previousStatus == null) &&
-                    event.occurredOn == startedAt
+                    event.hasKnownDate && event.occurredOn == startedAt
             }?.let { return it.createdAtEpochMillis }
 
             val firstChildTimestamp = (

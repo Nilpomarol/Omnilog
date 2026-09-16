@@ -6,6 +6,7 @@ import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.ObjectiveUnit
 import com.nilpo.contenttracker.core.model.ProgressUpdate
+import com.nilpo.contenttracker.core.model.SessionStatusEvent
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -116,6 +117,38 @@ class ObjectiveCalculatorTest {
         val result = calculator.calculate(listOf(item), listOf(objective)).single()
 
         assertEquals(0, result.currentValue)
+    }
+
+    @Test
+    fun unknownTerminalEventAndFinalIncrementDoNotCountTowardObjectives() {
+        val item = trackedMedia(
+            id = 1,
+            type = MediaType.Game,
+            sessions = listOf(
+                session(
+                    1,
+                    updates = listOf(update(5, LocalDate.of(2026, 7, 6), hasKnownDate = false)),
+                ).copy(
+                    status = TrackingStatus.Completed,
+                    statusEvents = listOf(
+                        SessionStatusEvent(
+                            id = 1,
+                            sessionId = 1,
+                            status = TrackingStatus.Completed,
+                            occurredOn = LocalDate.of(2026, 7, 6),
+                            createdAtEpochMillis = 1,
+                            hasKnownDate = false,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val objectives = listOf(
+            objective(ObjectiveMetric.CompletedTitles, ObjectiveUnit.Titles, MediaType.Game, 1),
+            objective(ObjectiveMetric.ProgressUnits, ObjectiveUnit.Hours, MediaType.Game, 1),
+        )
+
+        assertEquals(listOf(0, 0), calculator.calculate(listOf(item), objectives).map { it.currentValue })
     }
 
     private fun objective(

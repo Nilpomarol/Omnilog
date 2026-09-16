@@ -46,6 +46,7 @@ import com.nilpo.contenttracker.core.model.canonicalUnit
 import com.nilpo.contenttracker.core.model.definition
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.core.imports.ImportBatchState
 import com.nilpo.contenttracker.core.imports.ImportItemState
 import com.nilpo.contenttracker.core.imports.ImportSource
@@ -730,7 +731,7 @@ class OfflineMediaRepository(
             mediaDao.applyProgressTarget(
                 session = session,
                 target = validProgress,
-                loggedAt = endedOn ?: LocalDate.now(),
+                loggedAt = if (status.endsSession) endedOn else LocalDate.now(),
                 updatedAtEpochMillis = updatedAtEpochMillis,
             )
         }
@@ -759,6 +760,7 @@ class OfflineMediaRepository(
                     status = status.name,
                     createdAtEpochMillis = updatedAtEpochMillis,
                     occurredOnEpochDay = transitionDay.toEpochDay(),
+                    hasKnownDate = !status.endsSession || endedOn != null,
                 ),
             )
         } else if (status == TrackingStatus.Completed || status == TrackingStatus.Dropped) {
@@ -2161,7 +2163,7 @@ private fun String?.myAnimeListIdFromJson(): String? {
 private suspend fun MediaDao.applyProgressTarget(
     session: TrackingSessionEntity,
     target: Int,
-    loggedAt: LocalDate,
+    loggedAt: LocalDate?,
     updatedAtEpochMillis: Long,
 ) {
     val entries = getProgressUpdatesForSession(session.id)
@@ -2173,7 +2175,10 @@ private suspend fun MediaDao.applyProgressTarget(
                 mediaItemId = session.mediaItemId,
                 sessionId = session.id,
                 amount = difference,
-                loggedAtEpochDay = loggedAt.toEpochDay(),
+                // An unknown end date needs an ordering placeholder, but it must never be read as
+                // consumption that happened today.
+                loggedAtEpochDay = (loggedAt ?: LocalDate.now()).toEpochDay(),
+                hasKnownDate = loggedAt != null,
                 createdAtEpochMillis = updatedAtEpochMillis,
             ),
         )
@@ -2398,7 +2403,44 @@ private fun parseBackupData(json: String): ParsedBackup {
             .mapObjects { it.toExternalRatingEntity() },
         objectives = root.optJSONArray("objectives").orEmptyArray()
             .mapObjects { it.toObjectiveEntity() },
-    ).also { it.validate() }
+    ).repairUndatedTerminalHistory().also { it.validate() }
+}
+
+/** Applies the same correction as migration 36→37 to backups made by affected app versions. */
+private fun ParsedBackup.repairUndatedTerminalHistory(): ParsedBackup {
+    val sessionsById = sessions.associateBy { it.id }
+    val latestBySession = sessionStatusEvents
+        .groupBy { it.sessionId }
+        .mapValues { (_, events) ->
+            events.maxWithOrNull(
+                compareBy<SessionStatusEventEntity> { it.createdAtEpochMillis }.thenBy { it.id },
+            )
+        }
+    val unknownEventIds = latestBySession.values.filterNotNull().mapNotNull { event ->
+        val session = sessionsById[event.sessionId]
+        event.takeIf {
+            session != null &&
+                event.status in setOf(TrackingStatus.Completed.name, TrackingStatus.Dropped.name) &&
+                session.status == event.status &&
+                session.finishedAtEpochDay == null
+        }?.id
+    }.toSet()
+    if (unknownEventIds.isEmpty()) return this
+
+    val unknownEvents = sessionStatusEvents.filter { it.id in unknownEventIds }
+    return copy(
+        sessionStatusEvents = sessionStatusEvents.map { event ->
+            event.copy(hasKnownDate = event.hasKnownDate && event.id !in unknownEventIds)
+        },
+        progressUpdates = progressUpdates.map { update ->
+            update.copy(
+                hasKnownDate = update.hasKnownDate && unknownEvents.none { event ->
+                    event.sessionId == update.sessionId &&
+                        event.createdAtEpochMillis == update.createdAtEpochMillis
+                },
+            )
+        },
+    )
 }
 
 /** Repairs pre-v10 increment backups without discarding canonical activity rows. */
@@ -2852,6 +2894,7 @@ private fun SessionStatusEventEntity.toJson(): JSONObject {
         .put("status", status)
         .put("createdAtEpochMillis", createdAtEpochMillis)
         .putNullable("occurredOnEpochDay", occurredOnEpochDay)
+        .put("hasKnownDate", hasKnownDate)
 }
 
 private fun JSONObject.toSessionStatusEventEntity(): SessionStatusEventEntity {
@@ -2863,6 +2906,7 @@ private fun JSONObject.toSessionStatusEventEntity(): SessionStatusEventEntity {
         status = getString("status"),
         createdAtEpochMillis = optLong("createdAtEpochMillis", 0),
         occurredOnEpochDay = optNullableLong("occurredOnEpochDay"),
+        hasKnownDate = optBoolean("hasKnownDate", true),
     )
 }
 
@@ -2978,4 +3022,3 @@ private fun List<MediaCredit>.cleanCredits(): List<MediaCredit> = asSequence()
         listOf(credit.roleType, credit.personName.lowercase(), credit.characterName?.lowercase())
     }
     .toList()
-

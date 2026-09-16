@@ -60,4 +60,6 @@ data class SessionStatusEventEntity(
     val status: String,
     val createdAtEpochMillis: Long = System.currentTimeMillis(),
     val occurredOnEpochDay: Long? = null,
+    /** A placeholder day keeps ordering stable when the user does not know when this happened. */
+    val hasKnownDate: Boolean = true,
 )

@@ -204,7 +204,10 @@ interface MediaDao {
     @Query("DELETE FROM session_status_events WHERE sessionId = :sessionId")
     suspend fun deleteSessionStatusEventsForSession(sessionId: Long)
 
-    @Query("UPDATE session_status_events SET occurredOnEpochDay = :occurredOnEpochDay WHERE id = :eventId")
+    @Query(
+        "UPDATE session_status_events SET occurredOnEpochDay = :occurredOnEpochDay, hasKnownDate = 1 " +
+            "WHERE id = :eventId",
+    )
     suspend fun updateSessionStatusEventDate(eventId: Long, occurredOnEpochDay: Long)
 
     @Query("UPDATE session_status_events SET previousStatus = :previousStatus WHERE id = :eventId")
