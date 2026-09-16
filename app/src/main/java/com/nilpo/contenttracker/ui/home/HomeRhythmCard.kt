@@ -52,11 +52,14 @@ import com.nilpo.contenttracker.ui.common.chipStyle
 import com.nilpo.contenttracker.ui.common.objectiveAccent
 import com.nilpo.contenttracker.ui.common.objectiveTargetUnitLabel
 import com.nilpo.contenttracker.ui.common.objectiveProgressLabel
+import com.nilpo.contenttracker.ui.detail.DetailGutter
 import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
 import com.nilpo.contenttracker.ui.common.paceStatus
 import androidx.compose.ui.text.style.TextOverflow
 import com.nilpo.contenttracker.ui.stats.deltaChipColor
+import com.nilpo.contenttracker.ui.profile.FormatCountStrip
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
@@ -67,7 +70,7 @@ import java.util.Locale
 import kotlin.math.absoluteValue
 
 /**
- * A calendar-year overview in two cards: the year's goals as a snapping strip of tiles, then the
+ * A calendar-year overview: the year's goals as a snapping strip of tiles, then, under a hairline, the
  * year's completions with a month chart and per-format totals. Each part keeps its own destination.
  */
 @Composable
@@ -94,27 +97,25 @@ internal fun HomeRhythmCard(
             .sortedBy { GoalOrder.indexOf(it.paceStatus(today)) }
     }
 
+    // The gutter belongs to each part rather than the whole, so the goal strip can run to the screen
+    // edge like Home's carousels.
+    val gutter = Modifier.padding(horizontal = DetailGutter)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(gutter, verticalAlignment = Alignment.CenterVertically) {
             DetailSectionTitle(
                 text = stringResource(R.string.home_rhythm_title),
                 modifier = Modifier.weight(1f),
             )
             Box {
-                // Not a TextButton: its 48dp minimum height pushed the card away from this header.
-                // Compose still extends a small clickable's touch area to the 48dp minimum.
-                Row(
-                    Modifier.clip(RoundedCornerShape(8.dp))
-                        .clickable(role = Role.Button) { menuOpen = true }
-                        .padding(start = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                // The creator page's sort pill: an outline around the choice and the arrow that opens it.
+                ArrangeButton(onClick = { menuOpen = true }, onClickLabel = stringResource(R.string.stats_period_this_year)) { content ->
                     Text(
                         if (year == today.year) stringResource(R.string.stats_period_this_year) else year.toString(),
                         style = MaterialTheme.typography.labelLarge,
-                        color = OmnilogTheme.colors.appInk,
+                        fontWeight = FontWeight.SemiBold,
+                        color = content,
                     )
-                    Icon(Icons.Default.KeyboardArrowDown, null, tint = OmnilogTheme.colors.appInk)
+                    Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(18.dp), tint = content)
                 }
                 OmnilogDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     years.forEach { option ->
@@ -133,20 +134,15 @@ internal fun HomeRhythmCard(
             // Keyed on the year so switching years starts the strip from its first goal.
             key(year) { RhythmGoals(yearGoals, today, onObjectivesClick) }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = OmnilogTheme.colors.appPanel,
+        // The year sits on the page like the editorial sections, set off by a hairline, not a panel.
+        HorizontalDivider(modifier = gutter.padding(top = 8.dp), color = OmnilogTheme.colors.appLine)
+        Column(
+            gutter.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onStatsClick).padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Column(
-                Modifier.fillMaxWidth().clickable(onClick = onStatsClick).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                RhythmLead(snapshot)
-                RhythmChart(snapshot, year, today)
-                HorizontalDivider(color = OmnilogTheme.colors.appLine)
-                RhythmTotals(snapshot)
-            }
+            RhythmLead(snapshot)
+            RhythmChart(snapshot, year, today)
+            RhythmTotals(snapshot)
         }
     }
 }
@@ -166,7 +162,7 @@ private val GoalOrder = listOf(
 @Composable
 private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClick: (objectiveId: Long?) -> Unit) {
     if (goals.isEmpty()) {
-        GoalTileSurface(Modifier.fillMaxWidth(), { onClick(null) }) {
+        GoalTileSurface(Modifier.padding(horizontal = DetailGutter).fillMaxWidth(), { onClick(null) }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(painterResource(R.drawable.ic_rhythm_goals), null, Modifier.size(22.dp), tint = OmnilogTheme.accents.Completed)
                 Text(
@@ -184,14 +180,16 @@ private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClic
         // Only a strip that overflows scrolls. Its end is padded by the width's leftover after the
         // whole tiles that fit, so the scroll range is a whole number of tiles: the strip stops with
         // a tile flush at the start edge, rather than one cut off, and never more than a tile of blank.
+        // Measured inside the gutters, which the strip keeps as content padding at rest.
+        val width = maxWidth - DetailGutter * 2
         val step = GoalTileWidth + GoalTileSpacing
-        val overflows = step * goals.size - GoalTileSpacing > maxWidth
-        val endPadding = if (overflows) ((maxWidth + GoalTileSpacing).value % step.value).dp else 0.dp
+        val overflows = step * goals.size - GoalTileSpacing > width
+        val endPadding = if (overflows) ((width + GoalTileSpacing).value % step.value).dp else 0.dp
         val pagerState = rememberPagerState { goals.size }
         HorizontalPager(
             state = pagerState,
             pageSize = PageSize.Fixed(GoalTileWidth),
-            contentPadding = PaddingValues(end = endPadding),
+            contentPadding = PaddingValues(start = DetailGutter, end = DetailGutter + endPadding),
             pageSpacing = GoalTileSpacing,
             verticalAlignment = Alignment.Top,
             key = { goals[it].objective.id },
@@ -316,8 +314,7 @@ private fun RhythmLead(snapshot: StatsSnapshot) {
             Text(
                 snapshot.completionSessions.toString(),
                 modifier = Modifier.alignByBaseline(),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
+                style = MaterialTheme.typography.displaySmall.copy(fontFamily = SerifFontFamily, fontWeight = FontWeight.Normal),
                 color = OmnilogTheme.colors.appInk,
                 maxLines = 1,
             )
@@ -431,38 +428,12 @@ private fun RhythmChart(snapshot: StatsSnapshot, year: Int, today: LocalDate) {
 
 private val ChartHeight = 64.dp
 
-@OptIn(ExperimentalLayoutApi::class)
+/** The year's completions per format, as the profile's Acabats counts them. */
 @Composable
 private fun RhythmTotals(snapshot: StatsSnapshot) {
-    val formats = listOf(
-        MediaType.Book to R.string.home_rhythm_books,
-        MediaType.TvShow to R.string.home_rhythm_series,
-        MediaType.Movie to R.string.home_rhythm_movies,
-        MediaType.Anime to R.string.home_rhythm_anime,
-        MediaType.Game to R.string.home_rhythm_games,
+    FormatCountStrip(
+        counts = MediaType.entries.map { type ->
+            type to (snapshot.mediumStats.firstOrNull { it.mediaType == type }?.completionSessionCount ?: 0)
+        },
     )
-    // One row, spread across the panel; wraps only when narrow screens or large text leave no room.
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        formats.forEach { (type, label) ->
-            val count = snapshot.mediumStats.firstOrNull { it.mediaType == type }?.completionSessionCount ?: 0
-            // Preserve the four reference rows and include games whenever this year has any.
-            if (type != MediaType.Game || count > 0) {
-                val description = "$count ${stringResource(label)}"
-                // Empty formats step back so the ones with activity carry the colour.
-                val tint = if (count > 0) type.objectiveAccent() else OmnilogTheme.colors.appMuted.copy(alpha = 0.6f)
-                Row(
-                    modifier = Modifier.clearAndSetSemantics { contentDescription = description },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    ObjectiveMediaIcon(type, tint, 20.dp)
-                    Text(count.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = tint)
-                }
-            }
-        }
-    }
 }

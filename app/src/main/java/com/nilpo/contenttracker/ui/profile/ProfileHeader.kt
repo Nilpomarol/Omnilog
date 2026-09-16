@@ -205,50 +205,63 @@ fun ProfileCompletedSummary(
             )
         }
 
-        // One strip of figures split by hairlines, each format in its own colour.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .padding(start = DetailGutter, end = DetailGutter, top = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            completedByType.forEachIndexed { index, (type, count) ->
-                if (index > 0) {
-                    VerticalDivider(
-                        modifier = Modifier.fillMaxHeight(0.7f),
-                        color = OmnilogTheme.colors.appLine,
-                    )
-                }
-                val color = if (count > 0) type.objectiveAccent() else OmnilogTheme.colors.appMuted.copy(alpha = 0.5f)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+        FormatCountStrip(
+            counts = completedByType,
+            modifier = Modifier.padding(start = DetailGutter, end = DetailGutter, top = 20.dp),
+        )
+    }
+}
+
+/**
+ * One strip of figures split by hairlines: each format's count in serif and in its colour, over its
+ * mark and name. Every format keeps its column, zeros included, so the order never shifts.
+ */
+@Composable
+internal fun FormatCountStrip(
+    counts: List<Pair<MediaType, Int>>,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        counts.forEachIndexed { index, (type, count) ->
+            if (index > 0) {
+                VerticalDivider(
+                    modifier = Modifier.fillMaxHeight(0.7f),
+                    color = OmnilogTheme.colors.appLine,
+                )
+            }
+            val color = if (count > 0) type.objectiveAccent() else OmnilogTheme.colors.appMuted.copy(alpha = 0.5f)
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontFamily = SerifFontFamily,
+                        fontWeight = FontWeight.Normal,
+                    ),
+                    color = color,
+                    maxLines = 1,
+                )
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    ObjectiveMediaIcon(mediaType = type, accent = color, size = 14.dp)
                     Text(
-                        text = count.toString(),
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontFamily = SerifFontFamily,
-                            fontWeight = FontWeight.Normal,
-                        ),
-                        color = color,
+                        text = type.profileLabel(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogTheme.colors.appInk,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    Row(
-                        modifier = Modifier.padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ObjectiveMediaIcon(mediaType = type, accent = color, size = 14.dp)
-                        Text(
-                            text = type.profileLabel(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmnilogTheme.colors.appInk,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
             }
         }

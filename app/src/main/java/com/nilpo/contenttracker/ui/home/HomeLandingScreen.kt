@@ -78,6 +78,7 @@ import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.detail.DetailGutter
 import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.timeline.TimelineRecentActivity
@@ -158,18 +159,22 @@ fun HomeLandingScreen(
             Box(modifier = Modifier.weight(1f)) {
                 LazyColumn(
                     state = dashboardListState,
+                    // No side padding of its own: sections keep the editorial pages' gutter, and the
+                    // carousels spend it as content padding so their covers run to the screen edge.
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(start = 16.dp, end = 16.dp, top = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(22.dp),
+                        .padding(top = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(28.dp),
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     if (items.isEmpty()) {
                         item {
-                            EmptyHomeState(
-                                onAddToSection = onAddToSection,
-                                onImportBackup = onImportBackup,
-                            )
+                            Box(Modifier.padding(horizontal = DetailGutter)) {
+                                EmptyHomeState(
+                                    onAddToSection = onAddToSection,
+                                    onImportBackup = onImportBackup,
+                                )
+                            }
                         }
                     } else {
                         item {
@@ -208,6 +213,7 @@ fun HomeLandingScreen(
                             TimelineRecentActivity(
                                 entries = timelineEntries,
                                 onViewAll = onTimelineClick,
+                                modifier = Modifier.padding(horizontal = DetailGutter),
                             )
                         }
 
@@ -253,7 +259,7 @@ fun HomeLandingScreen(
                         },
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(start = 16.dp, top = 6.dp, end = 16.dp),
+                            .padding(start = DetailGutter, top = 6.dp, end = DetailGutter),
                     )
                 }
             }
@@ -436,11 +442,14 @@ private fun HomeCarousel(
     onShowAll: (() -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DashboardSectionTitle(title = title, onClick = onShowAll)
+        DashboardSectionTitle(title = title, onClick = onShowAll, modifier = Modifier.padding(horizontal = DetailGutter))
         if (items.isEmpty()) {
             emptyText?.let { EmptyCarouselState(text = it) }
         } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = DetailGutter),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 items(items, key = { it.item.id }) { trackedMedia ->
                     HomeCollectionCard(
                         trackedMedia = trackedMedia,
@@ -470,7 +479,7 @@ private fun HomeActiveCarousel(
     onShowAll: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DashboardSectionTitle(title = title, onClick = onShowAll)
+        DashboardSectionTitle(title = title, onClick = onShowAll, modifier = Modifier.padding(horizontal = DetailGutter))
         if (items.isEmpty()) {
             EmptyCarouselState(
                 text = if (isFiltered) {
@@ -480,7 +489,10 @@ private fun HomeActiveCarousel(
                 },
             )
         } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = DetailGutter),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 items(items, key = { it.item.id }) { trackedMedia ->
                     HomeCollectionCard(
                         trackedMedia = trackedMedia,
@@ -495,22 +507,15 @@ private fun HomeActiveCarousel(
     }
 }
 
+/** An empty section says so in plain muted text, as the collection page does. */
 @Composable
 private fun EmptyCarouselState(text: String) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel.copy(alpha = 0.64f),
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine.copy(alpha = 0.74f)),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = OmnilogTheme.colors.appMuted,
-        )
-    }
+    Text(
+        text = text,
+        modifier = Modifier.padding(horizontal = DetailGutter),
+        style = MaterialTheme.typography.bodyMedium,
+        color = OmnilogTheme.colors.appMuted,
+    )
 }
 
 /** The section heading: the editorial pages' serif, open space, and an arrow when it opens a full list. */
@@ -518,9 +523,10 @@ private fun EmptyCarouselState(text: String) {
 private fun DashboardSectionTitle(
     title: String,
     onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -643,26 +649,27 @@ private fun HomePlannedCard(
             }
             Spacer(Modifier.weight(1f))
             onStartClick?.let { onStart ->
-                Button(
-                    onClick = onStart,
-                    modifier = Modifier.heightIn(min = 32.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(start = 8.dp, end = 10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accent.copy(alpha = 0.12f),
-                        contentColor = accent,
-                    ),
+                // A quiet action in the accent, as the editorial pages draw theirs, rather than a filled button.
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = 32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onStart)
+                        .padding(end = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(20.dp),
+                        tint = accent,
                     )
                     Text(
                         text = actionLabel,
-                        modifier = Modifier.padding(start = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
+                        color = accent,
                     )
                 }
             }

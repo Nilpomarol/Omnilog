@@ -67,6 +67,7 @@ import com.nilpo.contenttracker.ui.common.OmnilogLocale
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
+import com.nilpo.contenttracker.ui.home.StatusChip
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 import java.time.LocalDate
@@ -954,24 +955,8 @@ private fun TimelineLatestEntry(entry: TimelineEntry, onClick: () -> Unit) {
                     maxLines = 1,
                 )
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier
-                        .size(7.dp)
-                        .background(accent, CircleShape),
-                )
-                Text(
-                    text = headline,
-                    color = accent,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            // The library list's chip, tinted with the entry's colour.
+            StatusChip(label = headline, color = accent)
             if (detail.isNotEmpty()) {
                 Text(
                     text = detail,

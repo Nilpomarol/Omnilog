@@ -643,7 +643,7 @@ private fun StatusPills(
  * [activeColor] while it changes the list from its default.
  */
 @Composable
-private fun ArrangeButton(
+internal fun ArrangeButton(
     onClick: () -> Unit,
     onClickLabel: String,
     modifier: Modifier = Modifier,
