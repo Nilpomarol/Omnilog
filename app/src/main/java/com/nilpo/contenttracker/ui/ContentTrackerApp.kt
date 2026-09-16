@@ -265,6 +265,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val backupActions = remember { BackupHeaderActions() }
     val profileHeaderActions = remember { ProfileHeaderActions() }
+    // The objective a Home tile asked the profile to scroll to; cleared once the profile has.
+    var profileFocusObjectiveId by rememberSaveable { mutableStateOf<Long?>(null) }
     val timelineHeaderActions = remember { TimelineHeaderActions() }
     val addMediaHeaderActions = remember { AddMediaHeaderActions() }
     // Opened from the header's search icon; Home closes it when the search is dismissed or used.
@@ -1160,7 +1162,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 },
                                 onStatsClick = { backStack.push(AppRoute.Stats) },
                                 onTimelineClick = { backStack.push(AppRoute.Timeline) },
-                                onObjectivesClick = openProfile,
+                                onObjectivesClick = { objectiveId ->
+                                    profileFocusObjectiveId = objectiveId
+                                    openProfile()
+                                },
                                 onStatusClick = { status -> backStack.push(AppRoute.StatusList(status)) },
                                 onAddToSection = { section ->
                                     viewModel.selectSection(section)
@@ -1199,6 +1204,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onSaveObjective = viewModel::addObjective,
                                 onDeleteObjective = viewModel::deleteObjective,
                                 headerActions = profileHeaderActions,
+                                focusObjectiveId = profileFocusObjectiveId,
+                                onFocusObjectiveConsumed = { profileFocusObjectiveId = null },
                                 topInset = innerPadding.calculateTopPadding(),
                                 onTopBarOpacityChange = { detailActions.barOpacity = it },
                                 modifier = Modifier

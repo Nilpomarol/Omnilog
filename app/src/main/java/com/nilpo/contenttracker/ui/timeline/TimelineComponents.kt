@@ -66,6 +66,7 @@ import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OmnilogLocale
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.progressUnitLabel
+import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
 import java.time.LocalDate
@@ -881,14 +882,9 @@ fun TimelineRecentActivity(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
+            DetailSectionTitle(
                 text = stringResource(R.string.timeline_recent_title),
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,

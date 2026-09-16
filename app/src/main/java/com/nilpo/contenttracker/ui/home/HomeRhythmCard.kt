@@ -50,8 +50,9 @@ import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
 import com.nilpo.contenttracker.ui.common.chipStyle
 import com.nilpo.contenttracker.ui.common.objectiveAccent
-import com.nilpo.contenttracker.ui.common.objectiveProgressLabel
 import com.nilpo.contenttracker.ui.common.objectiveTargetUnitLabel
+import com.nilpo.contenttracker.ui.common.objectiveProgressLabel
+import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
 import com.nilpo.contenttracker.ui.common.paceStatus
 import androidx.compose.ui.text.style.TextOverflow
 import com.nilpo.contenttracker.ui.stats.deltaChipColor
@@ -74,7 +75,7 @@ internal fun HomeRhythmCard(
     items: List<TrackedMedia>,
     objectives: List<ObjectiveProgress>,
     onStatsClick: () -> Unit,
-    onObjectivesClick: () -> Unit,
+    onObjectivesClick: (objectiveId: Long?) -> Unit,
 ) {
     val today = LocalDate.now()
     var year by rememberSaveable { mutableIntStateOf(today.year) }
@@ -95,12 +96,9 @@ internal fun HomeRhythmCard(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.home_rhythm_title),
+            DetailSectionTitle(
+                text = stringResource(R.string.home_rhythm_title),
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
             )
             Box {
                 // Not a TextButton: its 48dp minimum height pushed the card away from this header.
@@ -166,9 +164,9 @@ private val GoalOrder = listOf(
  * Several tiles share the width, so a strip that runs past the edge shows a cut-off tile as its hint.
  */
 @Composable
-private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClick: () -> Unit) {
+private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClick: (objectiveId: Long?) -> Unit) {
     if (goals.isEmpty()) {
-        GoalTileSurface(Modifier.fillMaxWidth(), onClick) {
+        GoalTileSurface(Modifier.fillMaxWidth(), { onClick(null) }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(painterResource(R.drawable.ic_rhythm_goals), null, Modifier.size(22.dp), tint = OmnilogTheme.accents.Completed)
                 Text(
@@ -198,47 +196,52 @@ private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClic
             verticalAlignment = Alignment.Top,
             key = { goals[it].objective.id },
         ) { page ->
-            GoalTile(goals[page], today, onClick)
+            GoalTile(goals[page], today) { onClick(goals[page].objective.id) }
         }
     }
 }
 
-/** A small square: the media icon inside a pace-aware progress ring, and the count under it. */
+/**
+ * A near-square tile: the format's mark at the centre of a pace-aware progress ring, and under it
+ * the count beside what it counts — pàgines, títols, animes — in its colour. The pace shows in the ring itself, and screen
+ * readers still get the status word.
+ */
 @Composable
 private fun GoalTile(progress: ObjectiveProgress, today: LocalDate, onClick: () -> Unit) {
     val pace = remember(progress, today) { progress.pace(today) }
     val accent = progress.objective.mediaType.objectiveAccent()
     val locale = LocalConfiguration.current.locales[0]
-    // The status word is no longer drawn, so screen readers still get it alongside the full count.
-    val description = "${objectiveProgressLabel(progress)}. ${pace.status.chipStyle(OmnilogTheme.colors.appMuted).first}"
+    val statusLabel = pace.status.chipStyle(OmnilogTheme.colors.appMuted).first
+    val description = "${objectiveProgressLabel(progress)}. $statusLabel"
     GoalTileSurface(Modifier.width(GoalTileWidth), onClick) {
         Column(
             Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(contentAlignment = Alignment.Center) {
-                GoalRing(progress.percentage, pace, accent)
+                GoalRing(progress.percentage, pace, accent, diameter = GoalRingDiameter, strokeWidth = 7.dp)
                 val iconTint = if (pace.status == ObjectiveStatus.Missed) OmnilogTheme.colors.appMuted else accent
-                ObjectiveMediaIcon(progress.objective.mediaType, iconTint, 24.dp)
+                ObjectiveMediaIcon(progress.objective.mediaType, iconTint, 28.dp)
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                "${compactCount(progress.currentValue, locale)}/${compactCount(progress.objective.targetValue, locale)}",
-                style = MaterialTheme.typography.titleMedium,
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = OmnilogTheme.colors.appInk)) {
+                        append("${compactCount(progress.currentValue, locale)}/${compactCount(progress.objective.targetValue, locale)}")
+                    }
+                    append("  ")
+                    withStyle(SpanStyle(color = accent)) { append(objectiveTargetUnitLabel(progress.objective)) }
+                },
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
-                maxLines = 1,
-            )
-            Text(
-                objectiveTargetUnitLabel(progress.objective),
-                style = MaterialTheme.typography.labelSmall,
-                color = OmnilogTheme.colors.appMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
+
+private val GoalRingDiameter = 84.dp
 
 /**
  * The ring carries the pace the status word used to: when behind, a pale arc runs on to where
@@ -280,7 +283,7 @@ internal fun GoalRing(
     }
 }
 
-private val GoalTileWidth = 104.dp
+private val GoalTileWidth = 116.dp
 private val GoalTileSpacing = 8.dp
 
 /**

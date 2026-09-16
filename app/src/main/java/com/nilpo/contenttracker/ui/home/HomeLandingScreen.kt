@@ -78,6 +78,7 @@ import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.timeline.TimelineRecentActivity
 import java.time.LocalDate
@@ -90,7 +91,8 @@ fun HomeLandingScreen(
     onSectionSearch: (MediaSection, String) -> Unit,
     onStatsClick: () -> Unit,
     onTimelineClick: () -> Unit,
-    onObjectivesClick: () -> Unit,
+    /** Opens the profile's objectives, at the given one when a tile was tapped. */
+    onObjectivesClick: (objectiveId: Long?) -> Unit,
     onStatusClick: (TrackingStatus) -> Unit,
     onAddToSection: (MediaSection) -> Unit,
     onImportBackup: () -> Unit,
@@ -511,7 +513,7 @@ private fun EmptyCarouselState(text: String) {
     }
 }
 
-/** The section heading: bold, friendly type, open space, and an arrow when it opens a full list. */
+/** The section heading: the editorial pages' serif, open space, and an arrow when it opens a full list. */
 @Composable
 private fun DashboardSectionTitle(
     title: String,
@@ -524,13 +526,7 @@ private fun DashboardSectionTitle(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = OmnilogTheme.colors.appInk,
-        )
+        DetailSectionTitle(text = title, modifier = Modifier.weight(1f))
         // The heading itself opens the full list, marked with the same arrow as Activitat recent
         // rather than a pill button competing with the section's own controls.
         if (onClick != null) {

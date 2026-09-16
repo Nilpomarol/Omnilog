@@ -91,6 +91,9 @@ fun ProfileScreen(
     onSaveObjective: (Objective) -> Unit = {},
     onDeleteObjective: (Long) -> Unit = {},
     headerActions: ProfileHeaderActions = remember { ProfileHeaderActions() },
+    /** An objective to scroll to on arrival, as when a Home tile opened the profile. */
+    focusObjectiveId: Long? = null,
+    onFocusObjectiveConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
     /** The app bar's height; the page scrolls under the bar, which draws its own surface. */
     topInset: Dp = 0.dp,
@@ -277,6 +280,15 @@ fun ProfileScreen(
             .sortedByDescending { it.currentSession?.updatedAtEpochMillis ?: 0L }
     }
     val objectiveProgress = remember(items, objectives) { ObjectiveCalculator().calculate(items, objectives) }
+    // The section is reached first, since the row is not composed while it sits far below; the row
+    // then brings itself fully into view.
+    var sectionFocusObjectiveId by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(focusObjectiveId) {
+        val objectiveId = focusObjectiveId ?: return@LaunchedEffect
+        listState.scrollToItem(if (completedItems.isNotEmpty()) 3 else 2)
+        sectionFocusObjectiveId = objectiveId
+        onFocusObjectiveConsumed()
+    }
 
     LazyColumn(
         state = listState,
@@ -318,6 +330,7 @@ fun ProfileScreen(
         item(key = "objectives") {
             ProfileObjectivesSection(
                 objectives = objectiveProgress,
+                focusObjectiveId = sectionFocusObjectiveId,
                 onSave = onSaveObjective,
                 onDelete = onDeleteObjective,
                 modifier = Modifier.padding(top = 16.dp),

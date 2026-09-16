@@ -5,6 +5,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -99,6 +101,8 @@ import java.util.Locale
 @Composable
 fun ProfileObjectivesSection(
     objectives: List<ObjectiveProgress>,
+    /** The objective to bring into view, if any. */
+    focusObjectiveId: Long? = null,
     onSave: (Objective) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -194,6 +198,7 @@ fun ProfileObjectivesSection(
         }
         ObjectiveRows(
             objectives = currentObjectives,
+            focusObjectiveId = focusObjectiveId,
             today = today,
             onClick = { openEditor(it.objective) },
         )
@@ -210,6 +215,7 @@ fun ProfileObjectivesSection(
             ) {
                 ObjectiveRows(
                     objectives = pastObjectives,
+                    focusObjectiveId = focusObjectiveId,
                     today = today,
                     onClick = { openEditor(it.objective) },
                 )
@@ -251,15 +257,23 @@ fun ProfileObjectivesSection(
 @Composable
 private fun ObjectiveRows(
     objectives: List<ObjectiveProgress>,
+    focusObjectiveId: Long?,
     today: LocalDate,
     onClick: (ObjectiveProgress) -> Unit,
 ) {
     objectives.forEach { progress ->
+        val focused = progress.objective.id == focusObjectiveId
+        val bringIntoView = remember { BringIntoViewRequester() }
+        if (focused) {
+            LaunchedEffect(focusObjectiveId) { bringIntoView.bringIntoView() }
+        }
         ObjectiveProgressRow(
             progress = progress,
             today = today,
             onClick = { onClick(progress) },
-            modifier = Modifier.padding(start = DetailGutter, end = DetailGutter, top = 12.dp),
+            modifier = Modifier
+                .bringIntoViewRequester(bringIntoView)
+                .padding(start = DetailGutter, end = DetailGutter, top = 12.dp),
         )
     }
 }
