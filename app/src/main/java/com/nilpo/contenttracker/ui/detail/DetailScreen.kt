@@ -402,7 +402,7 @@ fun DetailScreen(
                 item {
                     RelatedMediaSection(
                         title = collectionSectionTitle,
-                        relatedMedia = relatedMedia.collection,
+                        relatedMedia = relatedMedia.collection.map { it.trackedMedia },
                         onMediaClick = onRelatedMediaClick,
                     )
                 }
@@ -412,7 +412,7 @@ fun DetailScreen(
                 item {
                     RelatedMediaSection(
                         title = stringResource(R.string.detail_related_title),
-                        relatedMedia = relatedMedia.generic,
+                        relatedMedia = relatedMedia.generic.map { it.trackedMedia },
                         onMediaClick = onRelatedMediaClick,
                     )
                 }

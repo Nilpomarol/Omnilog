@@ -1,42 +1,40 @@
 package com.nilpo.contenttracker.ui.common
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
@@ -47,8 +45,10 @@ import com.nilpo.contenttracker.core.model.ObjectiveStatus
 import com.nilpo.contenttracker.core.model.ObjectiveUnit
 import com.nilpo.contenttracker.core.model.canonicalUnit
 import com.nilpo.contenttracker.core.model.pace
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.home.GoalRing
+import com.nilpo.contenttracker.ui.home.StatusChip
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -56,125 +56,138 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
- * Single objective card shared by the Profile section and the dashboard preview so the two
- * surfaces can never drift. Renders the pace visuals: an expected-progress tick on the bar,
- * a status chip, and a context-aware rate line.
+ * One objective as a list row held to the height of its progress ring: the ring with the format's
+ * mark and the percentage inside, and beside it three lines that fill exactly that height — the goal
+ * in serif, the period and the figure against the target, then the pace beside the list's status
+ * chip. A hairline under the row, as under the library's.
  *
- * Pass [onClick] to make the whole card tappable (dashboard → open Profile). Pass [onEdit] and/or
- * [onDelete] to expose an overflow menu (Profile management).
+ * The whole row opens the objective's editor.
  */
 @Composable
-fun ObjectiveProgressCard(
+fun ObjectiveProgressRow(
     progress: ObjectiveProgress,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
-    onClick: (() -> Unit)? = null,
-    onEdit: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null,
 ) {
     val objective = progress.objective
     val pace = remember(progress, today) { progress.pace(today) }
     val accent = objective.mediaType.objectiveAccent()
-    val fillColor = when (pace.status) {
-        ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed
-        ObjectiveStatus.Missed -> OmnilogTheme.colors.appLine
-        else -> accent
-    }
-    val borderColor = when (pace.status) {
-        ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed.copy(alpha = 0.45f)
-        else -> OmnilogTheme.colors.appLine
-    }
+    val (statusLabel, statusColor, _) = pace.status.chipStyle(OmnilogTheme.colors.appMuted)
     val isActive = pace.status == ObjectiveStatus.Ahead ||
         pace.status == ObjectiveStatus.OnTrack ||
         pace.status == ObjectiveStatus.Behind
+    val dividerColor = OmnilogTheme.colors.appLine
 
-    val cardModifier = modifier
-        .fillMaxWidth()
-        .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-
-    Surface(
-        modifier = cardModifier,
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, borderColor),
-    ) {
-        Column(
-            modifier = Modifier.padding(13.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(11.dp),
-            ) {
-                ObjectiveMediaIcon(objective.mediaType, accent)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = objectiveProgressLabel(progress),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = OmnilogTheme.colors.appInk,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = objective.cardSubtitle(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogTheme.colors.appMuted,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                }
-                StatusChip(pace.status)
-                if (onEdit != null || onDelete != null) {
-                    ObjectiveOverflowMenu(onEdit = onEdit, onDelete = onDelete)
-                }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val stroke = 1.dp.toPx()
+                val y = size.height - stroke / 2
+                drawLine(dividerColor, Offset(0f, y), Offset(size.width, y), stroke)
             }
-
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = "Objectiu: ${objectiveTargetLabel(objective)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogTheme.accents.Completed else OmnilogTheme.colors.appInk,
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(bottom = 10.dp)
+            // The ring sets the height; the text spreads to fill it, and only grows it when the
+            // system font scale leaves no other choice.
+            .height(IntrinsicSize.Min)
+            .heightIn(min = RingDiameter),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            GoalRing(progress.percentage, pace, accent, diameter = RingDiameter, strokeWidth = 7.dp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                ObjectiveMediaIcon(
+                    mediaType = objective.mediaType,
+                    accent = if (pace.status == ObjectiveStatus.Missed) OmnilogTheme.colors.appMuted else accent,
+                    size = 22.dp,
                 )
                 Text(
                     text = "${(progress.percentage * 100).roundToInt()}%",
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(bottom = 1.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (pace.status == ObjectiveStatus.Completed) OmnilogTheme.accents.Completed else OmnilogTheme.colors.appMuted,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
-
-            ObjectiveProgressBar(
-                fraction = progress.percentage,
-                expectedFraction = pace.expectedFraction,
-                fillColor = fillColor,
-                showMarker = isActive,
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = objectiveSentenceTitle(objective),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = SerifFontFamily,
+                    fontWeight = FontWeight.Normal,
+                ),
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-
-            if (isActive) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = pace.daysRemainingLabel(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                    Text(
-                        text = pace.deltaText(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = pace.status.paceColor(OmnilogTheme.colors.appMuted),
-                    )
-                }
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
+                        append(objective.rangeLabel())
+                    }
+                    append("  ·  ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = OmnilogTheme.colors.appInk)) {
+                        append(formatObjectiveNumber(progress.currentValue))
+                    }
+                    append(" de ${formatObjectiveNumber(objective.targetValue)} ${objectiveTargetUnitLabel(objective)}")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = objective.paceLine(progress, pace, isActive),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isActive) pace.status.paceColor(OmnilogTheme.colors.appMuted) else OmnilogTheme.colors.appMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                StatusChip(label = statusLabel, color = statusColor)
             }
         }
     }
+}
+
+private val RingDiameter = 84.dp
+
+/** One line on the pace: ahead or behind and the days left while it runs, how it ended once it has. */
+private fun Objective.paceLine(
+    progress: ObjectiveProgress,
+    pace: com.nilpo.contenttracker.core.model.ObjectivePace,
+    isActive: Boolean,
+): String {
+    val remaining = targetValue - progress.currentValue
+    return when {
+        isActive -> "${pace.deltaText()} · ${pace.daysRemainingLabel()}"
+        remaining < 0 -> "${formatObjectiveNumber(-remaining)} ${unitWord(-remaining)} de més"
+        remaining == 0 -> "Just a l'objectiu"
+        else -> "Van faltar ${formatObjectiveNumber(remaining)} ${unitWord(remaining)}"
+    }
+}
+
+private fun Objective.unitWord(value: Int): String = objectiveTargetUnitLabel(copy(targetValue = value))
+
+/** What the objective sets out to do, as a sentence: `Llegir 40 llibres`, `Veure 200 episodis de sèries`. */
+fun objectiveSentenceTitle(objective: Objective): String {
+    val option = ObjectiveUnitOption(objective.metric, objective.mediaType)
+    return objectiveVerb(objective.mediaType).replaceFirstChar { it.titlecase(catalan) } + " " +
+        objectiveSentenceAmount(option, objective.targetValue)
 }
 
 /** Pace status for this snapshot, for callers that need the status without the full pace object. */
@@ -227,82 +240,6 @@ private fun MediaType?.navIconRes(): Int? = when (this) {
     null -> null
 }
 
-@Composable
-private fun StatusChip(status: ObjectiveStatus) {
-    val (label, color, solid) = status.chipStyle(OmnilogTheme.colors.appMuted)
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = if (solid) color else color.copy(alpha = 0.16f),
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = if (solid) OmnilogTheme.colors.appBackground else color,
-        )
-    }
-}
-
-@Composable
-private fun ObjectiveOverflowMenu(onEdit: (() -> Unit)?, onDelete: (() -> Unit)?) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.size(28.dp)) {
-            Icon(
-                Icons.Filled.MoreVert,
-                contentDescription = "Més opcions",
-                tint = OmnilogTheme.colors.appMuted,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            if (onEdit != null) {
-                DropdownMenuItem(text = { Text("Edita") }, onClick = { expanded = false; onEdit() })
-            }
-            if (onDelete != null) {
-                DropdownMenuItem(text = { Text("Elimina") }, onClick = { expanded = false; onDelete() })
-            }
-        }
-    }
-}
-
-@Composable
-private fun ObjectiveProgressBar(
-    fraction: Float,
-    expectedFraction: Float,
-    fillColor: Color,
-    showMarker: Boolean,
-    height: androidx.compose.ui.unit.Dp = 8.dp,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height)
-            .clip(RoundedCornerShape(5.dp))
-            .background(OmnilogTheme.colors.appBackground),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .fillMaxHeight()
-                .background(fillColor),
-        )
-        if (showMarker) {
-            // A zero-content box sized to the expected fraction; the tick sits at its trailing edge.
-            Box(modifier = Modifier.fillMaxWidth(expectedFraction.coerceIn(0f, 1f))) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .width(2.dp)
-                        .fillMaxHeight()
-                        .background(OmnilogTheme.colors.appInk),
-                )
-            }
-        }
-    }
-}
-
 private fun com.nilpo.contenttracker.core.model.ObjectivePace.daysRemainingLabel(): String = when {
     daysRemaining <= 0 -> "Últim dia"
     daysRemaining == 1 -> "1 dia restant"
@@ -319,17 +256,9 @@ private fun com.nilpo.contenttracker.core.model.ObjectivePace.deltaText(): Strin
 @Composable
 @ReadOnlyComposable
 private fun ObjectiveStatus.paceColor(muted: Color): Color = when (this) {
-    ObjectiveStatus.Behind -> OmnilogTheme.accents.Dashboard
+    ObjectiveStatus.Behind -> OmnilogTheme.accents.Paused
     ObjectiveStatus.Ahead -> OmnilogTheme.accents.Completed
     else -> muted
-}
-
-@Composable
-@ReadOnlyComposable
-private fun com.nilpo.contenttracker.core.model.ObjectivePace.hintColor(muted: Color): Color = when (status) {
-    ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed
-    ObjectiveStatus.Missed -> muted
-    else -> status.paceColor(muted)
 }
 
 @Composable
@@ -337,14 +266,9 @@ private fun com.nilpo.contenttracker.core.model.ObjectivePace.hintColor(muted: C
 internal fun ObjectiveStatus.chipStyle(muted: Color): Triple<String, Color, Boolean> = when (this) {
     ObjectiveStatus.Completed -> Triple("Completat", OmnilogTheme.accents.Completed, true)
     ObjectiveStatus.Ahead -> Triple("Avançat", OmnilogTheme.accents.Completed, false)
-    ObjectiveStatus.OnTrack -> Triple("Al dia", OmnilogTheme.accents.Completed, false)
-    ObjectiveStatus.Behind -> Triple("Endarrerit", OmnilogTheme.accents.Dashboard, false)
-    ObjectiveStatus.Missed -> Triple("No assolit", muted, false)
-}
-
-private fun Objective.cardSubtitle(): String {
-    val mediaLabel = objectiveMediaLabelFor(mediaType)
-    return "$mediaLabel · ${rangeLabel()}"
+    ObjectiveStatus.OnTrack -> Triple("Al dia", OmnilogTheme.accents.InProgress, false)
+    ObjectiveStatus.Behind -> Triple("Endarrerit", OmnilogTheme.accents.Paused, false)
+    ObjectiveStatus.Missed -> Triple("No assolit", OmnilogTheme.accents.Dropped, false)
 }
 
 private fun Objective.rangeLabel(): String {

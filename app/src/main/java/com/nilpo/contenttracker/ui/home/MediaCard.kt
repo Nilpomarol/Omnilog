@@ -202,6 +202,8 @@ fun MediaCard(
 fun MediaGridCard(
     trackedMedia: TrackedMedia,
     onClick: () -> Unit,
+    /** Off where every tile shares one status, such as a row of finished titles. */
+    showStatus: Boolean = true,
 ) {
     val item = trackedMedia.item
     val session = trackedMedia.currentSession
@@ -226,7 +228,7 @@ fun MediaGridCard(
                 modifier = Modifier.fillMaxSize(),
                 shape = shape,
             )
-            if (session != null) {
+            if (session != null && showStatus) {
                 CardStateIconBadge(
                     status = session.status,
                     modifier = Modifier
@@ -331,9 +333,14 @@ internal fun CardStars(halfPoints: Int, accent: Color) {
 /** The status on a chip tinted with its colour, text in ink so it reads on either theme. */
 @Composable
 private fun CardStatusChip(status: TrackingStatus) {
-    val color = status.stateColor
+    StatusChip(label = status.label(), color = status.stateColor)
+}
+
+/** The list's status chip for any label and colour, so other lists can speak the same way. */
+@Composable
+internal fun StatusChip(label: String, color: Color) {
     Text(
-        text = status.label(),
+        text = label,
         modifier = Modifier
             .background(color.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
             .padding(horizontal = 11.dp, vertical = 6.dp),

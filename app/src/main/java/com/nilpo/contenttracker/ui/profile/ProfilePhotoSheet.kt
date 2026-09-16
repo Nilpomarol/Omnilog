@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -26,7 +28,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +42,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -46,8 +53,9 @@ import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 
 // Three rows of four: enough to browse without the sheet becoming a scrolling wall.
 private const val VisibleCovers = 12
@@ -70,6 +78,10 @@ fun ProfilePhotoSheet(
     isLoading: Boolean,
     errorMessage: String?,
     hasPhoto: Boolean,
+    followsLastCompleted: Boolean,
+    /** The cover the picture would follow; null when nothing finished has one. */
+    lastCompletedCoverUrl: String?,
+    onFollowLastCompletedChange: (Boolean) -> Unit,
     onCoverSelected: (String) -> Unit,
     onImageUrlChange: (String) -> Unit,
     onDownloadFromUrl: () -> Unit,
@@ -104,15 +116,68 @@ fun ProfilePhotoSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "Imatge de perfil",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Foto de perfil",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFamily = SerifFontFamily,
+                        fontWeight = FontWeight.Normal,
+                    ),
+                    color = OmnilogTheme.colors.appInk,
+                )
+                Text(
+                    text = "Tria una portada de la biblioteca, una imatge de la galeria o una URL.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
+
+            if (lastCompletedCoverUrl != null) {
+                // The one choice that keeps changing on its own, so it leads: a switch rather than a
+                // cover to tap, with the picture it would show right now beside it.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onFollowLastCompletedChange(!followsLastCompleted) }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MetadataCoverImage(
+                        coverUrl = lastCompletedCoverUrl,
+                        modifier = Modifier.size(width = 40.dp, height = 60.dp),
+                        shape = RoundedCornerShape(4.dp),
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "L'últim títol acabat",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogTheme.colors.appInk,
+                        )
+                        Text(
+                            text = "Canvia sola cada cop que acabes alguna cosa",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OmnilogTheme.colors.appMuted,
+                        )
+                    }
+                    Switch(
+                        checked = followsLastCompleted,
+                        onCheckedChange = onFollowLastCompletedChange,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = OmnilogTheme.accents.Dashboard,
+                            checkedThumbColor = OmnilogTheme.colors.appBackground,
+                        ),
+                    )
+                }
+                HorizontalDivider(color = OmnilogTheme.colors.appLine)
+            }
 
             if (coverItems.isNotEmpty()) {
                 // The whole library is reachable, but only a slice is drawn: hundreds of covers in
@@ -153,6 +218,8 @@ fun ProfilePhotoSheet(
                         }
                     },
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = omnilogModalTextFieldColors(OmnilogTheme.accents.Dashboard),
                 )
 
                 if (matches.isEmpty()) {
@@ -180,7 +247,7 @@ fun ProfilePhotoSheet(
                                     modifier = Modifier
                                         .aspectRatio(2f / 3f)
                                         .clickable { onCoverSelected(coverUrl) },
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(6.dp),
                                 )
                             }
                         }
@@ -205,12 +272,19 @@ fun ProfilePhotoSheet(
             ) {
                 OutlinedButton(
                     onClick = onChooseFromGallery,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    Text("Tria de la galeria")
+                    Text("Tria de la galeria", fontWeight = FontWeight.Bold)
                 }
-                if (hasPhoto) {
-                    OutlinedButton(onClick = onRemovePhoto) {
+                if (hasPhoto || followsLastCompleted) {
+                    OutlinedButton(
+                        onClick = onRemovePhoto,
+                        modifier = Modifier.height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
                             contentDescription = "Treu la imatge",
@@ -228,14 +302,17 @@ fun ProfilePhotoSheet(
                 placeholder = { Text("https://exemple.com/foto.jpg") },
                 singleLine = true,
                 enabled = !isLoading,
+                shape = RoundedCornerShape(12.dp),
+                colors = omnilogModalTextFieldColors(OmnilogTheme.accents.Dashboard),
+                trailingIcon = {
+                    TextButton(
+                        onClick = onDownloadFromUrl,
+                        enabled = imageUrl.isNotBlank() && !isLoading,
+                    ) {
+                        Text(if (isLoading) "…" else "Usa", fontWeight = FontWeight.Bold)
+                    }
+                },
             )
-            OutlinedButton(
-                onClick = onDownloadFromUrl,
-                enabled = imageUrl.isNotBlank() && !isLoading,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (isLoading) "Descarregant…" else "Fes servir aquesta URL")
-            }
 
             errorMessage?.let { error ->
                 Surface(

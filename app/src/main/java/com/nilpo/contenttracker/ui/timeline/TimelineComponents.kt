@@ -570,7 +570,7 @@ private fun MilestoneRating(ratingHalfPoints: Int, accent: Color) {
 }
 
 /**
- * The app's status-pill shape, borrowed from `ObjectiveProgressCard`'s `StatusChip`.
+ * The app's status-pill shape.
  *
  * Two of these sit side by side on a milestone: what kind of thing it is, and what happened to it.
  * They were one pill for a while, which meant a single colour had to stand for both the media type
@@ -631,7 +631,7 @@ private fun TimelineEntry.stateAccent(): Color = when (kind) {
 
 /**
  * Films and series get their own glyphs rather than the navigation bar's shared film strip; see
- * the note on `ObjectiveProgressCard.navIconRes`.
+ * the note on `navIconRes` in ObjectiveProgressCard.kt.
  */
 @DrawableRes
 private fun MediaType.typeIconRes(): Int = when (this) {

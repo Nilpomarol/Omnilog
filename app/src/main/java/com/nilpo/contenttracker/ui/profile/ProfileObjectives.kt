@@ -3,12 +3,9 @@ package com.nilpo.contenttracker.ui.profile
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -20,27 +17,25 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,23 +45,27 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.ObjectiveProgress
-import com.nilpo.contenttracker.ui.common.ObjectiveProgressCard
+import com.nilpo.contenttracker.ui.common.ObjectiveProgressRow
 import com.nilpo.contenttracker.ui.common.ObjectiveUnitOption
 import com.nilpo.contenttracker.ui.common.formatObjectiveNumber
+import com.nilpo.contenttracker.ui.common.objectiveAccent
 import com.nilpo.contenttracker.ui.common.objectiveAmountStep
 import com.nilpo.contenttracker.ui.common.objectiveCountLabel
 import com.nilpo.contenttracker.ui.common.objectiveCountOptions
@@ -74,12 +73,17 @@ import com.nilpo.contenttracker.ui.common.objectiveDisplayTitle
 import com.nilpo.contenttracker.ui.common.objectiveFormatChipLabel
 import com.nilpo.contenttracker.ui.common.objectiveFormatOptions
 import com.nilpo.contenttracker.ui.common.objectiveOptionForFormat
-import com.nilpo.contenttracker.ui.common.objectivePresentation
 import com.nilpo.contenttracker.ui.common.objectiveQuickPicks
+import com.nilpo.contenttracker.ui.common.objectiveSentenceTitle
 import com.nilpo.contenttracker.ui.common.objectiveSentenceUnitWords
 import com.nilpo.contenttracker.ui.common.objectiveVerb
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
+import com.nilpo.contenttracker.ui.detail.DetailDisclosureRow
+import com.nilpo.contenttracker.ui.detail.DetailGutter
+import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
+import com.nilpo.contenttracker.ui.home.EditorialSheet
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -87,18 +91,24 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+/**
+ * The profile's objectives as an editorial section: a serif heading with the one action that adds to
+ * it, the objectives still running as list rows, and the finished periods folded away below. Every
+ * row opens its editor; deleting lives there, behind its own confirmation.
+ */
 @Composable
 fun ProfileObjectivesSection(
     objectives: List<ObjectiveProgress>,
     onSave: (Objective) -> Unit,
     onDelete: (Long) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val preferences = remember(context) { ProfilePreferences.from(context) }
     val today = remember { LocalDate.now() }
     var editorObjective by remember { mutableStateOf<Objective?>(null) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
-    var pastExpanded by rememberSaveable { mutableStateOf(false) }
+    var pendingDeletion by remember { mutableStateOf<Objective?>(null) }
 
     val allObjectives = objectives.filter { it.objective.archivedAtEpochMillis == null }
     val currentObjectives = allObjectives.filter { !it.isExpired(today) }
@@ -119,7 +129,7 @@ fun ProfileObjectivesSection(
         if (newlyCompletedIds.isNotEmpty()) {
             celebrationNames = allObjectives
                 .filter { it.objective.id.toString() in newlyCompletedIds }
-                .map { objectivePresentation(it.objective).title }
+                .map { objectiveSentenceTitle(it.objective) }
             preferences.edit()
                 .putStringSet(
                     ProfilePreferences.CELEBRATED_OBJECTIVES_KEY,
@@ -129,187 +139,193 @@ fun ProfileObjectivesSection(
         }
     }
 
-    val editObjective: (ObjectiveProgress) -> Unit = { progress ->
-        editorObjective = progress.objective
+    val openEditor: (Objective?) -> Unit = { objective ->
+        editorObjective = objective
         showEditor = true
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = DetailGutter),
+            color = OmnilogTheme.colors.appLine,
+        )
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = DetailGutter, end = 12.dp, top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "Objectius personals",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
-            )
-            TextButton(onClick = { editorObjective = null; showEditor = true }) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Text("Afegir")
+            DetailSectionTitle(text = "Objectius", modifier = Modifier.weight(1f))
+            TextButton(onClick = { openEditor(null) }) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = OmnilogTheme.accents.Dashboard,
+                )
+                Text(
+                    text = "Nou objectiu",
+                    modifier = Modifier.padding(start = 6.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = OmnilogTheme.accents.Dashboard,
+                )
             }
         }
 
         AnimatedVisibility(visible = celebrationNames.isNotEmpty()) {
-            ObjectiveCelebrationBanner(
+            ObjectiveCelebration(
                 names = celebrationNames,
                 onDismiss = { celebrationNames = emptyList() },
             )
         }
 
-        if (allObjectives.isEmpty()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = OmnilogTheme.colors.appPanel,
-                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-            ) {
-                Text(
-                    text = "Defineix un objectiu per fer seguiment del que vols aconseguir.",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-        } else {
-            currentObjectives.forEach { progress ->
-                ObjectiveProgressCard(
-                    progress = progress,
-                    onEdit = { editObjective(progress) },
-                    onDelete = { onDelete(progress.objective.id) },
-                )
-            }
+        if (currentObjectives.isEmpty()) {
+            Text(
+                text = if (pastObjectives.isEmpty()) {
+                    "Posa't una fita — llibres per llegir, sèries per veure, hores de joc — i en seguiràs el ritme aquí."
+                } else {
+                    "Cap objectiu en curs."
+                },
+                modifier = Modifier.padding(start = DetailGutter, end = DetailGutter, top = 4.dp, bottom = 16.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmnilogTheme.colors.appMuted,
+            )
+        }
+        ObjectiveRows(
+            objectives = currentObjectives,
+            today = today,
+            onClick = { openEditor(it.objective) },
+        )
 
-            if (pastObjectives.isNotEmpty()) {
-                PastObjectivesHeader(
-                    count = pastObjectives.size,
-                    expanded = pastExpanded,
-                    onToggle = { pastExpanded = !pastExpanded },
+        if (pastObjectives.isNotEmpty()) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = DetailGutter),
+                color = OmnilogTheme.colors.appLine,
+            )
+            DetailDisclosureRow(
+                icon = rememberVectorPainter(Icons.Filled.DateRange),
+                title = "Passats",
+                summary = "${pastObjectives.count { it.isComplete }} de ${pastObjectives.size} assolits",
+            ) {
+                ObjectiveRows(
+                    objectives = pastObjectives,
+                    today = today,
+                    onClick = { openEditor(it.objective) },
                 )
-                AnimatedVisibility(visible = pastExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        pastObjectives.forEach { progress ->
-                            ObjectiveProgressCard(
-                                progress = progress,
-                                onEdit = { editObjective(progress) },
-                                onDelete = { onDelete(progress.objective.id) },
-                            )
-                        }
-                    }
-                }
             }
         }
     }
 
     if (showEditor) {
-        ObjectiveEditorDialog(
+        ObjectiveEditorSheet(
             initial = editorObjective,
             onDismiss = { showEditor = false },
             onSave = {
                 onSave(it)
                 showEditor = false
             },
+            onDelete = {
+                pendingDeletion = editorObjective
+                showEditor = false
+            },
+        )
+    }
+
+    pendingDeletion?.let { objective ->
+        EditorialSheet(
+            title = "Eliminar l'objectiu",
+            message = "«${objectiveSentenceTitle(objective)}» s'esborrarà del perfil. No es pot desfer.",
+            confirmText = "Elimina",
+            destructive = true,
+            onDismiss = { pendingDeletion = null },
+            onConfirm = {
+                onDelete(objective.id)
+                pendingDeletion = null
+            },
         )
     }
 }
 
+/** The objectives as list rows, spaced like the library's. */
 @Composable
-private fun ObjectiveCelebrationBanner(
-    names: List<String>,
-    onDismiss: () -> Unit,
+private fun ObjectiveRows(
+    objectives: List<ObjectiveProgress>,
+    today: LocalDate,
+    onClick: (ObjectiveProgress) -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.accents.Completed.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, OmnilogTheme.accents.Completed.copy(alpha = 0.5f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = null,
-                tint = OmnilogTheme.accents.Completed,
-                modifier = Modifier.size(22.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (names.size == 1) "Objectiu assolit!" else "Objectius assolits!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
-                )
-                Text(
-                    text = names.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Filled.Close, contentDescription = "Tanca", tint = OmnilogTheme.colors.appMuted)
-            }
-        }
+    objectives.forEach { progress ->
+        ObjectiveProgressRow(
+            progress = progress,
+            today = today,
+            onClick = { onClick(progress) },
+            modifier = Modifier.padding(start = DetailGutter, end = DetailGutter, top = 12.dp),
+        )
     }
 }
 
+/** A reached objective, announced once in the completed colour and dismissed for good. */
 @Composable
-private fun PastObjectivesHeader(
-    count: Int,
-    expanded: Boolean,
-    onToggle: () -> Unit,
+private fun ObjectiveCelebration(
+    names: List<String>,
+    onDismiss: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(start = DetailGutter, end = 12.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "Objectius passats · $count",
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = OmnilogTheme.colors.appMuted,
-        )
         Icon(
-            imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-            contentDescription = if (expanded) "Amaga" else "Mostra",
-            tint = OmnilogTheme.colors.appMuted,
+            imageVector = Icons.Filled.Check,
+            contentDescription = null,
+            tint = OmnilogTheme.accents.Completed,
+            modifier = Modifier.size(26.dp),
         )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (names.size == 1) "Objectiu assolit" else "Objectius assolits",
+                style = MaterialTheme.typography.bodyLarge.copy(fontFamily = SerifFontFamily),
+                color = OmnilogTheme.accents.Completed,
+            )
+            Text(
+                text = names.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
+            )
+        }
+        IconButton(onClick = onDismiss) {
+            Icon(Icons.Filled.Close, contentDescription = "Tanca", tint = OmnilogTheme.colors.appMuted)
+        }
     }
 }
 
 /** Which fragment of the sentence the docked picker below it is currently editing. */
 private enum class EditorSlot { Unit, Amount, Period }
 
-/** Two rows of sentence chips. A floor, not a cap — large font scales still get the room they need. */
-private val SentenceHeight = 78.dp
+/** Two rows of serif sentence. A floor, not a cap — large font scales still get the room they need. */
+private val SentenceHeight = 96.dp
 
 /**
- * The objective editor as a sentence: `Vull llegir 3.000 pàgines durant aquest any`.
+ * The objective editor as a sentence: `Vull llegir 3.000 pàgines durant el 2026`.
  *
  * Each underlined fragment opens its options in a panel docked below the sentence rather than in a
  * popup. The sentence never moves while you edit one part of it, and the panel is free to be as
- * tall as the option list needs — the old dropdowns had to position a [Popup] against a measured
+ * tall as the option list needs — the old dropdowns had to position a popup against a measured
  * trigger, which clipped badly once the system font scale grew (UX-09).
  *
  * There is no separate metric field: [ObjectiveUnitOption] fuses "what to count" with "which
- * format", so the invalid combination the old form warned about cannot be expressed here.
+ * format", so the invalid combination the old form warned about cannot be expressed here. The sheet
+ * takes the colour of the format being counted, so the choice shows before it is read.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ObjectiveEditorDialog(
+private fun ObjectiveEditorSheet(
     initial: Objective?,
     onDismiss: () -> Unit,
     onSave: (Objective) -> Unit,
+    onDelete: () -> Unit,
 ) {
     val today = LocalDate.now()
     var option by remember(initial) {
@@ -336,6 +352,7 @@ private fun ObjectiveEditorDialog(
     val range = if (period == PeriodPreset.Custom) customStart to customEnd else period.range(today)
     val startDate = range.first
     val endDate = maxOf(range.second, range.first)
+    val accent = option.mediaType.objectiveAccent()
 
     val candidate = Objective(
         id = initial?.id ?: 0,
@@ -349,96 +366,97 @@ private fun ObjectiveEditorDialog(
         createdAtEpochMillis = initial?.createdAtEpochMillis ?: System.currentTimeMillis(),
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = OmnilogTheme.colors.appPanel,
+    EditorialSheet(
+        title = if (initial == null) "Nou objectiu" else "Edita l'objectiu",
+        confirmText = if (initial == null) "Crea l'objectiu" else "Desa",
+        confirmEnabled = canSave,
+        accent = accent,
+        // The sentence is the headline here, so the sheet names itself in a small label above it.
+        titleAsLabel = true,
+        onDismiss = onDismiss,
+        onConfirm = { if (canSave) onSave(candidate) },
     ) {
-        Column(
+        // Held to two rows' worth: "episodis d'anime" wraps where "llibres" does not, and
+        // letting the sentence grow and shrink shifts everything below it as you change units.
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .heightIn(min = SentenceHeight),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = if (initial == null) "Nou objectiu" else "Editar objectiu",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
+            val centered = Modifier.align(Alignment.CenterVertically)
+            SentenceWord("Vull ${objectiveVerb(option.mediaType)}", centered)
+            SentenceChip(
+                text = targetValue?.let { formatObjectiveNumber(it) } ?: "quants?",
+                accent = accent,
+                isPlaceholder = targetValue == null,
+                isActive = activeSlot == EditorSlot.Amount,
+                onClick = { activeSlot = activeSlot.toggledTo(EditorSlot.Amount) },
+                modifier = centered,
             )
+            SentenceChip(
+                text = objectiveSentenceUnitWords(option, targetValue ?: 2),
+                accent = accent,
+                isActive = activeSlot == EditorSlot.Unit,
+                onClick = { activeSlot = activeSlot.toggledTo(EditorSlot.Unit) },
+                modifier = centered,
+            )
+            SentenceWord("durant", centered)
+            SentenceChip(
+                text = period.sentenceLabel(today, customStart, customEnd),
+                accent = accent,
+                isActive = activeSlot == EditorSlot.Period,
+                onClick = { activeSlot = activeSlot.toggledTo(EditorSlot.Period) },
+                modifier = centered,
+            )
+        }
 
-            // Held to two rows' worth: "episodis d'anime" wraps where "llibres" does not, and
-            // letting the sentence grow and shrink shifts everything below it as you change units.
-            FlowRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = SentenceHeight),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                val centered = Modifier.align(Alignment.CenterVertically)
-                SentenceWord("Vull ${objectiveVerb(option.mediaType)}", centered)
-                SentenceChip(
-                    text = targetValue?.let { formatObjectiveNumber(it) } ?: "quants?",
-                    isPlaceholder = targetValue == null,
-                    isActive = activeSlot == EditorSlot.Amount,
-                    onClick = { activeSlot = activeSlot.toggledTo(EditorSlot.Amount) },
-                    modifier = centered,
-                )
-                SentenceChip(
-                    text = objectiveSentenceUnitWords(option, targetValue ?: 2),
-                    isActive = activeSlot == EditorSlot.Unit,
-                    onClick = { activeSlot = activeSlot.toggledTo(EditorSlot.Unit) },
-                    modifier = centered,
-                )
-                SentenceWord("durant", centered)
-                SentenceChip(
-                    text = period.sentenceLabel(today, customStart, customEnd),
-                    isActive = activeSlot == EditorSlot.Period,
-                    onClick = { activeSlot = activeSlot.toggledTo(EditorSlot.Period) },
-                    modifier = centered,
-                )
-            }
-
+        EditorPanel {
             when (activeSlot) {
-                EditorSlot.Unit -> EditorPanel {
-                    // Selecting never moves the open panel: the sentence updates in place and you
-                    // close or switch slots yourself. Advancing automatically stole the panel away
-                    // mid-thought, right when you might want to change the choice you just made.
-                    UnitPickerPanel(selected = option, onSelected = { option = it })
-                }
-                EditorSlot.Amount -> EditorPanel {
-                    AmountPanel(
-                        option = option,
-                        targetText = targetText,
-                        onTargetChange = { targetText = it },
-                    )
-                }
-                EditorSlot.Period -> EditorPanel {
-                    PeriodPanel(
-                        selected = period,
-                        customStart = customStart,
-                        customEnd = customEnd,
-                        onSelected = { period = it },
-                        onPickStart = { pickerTarget = DatePickerTarget.Start },
-                        onPickEnd = { pickerTarget = DatePickerTarget.End },
-                    )
-                }
-                null -> Unit
+                // Selecting never moves the open panel: the sentence updates in place and you
+                // close or switch slots yourself. Advancing automatically stole the panel away
+                // mid-thought, right when you might want to change the choice you just made.
+                EditorSlot.Unit -> UnitPickerPanel(selected = option, accent = accent, onSelected = { option = it })
+                EditorSlot.Amount -> AmountPanel(
+                    option = option,
+                    accent = accent,
+                    targetText = targetText,
+                    onTargetChange = { targetText = it },
+                )
+                EditorSlot.Period -> PeriodPanel(
+                    selected = period,
+                    accent = accent,
+                    customStart = customStart,
+                    customEnd = customEnd,
+                    onSelected = { period = it },
+                    onPickStart = { pickerTarget = DatePickerTarget.Start },
+                    onPickEnd = { pickerTarget = DatePickerTarget.End },
+                )
+                null -> Text(
+                    text = "Toca una part subratllada de la frase per canviar-la.",
+                    modifier = Modifier.padding(top = 6.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmnilogTheme.colors.appMuted,
+                )
             }
+        }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onDismiss) { Text("Cancel·la") }
-                Button(
-                    enabled = canSave,
-                    onClick = { if (canSave) onSave(candidate) },
-                ) { Text("Desa") }
+        if (initial != null) {
+            TextButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Text(
+                    text = "Elimina l'objectiu",
+                    modifier = Modifier.padding(start = 6.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
@@ -468,83 +486,77 @@ private fun ObjectiveEditorDialog(
 /** Tapping the slot that is already open closes it, so the sentence can be read unobstructed. */
 private fun EditorSlot?.toggledTo(slot: EditorSlot): EditorSlot? = if (this == slot) null else slot
 
+/** The sentence's type: the serif, set large, since it is the sheet's headline. */
+private val SentenceStyle
+    @Composable get() = MaterialTheme.typography.headlineSmall.copy(
+        fontFamily = SerifFontFamily,
+        fontWeight = FontWeight.Normal,
+    )
+
 /** Plain connective text between the tappable fragments. */
 @Composable
 private fun SentenceWord(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         modifier = modifier,
-        style = MaterialTheme.typography.bodyLarge,
-        color = OmnilogTheme.colors.appMuted,
+        style = SentenceStyle,
+        color = OmnilogTheme.colors.appInk,
     )
 }
 
 /**
- * One editable fragment of the sentence. The dashed underline marks it as tappable without the
- * chrome of a form field; the active fragment inverts so it stays identifiable while its panel is
- * open. Vertical padding rather than a fixed height keeps the text intact at large font scales.
+ * One editable fragment of the sentence: the words in the accent over an accent underline, marked as
+ * tappable without the chrome of a form field. The open fragment takes a tint so it stays identifiable
+ * while its panel shows. Vertical padding rather than a fixed height keeps the text intact at large
+ * font scales.
  */
 @Composable
 private fun SentenceChip(
     text: String,
+    accent: Color,
     isActive: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isPlaceholder: Boolean = false,
 ) {
-    val background = when {
-        isActive -> OmnilogTheme.accents.Dashboard
-        isPlaceholder -> OmnilogTheme.colors.appBackground
-        else -> OmnilogTheme.accents.Dashboard.copy(alpha = 0.14f)
-    }
-    val contentColor = when {
-        isActive -> OmnilogTheme.colors.appBackground
-        isPlaceholder -> OmnilogTheme.colors.appMuted
-        else -> OmnilogTheme.accents.Dashboard
-    }
+    val contentColor = if (isPlaceholder && !isActive) OmnilogTheme.colors.appMuted else accent
+    val underline = contentColor.copy(alpha = if (isActive) 1f else 0.5f)
+    val shape = RoundedCornerShape(6.dp)
     // The underline is drawn behind the text rather than stacked under it in a Column: a
     // fillMaxWidth child would expand to the row's full width and each chip would become its own
     // line instead of flowing inside the sentence.
-    val underline = if (isActive) Color.Transparent else contentColor.copy(alpha = 0.55f)
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = background,
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier
-                .drawBehind {
-                    val stroke = 2.dp.toPx()
-                    drawRect(
-                        color = underline,
-                        topLeft = Offset(0f, size.height - stroke),
-                        size = Size(size.width, stroke),
-                    )
-                }
-                .padding(horizontal = 9.dp, vertical = 3.dp),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = contentColor,
-        )
-    }
+    Text(
+        text = text,
+        modifier = modifier
+            .clip(shape)
+            .background(if (isActive) accent.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .drawBehind {
+                val stroke = 2.dp.toPx()
+                drawRect(
+                    color = underline,
+                    topLeft = Offset(0f, size.height - stroke),
+                    size = Size(size.width, stroke),
+                )
+            }
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        style = SentenceStyle,
+        color = contentColor,
+    )
 }
 
 /**
- * Height every slot panel is held to, so switching between format, amount, and period does not
- * resize the sheet under the reader's thumb. Sized to the tallest panel — the period picker with a
- * custom range, whose two date fields sit below its presets. A floor rather than a cap, so nothing
- * clips when the system font scale grows.
+ * Height the slot panel is held to, so switching between format, amount, and period does not resize
+ * the sheet under the reader's thumb. Sized to the tallest panel — the period picker with a custom
+ * range, whose two date fields sit below its presets. A floor rather than a cap, so nothing clips when
+ * the system font scale grows.
  */
-private val EditorPanelHeight = 150.dp
+private val EditorPanelHeight = 156.dp
 
 /**
- * The region the three slot panels share, docked directly under the sentence.
- *
- * Deliberately has no surface, border, or inset of its own: the chips already carry their own
- * outlines, so a box around them only added a second frame inside the sheet's. Without it the
- * controls read as part of the same form as the sentence, and the height reserved by
- * [EditorPanelHeight] is simply empty sheet rather than a visibly half-filled panel.
+ * The region the three slot panels share, docked under the sentence's hairline. No surface of its
+ * own: the choices already carry their outlines, and a box around them would be a frame inside the
+ * sheet's.
  */
 @Composable
 private fun EditorPanel(content: @Composable ColumnScope.() -> Unit) {
@@ -558,16 +570,16 @@ private fun EditorPanel(content: @Composable ColumnScope.() -> Unit) {
 }
 
 /**
- * The unit choice as two short chip rows — format, then how to count it.
+ * The unit choice as two short rows — format, then how to count it.
  *
  * A single flat list of all eleven combinations ran about as tall as the whole sheet and pushed the
- * live preview off screen. Splitting the decision also retires the group headers that used to
+ * sentence off screen. Splitting the decision also retires the group headers that used to
  * disambiguate `episodis`: series and anime episodes can no longer appear in the same row.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.UnitPickerPanel(
     selected: ObjectiveUnitOption,
+    accent: Color,
     onSelected: (ObjectiveUnitOption) -> Unit,
 ) {
     PanelLabel("Format")
@@ -575,6 +587,7 @@ private fun ColumnScope.UnitPickerPanel(
         objectiveFormatOptions().forEach { format ->
             ChoiceChip(
                 label = objectiveFormatChipLabel(format),
+                accent = accent,
                 isSelected = format == selected.mediaType,
                 onClick = { onSelected(objectiveOptionForFormat(format, selected.metric)) },
             )
@@ -582,7 +595,7 @@ private fun ColumnScope.UnitPickerPanel(
     }
 
     val countOptions = objectiveCountOptions(selected.mediaType)
-    // "Tot" can only be counted one way, so a second row of one chip would be a decision that
+    // "Tot" can only be counted one way, so a second row of one choice would be a decision that
     // isn't one. The sentence already shows what was chosen.
     if (countOptions.size > 1) {
         PanelLabel("Què compto")
@@ -590,6 +603,7 @@ private fun ColumnScope.UnitPickerPanel(
             countOptions.forEach { countOption ->
                 ChoiceChip(
                     label = objectiveCountLabel(countOption),
+                    accent = accent,
                     isSelected = countOption == selected,
                     onClick = { onSelected(countOption) },
                 )
@@ -598,14 +612,15 @@ private fun ColumnScope.UnitPickerPanel(
     }
 }
 
-// No horizontal inset anywhere below: the controls line up with the sentence above them, which is
-// what makes the panel read as part of the form rather than a thing sitting inside it.
+/** The small spaced capitals the editorial headers use for their overline. */
 @Composable
 private fun PanelLabel(text: String) {
     Text(
-        text = text,
-        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+        text = text.uppercase(),
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
         style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
         color = OmnilogTheme.colors.appMuted,
     )
 }
@@ -617,46 +632,43 @@ private fun ChipRow(content: @Composable FlowRowScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )
 }
 
-/** The selectable pill shared by all three panels, so format, amount, and period stay consistent. */
+/** The selectable tile shared by all three panels, tinted like the collection page's position tiles. */
 @Composable
 private fun ChoiceChip(
     label: String,
+    accent: Color,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        color = if (isSelected) OmnilogTheme.accents.Dashboard.copy(alpha = 0.16f) else Color.Transparent,
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine,
-        ),
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appMuted,
-        )
-    }
+    val shape = RoundedCornerShape(10.dp)
+    Text(
+        text = label,
+        modifier = Modifier
+            .clip(shape)
+            .background(if (isSelected) accent.copy(alpha = 0.12f) else Color.Transparent)
+            .border(1.dp, if (isSelected) accent.copy(alpha = 0.5f) else OmnilogTheme.colors.appLine, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+        color = if (isSelected) accent else OmnilogTheme.colors.appInk,
+    )
 }
 
 /**
  * Target entry. The step and the quick picks both follow the unit — nudging a 5.000-page goal one
  * page at a time would be useless, and `12 · 24 · 40 · 52` are book counts, not page counts.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.AmountPanel(
     option: ObjectiveUnitOption,
+    accent: Color,
     targetText: String,
     onTargetChange: (String) -> Unit,
 ) {
@@ -664,12 +676,15 @@ private fun ColumnScope.AmountPanel(
     val current = targetText.toIntOrNull() ?: 0
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StepButton(
             glyph = "−",
+            accent = accent,
             description = "Resta $step",
             enabled = current > step,
             onClick = { onTargetChange((current - step).coerceAtLeast(step).toString()) },
@@ -681,9 +696,13 @@ private fun ColumnScope.AmountPanel(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             placeholder = { Text("0") },
+            textStyle = SentenceStyle,
+            shape = RoundedCornerShape(12.dp),
+            colors = omnilogModalTextFieldColors(accent),
         )
         StepButton(
             glyph = "+",
+            accent = accent,
             description = "Suma $step",
             enabled = true,
             onClick = { onTargetChange((current + step).toString()) },
@@ -693,6 +712,7 @@ private fun ColumnScope.AmountPanel(
         objectiveQuickPicks(option.unit).forEach { value ->
             ChoiceChip(
                 label = formatObjectiveNumber(value),
+                accent = accent,
                 isSelected = value == current,
                 onClick = { onTargetChange(value.toString()) },
             )
@@ -704,21 +724,21 @@ private fun ColumnScope.AmountPanel(
 @Composable
 private fun StepButton(
     glyph: String,
+    accent: Color,
     description: String,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val tint = if (enabled) OmnilogTheme.accents.Dashboard else OmnilogTheme.colors.appLine
+    val tint = if (enabled) accent else OmnilogTheme.colors.appLine
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         color = Color.Transparent,
         border = BorderStroke(1.dp, tint),
     ) {
-        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(52.dp)) {
             Text(
                 text = glyph,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
                 color = tint,
                 modifier = Modifier.semantics { contentDescription = description },
             )
@@ -727,20 +747,22 @@ private fun StepButton(
 }
 
 /** Period presets, with the custom range's two date fields revealed only when it is selected. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.PeriodPanel(
     selected: PeriodPreset,
+    accent: Color,
     customStart: LocalDate,
     customEnd: LocalDate,
     onSelected: (PeriodPreset) -> Unit,
     onPickStart: () -> Unit,
     onPickEnd: () -> Unit,
 ) {
+    PanelLabel("Període")
     ChipRow {
         PeriodPreset.entries.forEach { preset ->
             ChoiceChip(
                 label = preset.label(),
+                accent = accent,
                 isSelected = preset == selected,
                 onClick = { onSelected(preset) },
             )
@@ -755,12 +777,14 @@ private fun ColumnScope.PeriodPanel(
         ) {
             DateField(
                 label = "Inici",
+                accent = accent,
                 date = customStart,
                 onClick = onPickStart,
                 modifier = Modifier.weight(1f),
             )
             DateField(
                 label = "Fi",
+                accent = accent,
                 date = customEnd,
                 onClick = onPickEnd,
                 modifier = Modifier.weight(1f),
@@ -803,7 +827,7 @@ private fun PeriodPreset.sentenceLabel(
 }
 
 // Declared here rather than beside the other formatters below: top-level property initialisers run
-// in file order, and this one is read by sentenceLabel above.
+// in file order, and this one is read by the formatters that follow.
 private val catalanLocale = Locale("ca")
 
 private val sentenceDayMonth: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", catalanLocale)
@@ -837,32 +861,33 @@ private fun detectPeriodPreset(
 @Composable
 private fun DateField(
     label: String,
+    accent: Color,
     date: LocalDate,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        color = OmnilogTheme.colors.appBackground,
+        shape = RoundedCornerShape(12.dp),
+        color = Color.Transparent,
         border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Filled.DateRange,
+                imageVector = Icons.Filled.DateRange,
                 contentDescription = null,
-                tint = OmnilogTheme.accents.Dashboard,
+                tint = accent,
                 modifier = Modifier.size(16.dp),
             )
             Column {
                 Text(label, style = MaterialTheme.typography.labelSmall, color = OmnilogTheme.colors.appMuted)
                 Text(
-                    date.format(objectiveDateFormatter),
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = date.format(objectiveDateFormatter),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontFamily = SerifFontFamily),
                     color = OmnilogTheme.colors.appInk,
                 )
             }

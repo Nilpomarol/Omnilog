@@ -5,8 +5,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,27 +15,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,23 +41,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.nilpo.contenttracker.R
-import com.nilpo.contenttracker.ui.ProfileHeaderActions
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.Objective
-import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
 import com.nilpo.contenttracker.core.model.TrackedMedia
+import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
 import com.nilpo.contenttracker.core.stats.StatsCalculator
 import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
-import com.nilpo.contenttracker.ui.theme.OmnilogColors
+import com.nilpo.contenttracker.core.stats.completionDates
+import com.nilpo.contenttracker.ui.ProfileHeaderActions
+import com.nilpo.contenttracker.ui.common.omnilogModalTextFieldColors
+import com.nilpo.contenttracker.ui.detail.BarPaddingReclaim
+import com.nilpo.contenttracker.ui.detail.RelatedMediaSection
+import com.nilpo.contenttracker.ui.home.EditorialSheet
+import com.nilpo.contenttracker.ui.home.TopBarOpacityEffect
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -75,7 +71,18 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.LocalDate
 
+/** How many of the latest finished titles the profile shows as covers. */
+private const val RecentCompletedCount = 12
+
+/**
+ * The profile as an editorial page: who you are in the header, what you have finished — counted by
+ * format and shown as the latest covers — and the objectives you are working towards.
+ *
+ * Editing the profile happens in a bottom sheet opened from the app bar, like every other question
+ * the editorial pages ask.
+ */
 @Composable
 fun ProfileScreen(
     items: List<TrackedMedia>,
@@ -85,10 +92,17 @@ fun ProfileScreen(
     onDeleteObjective: (Long) -> Unit = {},
     headerActions: ProfileHeaderActions = remember { ProfileHeaderActions() },
     modifier: Modifier = Modifier,
+    /** The app bar's height; the page scrolls under the bar, which draws its own surface. */
+    topInset: Dp = 0.dp,
+    /** How solid the transparent app bar should be: clear over the header, solid once it scrolls away. */
+    onTopBarOpacityChange: (Float) -> Unit = {},
 ) {
     val context = LocalContext.current
     val preferences = remember(context) { ProfilePreferences.from(context) }
     val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    TopBarOpacityEffect(listState = listState, solid = false, onOpacityChange = onTopBarOpacityChange)
+
     val legacyProfileImageUri = remember(context) {
         preferences.getString(ProfilePreferences.AVATAR_IMAGE_URI_KEY, null)
     }
@@ -126,28 +140,29 @@ fun ProfileScreen(
         )
     }
     var isEditing by rememberSaveable { mutableStateOf(false) }
-    var draftName by rememberSaveable(displayName) { mutableStateOf(displayName) }
-    var draftBio by rememberSaveable(bio) { mutableStateOf(bio) }
-    var draftAvatarAccentIndex by rememberSaveable(avatarAccentIndex) {
-        mutableStateOf(avatarAccentIndex)
-    }
+    var draftName by rememberSaveable { mutableStateOf(displayName) }
+    var draftBio by rememberSaveable { mutableStateOf(bio) }
+    var draftAvatarAccentIndex by rememberSaveable { mutableStateOf(avatarAccentIndex) }
     var isPickingPhoto by rememberSaveable { mutableStateOf(false) }
+    var followsLastCompleted by rememberSaveable {
+        mutableStateOf(preferences.getBoolean(ProfilePreferences.AVATAR_FOLLOWS_LAST_COMPLETED_KEY, false))
+    }
+    val setFollowsLastCompleted: (Boolean) -> Unit = { follows ->
+        followsLastCompleted = follows
+        preferences.edit().putBoolean(ProfilePreferences.AVATAR_FOLLOWS_LAST_COMPLETED_KEY, follows).apply()
+    }
     val profileAccentColors = profileAccentColors()
-    val draftAvatarColor =
-        profileAccentColors[draftAvatarAccentIndex.coerceIn(profileAccentColors.indices)]
 
-    // The edit controls live in the top bar, which cannot see this state; hand it the actions.
-    headerActions.isEditing = isEditing
+    // The edit button lives in the top bar, which cannot see this state; hand it the action.
     headerActions.onEditRequested = {
         draftName = displayName
         draftBio = bio
         draftAvatarAccentIndex = avatarAccentIndex
         isEditing = true
     }
-    headerActions.onCancelRequested = { isEditing = false }
-    headerActions.onSaveRequested = {
+    val saveProfile = {
         displayName = draftName.trim().ifBlank { ProfilePreferences.DEFAULT_DISPLAY_NAME }
-        bio = draftBio.trim().ifBlank { ProfilePreferences.DEFAULT_BIO }
+        bio = draftBio.trim()
         avatarAccentIndex = draftAvatarAccentIndex.coerceIn(profileAccentColors.indices)
         preferences.edit()
             .putString(ProfilePreferences.DISPLAY_NAME_KEY, displayName)
@@ -161,6 +176,8 @@ fun ProfileScreen(
             if (previousPath != localPath) File(previousPath).delete()
         }
         profileImagePath = localPath
+        // Choosing a picture of your own ends following the latest finished title.
+        setFollowsLastCompleted(false)
         preferences.edit()
             .putString(ProfilePreferences.AVATAR_IMAGE_PATH_KEY, localPath)
             .remove(ProfilePreferences.AVATAR_IMAGE_URI_KEY)
@@ -190,7 +207,10 @@ fun ProfileScreen(
                         copyImageToProfileStorage(context, uri)
                     }
                 }
-                result.onSuccess(persistProfileImage)
+                result.onSuccess {
+                    persistProfileImage(it)
+                    isPickingPhoto = false
+                }
                 result.onFailure { imageError = "No s'ha pogut desar aquesta imatge." }
                 isImageLoading = false
             }
@@ -205,13 +225,16 @@ fun ProfileScreen(
         profileImagePath?.let { path -> File(path).delete() }
         profileImagePath = null
         imageError = null
+        setFollowsLastCompleted(false)
         preferences.edit()
             .remove(ProfilePreferences.AVATAR_IMAGE_PATH_KEY)
             .remove(ProfilePreferences.AVATAR_IMAGE_URI_KEY)
             .apply()
     }
-    val downloadProfileImage: () -> Unit = {
-        val url = profileImageUrl.trim()
+    // A library cover and a typed URL take the same path: fetch the image into profile storage rather
+    // than holding a link that could rot.
+    val downloadProfileImage: (String, String) -> Unit = { rawUrl, failureMessage ->
+        val url = rawUrl.trim()
         if (url.isBlank()) {
             imageError = "Escriu una URL d'imatge abans de descarregar-la."
         } else {
@@ -223,30 +246,13 @@ fun ProfileScreen(
                         downloadImageToProfileStorage(context, url)
                     }
                 }
-                result.onSuccess(persistProfileImage)
-                result.onFailure { imageError = "No s'ha pogut descarregar la imatge. Revisa la URL." }
+                result.onSuccess {
+                    persistProfileImage(it)
+                    isPickingPhoto = false
+                }
+                result.onFailure { imageError = failureMessage }
                 isImageLoading = false
             }
-        }
-    }
-
-    // A library cover is a remote URL, so picking one takes the same path as the URL field: fetch
-    // it into profile storage rather than holding a link that could rot.
-    val useCoverAsPhoto: (String) -> Unit = { coverUrl ->
-        coroutineScope.launch {
-            isImageLoading = true
-            imageError = null
-            val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    downloadImageToProfileStorage(context, coverUrl)
-                }
-            }
-            result.onSuccess {
-                persistProfileImage(it)
-                isPickingPhoto = false
-            }
-            result.onFailure { imageError = "No s'ha pogut fer servir aquesta portada." }
-            isImageLoading = false
         }
     }
 
@@ -256,69 +262,134 @@ fun ProfileScreen(
             filters = StatsFilters(period = StatsPeriod.AllTime),
         )
     }
-    val avatarColor = profileAccentColors[avatarAccentIndex.coerceIn(profileAccentColors.indices)]
-    val mediaTypeCounts = remember(items) {
-        MediaType.entries.map { type ->
-            type to items.count { it.item.type == type }
-        }.filter { (_, count) -> count > 0 }
+    val accent = profileAccentColors[avatarAccentIndex.coerceIn(profileAccentColors.indices)].first
+    val completedItems = remember(items) { items.completedNewestFirst() }
+    val latestCompletedCoverUrl = completedItems.firstNotNullOfOrNull { it.item.coverUrl }
+    val profileImage: Any? = if (followsLastCompleted) latestCompletedCoverUrl else profileImagePath?.let(::File)
+    val completedByType = remember(completedItems) {
+        MediaType.entries
+            .map { type -> type to completedItems.count { it.item.type == type } }
     }
-    // Most recently touched first, so the banner reflects what you are actually reading and
-    // watching rather than whatever happens to sit at the top of the library.
+    // The photo picker offers the covers you have been busy with lately, whatever their status.
     val coverItems = remember(items) {
         items
             .filter { it.item.coverUrl != null }
             .sortedByDescending { it.currentSession?.updatedAtEpochMillis ?: 0L }
     }
-    val bannerItems = remember(coverItems) { coverItems.take(12) }
-
     val objectiveProgress = remember(items, objectives) { ObjectiveCalculator().calculate(items, objectives) }
 
-
-    Surface(
-        modifier = modifier,
-        color = OmnilogTheme.colors.appBackground,
+    LazyColumn(
+        state = listState,
+        modifier = modifier
+            .fillMaxSize()
+            .background(OmnilogTheme.colors.appBackground),
+        // Tucked up under the bar by as much as the item page, so every editorial page opens at the same height.
+        contentPadding = PaddingValues(top = topInset - BarPaddingReclaim, bottom = 24.dp),
     ) {
-        // The page carries no horizontal padding of its own so the hero's banner can run to the
-        // screen edges; every other section insets itself instead.
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item {
-                ProfileHeroCard(
-                    // While editing, the hero is bound to the draft rather than the saved values:
-                    // it *is* the preview, so every keystroke and colour tap has to land here.
-                    displayName = if (isEditing) draftName else displayName,
-                    bio = if (isEditing) draftBio else bio,
-                    avatarColor = if (isEditing) draftAvatarColor else avatarColor,
-                    imagePath = profileImagePath,
-                    bannerItems = bannerItems,
-                    totalTitles = snapshot.totalTitles,
-                    completedTitles = snapshot.uniqueTitlesCompleted,
-                    activeTitles = snapshot.activeNow,
-                    averageRating = snapshot.averageRating,
-                    mediaTypeCounts = mediaTypeCounts,
-                    editing = isEditing,
-                    accentOptions = profileAccentColors,
-                    selectedAccentIndex = draftAvatarAccentIndex,
-                    onNameChange = { draftName = it },
-                    onBioChange = { draftBio = it },
-                    onAccentChange = { draftAvatarAccentIndex = it },
-                    onPhotoClick = { isPickingPhoto = true },
+        item(key = "header") {
+            ProfileHeader(
+                displayName = displayName,
+                bio = bio,
+                accent = accent,
+                image = profileImage,
+                totalTitles = snapshot.totalTitles,
+                activeTitles = snapshot.activeNow,
+                averageRating = snapshot.averageRating,
+            )
+        }
+        item(key = "completed") {
+            ProfileCompletedSummary(
+                completedByType = completedByType,
+                modifier = Modifier.padding(top = 24.dp),
+            )
+        }
+        if (completedItems.isNotEmpty()) {
+            item(key = "recent_completed") {
+                RelatedMediaSection(
+                    title = "Darrers acabats",
+                    relatedMedia = completedItems.take(RecentCompletedCount),
+                    onMediaClick = onOpenMedia,
+                    // Every one of these is finished; a tick on each would say nothing.
+                    showStatus = false,
+                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
                 )
             }
+        }
+        item(key = "objectives") {
+            ProfileObjectivesSection(
+                objectives = objectiveProgress,
+                onSave = onSaveObjective,
+                onDelete = onDeleteObjective,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
+    }
 
-            item {
-                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    ProfileObjectivesSection(
-                        objectives = objectiveProgress,
-                        onSave = onSaveObjective,
-                        onDelete = onDeleteObjective,
+    if (isEditing) {
+        val draftAccent = profileAccentColors[draftAvatarAccentIndex.coerceIn(profileAccentColors.indices)].first
+        EditorialSheet(
+            title = "Edita el perfil",
+            confirmText = "Desa",
+            accent = draftAccent,
+            onDismiss = { isEditing = false },
+            onConfirm = saveProfile,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ProfileAvatar(
+                    displayName = draftName,
+                    color = draftAccent,
+                    image = profileImage,
+                    shape = PortraitShape,
+                    modifier = Modifier
+                        .size(width = 64.dp, height = 96.dp)
+                        .border(2.dp, draftAccent, PortraitShape)
+                        .padding(3.dp)
+                        .clip(PortraitShape)
+                        .clickable { isPickingPhoto = true },
+                )
+                TextButton(onClick = { isPickingPhoto = true }) {
+                    Text(
+                        text = if (profileImage == null) "Afegeix una foto" else "Canvia la foto",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = draftAccent,
                     )
                 }
             }
-
+            OutlinedTextField(
+                value = draftName,
+                onValueChange = { draftName = it },
+                label = { Text("Nom") },
+                singleLine = true,
+                colors = omnilogModalTextFieldColors(draftAccent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = draftBio,
+                onValueChange = { draftBio = it },
+                label = { Text("Sobre tu") },
+                placeholder = { Text("Una línia sobre el que llegeixes, mires o jugues") },
+                maxLines = 3,
+                colors = omnilogModalTextFieldColors(draftAccent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "COLOR",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+                AccentSwatches(
+                    options = profileAccentColors,
+                    selectedIndex = draftAvatarAccentIndex,
+                    onSelect = { draftAvatarAccentIndex = it },
+                )
+            }
         }
     }
 
@@ -329,9 +400,14 @@ fun ProfileScreen(
             isLoading = isImageLoading,
             errorMessage = imageError,
             hasPhoto = profileImagePath != null,
-            onCoverSelected = useCoverAsPhoto,
+            followsLastCompleted = followsLastCompleted,
+            lastCompletedCoverUrl = latestCompletedCoverUrl,
+            onFollowLastCompletedChange = setFollowsLastCompleted,
+            onCoverSelected = { downloadProfileImage(it, "No s'ha pogut fer servir aquesta portada.") },
             onImageUrlChange = { profileImageUrl = it },
-            onDownloadFromUrl = downloadProfileImage,
+            onDownloadFromUrl = {
+                downloadProfileImage(profileImageUrl, "No s'ha pogut descarregar la imatge. Revisa la URL.")
+            },
             onChooseFromGallery = chooseProfileImage,
             onRemovePhoto = {
                 removeProfileImage()
@@ -349,20 +425,20 @@ fun ProfileScreen(
 internal fun ProfileAvatar(
     displayName: String,
     color: Color,
-    imagePath: String?,
+    /** A stored photo as a [File], or a cover URL. */
+    image: Any?,
     modifier: Modifier = Modifier,
     shape: Shape = CircleShape,
 ) {
-
     Surface(
         modifier = modifier,
         shape = shape,
         color = color,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            if (imagePath != null) {
+            if (image != null) {
                 AsyncImage(
-                    model = File(imagePath),
+                    model = image,
                     contentDescription = "Foto de perfil de $displayName",
                     modifier = Modifier
                         .fillMaxSize()
@@ -372,8 +448,10 @@ internal fun ProfileAvatar(
             } else {
                 Text(
                     text = displayName.profileInitials(),
-                    style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.ExtraBold,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontFamily = SerifFontFamily,
+                        fontWeight = FontWeight.Normal,
+                    ),
                     color = OmnilogTheme.colors.appBackground,
                 )
             }
@@ -381,34 +459,24 @@ internal fun ProfileAvatar(
     }
 }
 
-
-@Composable
-private fun IconButtonSurface(
-    icon: @Composable () -> Unit,
-    label: String,
-    onClick: () -> Unit,
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-    
-    Surface(
-            modifier = Modifier
-                .size(42.dp)
-                .clickable(onClick = onClick),
-            shape = CircleShape,
-            color = OmnilogTheme.colors.appBackground,
-        ) {
-            Box(contentAlignment = Alignment.Center) { icon() }
-        }
-        Text(
-            text = label,
-            style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-            color = OmnilogTheme.colors.appMuted,
-        )
+/**
+ * Titles finished at least once, newest finish first. A completion without a recorded day still
+ * counts, but sorts after every dated one, ordered by when the title was last touched.
+ */
+internal fun List<TrackedMedia>.completedNewestFirst(): List<TrackedMedia> =
+    mapNotNull { trackedMedia ->
+        val dates = trackedMedia.sessions.flatMap { it.completionDates() }
+        if (dates.isEmpty()) null else trackedMedia to (dates.filterNotNull().maxOrNull() ?: LocalDate.MIN)
     }
-}
+        .sortedWith(
+            compareByDescending<Pair<TrackedMedia, LocalDate>> { it.second }
+                .thenByDescending { it.first.currentSession?.updatedAtEpochMillis ?: 0L },
+        )
+        .map { it.first }
+
+/** The cover of the latest finished title that has one: the profile picture while it follows them. */
+internal fun List<TrackedMedia>.latestCompletedCoverUrl(): String? =
+    completedNewestFirst().firstNotNullOfOrNull { it.item.coverUrl }
 
 private const val MAX_PROFILE_IMAGE_BYTES = 10L * 1024L * 1024L
 
@@ -503,16 +571,16 @@ private fun copyWithLimit(input: InputStream, output: OutputStream) {
 /**
  * Resolved once per composition rather than held as a top-level constant: the swatches are theme
  * accents now, and the save lambda that indexes into this list runs outside composition, so it has
- * to capture a value rather than read a CompositionLocal.
+ * to capture a value rather than read a CompositionLocal. Each carries the name the picker shows.
  */
 @Composable
 @ReadOnlyComposable
-private fun profileAccentColors(): List<Color> = listOf(
-    OmnilogTheme.accents.Dashboard,
-    OmnilogTheme.accents.Anime,
-    OmnilogTheme.accents.Books,
-    OmnilogTheme.accents.Tv,
-    OmnilogTheme.accents.Games,
+private fun profileAccentColors(): List<Pair<Color, String>> = listOf(
+    OmnilogTheme.accents.Dashboard to "Sàlvia",
+    OmnilogTheme.accents.Anime to "Sakura",
+    OmnilogTheme.accents.Books to "Ambre",
+    OmnilogTheme.accents.Tv to "Turquesa",
+    OmnilogTheme.accents.Games to "Mostassa",
 )
 
 private fun String.profileInitials(): String {

@@ -5,7 +5,7 @@ import com.nilpo.contenttracker.core.model.Objective
 import com.nilpo.contenttracker.core.model.ObjectiveMetric
 import com.nilpo.contenttracker.core.model.ObjectiveProgress
 import com.nilpo.contenttracker.core.model.TrackedMedia
-import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.stats.completionDates
 import java.time.LocalDate
 
 class ObjectiveCalculator(
@@ -29,26 +29,21 @@ class ObjectiveCalculator(
     private fun completedTitles(
         items: List<TrackedMedia>,
         objective: Objective,
-    ): Int {
-        return items
-            .asSequence()
-            .filter { trackedMedia -> matchesMediaType(trackedMedia.item.type, objective.mediaType) }
-            .filter { trackedMedia ->
-                trackedMedia.sessions.any { session ->
-                    val recordedDates = session.statusEvents
-                        .filter { it.status == TrackingStatus.Completed }
-                        .map { it.occurredOn }
-                        .ifEmpty {
-                            listOfNotNull(
-                                session.finishedAt.takeIf { session.status == TrackingStatus.Completed },
-                            )
-                        }
-                    recordedDates.any { date ->
-                        !date.isBefore(objective.startDate) && !date.isAfter(objective.endDate)
-                    }
-                }
-            }
-            .count()
+    ): Int = items.count { trackedMedia ->
+        matchesMediaType(trackedMedia.item.type, objective.mediaType) &&
+            trackedMedia.latestContributionTo(objective) != null
+    }
+
+    private fun TrackedMedia.latestContributionTo(objective: Objective): LocalDate? = when (objective.metric) {
+        ObjectiveMetric.CompletedTitles -> sessions
+            .flatMap { session -> session.completionDates() }
+            .filterNotNull()
+            .filter { date -> objective.contains(date) }
+            .maxOrNull()
+        ObjectiveMetric.ProgressUnits -> sessions
+            .flatMap { session -> session.progressUpdates }
+            .filter { update -> update.hasKnownDate && update.amount > 0 && objective.contains(update.loggedAt) }
+            .maxOfOrNull { update -> update.loggedAt }
     }
 
     private fun progressUnits(

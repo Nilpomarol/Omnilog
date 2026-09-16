@@ -777,19 +777,6 @@ class StatsCalculator(
             }
     }
 
-    /** Status events are canonical; the session finish date is the legacy/current fallback. */
-    private fun TrackingSession.completionDates(): List<LocalDate?> {
-        val recorded = statusEvents
-            .filter { it.status == TrackingStatus.Completed }
-            .map { it.occurredOn }
-        return recorded.ifEmpty {
-            if (status == TrackingStatus.Completed) listOf(finishedAt) else emptyList()
-        }
-    }
-
-    private fun TrackingSession.latestCompletionDate(): LocalDate? =
-        completionDates().filterNotNull().maxOrNull()
-
     private fun StatsPeriod.contains(date: LocalDate?, today: LocalDate): Boolean {
         if (date == null) return this == StatsPeriod.AllTime
         return when (this) {
@@ -820,3 +807,16 @@ class StatsCalculator(
         }
     }
 }
+
+/** Status events are canonical; the session finish date is the legacy/current fallback. */
+fun TrackingSession.completionDates(): List<LocalDate?> {
+    val recorded = statusEvents
+        .filter { it.status == TrackingStatus.Completed }
+        .map { it.occurredOn }
+    return recorded.ifEmpty {
+        if (status == TrackingStatus.Completed) listOf(finishedAt) else emptyList()
+    }
+}
+
+fun TrackingSession.latestCompletionDate(): LocalDate? =
+    completionDates().filterNotNull().maxOrNull()

@@ -425,7 +425,7 @@ fun CollectionDetailScreen(
             showRenameSheet = false
             nameText = collection.name
         }
-        CollectionSheet(
+        EditorialSheet(
             title = stringResource(R.string.collection_rename_title),
             confirmText = stringResource(R.string.save),
             confirmEnabled = nameText.isNotBlank(),
@@ -447,7 +447,7 @@ fun CollectionDetailScreen(
     }
 
     if (showDeleteConfirmation) {
-        CollectionSheet(
+        EditorialSheet(
             title = stringResource(R.string.delete_collection_title),
             message = stringResource(R.string.delete_collection_message, collection.name),
             confirmText = stringResource(R.string.delete),
@@ -462,7 +462,7 @@ fun CollectionDetailScreen(
     }
 
     if (showDiscardReorderConfirmation) {
-        CollectionSheet(
+        EditorialSheet(
             title = stringResource(R.string.collection_unsaved_reorder_title),
             message = stringResource(R.string.collection_unsaved_reorder_message),
             confirmText = stringResource(R.string.discard),
@@ -489,7 +489,7 @@ fun CollectionDetailScreen(
     }
 
     itemPendingRemoval?.let { trackedMedia ->
-        CollectionSheet(
+        EditorialSheet(
             title = stringResource(R.string.collection_remove_item),
             message = stringResource(
                 R.string.collection_remove_item_message,
@@ -509,7 +509,7 @@ fun CollectionDetailScreen(
     itemPendingMove?.let { trackedMedia ->
         val targetCollections = trackedMedia.availableCollections
             .filter { availableCollection -> availableCollection.id != collection.id }
-        MoveCollectionSheet(
+        MoveEditorialSheet(
             itemTitle = displayMediaTitle(trackedMedia.item.title),
             availableCollections = targetCollections,
             accent = accent,
@@ -849,13 +849,13 @@ private fun CollectionItemCard(
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Every question this page asks, in one shape: a serif title and what it means, whatever the answer
+ * Every question the editorial pages ask, in one shape: a serif title and what it means, whatever the answer
  * needs, and the one button that commits it — red when it takes something away. Swiping the sheet
  * away is the way out.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CollectionSheet(
+internal fun EditorialSheet(
     title: String,
     confirmText: String,
     onDismiss: () -> Unit,
@@ -863,6 +863,13 @@ private fun CollectionSheet(
     message: String? = null,
     confirmEnabled: Boolean = true,
     destructive: Boolean = false,
+    /** Colours the commit button when the sheet has a colour of its own, such as a format or a chosen accent. */
+    accent: Color? = null,
+    /**
+     * Sets the title as a small spaced label instead of a serif heading, for sheets whose content is
+     * itself set large in serif and should read as the headline.
+     */
+    titleAsLabel: Boolean = false,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     ModalBottomSheet(
@@ -880,14 +887,24 @@ private fun CollectionSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = SerifFontFamily,
-                        fontWeight = FontWeight.Normal,
-                    ),
-                    color = OmnilogTheme.colors.appInk,
-                )
+                if (titleAsLabel) {
+                    Text(
+                        text = title.uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = accent ?: OmnilogTheme.colors.appMuted,
+                    )
+                } else {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = SerifFontFamily,
+                            fontWeight = FontWeight.Normal,
+                        ),
+                        color = OmnilogTheme.colors.appInk,
+                    )
+                }
                 message?.let {
                     Text(
                         text = it,
@@ -905,8 +922,17 @@ private fun CollectionSheet(
                     .height(52.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    contentColor = if (destructive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
+                    containerColor = when {
+                        destructive -> MaterialTheme.colorScheme.error
+                        accent != null -> accent
+                        else -> MaterialTheme.colorScheme.primary
+                    },
+                    // The accents are dark on paper and bright on charcoal, so the page ground reads on both.
+                    contentColor = when {
+                        destructive -> MaterialTheme.colorScheme.onError
+                        accent != null -> OmnilogTheme.colors.appBackground
+                        else -> MaterialTheme.colorScheme.onPrimary
+                    },
                 ),
             ) {
                 Text(
@@ -931,7 +957,7 @@ private fun PositionSheet(
     var value by rememberSaveable(trackedMedia.item.id) { mutableStateOf(initialValue.replace('.', ',')) }
     val parsed = value.toCollectionOrderInput()
 
-    CollectionSheet(
+    EditorialSheet(
         title = stringResource(R.string.collection_sheet_position),
         message = displayMediaTitle(trackedMedia.item.title),
         confirmText = stringResource(R.string.save),
@@ -958,7 +984,7 @@ private fun PositionSheet(
 
 /** Where else the item can go: a search over the other collections as a list with a tick on the pick. */
 @Composable
-private fun MoveCollectionSheet(
+private fun MoveEditorialSheet(
     itemTitle: String,
     availableCollections: List<MediaCollection>,
     accent: Color,
@@ -973,7 +999,7 @@ private fun MoveCollectionSheet(
     }
     val selectedCollection = availableCollections.firstOrNull { it.id == selectedCollectionId }
 
-    CollectionSheet(
+    EditorialSheet(
         title = stringResource(R.string.collection_move_item_title),
         message = itemTitle,
         confirmText = stringResource(R.string.collection_move_item),
@@ -987,7 +1013,7 @@ private fun MoveCollectionSheet(
                 style = MaterialTheme.typography.bodyMedium,
                 color = OmnilogTheme.colors.appMuted,
             )
-            return@CollectionSheet
+            return@EditorialSheet
         }
         OutlinedTextField(
             value = query,

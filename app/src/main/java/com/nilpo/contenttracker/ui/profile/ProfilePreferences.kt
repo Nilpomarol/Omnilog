@@ -14,6 +14,8 @@ object ProfilePreferences {
     const val BIO_KEY = "profile_bio"
     const val AVATAR_ACCENT_KEY = "profile_avatar_accent"
     const val AVATAR_IMAGE_PATH_KEY = "profile_avatar_image_path"
+    /** When on, the profile picture is the cover of the latest title you finished, and follows it. */
+    const val AVATAR_FOLLOWS_LAST_COMPLETED_KEY = "profile_avatar_follows_last_completed"
     /** Previous versions stored a provider URI. Kept only for one-time migration. */
     const val AVATAR_IMAGE_URI_KEY = "profile_avatar_image_uri"
     /** Ids of objectives whose completion has already been celebrated, so it only fires once. */

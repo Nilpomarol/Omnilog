@@ -245,7 +245,13 @@ private fun GoalTile(progress: ObjectiveProgress, today: LocalDate, onClick: () 
  * progress should be by today; a completed goal closes in the completed colour; a missed one greys.
  */
 @Composable
-private fun GoalRing(fraction: Float, pace: ObjectivePace, accent: Color) {
+internal fun GoalRing(
+    fraction: Float,
+    pace: ObjectivePace,
+    accent: Color,
+    diameter: androidx.compose.ui.unit.Dp = 64.dp,
+    strokeWidth: androidx.compose.ui.unit.Dp = 6.dp,
+) {
     val track = OmnilogTheme.colors.appBackground
     val fill = when (pace.status) {
         ObjectiveStatus.Completed -> OmnilogTheme.accents.Completed
@@ -253,8 +259,8 @@ private fun GoalRing(fraction: Float, pace: ObjectivePace, accent: Color) {
         else -> accent
     }
     val shortfall = accent.copy(alpha = 0.3f)
-    Canvas(Modifier.size(64.dp)) {
-        val stroke = 6.dp.toPx()
+    Canvas(Modifier.size(diameter)) {
+        val stroke = strokeWidth.toPx()
         val arcSize = Size(size.width - stroke, size.height - stroke)
         fun arc(color: Color, sweep: Float) {
             if (sweep <= 0f) return

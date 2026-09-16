@@ -172,6 +172,7 @@ import com.nilpo.contenttracker.ui.imports.userFacingMessage
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.profile.ProfileScreen
 import com.nilpo.contenttracker.ui.profile.ProfilePreferences
+import com.nilpo.contenttracker.ui.profile.latestCompletedCoverUrl
 import com.nilpo.contenttracker.ui.navigation.AppRoute
 import com.nilpo.contenttracker.ui.navigation.goBack
 import com.nilpo.contenttracker.ui.navigation.push
@@ -250,10 +251,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var showMetadataBulkConfirmation by remember { mutableStateOf(false) }
     var pendingPossibleDuplicate by remember { mutableStateOf<PendingPossibleDuplicate?>(null) }
     var pendingCreatedMediaId by remember { mutableStateOf<Long?>(null) }
-    val profileImagePath = remember(context, currentRoute) {
-        ProfilePreferences.from(context)
-            .getString(ProfilePreferences.AVATAR_IMAGE_PATH_KEY, null)
-            ?.takeIf { path -> File(path).isFile }
+    // A stored photo, or the latest finished cover when the profile follows it.
+    val profileImage: Any? = remember(context, currentRoute, uiState.allTrackedItems) {
+        val preferences = ProfilePreferences.from(context)
+        if (preferences.getBoolean(ProfilePreferences.AVATAR_FOLLOWS_LAST_COMPLETED_KEY, false)) {
+            uiState.allTrackedItems.latestCompletedCoverUrl()
+        } else {
+            preferences.getString(ProfilePreferences.AVATAR_IMAGE_PATH_KEY, null)
+                ?.let(::File)
+                ?.takeIf { file -> file.isFile }
+        }
     }
     var detailActions by remember { mutableStateOf(DetailHeaderActions()) }
     val backupActions = remember { BackupHeaderActions() }
@@ -922,7 +929,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     title = when (val route = currentRoute) {
                         AppRoute.Stats -> stringResource(R.string.stats_title)
                         AppRoute.Timeline -> stringResource(R.string.timeline_title)
-                        AppRoute.Profile -> "Perfil"
+                        // The profile names itself in its header, like the other editorial pages.
+                        AppRoute.Profile -> ""
                         AppRoute.Settings -> "Configuració"
                         is AppRoute.Section -> stringResource(route.section.titleResId)
                         // The page's story headline stands in for the bare status name, so the
@@ -974,20 +982,18 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     showHomeSearchAction = currentRoute == AppRoute.Home,
                     showSectionActions = currentRoute is AppRoute.Section,
                     showTimelineSettingsAction = currentRoute == AppRoute.Timeline,
-                    profileImagePath = profileImagePath,
+                    profileImage = profileImage,
                     // Only the detail page draws artwork under the bar, and only while it is
                     // actually showing that page — the external-ratings page it can swap to has an
                     // ordinary background and needs the bar's own surface back.
                     overCover = (currentRoute is AppRoute.MediaDetail &&
                             !detailActions.isManagingExternalRatings) ||
                             currentRoute is AppRoute.CollectionDetail ||
-                            currentRoute is AppRoute.AuthorDetail,
+                            currentRoute is AppRoute.AuthorDetail ||
+                            currentRoute == AppRoute.Profile,
                     detailActions = detailActions,
                     onProfileRequested = openProfile,
                     onProfileEditRequested = { profileHeaderActions.onEditRequested() },
-                    profileIsEditing = profileHeaderActions.isEditing,
-                    onProfileEditCancelled = { profileHeaderActions.onCancelRequested() },
-                    onProfileEditSaved = { profileHeaderActions.onSaveRequested() },
                     onSettingsRequested = openSettings,
                     onHomeSearchRequested = { homeSearchOpen = true },
                     onSectionSearchRequested = { sectionSearchOpen = true },
@@ -1193,9 +1199,11 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onSaveObjective = viewModel::addObjective,
                                 onDeleteObjective = viewModel::deleteObjective,
                                 headerActions = profileHeaderActions,
+                                topInset = innerPadding.calculateTopPadding(),
+                                onTopBarOpacityChange = { detailActions.barOpacity = it },
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(innerPadding),
+                                    .padding(bottom = innerPadding.calculateBottomPadding()),
                             )
                         } else if (route == AppRoute.Settings) {
                             // The worker writes its success stamp from the background, where this
@@ -2745,14 +2753,11 @@ class DetailHeaderActions {
 }
 
 /**
- * Lets the Profile screen publish its edit toggle to the top bar, which owns the button but not the
+ * Lets the Profile screen hand its edit sheet to the top bar, which owns the button but not the
  * state behind it. Same shape as [BackupHeaderActions]: the screen assigns, the bar invokes.
  */
 class ProfileHeaderActions {
-    var isEditing by mutableStateOf(false)
     var onEditRequested: () -> Unit = {}
-    var onCancelRequested: () -> Unit = {}
-    var onSaveRequested: () -> Unit = {}
 }
 
 /** Lets the Activity screen expose its configuration sheet through the shared top bar. */
@@ -2909,14 +2914,12 @@ private fun OmnilogTopBar(
     showHomeSearchAction: Boolean,
     showSectionActions: Boolean,
     showTimelineSettingsAction: Boolean,
-    profileImagePath: String?,
+    /** A local file or a cover URL. */
+    profileImage: Any?,
     overCover: Boolean,
     detailActions: DetailHeaderActions,
     onProfileRequested: () -> Unit,
     onProfileEditRequested: () -> Unit,
-    profileIsEditing: Boolean,
-    onProfileEditCancelled: () -> Unit,
-    onProfileEditSaved: () -> Unit,
     onSettingsRequested: () -> Unit,
     onHomeSearchRequested: () -> Unit,
     onSectionSearchRequested: () -> Unit,
@@ -3125,33 +3128,12 @@ private fun OmnilogTopBar(
                             )
                         }
                     } else if (showProfileControls) {
-                        // While editing, the bar carries the commit controls: the profile edits itself in
-                        // place, so there is no form below to hold a Save button.
-                        if (profileIsEditing) {
-                            TextButton(onClick = onProfileEditCancelled) {
-                                Text(
-                                    text = "Cancel·la",
-                                    color = OmnilogTheme.colors.appMuted,
-                                )
-                            }
-                            TextButton(onClick = onProfileEditSaved) {
-                                Text(
-                                    text = "Desa",
-                                    color = OmnilogTheme.accents.Dashboard,
-                                    fontWeight = FontWeight.ExtraBold,
-                                )
-                            }
-                        } else {
-                            // Editing lives here rather than floating over the cover collage: the banner's
-                            // corners belong to the artwork, and the bar is where this screen's other
-                            // chrome already is.
-                            IconButton(onClick = onProfileEditRequested) {
-                                Icon(
-                                    imageVector = Icons.Filled.Edit,
-                                    contentDescription = "Edita el perfil",
-                                    tint = OmnilogTheme.colors.appMuted,
-                                )
-                            }
+                        IconButton(onClick = onProfileEditRequested) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = "Edita el perfil",
+                                tint = barInk,
+                            )
                         }
                     } else {
                         if (showSectionActions) {
@@ -3190,9 +3172,9 @@ private fun OmnilogTopBar(
                         }
                         if (showProfileAction) {
                             IconButton(onClick = onProfileRequested) {
-                                if (profileImagePath != null) {
+                                if (profileImage != null) {
                                     AsyncImage(
-                                        model = File(profileImagePath),
+                                        model = profileImage,
                                         contentDescription = stringResource(R.string.profile_menu),
                                         modifier = Modifier
                                             .size(48.dp)

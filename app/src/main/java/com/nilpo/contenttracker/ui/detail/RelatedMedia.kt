@@ -89,9 +89,10 @@ internal fun findRelatedMedia(
 @Composable
 internal fun RelatedMediaSection(
     title: String,
-    relatedMedia: List<RelatedMediaMatch>,
+    relatedMedia: List<TrackedMedia>,
     onMediaClick: (TrackedMedia) -> Unit,
     modifier: Modifier = Modifier,
+    showStatus: Boolean = true,
 ) {
     Column(
         modifier = modifier,
@@ -110,13 +111,14 @@ internal fun RelatedMediaSection(
         ) {
             items(
                 items = relatedMedia,
-                key = { match -> match.trackedMedia.item.id },
-            ) { match ->
+                key = { trackedMedia -> trackedMedia.item.id },
+            ) { trackedMedia ->
                 // The library grid's own tile, so a related title looks here as it does in its list.
                 Box(modifier = Modifier.width(RelatedTileWidth)) {
                     MediaGridCard(
-                        trackedMedia = match.trackedMedia,
-                        onClick = { onMediaClick(match.trackedMedia) },
+                        trackedMedia = trackedMedia,
+                        onClick = { onMediaClick(trackedMedia) },
+                        showStatus = showStatus,
                     )
                 }
             }
