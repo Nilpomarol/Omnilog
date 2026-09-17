@@ -196,6 +196,7 @@ import com.nilpo.contenttracker.ui.navigation.selectSection
 import com.nilpo.contenttracker.ui.settings.SettingsScreen
 import com.nilpo.contenttracker.ui.record.RecordScreen
 import com.nilpo.contenttracker.ui.record.RecordTab
+import com.nilpo.contenttracker.ui.stats.StatsListScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.timeline.TimelineScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -995,6 +996,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     accent = when (currentRoute) {
                         AppRoute.Home,
                         AppRoute.Record,
+                        is AppRoute.StatsList,
                         AppRoute.Profile,
                         AppRoute.Settings,
                         is AppRoute.StatusList,
@@ -1004,6 +1006,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     },
                     title = when (val route = currentRoute) {
                         AppRoute.Record -> stringResource(R.string.record_title)
+                        is AppRoute.StatsList -> stringResource(route.kind.titleRes)
                         // The profile names itself in its header, like the other editorial pages.
                         AppRoute.Profile -> ""
                         AppRoute.Settings -> "Configuració"
@@ -1024,6 +1027,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     },
                     showBackNavigation = currentRoute is AppRoute.MediaDetail ||
                             currentRoute == AppRoute.Record ||
+                            currentRoute is AppRoute.StatsList ||
                             currentRoute == AppRoute.Profile ||
                             currentRoute == AppRoute.Settings ||
                             currentRoute is AppRoute.AuthorDetail ||
@@ -1037,6 +1041,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute !is AppRoute.Section &&
                             currentRoute !is AppRoute.StatusList &&
                             currentRoute != AppRoute.Record &&
+                            currentRoute !is AppRoute.StatsList &&
                             currentRoute != AppRoute.Profile &&
                             currentRoute !is AppRoute.CollectionDetail &&
                             currentRoute !is AppRoute.AuthorDetail,
@@ -1048,6 +1053,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute !is AppRoute.Section &&
                             currentRoute !is AppRoute.StatusList &&
                             currentRoute != AppRoute.Record &&
+                            currentRoute !is AppRoute.StatsList &&
                             currentRoute != AppRoute.Settings &&
                             currentRoute !is AppRoute.CollectionDetail &&
                             currentRoute !is AppRoute.AuthorDetail,
@@ -1439,8 +1445,26 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                             )
                                         },
                                         onMediaClick = openTrackedMedia,
+                                        onSeeAll = { kind, period, media -> backStack.push(AppRoute.StatsList(kind, period, media)) },
                                         modifier = Modifier.fillMaxSize(),
                                     )
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                            )
+                        } else if (route is AppRoute.StatsList) {
+                            StatsListScreen(
+                                kind = route.kind,
+                                periodCode = route.period,
+                                mediaFilterName = route.mediaFilter,
+                                items = uiState.allTrackedItems,
+                                onMediaClick = openTrackedMedia,
+                                onCreatorClick = { creator, mediaType ->
+                                    backStack.push(AppRoute.AuthorDetail(creator, mediaType.homeSection()))
+                                },
+                                onCollectionClick = { collectionId, mediaType ->
+                                    backStack.push(AppRoute.CollectionDetail(collectionId, mediaType.homeSection()))
                                 },
                                 modifier = Modifier
                                     .fillMaxSize()

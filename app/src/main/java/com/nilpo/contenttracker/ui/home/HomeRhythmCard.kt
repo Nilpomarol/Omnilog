@@ -334,7 +334,7 @@ private fun RhythmLead(snapshot: StatsSnapshot) {
 }
 
 @Composable
-private fun RhythmComparison(snapshot: StatsSnapshot) {
+internal fun RhythmComparison(snapshot: StatsSnapshot) {
     val delta = snapshot.deltas.completionSessions ?: return
     val against = when (val basis = snapshot.deltas.basis ?: return) {
         is ComparisonBasis.SamePeriodOfYear -> stringResource(R.string.home_rhythm_basis_same_period, basis.year)

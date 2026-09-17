@@ -15,6 +15,11 @@ import java.time.ZoneId
 
 class StatsCalculator(
     private val today: LocalDate = LocalDate.now(),
+    /**
+     * How long the ranked lists (best rated, creators, collections, most revisited) may run. The
+     * stats page shows a shelf of the first few; the list behind each shelf asks for all of them.
+     */
+    private val listLimit: Int = 12,
 ) {
     private data class CompletedSession(
         val trackedMedia: TrackedMedia,
@@ -118,11 +123,11 @@ class StatsCalculator(
                 limit = Int.MAX_VALUE,
             ),
             topCreators = rankedStrings(completedItems.flatMap { trackedMedia -> trackedMedia.item.creators }),
-            creatorStats = creatorStats(completedItems = completedItems, ratedSessions = ratedSessions),
+            creatorStats = creatorStats(completedItems = completedItems, ratedSessions = ratedSessions, limit = listLimit),
             languageBreakdown = languageBreakdown(completedItems),
-            bestRatedItems = bestRatedItems(ratedSessions),
-            bestRatedCollections = bestRatedCollections(ratedSessions),
-            mostRevisitedItems = mostRevisitedItems(revisitSessions),
+            bestRatedItems = bestRatedItems(ratedSessions, listLimit),
+            bestRatedCollections = bestRatedCollections(ratedSessions, listLimit),
+            mostRevisitedItems = mostRevisitedItems(revisitSessions, listLimit),
             topLevelSummary = topLevelSummary(
                 visibleMonthlyActivity = completionSessionsByMonth.takeLast(12),
                 mediumStats = mediumStats,
@@ -731,6 +736,7 @@ class StatsCalculator(
 
     private fun bestRatedItems(
         ratedSessions: List<Pair<TrackedMedia, TrackingSession>>,
+        limit: Int,
     ): List<RatedMediaStat> {
         return ratedSessions
             .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
@@ -745,12 +751,13 @@ class StatsCalculator(
                 compareByDescending<Pair<TrackedMedia, Double>> { (_, score) -> score }
                     .thenBy { (trackedMedia, _) -> trackedMedia.item.title.lowercase() },
             )
-            .take(8)
+            .take(limit)
             .map { (trackedMedia, score) -> RatedMediaStat(trackedMedia = trackedMedia, bestScore = score) }
     }
 
     private fun mostRevisitedItems(
         revisitSessions: List<Pair<TrackedMedia, TrackingSession>>,
+        limit: Int,
     ): List<RevisitedMediaStat> {
         return revisitSessions
             .groupBy { (trackedMedia, _) -> trackedMedia.item.id }
@@ -765,7 +772,7 @@ class StatsCalculator(
                 compareByDescending<RevisitedMediaStat> { stat -> stat.value }
                     .thenBy { stat -> stat.trackedMedia.item.title.lowercase() },
             )
-            .take(8)
+            .take(limit)
     }
 
     private fun TrackingSession.statsDate(): LocalDate? {

@@ -62,23 +62,31 @@ Do not create charts that visually compare pages vs minutes vs hours as if the n
 
 Use unit-aware tiles, within-medium comparisons, or time comparisons for the same unit.
 
-## Charts And Hierarchy
+## Page Structure
 
-The top of Stats should communicate the selected period quickly:
+The page reads as a short story in chapters, not a dashboard. No bordered cards: serif chapter titles, small uppercase part labels, hairlines, cover shelves and restrained charts, in the same language as Home's `El teu ritme` and the Cronologia tab. A chapter renders only when it has data.
 
-- completion result;
-- personal rating summary;
-- revisits;
-- one useful unit-aware consumption highlight;
-- concise observation when the data supports one.
+Heading rule: a chapter title may carry one note, and the parts inside a chapter are named only by a `PartLabel` (no description under it). A needed caveat goes after its chart as a footnote.
 
-Current chart principles:
+1. **Lead** — completions for the period in serif with the comparison sentence shared with Home (`RhythmComparison`), stacked columns by format (a year always shows twelve months with future months blank; last 12 months shows those months; all time shows one column per year), then a carousel of figure tiles: average rating, estimated hours, best month, completions per month, distinct titles (only when different from completions), revisits, ratings given.
+2. **Les teves notes** — average with delta and rating count, the fixed 1–10 distribution stacked by format, the monthly average line (fitted scale with labelled marks, month initials, the latest or tapped month called out; only adjacent rated months join), best-rated titles and best-rated collections as shelves.
+3. **Per format** — one part per question: completions as ranked bars, consumption in each format's own unit, estimated hours as a share bar with legend (the only cross-format scale), average rating as dots on 0–10, average length in each unit.
+4. **Els teus gustos** — genres and languages as ranked bars, creators as a shelf of fanned covers.
+5. **Hi has tornat** — titles finished again, and the most revisited as a shelf.
+6. **La teva biblioteca ara** — current status counts as a share bar and figure strip, explicitly independent of the period.
 
-- monthly/yearly activity should reflect the selected scope honestly;
-- rating distributions keep the full fixed scale rather than deleting zero-count positions when that would distort it;
-- genre charts should not imply mutually exclusive shares when genres overlap;
-- trend lines should not bridge periods with no data as though observations existed;
-- hide modules that have too little data to say anything useful.
+Each shelf (best rated, collections, creators, most revisited) has a "Veure-ho tot" link to `StatsListScreen` (`AppRoute.StatsList`), which lists every match for the same period and format filter, ranked the same way.
+
+Charts draw in (columns rise, bars and lines grow) the first time they come into view for a given period and filter, and not again when scrolled back to or after returning from a list.
+
+Filters sit in the same order as Cronologia: media type, then period.
+
+Principles kept from the earlier charts:
+
+- rating distributions keep the full fixed scale rather than deleting zero-count positions;
+- genre charts do not imply mutually exclusive shares;
+- trend lines do not bridge periods with no data;
+- unlike units are never drawn on one scale except as clearly labelled estimated time.
 
 ## Current-State vs Selected-Period Data
 

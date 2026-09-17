@@ -36,6 +36,14 @@ internal sealed interface AppRoute : NavKey {
     @Serializable
     data object Record : AppRoute
 
+    /** The full list behind a stats shelf, for the period and formats it was opened from. */
+    @Serializable
+    data class StatsList(
+        val kind: com.nilpo.contenttracker.ui.stats.StatsListKind,
+        val period: String,
+        val mediaFilter: String,
+    ) : AppRoute
+
     @Serializable
     data object Profile : AppRoute
 
