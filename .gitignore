@@ -8,6 +8,7 @@ gradle.properties
 
 # Agent/tool configuration that is machine-specific.
 .claude/settings.local.json
+.serena/
 
 *.iml
 *.apk
