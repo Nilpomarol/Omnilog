@@ -69,6 +69,8 @@ sealed interface DeletionRecovery {
         val update: ProgressUpdateEntity,
         val sessionBeforeDeletion: TrackingSessionEntity,
         val sessionAfterDeletion: TrackingSessionEntity,
+        /** The reopening the deletion caused by taking a completed session below its total. */
+        val reopeningEventId: Long? = null,
     ) : DeletionRecovery
 
     /** A deleted transition plus exact session snapshots for conflict-safe restoration. */

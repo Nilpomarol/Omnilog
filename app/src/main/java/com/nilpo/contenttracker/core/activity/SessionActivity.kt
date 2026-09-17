@@ -175,3 +175,12 @@ fun TrackingSession.activity(): List<SessionActivity> {
 
     return rows.sortedByDescending { it.recordedAtEpochMillis }
 }
+
+/**
+ * The earliest day a new ending may carry. An ending cannot come before the session started or
+ * before a transition the user already dated; the repository refuses such a save, so the status
+ * sheets use this to rule those days out instead of failing silently. Undated transitions carry
+ * placeholder days and constrain nothing.
+ */
+fun TrackingSession.earliestEndingDate(): LocalDate? =
+    (listOfNotNull(startedAt) + statusEvents.filter { it.hasKnownDate }.map { it.occurredOn }).maxOrNull()

@@ -713,12 +713,19 @@ class OfflineMediaRepository(
             status == TrackingStatus.Completed || status == TrackingStatus.Dropped
         }
         val lastTransitionDay = before.statusEvents.lastOrNull()?.resolvedOccurredOn()
-        if (status.name != previousStatus && endedOn != null && lastTransitionDay?.isAfter(endedOn) == true) {
+        // Only a claimed day can contradict an ending. An undated transition's day is a placeholder,
+        // and letting it block an earlier end date refused saves the user had no way to understand.
+        // Mirrors `TrackingSession.earliestEndingDate`, which the status sheets use to say no up front.
+        val lastDatedTransitionDay = before.statusEvents.lastOrNull { it.hasKnownDate }?.resolvedOccurredOn()
+        if (status.name != previousStatus && endedOn != null && lastDatedTransitionDay?.isAfter(endedOn) == true) {
             return@withTransaction null
         }
         if (status.name == previousStatus && endedOn != null) {
             val terminalIndex = before.statusEvents.indexOfLast { it.status == status.name }
-            val precedingDay = before.statusEvents.getOrNull(terminalIndex - 1)?.resolvedOccurredOn()
+            val precedingDay = before.statusEvents
+                .take(terminalIndex.coerceAtLeast(0))
+                .lastOrNull { it.hasKnownDate }
+                ?.resolvedOccurredOn()
             if (precedingDay?.isAfter(endedOn) == true) return@withTransaction null
         }
         val transitionDay = endedOn ?: listOfNotNull(
@@ -867,7 +874,47 @@ class OfflineMediaRepository(
             coversPeriod = coversPeriod ?: update.coversPeriod,
             updatedAtEpochMillis = System.currentTimeMillis(),
         )
+        reopenIfBelowTotal(update.sessionId, System.currentTimeMillis())
         notifyMalIfPayloadChanged(update.mediaItemId, malPayloadBefore)
+    }
+
+    /**
+     * A completed session whose recorded progress no longer reaches the item's total is not finished,
+     * so a correction that takes it below reopens it. Logged as a reopening rather than by removing
+     * the completion: the completion is still something the user recorded, and stays correctable.
+     *
+     * Returns the reopening's id, or null when nothing changed. Items without a fixed total (games)
+     * never reopen.
+     */
+    private suspend fun reopenIfBelowTotal(sessionId: Long, updatedAtEpochMillis: Long): Long? {
+        val session = mediaDao.getTrackingSession(sessionId) ?: return null
+        if (session.status != TrackingStatus.Completed.name) return null
+        val item = mediaDao.getMediaItem(session.mediaItemId) ?: return null
+        val total = item.progressTotal?.takeUnless { item.type == MediaType.Game.name }?.takeIf { it > 0 }
+            ?: return null
+        if (session.progressCurrent >= total) return null
+
+        mediaDao.updateSessionStatus(sessionId, TrackingStatus.InProgress.name, updatedAtEpochMillis)
+        mediaDao.updateSessionFinishedDate(
+            sessionId = sessionId,
+            finishedAtEpochDay = null,
+            updatedAtEpochMillis = updatedAtEpochMillis,
+        )
+        // Today, unless the log already claims a later day: transition days never run backwards.
+        val day = listOfNotNull(
+            LocalDate.now(),
+            mediaDao.getSessionStatusEventsForSession(sessionId).lastOrNull()?.resolvedOccurredOn(),
+        ).max()
+        return mediaDao.insertSessionStatusEvent(
+            SessionStatusEventEntity(
+                mediaItemId = session.mediaItemId,
+                sessionId = sessionId,
+                previousStatus = TrackingStatus.Completed.name,
+                status = TrackingStatus.InProgress.name,
+                createdAtEpochMillis = updatedAtEpochMillis,
+                occurredOnEpochDay = day.toEpochDay(),
+            ),
+        )
     }
 
     /** Deletes one mistaken transition and restores the exact state it left when it is the latest. */
@@ -880,24 +927,35 @@ class OfflineMediaRepository(
         if (eventIndex < 0) return@withTransaction null
 
         // Only the newest transition decides where the session stands now. Removing an older one
-        // edits the record without touching the present.
-        val isLatest = eventIndex == sessionEvents.lastIndex
+        // edits the record without touching the present. Later rows that moved into the state they
+        // left change nothing and are not shown, so they must not make this one historical either.
+        val isLatest = (eventIndex + 1..sessionEvents.lastIndex).all { index ->
+            val later = sessionEvents[index]
+            (later.previousStatus ?: sessionEvents[index - 1].status) == later.status
+        }
         val statusBefore = if (isLatest) {
-            // Whatever the session was before this transition: the previous logged status, or
-            // InProgress when there is none — you have to have been going to have stopped.
-            sessionEvents.getOrNull(eventIndex - 1)?.status
-                ?: event.previousStatus
+            // The state this transition recorded leaving. The neighbouring row is only a fallback
+            // for rows written before that was stored, and InProgress the last resort — you have to
+            // have been going to have stopped.
+            event.previousStatus
+                ?: sessionEvents.getOrNull(eventIndex - 1)?.status
                 ?: TrackingStatus.InProgress.name
         } else {
             null
         }
 
         mediaDao.deleteSessionStatusEvent(eventId)
-        // Removing a historical link also reconnects the transition after it to the state that
-        // preceded the deleted row. Otherwise a later delete could resurrect a state that no
-        // longer exists in the log.
-        sessionEvents.getOrNull(eventIndex + 1)?.let { next ->
-            mediaDao.updateSessionStatusEventPreviousStatus(next.id, event.previousStatus)
+        if (isLatest) {
+            // Anything after it recorded no change. Reconnected to the restored state those rows
+            // would suddenly claim a transition that never happened, so they go with it.
+            sessionEvents.drop(eventIndex + 1).forEach { mediaDao.deleteSessionStatusEvent(it.id) }
+        } else {
+            // Removing a historical link also reconnects the transition after it to the state that
+            // preceded the deleted row. Otherwise a later delete could resurrect a state that no
+            // longer exists in the log.
+            sessionEvents.getOrNull(eventIndex + 1)?.let { next ->
+                mediaDao.updateSessionStatusEventPreviousStatus(next.id, event.previousStatus)
+            }
         }
         statusBefore?.let { status ->
             mediaDao.updateSessionStatus(
@@ -907,8 +965,8 @@ class OfflineMediaRepository(
             )
             val terminalStatuses = setOf(TrackingStatus.Completed.name, TrackingStatus.Dropped.name)
             if (status in terminalStatuses) {
-                val terminalDate = sessionEvents.getOrNull(eventIndex - 1)
-                    ?.takeIf { it.status == status }
+                val terminalDate = sessionEvents.take(eventIndex)
+                    .lastOrNull { it.status == status }
                     ?.resolvedOccurredOn()
                 mediaDao.updateSessionFinishedDate(
                     sessionId = event.sessionId,
@@ -985,21 +1043,20 @@ class OfflineMediaRepository(
                 .filterNot { it.id == progressUpdateId }
                 .sumOf { it.amount }
         val updatedAtEpochMillis = System.currentTimeMillis()
-        val sessionAfterDeletion = sessionBeforeDeletion.copy(
-            progressCurrent = progressAfterDeletion,
-            updatedAtEpochMillis = updatedAtEpochMillis,
-        )
         mediaDao.deleteProgressUpdate(progressUpdateId)
         mediaDao.updateSessionProgress(
             sessionId = update.sessionId,
             progressCurrent = progressAfterDeletion,
             updatedAtEpochMillis = updatedAtEpochMillis,
         )
+        val reopeningId = reopenIfBelowTotal(update.sessionId, updatedAtEpochMillis)
+        val sessionAfterDeletion = mediaDao.getTrackingSession(update.sessionId) ?: return@withTransaction null
         notifyMalIfPayloadChanged(update.mediaItemId, malPayloadBefore)
         DeletionRecovery.ProgressUpdate(
             update = update,
             sessionBeforeDeletion = sessionBeforeDeletion,
             sessionAfterDeletion = sessionAfterDeletion,
+            reopeningEventId = reopeningId,
         )
     }
 
@@ -1165,11 +1222,12 @@ class OfflineMediaRepository(
         val currentSession = mediaDao.getTrackingSession(update.sessionId) ?: return false
         if (currentSession != recovery.sessionAfterDeletion) return false
 
-        mediaDao.updateSessionProgress(
-            sessionId = recovery.sessionBeforeDeletion.id,
-            progressCurrent = recovery.sessionBeforeDeletion.progressCurrent,
-            updatedAtEpochMillis = recovery.sessionBeforeDeletion.updatedAtEpochMillis,
-        )
+        recovery.reopeningEventId?.let { reopeningId ->
+            // Only while the reopening is still the newest word on the session's state.
+            if (mediaDao.getSessionStatusEventsForSession(update.sessionId).lastOrNull()?.id != reopeningId) return false
+            mediaDao.deleteSessionStatusEvent(reopeningId)
+        }
+        if (mediaDao.updateTrackingSession(recovery.sessionBeforeDeletion) != 1) return false
         mediaDao.insertProgressUpdate(update)
         return true
     }

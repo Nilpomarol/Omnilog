@@ -64,7 +64,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.ui.unit.Dp
@@ -492,7 +492,7 @@ private fun TrackingDateRangeItem(
     modifier: Modifier,
 ) {
     var showPicker by remember(label) { mutableStateOf(false) }
-    val selectedMillis = value.toLocalDateOrNull()?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+    val selectedMillis = value.toLocalDateOrNull()?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
     Surface(
         onClick = { showPicker = true },
         modifier = modifier,
@@ -536,7 +536,7 @@ private fun TrackingDateRangeItem(
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
         DatePickerDialog(onDismissRequest = { showPicker = false }, confirmButton = {
             TextButton(onClick = {
-                datePickerState.selectedDateMillis?.let { onValueChange(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().toString()) }
+                datePickerState.selectedDateMillis?.let { onValueChange(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString()) }
                 showPicker = false
             }, colors = ButtonDefaults.textButtonColors(contentColor = accent)) { Text(stringResource(R.string.save)) }
         }, dismissButton = { TextButton(onClick = { showPicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = datePickerState) }
@@ -547,7 +547,7 @@ private fun TrackingDateRangeItem(
 @Composable
 fun TrackingDateField(label: String, value: String, accent: Color, onValueChange: (String) -> Unit) {
     var showPicker by remember(label) { mutableStateOf(false) }
-    val selectedMillis = value.toLocalDateOrNull()?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+    val selectedMillis = value.toLocalDateOrNull()?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
     OutlinedTextField(
         value = value, onValueChange = { onValueChange(it.take(10)) }, modifier = Modifier.fillMaxWidth(), label = { Text(label) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
         trailingIcon = {
@@ -561,7 +561,7 @@ fun TrackingDateField(label: String, value: String, accent: Color, onValueChange
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
         DatePickerDialog(onDismissRequest = { showPicker = false }, confirmButton = {
             TextButton(onClick = {
-                datePickerState.selectedDateMillis?.let { onValueChange(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().toString()) }
+                datePickerState.selectedDateMillis?.let { onValueChange(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString()) }
                 showPicker = false
             }, colors = ButtonDefaults.textButtonColors(contentColor = accent)) { Text(stringResource(R.string.save)) }
         }, dismissButton = { TextButton(onClick = { showPicker = false }) { Text(stringResource(R.string.cancel)) } }) { DatePicker(state = datePickerState) }

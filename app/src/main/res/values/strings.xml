@@ -301,6 +301,9 @@
     <string name="activity_delete_status">Elimina aquest canvi d’estat</string>
     <string name="activity_delete_status_title">Vols eliminar aquest canvi d\'estat?</string>
     <string name="activity_delete_status_message">%1$s el %2$s. La sessió tornarà a l’estat que tenia abans.</string>
+    <string name="activity_delete_status_message_history">%1$s el %2$s. És un canvi antic, així que la sessió es quedarà com està ara.</string>
+    <string name="activity_delete_status_keeps_entry">El progrés d’aquell dia (%1$s) es manté.</string>
+    <string name="activity_folded_entry_label">Progrés d’aquell dia</string>
     <string name="progress_unit_episode_one">episodi</string>
     <string name="progress_unit_episode_many">episodis</string>
     <string name="progress_unit_page_one">pàgina</string>

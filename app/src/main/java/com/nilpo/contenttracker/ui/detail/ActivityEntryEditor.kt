@@ -48,7 +48,7 @@ import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
+import java.time.ZoneOffset
 
 /**
  * Edits one entry: how much, when, and whether it accumulated over a span.
@@ -416,7 +416,7 @@ private fun EntryDatePicker(
 ) {
     val state = rememberDatePickerState(
         initialSelectedDateMillis = initialDate
-            ?.atStartOfDay(ZoneId.systemDefault())
+            ?.atStartOfDay(ZoneOffset.UTC)
             ?.toInstant()
             ?.toEpochMilli(),
     )
@@ -428,7 +428,7 @@ private fun EntryDatePicker(
                     state.selectedDateMillis?.let { millis ->
                         onPicked(
                             Instant.ofEpochMilli(millis)
-                                .atZone(ZoneId.systemDefault())
+                                .atZone(ZoneOffset.UTC)
                                 .toLocalDate(),
                         )
                     }
@@ -454,16 +454,23 @@ private fun EntryDatePicker(
  * held only while nothing offered to change it — pause a book on Friday, remember on Sunday, and the
  * log insisted on Sunday. The day is the user's to state; the recorded instant still fixes the order.
  *
- * Deleting removes this transition alone. The session falls back to what it was before, so removing
- * a resume leaves it paused, which is exactly where it stood.
+ * Deleting removes this transition alone. When it is the newest transition the session falls back to
+ * what it was before, so removing a resume leaves it paused; an older one only leaves the record, and
+ * [revertsSession] makes the confirmation say which.
+ *
+ * A completion can carry the day's progress folded into its row. [foldedAmount] names it and
+ * [onEditFoldedEntry] opens that entry's own editor, since this one only owns the transition.
  */
 @Composable
 fun StatusEventEditor(
     event: SessionStatusEvent,
     label: String,
     accent: Color,
+    revertsSession: Boolean,
     minimumDate: LocalDate? = null,
     maximumDate: LocalDate? = null,
+    foldedAmount: String? = null,
+    onEditFoldedEntry: () -> Unit = {},
     onSaveDate: (LocalDate) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -520,6 +527,32 @@ fun StatusEventEditor(
                 }
             }
 
+            foldedAmount?.let { amount ->
+                FieldPanel(accent = accent) {
+                    Surface(onClick = onEditFoldedEntry, color = Color.Transparent) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.activity_folded_entry_label),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = OmnilogTheme.colors.appMuted,
+                            )
+                            Text(
+                                text = amount,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accent,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+
             Button(
                 onClick = { onSaveDate(date) },
                 modifier = Modifier.fillMaxWidth(),
@@ -563,11 +596,18 @@ fun StatusEventEditor(
             title = stringResource(R.string.activity_delete_status_title),
             text = {
                 Text(
-                    text = stringResource(
-                        R.string.activity_delete_status_message,
-                        label,
-                        event.occurredOn.formatActivityDate(),
-                    ),
+                    text = listOfNotNull(
+                        stringResource(
+                            if (revertsSession) {
+                                R.string.activity_delete_status_message
+                            } else {
+                                R.string.activity_delete_status_message_history
+                            },
+                            label,
+                            event.occurredOn.formatActivityDate(),
+                        ),
+                        foldedAmount?.let { stringResource(R.string.activity_delete_status_keeps_entry, it) },
+                    ).joinToString(" "),
                 )
             },
             confirmButton = {

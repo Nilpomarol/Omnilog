@@ -36,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -82,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
 import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.activity.earliestEndingDate
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -90,7 +92,7 @@ import com.nilpo.contenttracker.ui.detail.sessionStartActionLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
@@ -146,8 +148,9 @@ fun QuickProgressSheet(
     val isFinishing = manualFinishing || (total != null && draft != null && draft >= total)
 
     var ratingDraft by remember(session.id) { mutableStateOf(session.ratingHalfPoints) }
+    val earliestEnd = session.earliestEndingDate()
     var finishDate by remember(session.id) {
-        mutableStateOf(session.finishedAt ?: LocalDate.now())
+        mutableStateOf(listOfNotNull(session.finishedAt ?: LocalDate.now(), earliestEnd).max())
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -306,6 +309,7 @@ fun QuickProgressSheet(
                     CompletionForm(
                         rating = ratingDraft,
                         finishedAt = finishDate,
+                        earliestDate = earliestEnd,
                         accent = completedAccent,
                         onRatingChange = { ratingDraft = it },
                         onFinishedAtChange = { finishDate = it },
@@ -727,6 +731,7 @@ internal fun contentColorOn(accent: Color): Color =
 private fun CompletionForm(
     rating: Int?,
     finishedAt: LocalDate,
+    earliestDate: LocalDate?,
     accent: Color,
     onRatingChange: (Int?) -> Unit,
     onFinishedAtChange: (LocalDate) -> Unit,
@@ -749,6 +754,7 @@ private fun CompletionForm(
         HorizontalDivider(color = OmnilogTheme.colors.appLine)
         CompletionDateRow(
             date = finishedAt,
+            earliestDate = earliestDate,
             label = dateLabel,
             accent = accent,
             onDateChange = onFinishedAtChange,
@@ -760,6 +766,7 @@ private fun CompletionForm(
 @Composable
 private fun CompletionDateRow(
     date: LocalDate,
+    earliestDate: LocalDate?,
     label: String,
     accent: Color,
     onDateChange: (LocalDate) -> Unit,
@@ -795,9 +802,13 @@ private fun CompletionDateRow(
     if (showPicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = date
-                .atStartOfDay(ZoneId.systemDefault())
+                .atStartOfDay(ZoneOffset.UTC)
                 .toInstant()
                 .toEpochMilli(),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = earliestDate == null ||
+                    !Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate().isBefore(earliestDate)
+            },
         )
         DatePickerDialog(
             onDismissRequest = { showPicker = false },
@@ -807,7 +818,7 @@ private fun CompletionDateRow(
                         state.selectedDateMillis?.let { millis ->
                             onDateChange(
                                 Instant.ofEpochMilli(millis)
-                                    .atZone(ZoneId.systemDefault())
+                                    .atZone(ZoneOffset.UTC)
                                     .toLocalDate(),
                             )
                         }
@@ -875,11 +886,13 @@ fun StatusChangeSheet(
     }
     val draft = draftText.toIntOrNull()?.coerceIn(0, total ?: Int.MAX_VALUE)
     var ratingDraft by remember(session.id) { mutableStateOf(session.ratingHalfPoints) }
-    var endDate by remember(session.id) { mutableStateOf(session.finishedAt ?: LocalDate.now()) }
-    // The repository refuses an end before the start, so the sheet says no up front instead of the
-    // save silently doing nothing.
-    val startedAt = session.startedAt
-    val dateValid = !ends || startedAt == null || !endDate.isBefore(startedAt)
+    // The repository refuses an end before the start or before an already dated transition, so the
+    // sheet rules those days out up front instead of the save silently doing nothing.
+    val earliestEnd = session.earliestEndingDate()
+    var endDate by remember(session.id) {
+        mutableStateOf(listOfNotNull(session.finishedAt ?: LocalDate.now(), earliestEnd).max())
+    }
+    val dateValid = !ends || earliestEnd == null || !endDate.isBefore(earliestEnd)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -938,6 +951,7 @@ fun StatusChangeSheet(
                 CompletionForm(
                     rating = ratingDraft,
                     finishedAt = endDate,
+                    earliestDate = earliestEnd,
                     accent = accent,
                     onRatingChange = { ratingDraft = it },
                     onFinishedAtChange = { endDate = it },

@@ -251,7 +251,11 @@ private fun SessionCard(
             )
 
             // Nothing at all when nothing is known: the status line has already said where things stand.
-            if (session.startedAt != null || session.finishedAt != null || recency != null) {
+            // History alone is enough, though, or an undated session would have no way into Activitat.
+            if (
+                session.startedAt != null || session.finishedAt != null || recency != null ||
+                session.progressUpdates.isNotEmpty() || session.statusEvents.isNotEmpty()
+            ) {
                 Row(
                     modifier = Modifier.padding(start = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -486,8 +490,9 @@ fun SessionEditorScreen(
     } else {
         session.statusEvents
     }
-    val transitionOrderValid = parsedFinishedAt == null ||
-        eventsBeforeTerminal.lastOrNull()?.occurredOn?.isAfter(parsedFinishedAt) != true
+    // Same rule the repository applies: only an ending must follow the dated transitions before it.
+    val transitionOrderValid = parsedFinishedAt == null || !draftStatus.endsSession ||
+        eventsBeforeTerminal.lastOrNull { it.hasKnownDate }?.occurredOn?.isAfter(parsedFinishedAt) != true
     val canSave = parsedProgress != null && parsedProgress in 0..maxProgress &&
         datesParse && datesOrdered && transitionOrderValid
 

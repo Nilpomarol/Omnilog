@@ -200,12 +200,28 @@ fun ActivitySheet(
                 orderedStatusEvents.getOrNull(statusIndex - 1)?.occurredOn,
             ).maxOrNull()
             val maximumDate = orderedStatusEvents.getOrNull(statusIndex + 1)?.occurredOn
+            val folded = row.progress
             StatusEventEditor(
                 event = event,
                 label = stringResource(row.kind.labelRes()),
                 accent = accent,
+                // Only the newest transition shown decides where the session stands; the repository
+                // applies the same rule when deleting.
+                revertsSession = rows.filter { it.statusEvent != null }
+                    .maxByOrNull { it.recordedAtEpochMillis }?.statusEvent?.id == id,
                 minimumDate = minimumDate,
                 maximumDate = maximumDate,
+                foldedAmount = folded?.let {
+                    stringResource(
+                        R.string.activity_amount,
+                        it.amount,
+                        progressUnitLabel(mediaType = mediaType, value = it.amount),
+                    )
+                },
+                onEditFoldedEntry = {
+                    editingStatusId = null
+                    editingEntryId = folded?.id
+                },
                 onSaveDate = { date ->
                     onUpdateStatusEventDate(id, date)
                     editingStatusId = null

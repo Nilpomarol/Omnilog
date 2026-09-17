@@ -217,6 +217,16 @@ class SessionActivityTest {
         assertTrue(rows.all { it.date == null })
     }
 
+    @Test
+    fun anEndingCannotPrecedeTheStartOrADatedTransition() {
+        val paused = statusEvent(1, 100, TrackingStatus.Paused, day = 10, previous = TrackingStatus.InProgress)
+
+        assertEquals(LocalDate.of(2026, 3, 10), session(startedAt = start, statusEvents = listOf(paused)).earliestEndingDate())
+        assertEquals(start, session(startedAt = start).earliestEndingDate())
+        // An undated transition's day is a placeholder and constrains nothing.
+        assertNull(session(statusEvents = listOf(paused.copy(hasKnownDate = false))).earliestEndingDate())
+    }
+
     private fun session(
         status: TrackingStatus = TrackingStatus.InProgress,
         startedAt: LocalDate? = null,
