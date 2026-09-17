@@ -118,10 +118,45 @@ class ActivityCorrectionsTest {
         assertEquals("Completed", requireNotNull(dao.getTrackingSession(sessionId)).status)
     }
 
+    @Test
+    fun deletingTheStartReturnsToPlannedAndClearsTheDateItStamped() = runBlocking {
+        val (mediaId, sessionId) = insertSession(status = "InProgress", startedDay = 20_000)
+        val start = event(mediaId, sessionId, "Planned", "InProgress", at = 100)
+
+        requireNotNull(repository.deleteSessionStatusEvent(start))
+
+        val session = requireNotNull(dao.getTrackingSession(sessionId))
+        assertEquals("Planned", session.status)
+        assertNull(session.startedAtEpochDay)
+    }
+
+    @Test
+    fun anEndingCanForgetItsDayAndTheSnapshotFollows() = runBlocking {
+        val (mediaId, sessionId) = insertSession(status = "Completed", finishedDay = 20_000)
+        val completion = event(mediaId, sessionId, "InProgress", "Completed", at = 100)
+
+        assertTrue(repository.updateSessionStatusEventDate(completion, null))
+
+        assertEquals(false, requireNotNull(dao.getSessionStatusEvent(completion)).hasKnownDate)
+        assertNull(requireNotNull(dao.getTrackingSession(sessionId)).finishedAtEpochDay)
+    }
+
+    @Test
+    fun aDayOutOfOrderWithDatedNeighboursIsRefusedButPlaceholdersDoNotBlock() = runBlocking {
+        val (mediaId, sessionId) = insertSession(status = "InProgress")
+        val pause = event(mediaId, sessionId, "InProgress", "Paused", at = 100)
+        val resume = event(mediaId, sessionId, "Paused", "InProgress", at = 200)
+
+        assertEquals(false, repository.updateSessionStatusEventDate(resume, java.time.LocalDate.ofEpochDay(19_990)))
+        repository.updateSessionStatusEventDate(pause, null)
+        assertTrue(repository.updateSessionStatusEventDate(resume, java.time.LocalDate.ofEpochDay(19_990)))
+    }
+
     private suspend fun insertSession(
         status: String,
         progress: Int = 0,
         finishedDay: Long? = null,
+        startedDay: Long? = null,
     ): Pair<Long, Long> {
         val mediaId = dao.insertMediaItem(
             MediaItemEntity(type = MediaType.Anime.name, title = "Title", progressTotal = 12),
@@ -133,6 +168,7 @@ class ActivityCorrectionsTest {
                 status = status,
                 progressCurrent = progress,
                 finishedAtEpochDay = finishedDay,
+                startedAtEpochDay = startedDay,
                 updatedAtEpochMillis = 50,
             ),
         )

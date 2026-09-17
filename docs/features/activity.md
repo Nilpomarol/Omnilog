@@ -54,7 +54,15 @@ Same-day pause/resume pairs are suppressed from the library Timeline only; Activ
 
 ## Ordering
 
-The Activity list preserves a stable user-readable event sequence. Running totals must still be calculated from the dated progress semantics, so editing a date may affect the total shown at a point without turning the history into a database-write log.
+Activity reads newest day first, grouped by month, with rows of one day in the order they were recorded. Undated rows close the list under their own heading.
+
+Ordering by day keeps running totals in sequence, and a re-dated entry moves to the day it now claims.
+
+## Presentation
+
+Every row that holds progress shows both the increment and the running total it reached (against the item's total when it has one). Status changes carry more weight than progress entries; a completion shows the session's rating.
+
+A row that holds both a transition and a folded progress entry is edited in one editor, with a section and a delete for each part.
 
 ## Visibility
 

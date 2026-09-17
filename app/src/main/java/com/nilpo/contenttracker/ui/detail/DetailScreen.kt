@@ -78,7 +78,7 @@ fun DetailScreen(
     onDeleteCurrentSession: (Long) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onAddExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
     onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,

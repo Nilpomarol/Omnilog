@@ -33,7 +33,7 @@ fun PastSessionSection(
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onDeleteSession: () -> Unit,
 ) {

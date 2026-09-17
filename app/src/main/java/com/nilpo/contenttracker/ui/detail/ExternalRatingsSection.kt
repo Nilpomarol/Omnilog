@@ -148,7 +148,7 @@ private fun RatingHeading(text: String) {
  * half point, which drew a sliver of accent on the first star of an unrated title.
  */
 @Composable
-private fun RatingStars(
+internal fun RatingStars(
     halfPoints: Int?,
     starSize: Dp,
     accent: Color,

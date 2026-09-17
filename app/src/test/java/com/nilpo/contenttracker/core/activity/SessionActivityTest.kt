@@ -217,6 +217,24 @@ class SessionActivityTest {
         assertTrue(rows.all { it.date == null })
     }
 
+    /** Newest day first whatever order rows were written in, with undated rows closing the list. */
+    @Test
+    fun rowsReadByDayAndAReDatedEntryMovesToItsNewDay() {
+        val rows = session(
+            baselineProgress = 10,
+            updates = listOf(
+                entry(id = 1, day = 8, amount = 5, createdAt = 100),
+                // Written last but back-dated to before the first entry.
+                entry(id = 2, day = 3, amount = 7, createdAt = 300),
+                entry(id = 3, day = 9, amount = 2, createdAt = 200).copy(hasKnownDate = false),
+            ),
+        ).activity()
+
+        assertEquals(listOf("entry:1", "entry:2", "entry:3"), rows.map { it.key })
+        // Totals follow the dated sequence: 10 + 7 on the 3rd, + 5 on the 8th.
+        assertEquals(listOf(22, 17), rows.take(2).map { it.runningTotal })
+    }
+
     @Test
     fun anEndingCannotPrecedeTheStartOrADatedTransition() {
         val paused = statusEvent(1, 100, TrackingStatus.Paused, day = 10, previous = TrackingStatus.InProgress)

@@ -46,7 +46,7 @@ class TimelineBuilder {
         visitNumber: Int,
         isRevisit: Boolean,
     ): List<TimelineEntry> = session.activity()
-        .withoutSameDayPauses()
+        .withoutSameDayCorrections()
         .mapNotNull { row ->
             val kind = when (row.kind) {
                 SessionActivityKind.Progress -> TimelineEntryKind.Progress
@@ -88,15 +88,17 @@ class TimelineBuilder {
         }
 
     /**
-     * Set aside and picked up again the same day: a tap and its correction, not a break in a reading
-     * history. The chronology drops both; the item's own Activitat keeps them so they stay correctable.
+     * Set aside and picked up again the same day, or started and put back on the list the same day: a
+     * tap and its correction, not something that happened to the title. The chronology drops both; the
+     * item's own Activitat keeps them so they stay correctable.
      */
-    private fun List<SessionActivity>.withoutSameDayPauses(): List<SessionActivity> {
+    private fun List<SessionActivity>.withoutSameDayCorrections(): List<SessionActivity> {
         val transitions = filter { it.statusEvent != null }.sortedBy { it.recordedAtEpochMillis }
         val noise = transitions.zipWithNext()
-            .filter { (pause, next) ->
-                pause.kind == SessionActivityKind.Paused && next.kind == SessionActivityKind.Resumed &&
-                    pause.date != null && pause.date == next.date
+            .filter { (first, next) ->
+                val undone = (first.kind == SessionActivityKind.Paused && next.kind == SessionActivityKind.Resumed) ||
+                    (first.kind == SessionActivityKind.Started && next.kind == SessionActivityKind.Replanned)
+                undone && first.date != null && first.date == next.date
             }
             .flatMap { it.toList() }
             .toSet()

@@ -116,7 +116,7 @@ private val GutterTracking = 0.4.sp
  */
 @Composable
 @ReadOnlyComposable
-private fun gutterWidth(): Dp = DateGutterWidth * LocalDensity.current.fontScale
+internal fun gutterWidth(): Dp = DateGutterWidth * LocalDensity.current.fontScale
 private val RailWidth = 10.dp
 private val RailLineWidth = 2.dp
 
@@ -129,8 +129,8 @@ private val RailLineWidth = 2.dp
  * the colour says what kind of thing it happened to.
  */
 private val DayDotSize = 9.dp
-private val MilestoneDotSize = 7.dp
-private val ProgressDotSize = 4.dp
+internal val MilestoneDotSize = 7.dp
+internal val ProgressDotSize = 4.dp
 
 /**
  * The ring of background colour each bead punches out of the line behind it.
@@ -139,7 +139,7 @@ private val ProgressDotSize = 4.dp
  * top; with it, the thread visibly passes behind. The day marker gets the wider ring because it is
  * the one place the timeline is genuinely meant to break.
  */
-private val DotHalo = 3.dp
+internal val DotHalo = 3.dp
 private val DayDotHalo = 4.dp
 
 private val MilestoneCardPadding = 9.dp
@@ -353,10 +353,12 @@ fun TimelineCardRow(
  * default offset lands `dotSize / 2 + haloWidth` below the top of the row.
  */
 @Composable
-private fun TimelineRail(
+internal fun TimelineRail(
     dotColor: Color,
     dotSize: Dp,
     haloWidth: Dp,
+    // The surface the rail sits on, which the halo has to match to punch the line out cleanly.
+    haloColor: Color = OmnilogTheme.colors.appBackground,
     dotTop: Dp = 0.dp,
     centerDot: Boolean = false,
     stopAt: Dp? = null,
@@ -393,7 +395,7 @@ private fun TimelineRail(
                 // — nothing is there to be covered.
                 .requiredSize(dotSize + haloWidth * 2)
                 .clip(CircleShape)
-                .background(OmnilogTheme.colors.appBackground),
+                .background(haloColor),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -1116,7 +1118,7 @@ internal data class TimelineGutterDate(
  * sizes used to give: ink and heavy for the number, muted and light for the month beside it.
  */
 @Composable
-private fun TimelineGutterDate.headline(): AnnotatedString {
+internal fun TimelineGutterDate.headline(): AnnotatedString {
     val ink = OmnilogTheme.colors.appInk
     val muted = OmnilogTheme.colors.appMuted
     // `AVUI` and `AHIR` keep the uppercase — they are short, they never threaten the second line,

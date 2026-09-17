@@ -612,6 +612,27 @@ class TimelineBuilderTest {
         assertTrue(result.entries.none { it.kind == TimelineEntryKind.Resumed })
     }
 
+    @Test
+    fun aStartUndoneTheSameDayShowsNeitherRow() {
+        val result = builder.build(
+            listOf(
+                media(
+                    sessions = listOf(
+                        session(
+                            status = TrackingStatus.Planned,
+                            statusEvents = listOf(
+                                statusEvent(1, TrackingStatus.InProgress, day).copy(previousStatus = TrackingStatus.Planned),
+                                statusEvent(2, TrackingStatus.Planned, day).copy(previousStatus = TrackingStatus.InProgress),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(result.entries.isEmpty())
+    }
+
     private fun statusEvent(
         id: Long,
         status: TrackingStatus,

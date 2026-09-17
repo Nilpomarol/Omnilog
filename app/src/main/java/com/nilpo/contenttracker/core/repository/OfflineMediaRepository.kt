@@ -862,9 +862,9 @@ class OfflineMediaRepository(
         amount: Int,
         loggedAt: LocalDate?,
         coversPeriod: Boolean?,
-    ) = database.withTransaction {
-        if (amount <= 0) return@withTransaction
-        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return@withTransaction
+    ): Boolean = database.withTransaction {
+        if (amount <= 0) return@withTransaction false
+        val update = mediaDao.getProgressUpdate(progressUpdateId) ?: return@withTransaction false
         val malPayloadBefore = currentMalSyncPayload(update.mediaItemId)
         mediaDao.updateProgressUpdateAndRecalculateSession(
             progressUpdateId = progressUpdateId,
@@ -876,6 +876,7 @@ class OfflineMediaRepository(
         )
         reopenIfBelowTotal(update.sessionId, System.currentTimeMillis())
         notifyMalIfPayloadChanged(update.mediaItemId, malPayloadBefore)
+        true
     }
 
     /**
@@ -963,6 +964,17 @@ class OfflineMediaRepository(
                 status = status,
                 updatedAtEpochMillis = System.currentTimeMillis(),
             )
+            // Undoing a start also undoes the start date it stamped. A start date that disagrees with
+            // the transition's day was set by the user and stays.
+            if (status == TrackingStatus.Planned.name && event.status == TrackingStatus.InProgress.name &&
+                event.hasKnownDate && session.startedAtEpochDay == event.resolvedOccurredOn().toEpochDay()
+            ) {
+                mediaDao.updateSessionStartedDate(
+                    sessionId = event.sessionId,
+                    startedAtEpochDay = null,
+                    updatedAtEpochMillis = System.currentTimeMillis(),
+                )
+            }
             val terminalStatuses = setOf(TrackingStatus.Completed.name, TrackingStatus.Dropped.name)
             if (status in terminalStatuses) {
                 val terminalDate = sessionEvents.take(eventIndex)
@@ -995,37 +1007,41 @@ class OfflineMediaRepository(
         )
     }
 
-    override suspend fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate) =
+    override suspend fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate?): Boolean =
         database.withTransaction {
-        val event = mediaDao.getSessionStatusEvent(eventId) ?: return@withTransaction
+        val event = mediaDao.getSessionStatusEvent(eventId) ?: return@withTransaction false
         val malPayloadBefore = currentMalSyncPayload(event.mediaItemId)
         val orderedEvents = mediaDao.getSessionStatusEventsForSession(event.sessionId)
         val eventIndex = orderedEvents.indexOfFirst { it.id == eventId }
-        if (eventIndex < 0) return@withTransaction
-        val previousDay = orderedEvents.getOrNull(eventIndex - 1)?.resolvedOccurredOn()
-        val nextDay = orderedEvents.getOrNull(eventIndex + 1)?.resolvedOccurredOn()
-        if (previousDay?.isAfter(occurredOn) == true || nextDay?.isBefore(occurredOn) == true) {
-            return@withTransaction
+        if (eventIndex < 0) return@withTransaction false
+        val session = mediaDao.getTrackingSession(event.sessionId) ?: return@withTransaction false
+        if (occurredOn != null) {
+            // Only claimed days constrain: an undated neighbour's day is a placeholder.
+            val previousDay = orderedEvents.take(eventIndex).lastOrNull { it.hasKnownDate }?.resolvedOccurredOn()
+            val nextDay = orderedEvents.drop(eventIndex + 1).firstOrNull { it.hasKnownDate }?.resolvedOccurredOn()
+            val startedAt = session.startedAtEpochDay?.let(LocalDate::ofEpochDay)
+            if (previousDay?.isAfter(occurredOn) == true || nextDay?.isBefore(occurredOn) == true ||
+                startedAt?.isAfter(occurredOn) == true
+            ) {
+                return@withTransaction false
+            }
+            mediaDao.updateSessionStatusEventDate(eventId = eventId, occurredOnEpochDay = occurredOn.toEpochDay())
+        } else {
+            mediaDao.clearSessionStatusEventDate(eventId)
         }
-        val session = mediaDao.getTrackingSession(event.sessionId) ?: return@withTransaction
-        if (session.startedAtEpochDay?.let(LocalDate::ofEpochDay)?.isAfter(occurredOn) == true) {
-            return@withTransaction
-        }
-        mediaDao.updateSessionStatusEventDate(
-            eventId = eventId,
-            occurredOnEpochDay = occurredOn.toEpochDay(),
-        )
         val isCurrentTerminalEvent = event.status == session.status &&
             event.status in setOf(TrackingStatus.Completed.name, TrackingStatus.Dropped.name) &&
-            mediaDao.getSessionStatusEventsForSession(event.sessionId).lastOrNull()?.id == eventId
+            orderedEvents.lastOrNull()?.id == eventId
         if (isCurrentTerminalEvent) {
+            // The snapshot's finish date mirrors the ending's day, including not knowing it.
             mediaDao.updateSessionFinishedDate(
                 sessionId = event.sessionId,
-                finishedAtEpochDay = occurredOn.toEpochDay(),
+                finishedAtEpochDay = occurredOn?.toEpochDay(),
                 updatedAtEpochMillis = System.currentTimeMillis(),
             )
         }
         notifyMalIfPayloadChanged(event.mediaItemId, malPayloadBefore)
+        true
     }
 
     private fun SessionStatusEventEntity.resolvedOccurredOn(): LocalDate =

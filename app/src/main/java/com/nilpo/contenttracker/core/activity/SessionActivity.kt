@@ -51,7 +51,11 @@ data class SessionActivity(
 )
 
 /**
- * A session's history as both Activitat and the Timeline read it, newest recorded first.
+ * A session's history as both Activitat and the Timeline read it: newest day first, undated rows
+ * last, and rows within one day in the order they were recorded.
+ *
+ * Ordered by date rather than by when rows were written, so running totals always read in sequence
+ * and a re-dated entry moves to the day it now claims.
  *
  * Every transition that changed the session's state is a row, because a row the user cannot see is
  * a row they cannot correct. Surface-specific noise rules (the Timeline collapsing same-day
@@ -173,7 +177,11 @@ fun TrackingSession.activity(): List<SessionActivity> {
         )
     }
 
-    return rows.sortedByDescending { it.recordedAtEpochMillis }
+    return rows.sortedWith(
+        compareBy<SessionActivity> { it.date == null }
+            .thenByDescending { it.date }
+            .thenByDescending { it.recordedAtEpochMillis },
+    )
 }
 
 /**

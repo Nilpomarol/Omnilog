@@ -777,6 +777,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     pendingCreatedMediaId = event.mediaItemId
                 }
 
+                HomeUiEvent.ChangeRefused -> {
+                    snackbarHostState.showSnackbar(context.getString(R.string.change_refused))
+                }
+
                 is HomeUiEvent.MediaItemDeletionAvailable -> {
                     showDeletionRecovery(
                         deletionToken = event.deletionToken,

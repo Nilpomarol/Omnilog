@@ -86,7 +86,7 @@ fun CurrentSessionSection(
     onQuickComplete: (QuickCompletion) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     // Absent when there is no earlier session to fall back to — see DetailScreen.
     onDeleteSession: (() -> Unit)? = null,
@@ -208,7 +208,7 @@ private fun SessionCard(
     onStatusSelected: (TrackingStatus) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -270,6 +270,7 @@ private fun SessionCard(
                     ActivityAction(
                         session = session,
                         mediaType = mediaType,
+                        progressTotal = progressTotal,
                         accent = visual.color,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,
                         onUpdateProgressUpdate = onUpdateProgressUpdate,

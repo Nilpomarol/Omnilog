@@ -764,12 +764,15 @@ private fun CompletionForm(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CompletionDateRow(
+internal fun CompletionDateRow(
     date: LocalDate,
     earliestDate: LocalDate?,
     label: String,
     accent: Color,
     onDateChange: (LocalDate) -> Unit,
+    // Activitat's rows may not know their day: [known] false shows that, and [onClear] offers it.
+    known: Boolean = true,
+    onClear: (() -> Unit)? = null,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     Row(
@@ -786,11 +789,20 @@ private fun CompletionDateRow(
                 color = OmnilogTheme.colors.appMuted,
             )
             Text(
-                text = date.format(quickDateFormatter),
+                text = if (known) date.format(quickDateFormatter) else stringResource(R.string.activity_date_unknown),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = accent,
+                color = if (known) accent else OmnilogTheme.colors.appMuted,
             )
+        }
+        if (known && onClear != null) {
+            TextButton(onClick = onClear) {
+                Text(
+                    text = stringResource(R.string.activity_remove_date),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
         }
         Icon(
             imageVector = Icons.Filled.DateRange,

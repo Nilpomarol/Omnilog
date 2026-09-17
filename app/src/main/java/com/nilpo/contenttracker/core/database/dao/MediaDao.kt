@@ -210,6 +210,16 @@ interface MediaDao {
     )
     suspend fun updateSessionStatusEventDate(eventId: Long, occurredOnEpochDay: Long)
 
+    /** Keeps the day as an ordering placeholder; only the claim that it is known goes. */
+    @Query("UPDATE session_status_events SET hasKnownDate = 0 WHERE id = :eventId")
+    suspend fun clearSessionStatusEventDate(eventId: Long)
+
+    @Query(
+        "UPDATE tracking_sessions SET startedAtEpochDay = :startedAtEpochDay, " +
+            "updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :sessionId",
+    )
+    suspend fun updateSessionStartedDate(sessionId: Long, startedAtEpochDay: Long?, updatedAtEpochMillis: Long)
+
     @Query("UPDATE session_status_events SET previousStatus = :previousStatus WHERE id = :eventId")
     suspend fun updateSessionStatusEventPreviousStatus(eventId: Long, previousStatus: String?)
 

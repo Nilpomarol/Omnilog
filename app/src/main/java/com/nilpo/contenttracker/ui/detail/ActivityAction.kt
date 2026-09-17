@@ -42,11 +42,12 @@ import java.time.LocalDate
 fun ActivityAction(
     session: TrackingSession,
     mediaType: MediaType,
+    progressTotal: Int?,
     accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     // The history cards draw their controls as a row of equal icon buttons in the header, so there
     // the activity entry sheds its label and count and becomes one disc among them.
     iconOnly: Boolean = false,
@@ -104,6 +105,7 @@ fun ActivityAction(
         ActivitySheet(
             session = session,
             mediaType = mediaType,
+            progressTotal = progressTotal,
             accent = accent,
             onDeleteProgressUpdate = onDeleteProgressUpdate,
             onUpdateProgressUpdate = onUpdateProgressUpdate,

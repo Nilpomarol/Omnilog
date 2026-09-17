@@ -46,7 +46,7 @@ fun SessionDetail(
     mediaType: MediaType,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
-    onUpdateStatusEventDate: (Long, LocalDate) -> Unit,
+    onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
     onDelete: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
@@ -81,6 +81,7 @@ fun SessionDetail(
                 ActivityAction(
                     session = session,
                     mediaType = mediaType,
+                    progressTotal = progressTotal,
                     accent = state,
                     onDeleteProgressUpdate = onDeleteProgressUpdate,
                     onUpdateProgressUpdate = onUpdateProgressUpdate,

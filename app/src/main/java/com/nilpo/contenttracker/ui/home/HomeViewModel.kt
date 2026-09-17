@@ -631,7 +631,7 @@ class HomeViewModel(
                 notes = notes,
                 startedAt = startedAt,
                 finishedAt = finishedAt,
-            ) ?: return@launch
+            ) ?: return@launch refuseChange()
             if (media == null || session == null) return@launch
             publishSessionReaction(
                 before = before,
@@ -700,7 +700,7 @@ class HomeViewModel(
                 notes = session.notes,
                 startedAt = startedAt,
                 finishedAt = session.finishedAt,
-            ) ?: return@launch
+            ) ?: return@launch refuseChange()
             publishSessionReaction(before, media, session, recovery, status, clamped, startedAt, session.finishedAt)
         }
     }
@@ -745,7 +745,7 @@ class HomeViewModel(
                 notes = session.notes,
                 startedAt = startedAt,
                 finishedAt = finishedAt,
-            ) ?: return@launch
+            ) ?: return@launch refuseChange()
             publishSessionReaction(before, media, session, recovery, TrackingStatus.Completed, progress, startedAt, finishedAt)
         }
     }
@@ -816,17 +816,19 @@ class HomeViewModel(
     ) {
         val before = uiState.value
         viewModelScope.launch {
-            mediaRepository.updateProgressUpdate(progressUpdateId, amount, loggedAt, coversPeriod)
+            if (!mediaRepository.updateProgressUpdate(progressUpdateId, amount, loggedAt, coversPeriod)) {
+                return@launch refuseChange()
+            }
             // Re-dating or enlarging an entry can carry a goal over its target too; there is no undo here.
             awaitObjectiveSteps(before).filter { it.reached }.takeIf { it.isNotEmpty() }
                 ?.let { mutableEvents.emit(HomeUiEvent.ObjectiveReached(it, recoveryToken = null)) }
         }
     }
 
-    fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate) {
+    fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate?) {
         val before = uiState.value
         viewModelScope.launch {
-            mediaRepository.updateSessionStatusEventDate(eventId, occurredOn)
+            if (!mediaRepository.updateSessionStatusEventDate(eventId, occurredOn)) return@launch refuseChange()
             awaitObjectiveSteps(before).filter { it.reached }.takeIf { it.isNotEmpty() }
                 ?.let { mutableEvents.emit(HomeUiEvent.ObjectiveReached(it, recoveryToken = null)) }
         }
@@ -835,13 +837,13 @@ class HomeViewModel(
     /** Corrects a mistaken pause. See `MediaRepository.deleteSessionStatusEvent`. */
     fun deleteSessionStatusEvent(eventId: Long) {
         viewModelScope.launch {
-            mediaRepository.deleteSessionStatusEvent(eventId)?.let { publishDeletionRecovery(it) }
+            mediaRepository.deleteSessionStatusEvent(eventId)?.let { publishDeletionRecovery(it) } ?: refuseChange()
         }
     }
 
     fun deleteProgressUpdate(progressUpdateId: Long) {
         viewModelScope.launch {
-            mediaRepository.deleteProgressUpdate(progressUpdateId)?.let { publishDeletionRecovery(it) }
+            mediaRepository.deleteProgressUpdate(progressUpdateId)?.let { publishDeletionRecovery(it) } ?: refuseChange()
         }
     }
 
@@ -1100,6 +1102,11 @@ class HomeViewModel(
         metadataDetailsJob = null
     }
 
+    /** A write the repository declined. Saying so beats a save that silently did nothing. */
+    private suspend fun refuseChange() {
+        mutableEvents.emit(HomeUiEvent.ChangeRefused)
+    }
+
     private suspend fun publishDeletionRecovery(recovery: DeletionRecovery) {
         require(recovery !is DeletionRecovery.SessionMutation) {
             "Session mutations use their contextual quick-action event"
@@ -1234,6 +1241,7 @@ private const val RECOMMENDATION_CACHE_TTL_MILLIS = 24 * 60 * 60 * 1_000L
 private const val MAX_RECOMMENDATION_CACHE_ENTRIES = 20
 
 sealed interface HomeUiEvent {
+    data object ChangeRefused : HomeUiEvent
     data class MediaItemCreated(val mediaItemId: Long) : HomeUiEvent
     data class MediaItemDeletionAvailable(val deletionToken: Long, val title: String) : HomeUiEvent
     data class PastSessionDeletionAvailable(val deletionToken: Long, val visitNumber: Int) : HomeUiEvent

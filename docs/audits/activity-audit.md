@@ -128,4 +128,6 @@ Suggested order: 1 → 3/4/6 (bugs) → 2/5/7 (behaviour) → sheet redesign →
 **Progress:**
 - 1 done (`core/activity/SessionActivity.kt`), which also delivered 2, the Activity-link part of 5, and the first-entry half of 2.2.
 - Bug fixes: 2.1A (later rows that change nothing no longer make a delete historical, and are removed with it), 2.1B (status and completion sheets rule out dates the repository refuses; undated transitions no longer block), 2.1C (a transition's own `previousStatus` wins), the folded completion entry is reachable from its transition's editor, the delete confirmation says whether the session changes, 7 (reopen below total, with undo), and 2.3.1 (the Activity link shows on undated sessions). Also: Material date pickers in Activity now convert in UTC.
-- Still open: C3 (undated status events), C6 (other silent no-ops), deleting a start transition does not clear `startedAt`, sheet/Timeline redesign.
+- Second round: C3 (status changes can be marked undated; an undated ending clears the snapshot finish date), C6 (refused writes surface a snackbar; the status editor names the allowed range; only dated neighbours bound a day), deleting the newest start returns to Planned and clears the start date it stamped.
+- Sheet redesign: date order grouped by month, date column instead of the rail, totals on every progress row and in the editor, rating on completions, one editor per row (closes the start-transition gap).
+- Still open: Timeline redesign.

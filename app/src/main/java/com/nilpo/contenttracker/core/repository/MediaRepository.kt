@@ -214,8 +214,12 @@ interface MediaRepository {
      */
     suspend fun deleteSessionStatusEvent(eventId: Long): DeletionRecovery?
 
-    /** Re-dates a logged status change to the day it actually happened. */
-    suspend fun updateSessionStatusEventDate(eventId: Long, occurredOn: java.time.LocalDate)
+    /**
+     * Re-dates a logged status change to the day it actually happened, or marks the day unknown when
+     * [occurredOn] is null. False when refused: a day before the session started or out of order with
+     * the dated transitions around it.
+     */
+    suspend fun updateSessionStatusEventDate(eventId: Long, occurredOn: java.time.LocalDate?): Boolean
 
     /**
      * Edits one activity entry and re-derives the owning session's total in one transaction.
@@ -228,7 +232,7 @@ interface MediaRepository {
         amount: Int,
         loggedAt: LocalDate?,
         coversPeriod: Boolean? = null,
-    )
+    ): Boolean
 
     suspend fun deleteMediaItem(mediaItemId: Long): DeletionRecovery?
     suspend fun restoreDeletion(recovery: DeletionRecovery): Boolean
