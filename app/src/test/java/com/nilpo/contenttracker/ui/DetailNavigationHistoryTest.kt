@@ -65,11 +65,11 @@ class DetailNavigationHistoryTest {
     @Test
     fun timelineAndDetailReturnToTheHomeDrillInPath() {
         val stack = mutableListOf<NavKey>(AppRoute.Home)
-        stack.push(AppRoute.Timeline)
+        stack.push(AppRoute.Record)
         stack.push(AppRoute.MediaDetail(101L))
 
         assertTrue(stack.goBack())
-        assertEquals(AppRoute.Timeline, stack.last())
+        assertEquals(AppRoute.Record, stack.last())
         assertEquals(AppRoute.Home, stack.first())
     }
 }

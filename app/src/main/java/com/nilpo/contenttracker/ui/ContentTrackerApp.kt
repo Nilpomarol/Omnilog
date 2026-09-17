@@ -194,6 +194,8 @@ import com.nilpo.contenttracker.ui.navigation.push
 import com.nilpo.contenttracker.ui.navigation.selectHome
 import com.nilpo.contenttracker.ui.navigation.selectSection
 import com.nilpo.contenttracker.ui.settings.SettingsScreen
+import com.nilpo.contenttracker.ui.record.RecordScreen
+import com.nilpo.contenttracker.ui.record.RecordTab
 import com.nilpo.contenttracker.ui.stats.StatsScreen
 import com.nilpo.contenttracker.ui.timeline.TimelineScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
@@ -287,6 +289,8 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     // The objective a Home tile asked the profile to scroll to; cleared once the profile has.
     var profileFocusObjectiveId by rememberSaveable { mutableStateOf<Long?>(null) }
     val timelineHeaderActions = remember { TimelineHeaderActions() }
+    // Which tab of the Registre page is showing; the Home entry points set it before opening the page.
+    var recordTab by rememberSaveable { mutableStateOf(RecordTab.Timeline) }
     val addMediaHeaderActions = remember { AddMediaHeaderActions() }
     // Opened from the header's search icon; Home closes it when the search is dismissed or used.
     var homeSearchOpen by rememberSaveable { mutableStateOf(false) }
@@ -990,8 +994,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 OmnilogTopBar(
                     accent = when (currentRoute) {
                         AppRoute.Home,
-                        AppRoute.Stats,
-                        AppRoute.Timeline,
+                        AppRoute.Record,
                         AppRoute.Profile,
                         AppRoute.Settings,
                         is AppRoute.StatusList,
@@ -1000,8 +1003,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         else -> currentSection.themedAccent()
                     },
                     title = when (val route = currentRoute) {
-                        AppRoute.Stats -> stringResource(R.string.stats_title)
-                        AppRoute.Timeline -> stringResource(R.string.timeline_title)
+                        AppRoute.Record -> stringResource(R.string.record_title)
                         // The profile names itself in its header, like the other editorial pages.
                         AppRoute.Profile -> ""
                         AppRoute.Settings -> "Configuració"
@@ -1021,8 +1023,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                         else -> null
                     },
                     showBackNavigation = currentRoute is AppRoute.MediaDetail ||
-                            currentRoute == AppRoute.Stats ||
-                            currentRoute == AppRoute.Timeline ||
+                            currentRoute == AppRoute.Record ||
                             currentRoute == AppRoute.Profile ||
                             currentRoute == AppRoute.Settings ||
                             currentRoute is AppRoute.AuthorDetail ||
@@ -1035,8 +1036,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute !is AppRoute.AddMedia &&
                             currentRoute !is AppRoute.Section &&
                             currentRoute !is AppRoute.StatusList &&
-                            currentRoute != AppRoute.Stats &&
-                            currentRoute != AppRoute.Timeline &&
+                            currentRoute != AppRoute.Record &&
                             currentRoute != AppRoute.Profile &&
                             currentRoute !is AppRoute.CollectionDetail &&
                             currentRoute !is AppRoute.AuthorDetail,
@@ -1047,14 +1047,13 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute !is AppRoute.AddMedia &&
                             currentRoute !is AppRoute.Section &&
                             currentRoute !is AppRoute.StatusList &&
-                            currentRoute != AppRoute.Stats &&
-                            currentRoute != AppRoute.Timeline &&
+                            currentRoute != AppRoute.Record &&
                             currentRoute != AppRoute.Settings &&
                             currentRoute !is AppRoute.CollectionDetail &&
                             currentRoute !is AppRoute.AuthorDetail,
                     showHomeSearchAction = currentRoute == AppRoute.Home,
                     showSectionActions = currentRoute is AppRoute.Section,
-                    showTimelineSettingsAction = currentRoute == AppRoute.Timeline,
+                    showTimelineSettingsAction = currentRoute == AppRoute.Record && recordTab == RecordTab.Timeline,
                     profileImage = profileImage,
                     // Only the detail page draws artwork under the bar, and only while it is
                     // actually showing that page — the external-ratings page it can swap to has an
@@ -1231,8 +1230,14 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     viewModel.selectSectionWithSearch(section, query)
                                     backStack.selectSection(section)
                                 },
-                                onStatsClick = { backStack.push(AppRoute.Stats) },
-                                onTimelineClick = { backStack.push(AppRoute.Timeline) },
+                                onStatsClick = {
+                                    recordTab = RecordTab.Stats
+                                    backStack.push(AppRoute.Record)
+                                },
+                                onTimelineClick = {
+                                    recordTab = RecordTab.Timeline
+                                    backStack.push(AppRoute.Record)
+                                },
                                 onObjectivesClick = { objectiveId ->
                                     profileFocusObjectiveId = objectiveId
                                     openProfile()
@@ -1375,62 +1380,68 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     .fillMaxSize()
                                     .padding(innerPadding),
                             )
-                        } else if (route == AppRoute.Timeline) {
-                            TimelineScreen(
-                                entries = timelineEntries,
-                                isLoading = uiState.isLoading,
-                                headerActions = timelineHeaderActions,
-                                onBrowseLibrary = { backStack.selectHome() },
-                                sessionActivitySheet = { sessionId, onDismiss ->
-                                    val media = uiState.allTrackedItems
-                                        .firstOrNull { tracked -> tracked.sessions.any { it.id == sessionId } }
-                                    val session = media?.sessions?.firstOrNull { it.id == sessionId }
-                                    if (media == null || session == null) {
-                                        // The session was deleted while the sheet was open.
-                                        LaunchedEffect(sessionId) { onDismiss() }
-                                    } else {
-                                        ActivitySheet(
-                                            session = session,
-                                            mediaType = media.item.type,
-                                            progressTotal = media.item.progressTotal,
-                                            accent = media.item.type.homeSection().themedAccent(),
-                                            onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
-                                            onUpdateProgressUpdate = viewModel::updateProgressUpdate,
-                                            onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
-                                            onUpdateStatusEventDate = viewModel::updateSessionStatusEventDate,
-                                            onDismiss = onDismiss,
-                                            itemTitle = displayMediaTitle(media.item.title),
-                                            onOpenItem = {
-                                                onDismiss()
-                                                openTrackedMedia(media)
-                                            },
-                                        )
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(innerPadding),
-                            )
-                        } else if (route == AppRoute.Stats) {
-                            StatsScreen(
-                                items = uiState.allTrackedItems,
-                                onCreatorClick = { creator, mediaType ->
-                                    backStack.push(
-                                        AppRoute.AuthorDetail(
-                                            creator,
-                                            mediaType.homeSection()
-                                        )
+                        } else if (route == AppRoute.Record) {
+                            RecordScreen(
+                                selectedTab = recordTab,
+                                onTabSelected = { recordTab = it },
+                                timeline = {
+                                    TimelineScreen(
+                                        entries = timelineEntries,
+                                        isLoading = uiState.isLoading,
+                                        headerActions = timelineHeaderActions,
+                                        onBrowseLibrary = { backStack.selectHome() },
+                                        sessionActivitySheet = { sessionId, onDismiss ->
+                                            val media = uiState.allTrackedItems
+                                                .firstOrNull { tracked -> tracked.sessions.any { it.id == sessionId } }
+                                            val session = media?.sessions?.firstOrNull { it.id == sessionId }
+                                            if (media == null || session == null) {
+                                                // The session was deleted while the sheet was open.
+                                                LaunchedEffect(sessionId) { onDismiss() }
+                                            } else {
+                                                ActivitySheet(
+                                                    session = session,
+                                                    mediaType = media.item.type,
+                                                    progressTotal = media.item.progressTotal,
+                                                    accent = media.item.type.homeSection().themedAccent(),
+                                                    onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
+                                                    onUpdateProgressUpdate = viewModel::updateProgressUpdate,
+                                                    onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
+                                                    onUpdateStatusEventDate = viewModel::updateSessionStatusEventDate,
+                                                    onDismiss = onDismiss,
+                                                    itemTitle = displayMediaTitle(media.item.title),
+                                                    onOpenItem = {
+                                                        onDismiss()
+                                                        openTrackedMedia(media)
+                                                    },
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxSize(),
                                     )
                                 },
-                                onCollectionClick = { collectionId, mediaType ->
-                                    backStack.push(
-                                        AppRoute.CollectionDetail(
-                                            collectionId,
-                                            mediaType.homeSection()
-                                        ),
+                                stats = {
+                                    StatsScreen(
+                                        items = uiState.allTrackedItems,
+                                        onCreatorClick = { creator, mediaType ->
+                                            backStack.push(
+                                                AppRoute.AuthorDetail(
+                                                    creator,
+                                                    mediaType.homeSection()
+                                                )
+                                            )
+                                        },
+                                        onCollectionClick = { collectionId, mediaType ->
+                                            backStack.push(
+                                                AppRoute.CollectionDetail(
+                                                    collectionId,
+                                                    mediaType.homeSection()
+                                                ),
+                                            )
+                                        },
+                                        onMediaClick = openTrackedMedia,
+                                        modifier = Modifier.fillMaxSize(),
                                     )
                                 },
-                                onMediaClick = openTrackedMedia,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),

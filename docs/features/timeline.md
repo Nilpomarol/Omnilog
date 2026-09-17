@@ -3,6 +3,8 @@
 Status: Current feature specification  
 Last reviewed: 2026-09-17
 
+Cronologia and Estadístiques are two swipeable tabs of one page, "Registre" (`AppRoute.Record`, `ui/record/RecordScreen.kt`). Home's recent-activity link opens it on Cronologia and the rhythm card on Estadístiques.
+
 Timeline is the library-wide chronology of meaningful consumption events. It is not a generic audit log of every database mutation.
 
 ## Included Events

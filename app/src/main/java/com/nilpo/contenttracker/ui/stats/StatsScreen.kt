@@ -41,6 +41,7 @@ import com.nilpo.contenttracker.core.stats.StatsCalculator
 import com.nilpo.contenttracker.core.stats.StatsFilters
 import com.nilpo.contenttracker.core.stats.StatsPeriod
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownChip
+import com.nilpo.contenttracker.ui.detail.DetailGutter
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 
@@ -100,7 +101,8 @@ fun StatsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                // The same gutter as the Cronologia tab beside it, so swiping between them does not shift.
+                .padding(start = DetailGutter, end = DetailGutter, top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             stickyHeader {

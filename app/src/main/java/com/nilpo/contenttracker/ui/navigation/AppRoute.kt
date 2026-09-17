@@ -32,11 +32,9 @@ internal sealed interface AppRoute : NavKey {
         val contributorRole: String? = null,
     ) : AppRoute
 
+    /** Cronologia and Estadístiques, as two tabs of one page. */
     @Serializable
-    data object Stats : AppRoute
-
-    @Serializable
-    data object Timeline : AppRoute
+    data object Record : AppRoute
 
     @Serializable
     data object Profile : AppRoute

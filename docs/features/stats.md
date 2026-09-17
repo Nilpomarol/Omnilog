@@ -1,7 +1,9 @@
 # Stats
 
 Status: Current feature specification  
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-17
+
+Cronologia and Estadístiques are two swipeable tabs of one page, "Registre" (`AppRoute.Record`, `ui/record/RecordScreen.kt`). Home's recent-activity link opens it on Cronologia and the rhythm card on Estadístiques.
 
 Stats is a secondary Home/Profile drill-in for understanding the user's own history. It is not a provider-popularity dashboard and should not become a sixth root navigation destination.
 

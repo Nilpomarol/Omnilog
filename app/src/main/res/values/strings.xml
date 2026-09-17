@@ -46,6 +46,7 @@
     <string name="home_analytics_average_rating_short">Nota</string>
     <string name="home_analytics_revisits_short">Repeticions</string>
     <string name="timeline_title">Cronologia</string>
+    <string name="record_title">Registre</string>
     <string name="timeline_recent_title">Activitat recent</string>
     <string name="timeline_view_all">Veure la cronologia</string>
     <string name="timeline_loading">Carregant l’activitat…</string>
