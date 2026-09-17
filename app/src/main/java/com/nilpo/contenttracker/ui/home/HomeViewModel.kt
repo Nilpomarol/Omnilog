@@ -1400,10 +1400,23 @@ private fun String?.toTrackingStatusOrNull(): TrackingStatus? =
  * The repository's session-mutation recovery restores a whole snapshot. The full editor may save
  * personal fields alongside a status/progress change, so only hand that recovery to the UI when it
  * cannot erase a rating, note, or date from the same save.
+ *
+ * A date the transition itself fills in is part of the change, not a personal edit: completing
+ * writes a finish date where there was none, reopening clears it, and leaving Planned stamps a start
+ * where there was none. Undo puts those back to empty, so nothing the user had before is lost.
  */
-internal fun DeletionRecovery.SessionMutation.isStatusAndProgressOnly(): Boolean =
-    before.session.copy(
-        status = after.session.status,
-        progressCurrent = after.session.progressCurrent,
-        updatedAtEpochMillis = after.session.updatedAtEpochMillis,
-    ) == after.session
+internal fun DeletionRecovery.SessionMutation.isStatusAndProgressOnly(): Boolean {
+    val old = before.session
+    val new = after.session
+    val statusChanged = old.status != new.status
+    val finishWrittenOrCleared = statusChanged &&
+        (old.finishedAtEpochDay == null || new.finishedAtEpochDay == null)
+    val startWritten = statusChanged && old.startedAtEpochDay == null
+    return old.copy(
+        status = new.status,
+        progressCurrent = new.progressCurrent,
+        updatedAtEpochMillis = new.updatedAtEpochMillis,
+        finishedAtEpochDay = if (finishWrittenOrCleared) new.finishedAtEpochDay else old.finishedAtEpochDay,
+        startedAtEpochDay = if (startWritten) new.startedAtEpochDay else old.startedAtEpochDay,
+    ) == new
+}

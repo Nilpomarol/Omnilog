@@ -17,6 +17,31 @@ class SessionMutationUndoPolicyTest {
     }
 
     @Test
+    fun editorCompletionOffersUndoForTheDatesItFillsIn() {
+        val inProgress = session().copy(status = "InProgress", progressCurrent = 11)
+        val completed = inProgress.copy(status = "Completed", progressCurrent = 12, finishedAtEpochDay = 20_700)
+        assertTrue(mutation(inProgress, completed).isStatusAndProgressOnly())
+
+        val planned = session()
+        val startedAndFinished = planned.copy(status = "Completed", startedAtEpochDay = 20_690, finishedAtEpochDay = 20_700)
+        assertTrue(mutation(planned, startedAndFinished).isStatusAndProgressOnly())
+
+        val reopened = completed.copy(status = "InProgress", finishedAtEpochDay = null)
+        assertTrue(mutation(completed, reopened).isStatusAndProgressOnly())
+    }
+
+    @Test
+    fun editorSaveDoesNotOfferUndoWhenAnExistingDateIsRewritten() {
+        val started = session().copy(status = "InProgress", startedAtEpochDay = 20_600)
+        val restarted = started.copy(status = "Completed", startedAtEpochDay = 20_650, finishedAtEpochDay = 20_700)
+        assertFalse(mutation(started, restarted).isStatusAndProgressOnly())
+
+        val completed = session().copy(status = "Completed", finishedAtEpochDay = 20_700)
+        val dropped = completed.copy(status = "Dropped", finishedAtEpochDay = 20_710)
+        assertFalse(mutation(completed, dropped).isStatusAndProgressOnly())
+    }
+
+    @Test
     fun editorSaveDoesNotOfferUndoWhenPersonalFieldsChanged() {
         val before = session()
 
