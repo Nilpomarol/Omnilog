@@ -25,29 +25,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.activity.activity
 import com.nilpo.contenttracker.core.model.MediaType
-import com.nilpo.contenttracker.core.model.ProgressUpdate
-import com.nilpo.contenttracker.core.model.SessionStatusEvent
-import com.nilpo.contenttracker.core.model.TrackingStatus
+import com.nilpo.contenttracker.core.model.TrackingSession
 import java.time.LocalDate
 
 /**
  * The session card's way into [ActivitySheet].
  *
- * Hidden below two rows. One entry is a fact, not a sequence — there is nothing to read, and the
- * card already says where the session stands. The count on the button is what makes it worth
- * opening: it says how much story is behind it, which is also why it is on the face of the control
- * rather than only in its accessibility label.
+ * Shown whenever the session holds something the sheet can correct: an entry or a transition. A
+ * bare start date is a fact the card already states, not history. Hiding the surface below a count
+ * made a single mistaken pause impossible to remove. The count on the control is the number of rows
+ * the sheet will show, so it says how much story is behind it.
  */
 @Composable
 fun ActivityAction(
-    updates: List<ProgressUpdate>,
-    statusEvents: List<SessionStatusEvent>,
-    baselineProgress: Int,
-    sessionStartedAt: LocalDate?,
-    sessionFinishedAt: LocalDate?,
-    sessionStatus: TrackingStatus,
-    progressTotal: Int?,
+    session: TrackingSession,
     mediaType: MediaType,
     accent: Color,
     onDeleteProgressUpdate: (Long) -> Unit,
@@ -58,23 +51,14 @@ fun ActivityAction(
     // the activity entry sheds its label and count and becomes one disc among them.
     iconOnly: Boolean = false,
 ) {
-    val visibleEvents = meaningfulActivityStatuses(statusEvents)
-    // Milestones count towards this. A session with one entry but a start and a finish does have a
-    // sequence to read — began, advanced, ended — which is exactly what the rule is protecting.
-    val milestoneCount = listOfNotNull(
-        sessionStartedAt,
-        sessionFinishedAt?.takeIf {
-            (sessionStatus == TrackingStatus.Completed || sessionStatus == TrackingStatus.Dropped) &&
-                visibleEvents.none { event -> event.status == sessionStatus }
-        },
-    ).size
-    if (updates.size + visibleEvents.size + milestoneCount < 2) return
+    val rows = session.activity()
+    if (rows.none { it.progress != null || it.statusEvent != null }) return
 
     // Deliberately not keyed on the entries. Keying it on their count closed the surface the moment
     // anything was deleted from it, so correcting three bad rows meant reopening three times.
     var showSheet by rememberSaveable { mutableStateOf(false) }
 
-    val count = updates.size + visibleEvents.size
+    val count = rows.size
 
     if (iconOnly) {
         FilledTonalIconButton(
@@ -118,13 +102,7 @@ fun ActivityAction(
 
     if (showSheet) {
         ActivitySheet(
-            updates = updates,
-            statusEvents = statusEvents,
-            baselineProgress = baselineProgress,
-            sessionStartedAt = sessionStartedAt,
-            sessionFinishedAt = sessionFinishedAt,
-            sessionStatus = sessionStatus,
-            progressTotal = progressTotal,
+            session = session,
             mediaType = mediaType,
             accent = accent,
             onDeleteProgressUpdate = onDeleteProgressUpdate,

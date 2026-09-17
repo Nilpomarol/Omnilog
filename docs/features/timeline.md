@@ -36,7 +36,7 @@ Unknown-date progress remains editable in the item's Activity surface but cannot
 
 When a progress entry occurs on the same meaningful day as a start or completion milestone, Timeline may fold that progress into the milestone so the chronology reads as one meaningful event rather than duplicate adjacent rows.
 
-The implementation already handles this in `TimelineBuilder`; preserve its behavior unless product requirements change explicitly.
+Folding is derived once in `core/activity/SessionActivity.kt` and shared with Activity; `TimelineBuilder` only maps those rows. Reopen and back-to-planned transitions are omitted from Timeline, and same-day pause/resume pairs are collapsed there.
 
 ## Status History
 
@@ -76,6 +76,7 @@ Social additions should not change the semantics of personal consumption events.
 
 ## Implementation References
 
+- `core/activity/SessionActivity.kt`
 - `core/timeline/TimelineBuilder.kt`
 - `core/timeline/TimelineModels.kt`
 - Timeline tests under `app/src/test/.../core/timeline`

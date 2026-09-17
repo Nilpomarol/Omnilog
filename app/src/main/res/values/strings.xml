@@ -281,7 +281,9 @@
     <string name="activity_finished">Has acabat</string>
     <string name="activity_abandoned">Has abandonat</string>
     <string name="activity_paused">Has posat en pausa</string>
-    <string name="activity_resumed">Has repres</string>
+    <string name="activity_resumed">Has reprès</string>
+    <string name="activity_reopened">Has reobert</string>
+    <string name="activity_replanned">Has tornat a planificar</string>
     <string name="activity_date_unknown">Sense data</string>
     <string name="activity_remove_date">Sense data</string>
     <string name="activity_entry_description">%1$s, %2$d %3$s, total %4$d</string>

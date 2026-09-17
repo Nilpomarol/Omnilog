@@ -264,13 +264,7 @@ private fun SessionCard(
                         trailing = recency,
                     )
                     ActivityAction(
-                        updates = session.progressUpdates,
-                        statusEvents = session.statusEvents,
-                        baselineProgress = session.baselineProgress,
-                        sessionStartedAt = session.startedAt,
-                        sessionFinishedAt = session.finishedAt,
-                        sessionStatus = session.status,
-                        progressTotal = progressTotal,
+                        session = session,
                         mediaType = mediaType,
                         accent = visual.color,
                         onDeleteProgressUpdate = onDeleteProgressUpdate,

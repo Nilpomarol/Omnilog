@@ -460,6 +460,7 @@ private fun EntryDatePicker(
 @Composable
 fun StatusEventEditor(
     event: SessionStatusEvent,
+    label: String,
     accent: Color,
     minimumDate: LocalDate? = null,
     maximumDate: LocalDate? = null,
@@ -484,7 +485,7 @@ fun StatusEventEditor(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(event.statusLabelRes()),
+                    text = label,
                     color = OmnilogTheme.colors.appInk,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
@@ -564,7 +565,7 @@ fun StatusEventEditor(
                 Text(
                     text = stringResource(
                         R.string.activity_delete_status_message,
-                        stringResource(event.statusLabelRes()),
+                        label,
                         event.occurredOn.formatActivityDate(),
                     ),
                 )

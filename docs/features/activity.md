@@ -48,7 +48,9 @@ Status transitions belong in Activity when they represent meaningful session his
 
 Deleting a transition removes only that transition and recalculates the resulting session state according to the surviving history. Do not delete a pause/resume pair merely because they were once related.
 
-Same-day pause/resume pairs may be suppressed from chronology when they represent an accidental tap/correction rather than a meaningful break.
+Every transition that changed the session's state is shown in Activity (start, pause, resume, reopen, back to planned, completion, drop), because a transition the user cannot see is one they cannot correct. A transition into the state it left is not a row.
+
+Same-day pause/resume pairs are suppressed from the library Timeline only; Activity keeps them so they stay correctable.
 
 ## Ordering
 
@@ -56,9 +58,9 @@ The Activity list preserves a stable user-readable event sequence. Running total
 
 ## Visibility
 
-Do not expose an Activity surface when there is no meaningful sequence to read.
+Expose the Activity surface whenever the session holds something it can correct: a progress entry or a status transition.
 
-A lone baseline is not activity. A session with milestones/status events plus progress may still have a meaningful sequence even with few progress rows.
+A lone baseline or a bare start date is not activity.
 
 ## Corrections
 
@@ -79,6 +81,7 @@ Library-wide Timeline derives from the same underlying progress/status history. 
 
 Primary implementation areas include:
 
+- `core/activity/SessionActivity.kt` — the single derivation (rows, folding, running totals) shared with Timeline
 - `core/model/ProgressUpdate`
 - `core/model/TrackingSession`
 - status-event models
