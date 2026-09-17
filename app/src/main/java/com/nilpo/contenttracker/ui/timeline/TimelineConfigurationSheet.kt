@@ -180,7 +180,7 @@ private fun TimelineMediaTypeRow(
 }
 
 @Composable
-private fun MediaType.timelineSettingsLabel(): String = when (this) {
+internal fun MediaType.timelineSettingsLabel(): String = when (this) {
     MediaType.Anime -> stringResource(R.string.stats_media_plural_anime)
     MediaType.Book -> stringResource(R.string.stats_media_plural_book)
     MediaType.Movie -> stringResource(R.string.stats_media_plural_movie)

@@ -46,6 +46,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -66,7 +68,9 @@ import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OmnilogLocale
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.progressUnitLabel
+import com.nilpo.contenttracker.ui.detail.DetailGutter
 import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
+import com.nilpo.contenttracker.ui.detail.RatingStars
 import com.nilpo.contenttracker.ui.home.StatusChip
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
@@ -85,8 +89,7 @@ import java.time.format.TextStyle
  * further — `12sp` of bold uppercase `30 MARÇ` plus [GutterHaloClearance]. The uppercase is what
  * sets the floor; it cost 6dp over the lowercase form.
  *
- * The year does not enter into this. It takes a line of its own, which costs nothing because the
- * gutter reports no height at all (see [TimelineDayNode]).
+ * The year does not enter into this. It takes a line of its own below the date.
  */
 private val DateGutterWidth = 58.dp
 
@@ -128,7 +131,6 @@ private val RailLineWidth = 2.dp
  * every drop of colour has moved into the beads — where the size says what tier of event it is and
  * the colour says what kind of thing it happened to.
  */
-private val DayDotSize = 9.dp
 internal val MilestoneDotSize = 7.dp
 internal val ProgressDotSize = 4.dp
 
@@ -140,204 +142,302 @@ internal val ProgressDotSize = 4.dp
  * the one place the timeline is genuinely meant to break.
  */
 internal val DotHalo = 3.dp
-private val DayDotHalo = 4.dp
-
-private val MilestoneCardPadding = 9.dp
-// A true poster: the height is set and the width follows from the ratio. The height is chosen to
-// clear the tallest the text column can get — two pills, two lines of title, one line of figures —
-// so the poster is always the taller of the two and never leaves a gap beneath itself.
-private val MilestoneCoverHeight = 96.dp
-private const val MilestoneCoverAspect = 2f / 3f
-private val TypeIconSize = 12.dp
-
-private val PulseCoverWidth = 30.dp
-// A true 2:3 like the milestone poster, so the two covers are the same object at two sizes.
-private const val PulseCoverAspect = 2f / 3f
-private val PulseVerticalPadding = 8.dp
-// The row carries no card, so the tap target has to come from the row itself: 45dp of cover plus
-// 8dp above and below, comfortably over the 48dp minimum.
-private val PulseMinHeight = 61.dp
-// Where the rail stops under the last progress row of the whole list.
-private val PulseRailStop = 30.dp
-
-/** Between two entries of the same sort. */
-private val SameKindGap = 8.dp
-/** Between a progress row and a milestone card — the two read as different registers. */
-private val KindChangeGap = 14.dp
-
-private val MeterHeight = 3.dp
-/** The share of the bar that was already there before today's session; the rest is today's gain. */
-private const val MeterPriorAlpha = 0.42f
 
 /**
- * A day as a labelled node on the rail.
+ * A month as a chapter of the diary: its name in the section serif, and what the month added up to.
  *
- * Deliberately a node rather than a section heading: the line runs through it and out the bottom,
- * so consecutive days read as one timeline instead of a stack of separate lists.
+ * The rail stops at the end of each month and starts again under the next heading, so a month reads
+ * as one run of days rather than as part of an endless thread.
  */
 @Composable
-internal fun TimelineDayNode(
-    label: TimelineGutterDate,
+internal fun TimelineMonthHeader(
+    title: String,
     progressByUnit: Map<TimelineProgressUnit, Int>,
     completedCount: Int,
     modifier: Modifier = Modifier,
+    // The first month sits right under the filters, which already give it air.
+    isFirst: Boolean = false,
 ) {
-    val summaryParts = buildList {
-        progressByUnit.forEach { (unit, delta) ->
-            add(stringResource(R.string.timeline_delta_unit, delta, unit.label(delta)))
-        }
+    val summary = buildList {
         when {
             completedCount == 1 -> add(stringResource(R.string.timeline_day_completed_one))
             completedCount > 1 -> add(stringResource(R.string.timeline_day_completed, completedCount))
         }
-    }
+        progressByUnit.forEach { (unit, amount) ->
+            add(stringResource(R.string.timeline_progress_current, amount, unit.label(amount)))
+        }
+    }.joinToString(" · ")
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min),
-        verticalAlignment = Alignment.Top,
+            .padding(start = DetailGutter, end = DetailGutter, top = if (isFirst) 4.dp else 28.dp, bottom = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .width(gutterWidth())
-                // The gutter reports no height whatsoever, then draws its full height downward from
-                // the top. Without this the year's second line would make the day node taller and
-                // push the day's first card down with it — a date getting longer is no reason for
-                // the timeline to move. Reporting zero lets the line run on past the summary
-                // instead, into the empty gutter of the card below.
-                .height(0.dp)
-                .wrapContentHeight(Alignment.Top, unbounded = true)
-                .padding(top = 1.dp, end = GutterHaloClearance),
-            horizontalAlignment = Alignment.End,
-        ) {
+        DetailSectionTitle(text = title, modifier = Modifier.semantics { heading() })
+        if (summary.isNotEmpty()) {
             Text(
-                text = label.headline(),
-                // One step up from the year beneath it, which is what keeps the two apart now that
-                // they sit at the same weight.
-                style = MaterialTheme.typography.labelMedium,
-                textAlign = TextAlign.End,
-                // A date is forbidden from wrapping rather than merely expected not to: the column
-                // is sized to clear the widest of them, but a locale or a font this code has never
-                // seen must degrade to a clipped single line, never to a second one. Only
-                // `Data desconeguda` — which has no day and no month — is allowed to break.
-                softWrap = label.month == null,
-                maxLines = if (label.month == null) 2 else 1,
-                overflow = TextOverflow.Ellipsis,
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = OmnilogTheme.colors.appMuted,
             )
-            label.year?.let { year ->
-                Text(
-                    text = year,
-                    color = OmnilogTheme.colors.appMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Normal,
-                    letterSpacing = GutterTracking,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
-        }
-        TimelineRail(
-            // Solid ink, and the only ink-coloured mark in the rail: a new day outranks anything
-            // that happened during one, and it is the one bead that is not about a media type.
-            dotColor = OmnilogTheme.colors.appInk,
-            dotSize = DayDotSize,
-            haloWidth = DayDotHalo,
-            // The halo is 17dp tall and centres the bead 8.5dp down on its own; this nudge carries
-            // it the rest of the way to the middle of the date, which sits 1dp lower on a 16sp line.
-            dotTop = 0.5.dp,
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 8.dp, top = 2.dp, bottom = 8.dp),
-        ) {
-            if (summaryParts.isNotEmpty()) {
-                Text(
-                    text = summaryParts.joinToString(" · "),
-                    color = OmnilogTheme.colors.appMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 }
 
 /**
- * One entry, hung off the rail.
+ * One line of the library's diary, in the same shape as a row of the item's Activitat: the date once
+ * per day in the gutter, a bead on the rail, and what happened.
  *
- * Milestones and progress updates are deliberately different objects rather than two sizes of the
- * same card. Finishing a book is what the timeline is read for; advancing forty pages is the noise
- * around it. So a milestone gets a card and a cover while a progress update gets a bare row, and
- * the rail says the same thing again in miniature: a 7dp bead in the media colour against a 4dp one
- * in the line's own tone.
- *
- * [isLast] stops the line dangling past the final entry. [previousKind] is what sat above this row
- * within the same day, which is the only thing the row cannot work out for itself: it decides both
- * the hairline between two adjacent progress rows and how much air to leave above.
- *
- * All spacing between rows is applied on top rather than split between a bottom and a top padding,
- * so a single rule decides each gap and the two sides cannot drift apart.
+ * Three tiers, so a finished title outweighs a pause and a pause outweighs a sitting:
+ * - an ending (completed, abandoned) has the large cover, a heavier title, the outcome and the rating;
+ * - a change of state (started, revisited, paused, resumed) has a small cover, the title and the state;
+ * - a progress entry has a thumbnail, the amount, and a bar showing what it added to the ground covered.
+ * The bead grows with the tier as well. No tier gets a card: size and weight carry the difference.
  */
 @Composable
-fun TimelineCardRow(
+internal fun TimelineDiaryRow(
     entry: TimelineEntry,
+    showDate: Boolean,
+    isLast: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isLast: Boolean = false,
-    previousKind: TimelineEntryKind? = null,
+    // Off when the type's progress history is hidden: a milestone's amount and position would then
+    // be the only progress on screen, a partial figure read as the whole story.
+    showProgress: Boolean = true,
 ) {
-    val isMilestone = entry.kind != TimelineEntryKind.Progress
-    val previousWasMilestone = previousKind?.let { it != TimelineEntryKind.Progress }
-    val showDivider = previousKind == TimelineEntryKind.Progress &&
-        entry.kind == TimelineEntryKind.Progress
-    val topGap = when {
-        // First of the day: the day node above already carries its own spacing.
-        previousWasMilestone == null -> 0.dp
-        previousWasMilestone != isMilestone -> KindChangeGap
-        isMilestone -> SameKindGap
-        // Two progress rows in a row: the hairline is the separation.
-        else -> 0.dp
+    val tier = when (entry.kind) {
+        TimelineEntryKind.Completion, TimelineEntryKind.Dropped -> RowTier.Ending
+        TimelineEntryKind.Progress -> RowTier.Progress
+        else -> RowTier.Change
     }
+    val accent = entry.mediaAccent()
+    val description = entry.rowDescription()
+    val delta = entry.deltaText()?.takeIf { showProgress }
+    val position = entry.positionText()?.takeIf { showProgress }
+    // Where the title's first line sits, measured from the top of the row: the bead and the date
+    // both line up with it.
+    val titleCenter = tier.verticalPadding + tier.titleLineHeight / 2
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min),
+            .height(IntrinsicSize.Min)
+            .clickable(onClick = onClick)
+            .clearAndSetSemantics { contentDescription = description }
+            .padding(start = DetailGutter - 8.dp, end = DetailGutter),
     ) {
-        Spacer(modifier = Modifier.width(gutterWidth()))
-        TimelineRail(
-            // The bead takes the media colour, not the outcome colour, so it agrees with the type
-            // pill on the card beside it. A progress row gets one too, in the line's own tone at
-            // full opacity: present enough to mark the row, quiet enough not to rival a milestone.
-            dotColor = if (isMilestone) {
-                entry.mediaAccent()
-            } else {
-                OmnilogTheme.colors.appLine.copy(alpha = 1f)
-            },
-            dotSize = if (isMilestone) MilestoneDotSize else ProgressDotSize,
-            haloWidth = DotHalo,
-            // Centred rather than pinned, so it stays level with the middle of a card whose height
-            // now depends on how far the title wraps.
-            centerDot = true,
-            stopAtHalf = isLast && isMilestone,
-            stopAt = if (isLast && !isMilestone) PulseRailStop else null,
-        )
         Column(
             modifier = Modifier
-                .weight(1f)
-                .padding(start = 8.dp, top = topGap),
+                .width(gutterWidth())
+                .padding(top = titleCenter - GutterLineHeight / 2, end = GutterHaloClearance),
+            horizontalAlignment = Alignment.End,
         ) {
-            if (showDivider) {
-                HorizontalDivider(color = OmnilogTheme.colors.appLine)
+            if (showDate) {
+                entry.date?.timelineGutterDate()?.let { gutter ->
+                    Text(
+                        text = gutter.headline(),
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.End,
+                        softWrap = false,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    gutter.year?.let { year ->
+                        Text(
+                            text = year,
+                            color = OmnilogTheme.colors.appMuted,
+                            style = MaterialTheme.typography.labelSmall,
+                            letterSpacing = GutterTracking,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                }
             }
-            if (isMilestone) {
-                TimelineMilestoneCard(entry = entry, onClick = onClick)
-            } else {
-                TimelineProgressRow(entry = entry, onClick = onClick)
+        }
+        TimelineRail(
+            dotColor = if (tier == RowTier.Progress) OmnilogTheme.colors.appLine.copy(alpha = 1f) else entry.stateAccent(),
+            dotSize = tier.dotSize,
+            haloWidth = DotHalo,
+            dotTop = titleCenter - tier.dotSize / 2 - DotHalo,
+            stopAt = if (isLast) titleCenter else null,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 10.dp, top = tier.verticalPadding, bottom = tier.verticalPadding),
+        ) {
+            when (tier) {
+                RowTier.Progress -> ProgressLine(entry = entry, delta = delta, position = position, accent = accent)
+                else -> MilestoneContent(entry = entry, tier = tier, delta = delta, position = position, accent = accent)
+            }
+        }
+    }
+}
+
+private enum class RowTier(
+    val verticalPadding: Dp,
+    val titleLineHeight: Dp,
+    val dotSize: Dp,
+    val coverWidth: Dp,
+) {
+    Ending(verticalPadding = 14.dp, titleLineHeight = 24.dp, dotSize = 9.dp, coverWidth = 56.dp),
+    Change(verticalPadding = 10.dp, titleLineHeight = 20.dp, dotSize = MilestoneDotSize, coverWidth = 36.dp),
+    Progress(verticalPadding = 8.dp, titleLineHeight = 20.dp, dotSize = ProgressDotSize, coverWidth = 24.dp),
+}
+
+/** `labelMedium`'s line, which the gutter's date is set in. */
+private val GutterLineHeight = 16.dp
+
+/**
+ * A sitting: a thumbnail, the title and what it added, over a bar where the faded run is the ground
+ * already covered and the solid run is this entry's own gain. Without a total there is nothing to
+ * measure against, so the bar gives way to the running figure alone.
+ */
+@Composable
+private fun ProgressLine(entry: TimelineEntry, delta: String?, position: String?, accent: Color) {
+    val meter = entry.meterFractions()
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        MetadataCoverImage(
+            coverUrl = entry.coverUrl,
+            modifier = Modifier
+                .width(RowTier.Progress.coverWidth)
+                .aspectRatio(2f / 3f),
+            shape = RoundedCornerShape(2.dp),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = displayMediaTitle(entry.mediaTitle),
+                    modifier = Modifier.weight(1f),
+                    color = OmnilogTheme.colors.appInk,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                delta?.let {
+                    Text(text = it, color = accent, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (meter != null) {
+                    ProgressMeter(fractions = meter, color = accent, modifier = Modifier.weight(1f))
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                position?.let {
+                    Text(text = it, color = OmnilogTheme.colors.appMuted, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/** Where the session already was, and where this entry left it, as fractions of the total. */
+private data class MeterFractions(val prior: Float, val current: Float)
+
+/** Null when there is no total to measure against, so no bar is drawn against a made-up one. */
+private fun TimelineEntry.meterFractions(): MeterFractions? {
+    val current = progressFraction ?: return null
+    val total = progressTotal?.takeIf { it > 0 } ?: return null
+    val prior = ((progress?.value ?: 0) - (progress?.delta ?: 0)).toFloat().div(total).coerceIn(0f, current)
+    return MeterFractions(prior = prior, current = current)
+}
+
+/** Drawn rather than nested so the solid run can start partway along without the faded one showing through. */
+@Composable
+private fun ProgressMeter(fractions: MeterFractions, color: Color, modifier: Modifier = Modifier) {
+    val trackColor = OmnilogTheme.colors.appLine
+    Canvas(modifier = modifier.height(4.dp)) {
+        val radius = CornerRadius(size.height / 2)
+        drawRoundRect(color = trackColor, cornerRadius = radius)
+        drawRoundRect(
+            color = color.copy(alpha = 0.35f),
+            size = Size(size.width * fractions.current, size.height),
+            cornerRadius = radius,
+        )
+        if (fractions.current > fractions.prior) {
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(size.width * fractions.prior, 0f),
+                size = Size(size.width * (fractions.current - fractions.prior), size.height),
+                cornerRadius = radius,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MilestoneContent(
+    entry: TimelineEntry,
+    tier: RowTier,
+    delta: String?,
+    position: String?,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    val isEnding = tier == RowTier.Ending
+    val rating = entry.ratingHalfPoints?.takeIf { entry.kind == TimelineEntryKind.Completion }
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        MetadataCoverImage(
+            coverUrl = entry.coverUrl,
+            modifier = Modifier
+                .width(tier.coverWidth)
+                .aspectRatio(2f / 3f),
+            shape = RoundedCornerShape(if (isEnding) 4.dp else 3.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(if (isEnding) 4.dp else 2.dp),
+        ) {
+            Text(
+                text = displayMediaTitle(entry.mediaTitle),
+                color = OmnilogTheme.colors.appInk,
+                style = if (isEnding) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+                fontWeight = if (isEnding) FontWeight.Bold else FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = entry.kickerText(),
+                color = entry.stateAccent(),
+                style = if (isEnding) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
+                fontWeight = if (isEnding) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+            )
+            rating?.let { value ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RatingStars(halfPoints = value, starSize = 15.dp, accent = accent)
+                    Text(
+                        text = formatRatingHalfPoints(value),
+                        color = OmnilogTheme.colors.appInk,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
+        if (position != null) {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = position,
+                    color = OmnilogTheme.colors.appMuted,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                )
+                delta?.let {
+                    Text(
+                        text = it,
+                        color = accent,
+                        style = if (isEnding) MaterialTheme.typography.labelLarge else MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isEnding) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
@@ -409,220 +509,8 @@ internal fun TimelineRail(
 }
 
 /**
- * A milestone — completed, started, revisited — as the timeline's headline object.
- *
- * A poster beside a column of three fixed bands: the two pills, the title, and one line of figures.
- *
- * The poster is sized to clear the tallest that column can get, so it is always the taller of the
- * two and the card takes its height from the artwork rather than from the text. That is what keeps
- * a true 2:3 ratio possible — nothing about the cover depends on how far the title wraps, and the
- * slack when a title is short falls inside the text column where it reads as spacing, not as a hole
- * under the picture.
- */
-@Composable
-private fun TimelineMilestoneCard(entry: TimelineEntry, onClick: () -> Unit) {
-    val description = entry.rowDescription()
-    val total = entry.totalText()
-    val delta = entry.deltaText()
-    val position = entry.positionText()
-    val meta = entry.metaLine()
-    // A start or a revisit carries no verdict yet, so the rating belongs to completions alone.
-    val rating = entry.ratingHalfPoints?.takeIf { entry.kind == TimelineEntryKind.Completion }
-    val hasFigures = rating != null || total != null || delta != null || position != null || meta != null
-    // Grows with the system font setting, the way MediaCard pins its own height: without this a
-    // large text scale pushes the column past the poster and reopens the gap underneath it.
-    val coverHeight = MilestoneCoverHeight * LocalDensity.current.fontScale
-
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clearAndSetSemantics { contentDescription = description },
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Row(
-            modifier = Modifier.padding(MilestoneCardPadding),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            MetadataCoverImage(
-                coverUrl = entry.coverUrl,
-                modifier = Modifier
-                    .height(coverHeight)
-                    .aspectRatio(MilestoneCoverAspect),
-                shape = RoundedCornerShape(3.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = coverHeight),
-                verticalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TimelinePill(
-                        text = entry.mediaType.typeLabel(),
-                        accent = entry.mediaAccent(),
-                        iconRes = entry.mediaType.typeIconRes(),
-                    )
-                    TimelinePill(
-                        text = entry.kickerText(),
-                        accent = entry.stateAccent(),
-                    )
-                }
-                Text(
-                    text = displayMediaTitle(entry.mediaTitle),
-                    color = OmnilogTheme.colors.appInk,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (hasFigures) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // The author leads and absorbs the slack; the rating closes the line from
-                        // the right, where it lands under the state pill above it. With no author
-                        // to fill it, a spacer holds the gap so the rating stays put.
-                        if (meta != null) {
-                            Text(
-                                text = meta,
-                                modifier = Modifier.weight(1f),
-                                color = OmnilogTheme.colors.appMuted,
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                        if (delta != null || position != null) {
-                            Column(horizontalAlignment = Alignment.End) {
-                                delta?.let { text ->
-                                    Text(
-                                        text = text,
-                                        color = entry.mediaAccent(),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        maxLines = 1,
-                                    )
-                                }
-                                position?.let { text ->
-                                    Text(
-                                        text = text,
-                                        color = OmnilogTheme.colors.appMuted,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        maxLines = 1,
-                                    )
-                                }
-                            }
-                        } else {
-                            total?.let { text ->
-                                Text(
-                                    text = text,
-                                    color = OmnilogTheme.colors.appMuted,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                )
-                            }
-                        }
-                        rating?.let { value ->
-                            MilestoneRating(ratingHalfPoints = value, accent = entry.mediaAccent())
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * The rating, given the same glyph and weight it has on the library cards.
- *
- * It leads the footer rather than sitting among the other numbers: on a completion it is the one
- * figure that is a judgement rather than a measurement. The media accent — not the completion
- * green — so it matches how `MediaCard` colours the same value. No caption: the star says what it
- * is, exactly as it does on the library cards.
- */
-@Composable
-private fun MilestoneRating(ratingHalfPoints: Int, accent: Color) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_kpi_rating),
-            contentDescription = null,
-            tint = accent,
-            modifier = Modifier.size(15.dp),
-        )
-        Text(
-            text = stringResource(R.string.timeline_completion_rating, formatRatingHalfPoints(ratingHalfPoints)),
-            color = accent,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-        )
-    }
-}
-
-/**
- * The app's status-pill shape.
- *
- * Two of these sit side by side on a milestone: what kind of thing it is, and what happened to it.
- * They were one pill for a while, which meant a single colour had to stand for both the media type
- * and the outcome — so a finished anime could be pink or green but not both.
- */
-@Composable
-private fun TimelinePill(text: String, accent: Color, @DrawableRes iconRes: Int? = null) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = accent.copy(alpha = 0.16f),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            iconRes?.let { res ->
-                Icon(
-                    painter = painterResource(res),
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(TypeIconSize),
-                )
-            }
-            Text(
-                text = text,
-                color = accent,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-/** Singular, because the pill names this one item — `Llibre`, not `Llibres`. */
-@Composable
-private fun MediaType.typeLabel(): String = when (this) {
-    MediaType.Anime -> stringResource(R.string.media_type_anime)
-    MediaType.Book -> stringResource(R.string.media_type_book)
-    MediaType.Movie -> stringResource(R.string.media_type_movie)
-    MediaType.TvShow -> stringResource(R.string.media_type_tv_show)
-    MediaType.Game -> stringResource(R.string.media_type_game)
-}
-
-/**
- * The state pill's colour. Starts and revisits take the in-progress accent rather than the media
- * one, so the two pills never come out the same colour and the pair stays readable as two facts.
+ * The colour of a change of state, shared by its bead and its label. Starts and revisits take the
+ * in-progress accent rather than the media one: the cover already says what kind of thing it is.
  */
 @Composable
 @ReadOnlyComposable
@@ -633,155 +521,7 @@ private fun TimelineEntry.stateAccent(): Color = when (kind) {
     else -> OmnilogTheme.accents.InProgress
 }
 
-/**
- * Films and series get their own glyphs rather than the navigation bar's shared film strip; see
- * the note on `navIconRes` in ObjectiveProgressCard.kt.
- */
-@DrawableRes
-private fun MediaType.typeIconRes(): Int = when (this) {
-    MediaType.Anime -> R.drawable.ic_nav_anime
-    MediaType.Book -> R.drawable.ic_nav_books
-    MediaType.Movie -> R.drawable.ic_media_movie
-    MediaType.TvShow -> R.drawable.ic_media_series
-    MediaType.Game -> R.drawable.ic_nav_games
-}
-
-/**
- * A progress update as a bare row: no card, no border, no percentage.
- *
- * The right-hand column keeps today's gain and the running position apart — they used to run
- * together in one `+2 episodis · 14 de 28` string, which read as a single value. The meter says the
- * fraction, so the numeric percentage that used to sit beside the title is gone.
- */
-@Composable
-private fun TimelineProgressRow(entry: TimelineEntry, onClick: () -> Unit) {
-    val accent = entry.mediaAccent()
-    val description = entry.rowDescription()
-    val meter = entry.meterFractions()
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .clearAndSetSemantics { contentDescription = description }
-            .heightIn(min = PulseMinHeight)
-            .padding(vertical = PulseVerticalPadding),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MetadataCoverImage(
-            coverUrl = entry.coverUrl,
-            modifier = Modifier
-                .width(PulseCoverWidth)
-                .aspectRatio(PulseCoverAspect),
-            shape = RoundedCornerShape(3.dp),
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-        ) {
-            Text(
-                text = displayMediaTitle(entry.mediaTitle),
-                color = OmnilogTheme.colors.appInk,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(entry.mediaType.typeIconRes()),
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(TypeIconSize),
-                )
-                entry.metaLine()?.let { meta ->
-                    Text(
-                        text = meta,
-                        color = OmnilogTheme.colors.appMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            meter?.let { fractions ->
-                Spacer(modifier = Modifier.height(3.dp))
-                TimelineProgressMeter(fractions = fractions, color = accent)
-            }
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            entry.deltaText()?.let { delta ->
-                Text(
-                    text = delta,
-                    color = accent,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                )
-            }
-            entry.positionText()?.let { position ->
-                Text(
-                    text = position,
-                    color = OmnilogTheme.colors.appMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-}
-
-/** Where the session already was, and what it added today. */
-private data class MeterFractions(val prior: Float, val current: Float)
-
-/**
- * Two tones on one bar: the faded run is the ground already covered, the solid run is this entry's
- * own gain. Drawn rather than nested so the solid segment can start partway along without the
- * translucent one blending through it.
- */
-@Composable
-private fun TimelineProgressMeter(fractions: MeterFractions, color: Color) {
-    val trackColor = OmnilogTheme.colors.appLine
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MeterHeight),
-    ) {
-        val radius = CornerRadius(size.height / 2)
-        drawRoundRect(color = trackColor, cornerRadius = radius)
-        if (fractions.current > 0f) {
-            drawRoundRect(
-                color = color.copy(alpha = MeterPriorAlpha),
-                size = Size(size.width * fractions.current, size.height),
-                cornerRadius = radius,
-            )
-        }
-        if (fractions.current > fractions.prior) {
-            drawRoundRect(
-                color = color,
-                topLeft = Offset(size.width * fractions.prior, 0f),
-                size = Size(size.width * (fractions.current - fractions.prior), size.height),
-                cornerRadius = radius,
-            )
-        }
-    }
-}
-
-/**
- * Where it was consumed, falling back to who made it.
- *
- * No longer prefixed with the media type: the type icon says that now, and repeating `Anime` in
- * words next to the anime glyph was the same fact twice.
- */
-private fun TimelineEntry.metaLine(): String? =
-    platformName?.takeIf { it.isNotBlank() } ?: creator?.takeIf { it.isNotBlank() }
-
-/** The chip above a milestone's title. Short enough to sit in a 6dp-padded box. */
+/** What happened, under a milestone's title. */
 @Composable
 private fun TimelineEntry.kickerText(): String = when (kind) {
     TimelineEntryKind.Completion -> stringResource(R.string.timeline_completed)
@@ -790,19 +530,8 @@ private fun TimelineEntry.kickerText(): String = when (kind) {
     TimelineEntryKind.Resumed -> stringResource(R.string.timeline_kicker_resumed)
     TimelineEntryKind.Start -> stringResource(R.string.timeline_kicker_started)
     TimelineEntryKind.Revisit -> stringResource(R.string.timeline_kicker_revisit, visitNumber)
-    // Progress entries never reach the milestone card; see TimelineCardRow.
+    // A progress row names its amount instead; see TimelineDiaryRow.
     TimelineEntryKind.Progress -> ""
-}
-
-/** The full extent of the work, unit and all — `662 pàgines`, `179 minuts`. */
-@Composable
-private fun TimelineEntry.totalText(): String? {
-    val total = progressTotal?.takeIf { it > 0 } ?: return null
-    return stringResource(
-        R.string.timeline_progress_current,
-        total,
-        progressUnitLabel(mediaType, total),
-    )
 }
 
 /** Today's gain — absent when the update recorded a position rather than an increment. */
@@ -828,16 +557,7 @@ private fun TimelineEntry.positionText(): String? {
     }
 }
 
-/** Null when there is no total to measure against, so no bar is drawn against a made-up one. */
-private fun TimelineEntry.meterFractions(): MeterFractions? {
-    val current = progressFraction ?: return null
-    val total = progressTotal?.takeIf { it > 0 } ?: return null
-    val delta = progress?.delta ?: 0
-    val prior = ((progress?.value ?: 0) - delta).toFloat().div(total).coerceIn(0f, current)
-    return MeterFractions(prior = prior, current = current)
-}
-
-/** The spoken form of a row. Both card shapes read out the same full sentence. */
+/** The spoken form of a row: title, what happened, and when. */
 @Composable
 private fun TimelineEntry.rowDescription(): String = stringResource(
     R.string.timeline_entry_accessibility,

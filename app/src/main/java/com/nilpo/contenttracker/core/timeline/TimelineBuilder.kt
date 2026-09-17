@@ -16,13 +16,13 @@ class TimelineBuilder {
      * Derives every consumption event in the library, newest first. This walks all sessions and
      * progress updates, so it is the expensive half and belongs off the main thread. The result
      * depends only on [items] — applying filters afterwards needs no rebuild.
+     *
+     * Undated rows are kept and sort last. They cannot be placed on a day, but leaving them out hid
+     * them entirely; the screen folds them away at the end, where they can be opened and dated.
      */
     fun buildEntries(items: List<TrackedMedia>): List<TimelineEntry> =
         items
             .flatMap(::entriesForMedia)
-            // An undated row remains available in the item's own activity sheet, where it can be
-            // corrected, but it cannot be placed honestly in the library-wide chronology.
-            .filter { it.date != null }
             .sortedWith(entryComparator)
 
     fun build(

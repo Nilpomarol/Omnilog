@@ -28,6 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -103,6 +104,9 @@ fun ActivitySheet(
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     onDismiss: () -> Unit,
+    // Set when the sheet opens away from the item's page (the Timeline): names the item and links to it.
+    itemTitle: String? = null,
+    onOpenItem: (() -> Unit)? = null,
 ) {
     val rows = session.activity()
     // Games log hours against no fixed length, so their totals stand alone.
@@ -149,7 +153,8 @@ fun ActivitySheet(
                         rows.filter { it.statusEvent != null }.maxByOrNull { it.recordedAtEpochMillis }?.key == editingRow.key,
                     // The repository's bounds: the start and the dated transitions either side.
                     minimumDate = listOfNotNull(
-                        session.startedAt,
+                        // The start's own transition moves the start date with it, so it is not bound by it.
+                        session.startedAt.takeUnless { editingRow.kind == SessionActivityKind.Started },
                         orderedEvents.take(eventIndex.coerceAtLeast(0)).lastOrNull { it.hasKnownDate }?.occurredOn,
                     ).maxOrNull(),
                     maximumDate = orderedEvents.drop(eventIndex + 1).firstOrNull { it.hasKnownDate }?.occurredOn
@@ -168,6 +173,8 @@ fun ActivitySheet(
                     mediaType = mediaType,
                     itemTotal = itemTotal,
                     accent = accent,
+                    itemTitle = itemTitle,
+                    onOpenItem = onOpenItem,
                     onRowClick = { editingKey = it.key },
                 )
             }
@@ -185,6 +192,8 @@ private fun ActivityList(
     mediaType: MediaType,
     itemTotal: Int?,
     accent: Color,
+    itemTitle: String?,
+    onOpenItem: (() -> Unit)?,
     onRowClick: (SessionActivity) -> Unit,
 ) {
     Column(
@@ -194,12 +203,22 @@ private fun ActivityList(
             .padding(bottom = 12.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = DetailGutter)) {
-            DetailSectionTitle(
-                text = stringResource(R.string.activity_title),
-                modifier = Modifier.semantics { heading() },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DetailSectionTitle(
+                    text = stringResource(R.string.activity_title),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { heading() },
+                )
+                onOpenItem?.let { open ->
+                    TextButton(onClick = open) {
+                        Text(text = stringResource(R.string.activity_open_item), color = accent)
+                    }
+                }
+            }
             Text(
                 text = listOfNotNull(
+                    itemTitle,
                     pluralStringResource(R.plurals.activity_summary_rows, rows.size, rows.size),
                     session.startedAt?.let { stringResource(R.string.activity_window, it.formatActivityDate()) },
                 ).joinToString(" · "),

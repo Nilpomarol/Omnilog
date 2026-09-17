@@ -83,14 +83,15 @@ fun TrackingSession.activity(): List<SessionActivity> {
     fun unclaimedOn(day: LocalDate) = updates.filter { it.id !in claimed && it.hasKnownDate && it.loggedAt == day }
 
     val events = statusEvents.sortedWith(compareBy({ it.createdAtEpochMillis }, { it.id }))
-    // The transition that opened the session, when its day agrees with the session's start date.
-    // Merged into the start rather than shown beside it.
-    val startEvent = startedAt?.let { day ->
-        events.firstOrNull { event ->
+    // The transition that opened the current run backs the session's start date and merges into its
+    // row. Matched by position rather than by day: the two could drift apart before the repository
+    // kept them in step, and matching on the day then showed one start twice.
+    val startEvent = startedAt?.let {
+        events.withIndex().lastOrNull { (index, event) ->
+            val from = event.previousStatus ?: events.getOrNull(index - 1)?.status
             event.status == TrackingStatus.InProgress &&
-                (event.previousStatus == TrackingStatus.Planned || event.previousStatus == null) &&
-                event.hasKnownDate && event.occurredOn == day
-        }
+                (from == TrackingStatus.Planned || (from == null && index == 0))
+        }?.value
     }
 
     val rows = mutableListOf<SessionActivity>()

@@ -60,54 +60,18 @@
     <string name="timeline_settings_body">Tria quins tipus de contingut apareixen a l’activitat. L’historial afegeix cada registre de progrés; sense ell només hi surten els inicis i els títols completats.</string>
     <string name="timeline_settings_show_all">Mostra tots els tipus</string>
     <string name="timeline_settings_history">Mostra l’historial de progrés</string>
-    <string name="timeline_filter_type">Tipus</string>
-    <string name="timeline_filter_year">Any</string>
-    <string name="timeline_streak_days">dies seguits</string>
-    <string name="timeline_streak_best">Millor: %1$d</string>
-    <string name="timeline_streak_none">Encara sense ratxa</string>
-    <string name="timeline_summary_completed">%1$d completats</string>
     <string name="timeline_day_completed">%1$d completats</string>
     <string name="timeline_day_completed_one">1 completat</string>
     <string name="timeline_delta_unit">+%1$d %2$s</string>
-    <plurals name="timeline_recap_completed">
-        <item quantity="one">acabat</item>
-        <item quantity="other">acabats</item>
+    <string name="timeline_month_year">%1$s de %2$d</string>
+    <string name="timeline_history_hidden_note">Sense el progrés de: %1$s · Configura</string>
+    <string name="timeline_history_hidden_all">Actualitzacions de progrés amagades · Mostra-les</string>
+    <plurals name="timeline_undated_count">
+        <item quantity="one">%d registre que encara no té data</item>
+        <item quantity="other">%d registres que encara no tenen data</item>
     </plurals>
-    <string name="timeline_recap_empty">Encara no has acabat res en aquest període.</string>
-    <plurals name="timeline_recap_empty_active">
-        <item quantity="one">Encara no has acabat res, però has avançat en %1$d títol.</item>
-        <item quantity="other">Encara no has acabat res, però has avançat en %1$d títols.</item>
-    </plurals>
-    <plurals name="timeline_recap_type_anime">
-        <item quantity="one">%1$d anime</item>
-        <item quantity="other">%1$d anime</item>
-    </plurals>
-    <plurals name="timeline_recap_type_book">
-        <item quantity="one">%1$d llibre</item>
-        <item quantity="other">%1$d llibres</item>
-    </plurals>
-    <plurals name="timeline_recap_type_movie">
-        <item quantity="one">%1$d pel·lícula</item>
-        <item quantity="other">%1$d pel·lícules</item>
-    </plurals>
-    <plurals name="timeline_recap_type_tv_show">
-        <item quantity="one">%1$d sèrie</item>
-        <item quantity="other">%1$d sèries</item>
-    </plurals>
-    <plurals name="timeline_recap_type_game">
-        <item quantity="one">%1$d joc</item>
-        <item quantity="other">%1$d jocs</item>
-    </plurals>
-    <string name="timeline_progress_of_total">%1$d de %2$d</string>
+    <string name="activity_open_item">Obre la fitxa</string>
     <string name="timeline_progress_fraction">%1$d/%2$d</string>
-    <string name="timeline_percent">%1$d%%</string>
-    <string name="timeline_weekday_monday">dl</string>
-    <string name="timeline_weekday_tuesday">dt</string>
-    <string name="timeline_weekday_wednesday">dc</string>
-    <string name="timeline_weekday_thursday">dj</string>
-    <string name="timeline_weekday_friday">dv</string>
-    <string name="timeline_weekday_saturday">ds</string>
-    <string name="timeline_weekday_sunday">dg</string>
     <string name="timeline_hidden_empty_title">Tota l’activitat està amagada</string>
     <string name="timeline_hidden_empty_body">La configuració de la cronologia no mostra cap tipus de contingut amb activitat.</string>
     <string name="timeline_filter_all">Tot</string>
@@ -129,7 +93,7 @@
     <string name="timeline_resumed">Has reprès</string>
     <string name="timeline_kicker_dropped">Abandonat</string>
     <string name="timeline_kicker_paused">En pausa</string>
-    <string name="timeline_kicker_resumed">Repres</string>
+    <string name="timeline_kicker_resumed">Reprès</string>
     <string name="timeline_kicker_started">Començat</string>
     <string name="timeline_kicker_revisit">Sessió #%1$d</string>
     <string name="timeline_progress_current">%1$d %2$s</string>

@@ -1,7 +1,7 @@
 # Timeline / Cronologia
 
 Status: Current feature specification  
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-17
 
 Timeline is the library-wide chronology of meaningful consumption events. It is not a generic audit log of every database mutation.
 
@@ -30,13 +30,13 @@ session baseline + dated increments up to that point
 
 Do not reintroduce the old cumulative-value subtraction logic.
 
-Unknown-date progress remains editable in the item's Activity surface but cannot honestly be placed in a library-wide chronology, so it should not be assigned an invented date.
+Undated rows are never given an invented date. They sort after every dated row and the screen folds them into a collapsed "Data desconeguda" section at the end, where they can be opened and dated.
 
 ## Completion / Start Folding
 
 When a progress entry occurs on the same meaningful day as a start or completion milestone, Timeline may fold that progress into the milestone so the chronology reads as one meaningful event rather than duplicate adjacent rows.
 
-Folding is derived once in `core/activity/SessionActivity.kt` and shared with Activity; `TimelineBuilder` only maps those rows. Reopen and back-to-planned transitions are omitted from Timeline, and same-day pause/resume pairs are collapsed there.
+Folding is derived once in `core/activity/SessionActivity.kt` and shared with Activity; `TimelineBuilder` only maps those rows. The transition that opened the current run backs the session's start row whatever its day; the repository keeps that transition's day and `startedAt` in step when either is edited. Reopen and back-to-planned transitions are omitted from Timeline, and same-day pause/resume pairs are collapsed there.
 
 ## Status History
 
@@ -47,6 +47,12 @@ Use immutable/explicit status-event history where available rather than reconstr
 The last-modified timestamp is only an ordering fallback for legacy snapshot data and must not be presented as an invented event date.
 
 ## Presentation
+
+The screen reads as a diary: months are chapters (serif heading plus a summary of completions and progress per unit), the day sits once in the gutter, and each row hangs off the shared rail. There is no hero/recap card. Rows come in three tiers: endings (completed, abandoned) have the large cover, a heavier title, outcome and rating; changes of state (started, revisited, paused, resumed) a small cover, title and state; progress entries a thumbnail, the amount and a bar of prior ground versus this gain. No tier is a card. The bead grows with the tier. Month totals count every entry, including hidden progress.
+
+Tapping a row opens that session's Activitat sheet over the screen, with a link to the item.
+
+Progress rows are off by default and opted into per type; the screen says under the filters when they are hidden and links to the setting. While a type's progress is hidden, its milestones drop their amount and position too, since a lone folded amount would read as the whole story.
 
 Rows should remain compact and readable.
 

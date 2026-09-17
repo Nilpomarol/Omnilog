@@ -148,6 +148,7 @@ import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
 import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
+import com.nilpo.contenttracker.ui.detail.ActivitySheet
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.CelebratedObjectives
@@ -1379,12 +1380,33 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 entries = timelineEntries,
                                 isLoading = uiState.isLoading,
                                 headerActions = timelineHeaderActions,
-                                onMediaClick = { mediaItemId ->
-                                    uiState.allTrackedItems
-                                        .firstOrNull { it.item.id == mediaItemId }
-                                        ?.let(openTrackedMedia)
-                                },
                                 onBrowseLibrary = { backStack.selectHome() },
+                                sessionActivitySheet = { sessionId, onDismiss ->
+                                    val media = uiState.allTrackedItems
+                                        .firstOrNull { tracked -> tracked.sessions.any { it.id == sessionId } }
+                                    val session = media?.sessions?.firstOrNull { it.id == sessionId }
+                                    if (media == null || session == null) {
+                                        // The session was deleted while the sheet was open.
+                                        LaunchedEffect(sessionId) { onDismiss() }
+                                    } else {
+                                        ActivitySheet(
+                                            session = session,
+                                            mediaType = media.item.type,
+                                            progressTotal = media.item.progressTotal,
+                                            accent = media.item.type.homeSection().themedAccent(),
+                                            onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
+                                            onUpdateProgressUpdate = viewModel::updateProgressUpdate,
+                                            onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
+                                            onUpdateStatusEventDate = viewModel::updateSessionStatusEventDate,
+                                            onDismiss = onDismiss,
+                                            itemTitle = displayMediaTitle(media.item.title),
+                                            onOpenItem = {
+                                                onDismiss()
+                                                openTrackedMedia(media)
+                                            },
+                                        )
+                                    }
+                                },
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding),

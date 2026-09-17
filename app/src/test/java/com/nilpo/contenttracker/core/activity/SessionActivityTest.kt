@@ -193,6 +193,35 @@ class SessionActivityTest {
     }
 
     @Test
+    fun anOpeningTransitionOnAnotherDayStillMergesIntoTheStart() {
+        val rows = session(
+            startedAt = LocalDate.of(2026, 3, 4),
+            statusEvents = listOf(
+                statusEvent(1, 100, TrackingStatus.InProgress, day = 5, previous = TrackingStatus.Planned),
+            ),
+        ).activity()
+
+        val started = rows.single()
+        assertEquals(LocalDate.of(2026, 3, 4), started.date)
+        assertEquals(1L, started.statusEvent?.id)
+    }
+
+    @Test
+    fun onlyTheLatestOpeningBacksTheStartAfterAReplan() {
+        val rows = session(
+            startedAt = LocalDate.of(2026, 3, 8),
+            statusEvents = listOf(
+                statusEvent(1, 100, TrackingStatus.InProgress, day = 4, previous = TrackingStatus.Planned),
+                statusEvent(2, 200, TrackingStatus.Planned, day = 5, previous = TrackingStatus.InProgress),
+                statusEvent(3, 300, TrackingStatus.InProgress, day = 8, previous = TrackingStatus.Planned),
+            ),
+        ).activity()
+
+        assertEquals(listOf("session:Started", "status:2", "status:1"), rows.map { it.key })
+        assertEquals(3L, rows.first().statusEvent?.id)
+    }
+
+    @Test
     fun finalProgressFoldsIntoTheCompletedTransition() {
         val rows = session(
             updates = listOf(entry(id = 1, day = 20, amount = 50, createdAt = 100)),

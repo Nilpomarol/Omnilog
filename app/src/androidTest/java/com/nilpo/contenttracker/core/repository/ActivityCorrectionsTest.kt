@@ -152,6 +152,45 @@ class ActivityCorrectionsTest {
         assertTrue(repository.updateSessionStatusEventDate(resume, java.time.LocalDate.ofEpochDay(19_990)))
     }
 
+    @Test
+    fun startingFromPlannedDatesTheTransitionOnTheStartDate() = runBlocking {
+        val (_, sessionId) = insertSession(status = "Planned")
+
+        requireNotNull(
+            repository.updateSessionDetails(
+                sessionId, TrackingStatus.InProgress, 0, null, null,
+                startedAt = java.time.LocalDate.ofEpochDay(19_990), finishedAt = null,
+            ),
+        )
+
+        assertEquals(19_990L, dao.getSessionStatusEventsForSession(sessionId).single().occurredOnEpochDay)
+    }
+
+    @Test
+    fun correctingTheStartDateMovesTheOpeningTransition() = runBlocking {
+        val (mediaId, sessionId) = insertSession(status = "InProgress", startedDay = 20_000)
+        val start = event(mediaId, sessionId, "Planned", "InProgress", at = 100)
+
+        requireNotNull(
+            repository.updateSessionDetails(
+                sessionId, TrackingStatus.InProgress, 0, null, null,
+                startedAt = java.time.LocalDate.ofEpochDay(19_995), finishedAt = null,
+            ),
+        )
+
+        assertEquals(19_995L, requireNotNull(dao.getSessionStatusEvent(start)).occurredOnEpochDay)
+    }
+
+    @Test
+    fun redatingTheOpeningTransitionMovesTheStartDateEvenBeforeIt() = runBlocking {
+        val (mediaId, sessionId) = insertSession(status = "InProgress", startedDay = 20_000)
+        val start = event(mediaId, sessionId, "Planned", "InProgress", at = 100, day = 20_001)
+
+        assertTrue(repository.updateSessionStatusEventDate(start, java.time.LocalDate.ofEpochDay(19_998)))
+
+        assertEquals(19_998L, requireNotNull(dao.getTrackingSession(sessionId)).startedAtEpochDay)
+    }
+
     private suspend fun insertSession(
         status: String,
         progress: Int = 0,
@@ -175,7 +214,7 @@ class ActivityCorrectionsTest {
         return mediaId to sessionId
     }
 
-    private suspend fun event(mediaId: Long, sessionId: Long, from: String, to: String, at: Long): Long =
+    private suspend fun event(mediaId: Long, sessionId: Long, from: String, to: String, at: Long, day: Long = 20_000): Long =
         dao.insertSessionStatusEvent(
             SessionStatusEventEntity(
                 mediaItemId = mediaId,
@@ -183,7 +222,7 @@ class ActivityCorrectionsTest {
                 previousStatus = from,
                 status = to,
                 createdAtEpochMillis = at,
-                occurredOnEpochDay = 20_000,
+                occurredOnEpochDay = day,
             ),
         )
 }

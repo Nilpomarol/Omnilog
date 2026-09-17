@@ -728,11 +728,12 @@ class OfflineMediaRepository(
                 ?.resolvedOccurredOn()
             if (precedingDay?.isAfter(endedOn) == true) return@withTransaction null
         }
-        val transitionDay = endedOn ?: listOfNotNull(
-            LocalDate.now(),
-            startedAt,
-            lastTransitionDay,
-        ).maxOrNull() ?: LocalDate.now()
+        // Starting a session happened on its start date, which may be earlier than today.
+        val opensSession = status == TrackingStatus.InProgress && previousStatus == TrackingStatus.Planned.name
+        val transitionDay = endedOn
+            ?: startedAt?.takeIf { opensSession && lastTransitionDay?.isAfter(it) != true }
+            ?: listOfNotNull(LocalDate.now(), startedAt, lastTransitionDay).maxOrNull()
+            ?: LocalDate.now()
 
         if (validProgress != session.progressCurrent) {
             mediaDao.applyProgressTarget(
@@ -770,7 +771,18 @@ class OfflineMediaRepository(
                     hasKnownDate = !status.endsSession || endedOn != null,
                 ),
             )
-        } else if (status == TrackingStatus.Completed || status == TrackingStatus.Dropped) {
+        } else if (startedAt != null && startedAt.toEpochDay() != session.startedAtEpochDay) {
+            // The opening transition and the start date are one fact; a corrected start moves both.
+            before.statusEvents.currentOpening()?.let { opening ->
+                val index = before.statusEvents.indexOf(opening)
+                val precedingDay = before.statusEvents.take(index).lastOrNull { it.hasKnownDate }?.resolvedOccurredOn()
+                val followingDay = before.statusEvents.drop(index + 1).firstOrNull { it.hasKnownDate }?.resolvedOccurredOn()
+                if (precedingDay?.isAfter(startedAt) != true && followingDay?.isBefore(startedAt) != true) {
+                    mediaDao.updateSessionStatusEventDate(opening.id, startedAt.toEpochDay())
+                }
+            }
+        }
+        if (status.name == previousStatus && (status == TrackingStatus.Completed || status == TrackingStatus.Dropped)) {
             // The terminal event owns its historical date. Keep it aligned when the session editor
             // corrects the snapshot's finish date without changing status.
             before.statusEvents.lastOrNull { it.status == status.name }?.let { event ->
@@ -1015,11 +1027,13 @@ class OfflineMediaRepository(
         val eventIndex = orderedEvents.indexOfFirst { it.id == eventId }
         if (eventIndex < 0) return@withTransaction false
         val session = mediaDao.getTrackingSession(event.sessionId) ?: return@withTransaction false
+        val opensRun = session.startedAtEpochDay != null && orderedEvents.currentOpening()?.id == eventId
         if (occurredOn != null) {
             // Only claimed days constrain: an undated neighbour's day is a placeholder.
             val previousDay = orderedEvents.take(eventIndex).lastOrNull { it.hasKnownDate }?.resolvedOccurredOn()
             val nextDay = orderedEvents.drop(eventIndex + 1).firstOrNull { it.hasKnownDate }?.resolvedOccurredOn()
-            val startedAt = session.startedAtEpochDay?.let(LocalDate::ofEpochDay)
+            // The opening transition is the start date, so it is not held behind it.
+            val startedAt = session.startedAtEpochDay?.let(LocalDate::ofEpochDay).takeUnless { opensRun }
             if (previousDay?.isAfter(occurredOn) == true || nextDay?.isBefore(occurredOn) == true ||
                 startedAt?.isAfter(occurredOn) == true
             ) {
@@ -1028,6 +1042,13 @@ class OfflineMediaRepository(
             mediaDao.updateSessionStatusEventDate(eventId = eventId, occurredOnEpochDay = occurredOn.toEpochDay())
         } else {
             mediaDao.clearSessionStatusEventDate(eventId)
+        }
+        if (opensRun && occurredOn != null) {
+            mediaDao.updateSessionStartedDate(
+                sessionId = event.sessionId,
+                startedAtEpochDay = occurredOn.toEpochDay(),
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
         }
         val isCurrentTerminalEvent = event.status == session.status &&
             event.status in setOf(TrackingStatus.Completed.name, TrackingStatus.Dropped.name) &&
@@ -1043,6 +1064,14 @@ class OfflineMediaRepository(
         notifyMalIfPayloadChanged(event.mediaItemId, malPayloadBefore)
         true
     }
+
+    /** The transition that opened the current run; the derivation pairs the same one with the start. */
+    private fun List<SessionStatusEventEntity>.currentOpening(): SessionStatusEventEntity? =
+        withIndex().lastOrNull { (index, event) ->
+            val from = event.previousStatus ?: getOrNull(index - 1)?.status
+            event.status == TrackingStatus.InProgress.name &&
+                (from == TrackingStatus.Planned.name || (from == null && index == 0))
+        }?.value
 
     private fun SessionStatusEventEntity.resolvedOccurredOn(): LocalDate =
         occurredOnEpochDay?.let(LocalDate::ofEpochDay)

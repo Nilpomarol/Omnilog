@@ -19,7 +19,8 @@ private const val HistoryTimelineMediaTypesKey = "history_media_types"
  *
  * Two independent axes: whether the type appears at all, and whether its per-update progress rows
  * appear alongside its milestones. History defaults to off so the timeline reads as a record of
- * what was finished, with the granular rows opted into per type.
+ * what was started and finished, with the granular rows opted into per type. The screen says when
+ * they are hidden.
  */
 data class TimelineVisibility(
     val hiddenMediaTypes: Set<MediaType> = emptySet(),

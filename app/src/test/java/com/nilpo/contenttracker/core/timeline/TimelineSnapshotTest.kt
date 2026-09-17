@@ -67,7 +67,7 @@ class TimelineSnapshotTest {
     }
 
     @Test
-    fun undatedEntriesAreExcludedFromTheGlobalChronology() {
+    fun undatedEntriesAreKeptAfterTheDatedOnes() {
         val undated = TrackedMedia(
             item = MediaItem(id = 5, type = MediaType.Book, title = "Undated", progressTotal = 300),
             sessions = listOf(
@@ -93,8 +93,9 @@ class TimelineSnapshotTest {
         val withUndated = library + undated
         val entries = builder.buildEntries(withUndated)
 
-        assertEquals(4, entries.size)
-        assertTrue(entries.none { it.date == null })
+        assertEquals(5, entries.size)
+        assertEquals(null, entries.last().date)
+        assertTrue(entries.dropLast(1).none { it.date == null })
     }
 
     @Test

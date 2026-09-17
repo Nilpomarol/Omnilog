@@ -209,13 +209,12 @@ class TimelineBuilderTest {
     }
 
     @Test
-    fun unknownProgressDatesDoNotAppearInTheGlobalChronology() {
+    fun unknownProgressDatesSortAfterEveryDatedEntry() {
         val known = update(1, 20, day)
         val unknown = update(2, 30, day.plusDays(5), knownDate = false)
         val result = buildWithUpdates(known, unknown)
 
-        assertEquals(listOf(day), result.entries.map { it.date })
-        assertTrue(result.entries.none { it.date == null })
+        assertEquals(listOf(day, null), result.entries.map { it.date })
     }
 
     @Test
