@@ -1,6 +1,23 @@
 package com.nilpo.contenttracker.ui.common
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import com.nilpo.contenttracker.core.model.MediaType
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -50,16 +67,28 @@ import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import kotlinx.coroutines.delay
 
 /**
- * A status change short of finishing — starting, resuming, pausing, dropping, shelving. The lighter
- * tier beside [CompletionCelebration]: the same cover-and-stamp language, as a card that stays out
- * of the way.
+ * A session change short of finishing — logging progress, starting, resuming, pausing, dropping,
+ * shelving. The lighter tiers beside [CompletionCelebration]: the same cover-and-stamp language, as
+ * a card that stays out of the way.
  */
 data class StatusReaction(
     val title: String,
     val coverUrl: String?,
     val previousStatus: TrackingStatus,
     val status: TrackingStatus,
-)
+    val mediaType: MediaType,
+    val previousProgress: Int,
+    val progress: Int,
+    /** Null when the title has no fixed length to fill, so the card shows a count without a bar. */
+    val progressTotal: Int?,
+) {
+    val statusChanged: Boolean get() = status != previousStatus
+    val progressDelta: Int get() = progress - previousProgress
+
+    /** Pausing or dropping is about stepping away; the numbers stay where they were, so no bar. */
+    val showsProgress: Boolean
+        get() = status == TrackingStatus.InProgress && (progressDelta != 0 || progressTotal != null)
+}
 
 /** The event records both ends of a transition, so an In progress row can say start or resume. */
 @StringRes
@@ -102,9 +131,15 @@ fun StatusReactionCard(
     modifier: Modifier = Modifier,
 ) {
     val visual = sessionStateVisual(reaction.status)
-    val accent = visual.color
+    // A plain log wears its media's colour; a change of state wears the state's.
+    val accent = if (reaction.statusChanged) visual.color else reaction.mediaType.objectiveAccent()
     val panel = OmnilogTheme.colors.appPanel
+    val delta = reaction.progressDelta
     val label = when {
+        !reaction.statusChanged -> {
+            val sign = if (delta < 0) "−" else "+"
+            sign + formatObjectiveNumber(abs(delta)) + " " + progressUnitLabel(reaction.mediaType, abs(delta))
+        }
         reaction.status != TrackingStatus.InProgress -> visual.label
         reaction.previousStatus == TrackingStatus.Paused -> stringResource(R.string.status_reaction_resumed)
         reaction.previousStatus.isTerminal() -> stringResource(R.string.status_reaction_reopened)
@@ -113,14 +148,19 @@ fun StatusReactionCard(
     val haptics = LocalHapticFeedback.current
     val settled = LocalInspectionMode.current
     val stamp = remember(reaction) { Animatable(if (settled) 1f else 0f) }
+    var advanced by remember(reaction) { mutableStateOf(settled) }
     LaunchedEffect(reaction) {
         if (settled) return@LaunchedEffect
         delay(120)
-        // Getting going gets a tick; stepping away stays silent.
-        if (reaction.status == TrackingStatus.InProgress) {
-            haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
+        // Getting going gets a toggle, a logged step a lighter tick; stepping away stays silent.
+        when {
+            reaction.statusChanged && reaction.status == TrackingStatus.InProgress ->
+                haptics.performHapticFeedback(HapticFeedbackType.ToggleOn)
+            !reaction.statusChanged -> haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
         }
-        stamp.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow))
+        launch { stamp.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) }
+        delay(180)
+        advanced = true
     }
 
     Surface(
@@ -178,6 +218,7 @@ fun StatusReactionCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (reaction.showsProgress) ProgressStep(reaction, accent, advanced)
             }
             snackbarData.visuals.actionLabel?.let { actionLabel ->
                 TextButton(onClick = { snackbarData.performAction() }) {
@@ -194,3 +235,61 @@ fun StatusReactionCard(
 }
 
 private fun TrackingStatus.isTerminal() = this == TrackingStatus.Completed || this == TrackingStatus.Dropped
+
+/** The value rolling from where it was to where it is, over a bar that fills to match. */
+@Composable
+private fun ProgressStep(reaction: StatusReaction, accent: Color, advanced: Boolean) {
+    val value = if (advanced) reaction.progress else reaction.previousProgress
+    val total = reaction.progressTotal
+    Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        if (total != null && total > 0) {
+            val fill by animateFloatAsState(
+                targetValue = (value.toFloat() / total).coerceIn(0f, 1f),
+                animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+                label = "progressFill",
+            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(OmnilogTheme.colors.appLine, CircleShape),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(fill)
+                        .height(4.dp)
+                        .background(accent, CircleShape),
+                )
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    val up = targetState >= initialState
+                    (slideInVertically { if (up) it else -it } + fadeIn()) togetherWith
+                        (slideOutVertically { if (up) -it else it } + fadeOut())
+                },
+                label = "progressCount",
+            ) { count ->
+                Text(
+                    text = formatObjectiveNumber(count),
+                    color = accent,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(
+                text = if (total != null) {
+                    " / " + formatObjectiveNumber(total) + " " + progressUnitLabel(reaction.mediaType, total)
+                } else {
+                    " " + progressUnitLabel(reaction.mediaType, reaction.progress)
+                },
+                color = OmnilogTheme.colors.appMuted,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}

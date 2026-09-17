@@ -639,6 +639,7 @@ class HomeViewModel(
                 session = session,
                 recovery = recovery,
                 status = status,
+                progress = progressCurrent,
                 startedAt = startedAt,
                 finishedAt = finishedAt,
                 canUndo = recovery.isStatusAndProgressOnly(),
@@ -700,9 +701,7 @@ class HomeViewModel(
                 startedAt = startedAt,
                 finishedAt = session.finishedAt,
             ) ?: return@launch
-            // A promotion moves the card out of its carousel, so it gets its undo. A plain progress
-            // edit stays put and shows its new value inline — unless it carried a goal over the line.
-            publishSessionReaction(before, media, session, recovery, status, startedAt, session.finishedAt)
+            publishSessionReaction(before, media, session, recovery, status, clamped, startedAt, session.finishedAt)
         }
     }
 
@@ -747,14 +746,15 @@ class HomeViewModel(
                 startedAt = startedAt,
                 finishedAt = finishedAt,
             ) ?: return@launch
-            publishSessionReaction(before, media, session, recovery, TrackingStatus.Completed, startedAt, finishedAt)
+            publishSessionReaction(before, media, session, recovery, TrackingStatus.Completed, progress, startedAt, finishedAt)
         }
     }
 
     /**
      * Picks the one reaction a session write earns and hands it the write's undo. Finishing gets the
      * completion page (which carries any goal it reached); a goal reached any other way gets its own
-     * page; a plain change of status gets the card. A write that earns none drops its recovery.
+     * page; a change of status or of progress gets the card. A write that earns none — notes, a
+     * rating, a date — drops its recovery.
      */
     private suspend fun publishSessionReaction(
         before: HomeUiState,
@@ -762,6 +762,7 @@ class HomeViewModel(
         session: TrackingSession,
         recovery: DeletionRecovery,
         status: TrackingStatus,
+        progress: Int,
         startedAt: LocalDate?,
         finishedAt: LocalDate?,
         canUndo: Boolean = true,
@@ -776,8 +777,8 @@ class HomeViewModel(
                 )
             }
             reached.isNotEmpty() -> { token -> HomeUiEvent.ObjectiveReached(reached, token) }
-            status != session.status -> { token ->
-                HomeUiEvent.SessionStatusChangedReversible(token, media.statusReaction(session.status, status))
+            status != session.status || progress != session.progressCurrent -> { token ->
+                HomeUiEvent.SessionStatusChangedReversible(token, media.statusReaction(session, status, progress))
             }
             else -> return
         }
@@ -1386,11 +1387,16 @@ internal fun HomeSortMode.defaultDirection(): HomeSortDirection {
     }
 }
 
-private fun TrackedMedia.statusReaction(previous: TrackingStatus, status: TrackingStatus) = StatusReaction(
+private fun TrackedMedia.statusReaction(session: TrackingSession, status: TrackingStatus, progress: Int) = StatusReaction(
     title = item.title,
     coverUrl = item.coverUrl,
-    previousStatus = previous,
+    previousStatus = session.status,
     status = status,
+    mediaType = item.type,
+    previousProgress = session.progressCurrent,
+    progress = progress,
+    // Games log hours against no fixed length, so they never draw a bar.
+    progressTotal = item.progressTotal?.takeUnless { item.type == MediaType.Game },
 )
 
 private fun String?.toTrackingStatusOrNull(): TrackingStatus? =
