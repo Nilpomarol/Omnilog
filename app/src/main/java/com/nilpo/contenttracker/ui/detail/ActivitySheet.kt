@@ -160,11 +160,10 @@ fun ActivitySheet(
                         mediaType = mediaType,
                         accent = accent,
                         onClick = {
-                            val update = row.update
-                            if (update != null) {
-                                editingEntryId = update.id
-                            } else if (row is ActivityRow.Status) {
-                                editingStatusId = row.event.id
+                            when (val target = row.editingTarget()) {
+                                is ActivityEditTarget.Progress -> editingEntryId = target.id
+                                is ActivityEditTarget.Status -> editingStatusId = target.id
+                                null -> Unit
                             }
                         },
                     )
@@ -279,6 +278,18 @@ sealed interface ActivityRow {
 }
 
 enum class MilestoneKind { Started, Finished, Abandoned }
+
+/** A folded progress update must not hide its owning status transition's corrections. */
+internal sealed interface ActivityEditTarget {
+    data class Progress(val id: Long) : ActivityEditTarget
+    data class Status(val id: Long) : ActivityEditTarget
+}
+
+internal fun ActivityRow.editingTarget(): ActivityEditTarget? = when (this) {
+    is ActivityRow.Status -> ActivityEditTarget.Status(event.id)
+    is ActivityRow.Entry -> ActivityEditTarget.Progress(update.id)
+    is ActivityRow.Milestone -> update?.let { ActivityEditTarget.Progress(it.id) }
+}
 
 /**
  * Interleaves entries and status changes, newest first.

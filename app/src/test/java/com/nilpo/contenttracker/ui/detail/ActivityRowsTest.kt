@@ -236,6 +236,20 @@ class ActivityRowsTest {
         assertEquals(50, status.runningTotal)
     }
 
+    @Test
+    fun foldedCompletedStatusEditsTheStatusEvent() {
+        val row = activityRows(
+            updates = listOf(entry(id = 1, day = 20, amount = 50, createdAt = 100)),
+            statusEvents = listOf(
+                statusEvent(id = 8, createdAt = 200, status = TrackingStatus.Completed, day = 20),
+            ),
+            baselineProgress = 0,
+            sessionStartedAt = null,
+        ).single()
+
+        assertEquals(ActivityEditTarget.Status(8), row.editingTarget())
+    }
+
     private fun entry(
         id: Long,
         day: Int,
