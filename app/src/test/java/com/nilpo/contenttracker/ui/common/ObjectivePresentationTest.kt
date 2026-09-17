@@ -71,7 +71,7 @@ class ObjectivePresentationTest {
     @Test
     fun progressUnitLabelUsesTheObjectiveUnit() {
         val objective = objective(targetValue = 7000, metric = ObjectiveMetric.ProgressUnits, unit = ObjectiveUnit.Pages)
-        assertEquals("3842 de 7000 p\u00e0gines", objectiveProgressLabel(ObjectiveProgress(objective, 3842)))
+        assertEquals("3.842 de 7.000 p\u00e0gines", objectiveProgressLabel(ObjectiveProgress(objective, 3842)))
     }
 
     @Test

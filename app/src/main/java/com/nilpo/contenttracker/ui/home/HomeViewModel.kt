@@ -48,7 +48,12 @@ import com.nilpo.contenttracker.core.repository.StoryGraphCsvImportResult
 import com.nilpo.contenttracker.core.timeline.TimelineBuilder
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.ui.add.MetadataSearchUiState
+import com.nilpo.contenttracker.ui.common.CompletionReaction
+import com.nilpo.contenttracker.ui.common.ObjectiveStep
+import com.nilpo.contenttracker.ui.common.objectiveSteps
 import com.nilpo.contenttracker.ui.common.QuickCompletion
+import com.nilpo.contenttracker.ui.common.StatusReaction
+import com.nilpo.contenttracker.ui.common.completionReaction
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -65,6 +70,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import com.nilpo.contenttracker.core.model.persistableImageUrls
 import com.nilpo.contenttracker.core.model.contributorDirectory
@@ -611,8 +617,13 @@ class HomeViewModel(
         startedAt: LocalDate?,
         finishedAt: LocalDate?,
     ) {
+        // Snapshot before the write: the reaction describes the change, and the objective steps
+        // compare against the counts from before it.
+        val before = uiState.value
+        val media = before.allTrackedItems.firstOrNull { item -> item.sessions.any { it.id == sessionId } }
+        val session = media?.sessions?.firstOrNull { it.id == sessionId }
         viewModelScope.launch {
-            mediaRepository.updateSessionDetails(
+            val recovery = mediaRepository.updateSessionDetails(
                 sessionId = sessionId,
                 status = status,
                 progressCurrent = progressCurrent,
@@ -620,6 +631,17 @@ class HomeViewModel(
                 notes = notes,
                 startedAt = startedAt,
                 finishedAt = finishedAt,
+            ) ?: return@launch
+            if (media == null || session == null) return@launch
+            publishSessionReaction(
+                before = before,
+                media = media,
+                session = session,
+                recovery = recovery,
+                status = status,
+                startedAt = startedAt,
+                finishedAt = finishedAt,
+                canUndo = recovery.isStatusAndProgressOnly(),
             )
         }
     }
@@ -650,6 +672,7 @@ class HomeViewModel(
 
         if (total != null && clamped >= total) {
             completeSession(
+                media = media,
                 session = session,
                 progress = total,
                 // Completing straight out of Planned would otherwise leave a finished session with
@@ -665,27 +688,21 @@ class HomeViewModel(
             TrackingStatus.Paused -> session.startedAt
             else -> session.startedAt ?: LocalDate.now()
         }
+        val before = uiState.value
+        val status = if (promotes) TrackingStatus.InProgress else session.status
         viewModelScope.launch {
             val recovery = mediaRepository.updateSessionDetails(
                 sessionId = session.id,
-                status = if (promotes) TrackingStatus.InProgress else session.status,
+                status = status,
                 progressCurrent = clamped,
                 ratingHalfPoints = session.ratingHalfPoints,
                 notes = session.notes,
                 startedAt = startedAt,
                 finishedAt = session.finishedAt,
-            )
-            // The card leaves its carousel the moment a promotion lands, so give that its undo.
-            // A plain progress edit stays put and shows its new value inline, which is feedback
-            // enough on its own.
-            if (promotes) {
-                recovery?.let {
-                    val token = deletionRecoveryStore.put(it)
-                    mutableEvents.emit(
-                        HomeUiEvent.SessionStartedReversible(token, session.status),
-                    )
-                }
-            }
+            ) ?: return@launch
+            // A promotion moves the card out of its carousel, so it gets its undo. A plain progress
+            // edit stays put and shows its new value inline — unless it carried a goal over the line.
+            publishSessionReaction(before, media, session, recovery, status, startedAt, session.finishedAt)
         }
     }
 
@@ -701,6 +718,7 @@ class HomeViewModel(
         val item = media.item
         val total = item.progressTotal?.takeUnless { item.type == MediaType.Game }
         completeSession(
+            media = media,
             session = session,
             progress = total ?: completion.progress.coerceAtLeast(0),
             startedAt = session.startedAt
@@ -711,12 +729,14 @@ class HomeViewModel(
     }
 
     private fun completeSession(
+        media: TrackedMedia,
         session: TrackingSession,
         progress: Int,
         startedAt: LocalDate? = session.startedAt,
         ratingHalfPoints: Int? = session.ratingHalfPoints,
         finishedAt: LocalDate = session.finishedAt ?: LocalDate.now(),
     ) {
+        val before = uiState.value
         viewModelScope.launch {
             val recovery = mediaRepository.updateSessionDetails(
                 sessionId = session.id,
@@ -726,12 +746,53 @@ class HomeViewModel(
                 notes = session.notes,
                 startedAt = startedAt,
                 finishedAt = finishedAt,
-            )
-            recovery?.let {
-                val token = deletionRecoveryStore.put(it)
-                mutableEvents.emit(HomeUiEvent.SessionCompletedReversible(token))
-            }
+            ) ?: return@launch
+            publishSessionReaction(before, media, session, recovery, TrackingStatus.Completed, startedAt, finishedAt)
         }
+    }
+
+    /**
+     * Picks the one reaction a session write earns and hands it the write's undo. Finishing gets the
+     * completion page (which carries any goal it reached); a goal reached any other way gets its own
+     * page; a plain change of status gets the card. A write that earns none drops its recovery.
+     */
+    private suspend fun publishSessionReaction(
+        before: HomeUiState,
+        media: TrackedMedia,
+        session: TrackingSession,
+        recovery: DeletionRecovery,
+        status: TrackingStatus,
+        startedAt: LocalDate?,
+        finishedAt: LocalDate?,
+        canUndo: Boolean = true,
+    ) {
+        val steps = awaitObjectiveSteps(before)
+        val reached = steps.filter { it.reached }
+        val event: (Long?) -> HomeUiEvent = when {
+            status == TrackingStatus.Completed && session.status != TrackingStatus.Completed -> { token ->
+                HomeUiEvent.SessionCompletedReversible(
+                    token,
+                    completionReaction(media, session, startedAt, finishedAt ?: LocalDate.now(), steps),
+                )
+            }
+            reached.isNotEmpty() -> { token -> HomeUiEvent.ObjectiveReached(reached, token) }
+            status != session.status -> { token ->
+                HomeUiEvent.SessionStatusChangedReversible(token, media.statusReaction(session.status, status))
+            }
+            else -> return
+        }
+        mutableEvents.emit(event(recovery.takeIf { canUndo }?.let(deletionRecoveryStore::put)))
+    }
+
+    /**
+     * The objectives a write just moved. The write has returned by now, but the library flow re-reads
+     * it asynchronously, so this waits for that emission before comparing.
+     */
+    private suspend fun awaitObjectiveSteps(before: HomeUiState): List<ObjectiveStep> {
+        val after = withTimeoutOrNull(2_000) {
+            uiState.first { it.allTrackedItems !== before.allTrackedItems }
+        } ?: return emptyList()
+        return objectiveSteps(before.allTrackedItems, after.allTrackedItems, after.objectives)
     }
 
     fun deletePastSession(sessionId: Long) {
@@ -752,14 +813,21 @@ class HomeViewModel(
         loggedAt: LocalDate?,
         coversPeriod: Boolean,
     ) {
+        val before = uiState.value
         viewModelScope.launch {
             mediaRepository.updateProgressUpdate(progressUpdateId, amount, loggedAt, coversPeriod)
+            // Re-dating or enlarging an entry can carry a goal over its target too; there is no undo here.
+            awaitObjectiveSteps(before).filter { it.reached }.takeIf { it.isNotEmpty() }
+                ?.let { mutableEvents.emit(HomeUiEvent.ObjectiveReached(it, recoveryToken = null)) }
         }
     }
 
     fun updateSessionStatusEventDate(eventId: Long, occurredOn: LocalDate) {
+        val before = uiState.value
         viewModelScope.launch {
             mediaRepository.updateSessionStatusEventDate(eventId, occurredOn)
+            awaitObjectiveSteps(before).filter { it.reached }.takeIf { it.isNotEmpty() }
+                ?.let { mutableEvents.emit(HomeUiEvent.ObjectiveReached(it, recoveryToken = null)) }
         }
     }
 
@@ -1047,7 +1115,15 @@ class HomeViewModel(
                 HomeUiEvent.ProgressUpdateDeletionAvailable(token),
             )
             is DeletionRecovery.SessionStatusEvents -> mutableEvents.emit(
-                HomeUiEvent.StatusEventDeletionAvailable(token),
+                HomeUiEvent.StatusEventDeletionAvailable(
+                    deletionToken = token,
+                    previousStatus = recovery.events.singleOrNull()
+                        ?.previousStatus
+                        .toTrackingStatusOrNull(),
+                    status = recovery.events.singleOrNull()
+                        ?.status
+                        .toTrackingStatusOrNull(),
+                ),
             )
             is DeletionRecovery.SessionMutation -> error("Unreachable")
         }
@@ -1161,13 +1237,27 @@ sealed interface HomeUiEvent {
     data class MediaItemDeletionAvailable(val deletionToken: Long, val title: String) : HomeUiEvent
     data class PastSessionDeletionAvailable(val deletionToken: Long, val visitNumber: Int) : HomeUiEvent
     data class ProgressUpdateDeletionAvailable(val deletionToken: Long) : HomeUiEvent
-    data class StatusEventDeletionAvailable(val deletionToken: Long) : HomeUiEvent
-    data class SessionCompletedReversible(val recoveryToken: Long) : HomeUiEvent
+    data class StatusEventDeletionAvailable(
+        val deletionToken: Long,
+        val previousStatus: TrackingStatus?,
+        val status: TrackingStatus?,
+    ) : HomeUiEvent
+    data class SessionCompletedReversible(
+        /** Null when the editor save also changed independent personal fields. */
+        val recoveryToken: Long?,
+        val reaction: CompletionReaction,
+    ) : HomeUiEvent
 
-    /** [previousStatus] decides the started/resumed wording without retaining a stale session. */
-    data class SessionStartedReversible(
-        val recoveryToken: Long,
-        val previousStatus: TrackingStatus,
+    /**
+     * Every goal one write reached, most meaningful first; the UI celebrates the first it has not
+     * celebrated before. [recoveryToken] is null when the write has no undo.
+     */
+    data class ObjectiveReached(val steps: List<ObjectiveStep>, val recoveryToken: Long?) : HomeUiEvent
+
+    data class SessionStatusChangedReversible(
+        /** Null when the editor save also changed independent personal fields. */
+        val recoveryToken: Long?,
+        val reaction: StatusReaction,
     ) : HomeUiEvent
     data object MetadataRefreshSucceeded : HomeUiEvent
     data object MetadataRefreshUnavailable : HomeUiEvent
@@ -1295,3 +1385,25 @@ internal fun HomeSortMode.defaultDirection(): HomeSortDirection {
         -> HomeSortDirection.Descending
     }
 }
+
+private fun TrackedMedia.statusReaction(previous: TrackingStatus, status: TrackingStatus) = StatusReaction(
+    title = item.title,
+    coverUrl = item.coverUrl,
+    previousStatus = previous,
+    status = status,
+)
+
+private fun String?.toTrackingStatusOrNull(): TrackingStatus? =
+    TrackingStatus.entries.firstOrNull { it.name == this }
+
+/**
+ * The repository's session-mutation recovery restores a whole snapshot. The full editor may save
+ * personal fields alongside a status/progress change, so only hand that recovery to the UI when it
+ * cannot erase a rating, note, or date from the same save.
+ */
+internal fun DeletionRecovery.SessionMutation.isStatusAndProgressOnly(): Boolean =
+    before.session.copy(
+        status = after.session.status,
+        progressCurrent = after.session.progressCurrent,
+        updatedAtEpochMillis = after.session.updatedAtEpochMillis,
+    ) == after.session

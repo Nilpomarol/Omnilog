@@ -334,7 +334,7 @@ fun objectiveDisplayTitle(
 }
 
 fun objectiveProgressLabel(progress: ObjectiveProgress): String =
-    "${progress.currentValue} de ${objectiveTargetLabel(progress.objective)}"
+    "${formatObjectiveNumber(progress.currentValue)} de ${formatObjectiveNumber(progress.objective.targetValue)} ${objectiveTargetUnitLabel(progress.objective)}"
 
 fun objectiveTargetLabel(objective: Objective): String =
     "${objective.targetValue} ${objectiveTargetUnitLabel(objective)}"

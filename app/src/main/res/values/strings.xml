@@ -891,7 +891,13 @@
     <string name="deletion_undo_item_message">S\'ha eliminat %1$s.</string>
     <string name="deletion_undo_session_message">S\'ha eliminat la sessió #%1$d.</string>
     <string name="deletion_undo_progress_message">S\'ha eliminat l\'actualització de progrés.</string>
-    <string name="deletion_undo_status_event_message">S\'ha eliminat la pausa.</string>
+    <string name="deletion_undo_status_event_message">S\'ha eliminat el canvi d\'estat.</string>
+    <string name="deletion_undo_status_event_completed">S\'ha eliminat la finalització.</string>
+    <string name="deletion_undo_status_event_paused">S\'ha eliminat la pausa.</string>
+    <string name="deletion_undo_status_event_resumed">S\'ha eliminat la represa.</string>
+    <string name="deletion_undo_status_event_started">S\'ha eliminat l\'inici.</string>
+    <string name="deletion_undo_status_event_dropped">S\'ha eliminat l\'abandonament.</string>
+    <string name="deletion_undo_status_event_reopened">S\'ha eliminat la reobertura.</string>
     <string name="deletion_restored">S\'ha restaurat.</string>
     <string name="deletion_restore_failed">No s\'ha pogut restaurar.</string>
 
@@ -909,9 +915,23 @@
     <string name="quick_progress_complete">Marca com a completat</string>
     <string name="quick_progress_save">Desa el progrés</string>
     <string name="quick_progress_mark_done">Ja l\'he acabat</string>
-    <string name="quick_progress_completed_message">S\'ha completat.</string>
-    <string name="quick_progress_started_message">S\'ha començat.</string>
-    <string name="quick_progress_resumed_message">S\'ha reprès.</string>
+    <string name="completion_reaction_label">Acabat</string>
+    <string name="completion_reaction_same_day">El mateix dia</string>
+    <plurals name="completion_reaction_days">
+        <item quantity="one">En %1$d dia</item>
+        <item quantity="other">En %1$d dies</item>
+    </plurals>
+    <string name="completion_reaction_visit">%1$da vegada</string>
+    <string name="completion_reaction_objective_reached">Objectiu assolit</string>
+    <string name="objective_reaction_label">Objectiu assolit</string>
+    <string name="objective_reaction_on_time">Just a temps</string>
+    <plurals name="objective_reaction_days_early">
+        <item quantity="one">%1$d dia abans</item>
+        <item quantity="other">%1$d dies abans</item>
+    </plurals>
+    <string name="status_reaction_started">Començat</string>
+    <string name="status_reaction_resumed">Reprès</string>
+    <string name="status_reaction_reopened">Reobert</string>
     <string name="home_rhythm_completed">completats</string>
     <string name="home_rhythm_books">llibres</string>
     <string name="home_rhythm_series">sèries</string>

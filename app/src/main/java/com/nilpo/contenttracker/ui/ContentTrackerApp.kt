@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateDpAsState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -54,6 +55,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
@@ -67,6 +70,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -78,6 +82,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -145,7 +150,16 @@ import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
+import com.nilpo.contenttracker.ui.common.CelebratedObjectives
+import com.nilpo.contenttracker.ui.common.CompletionCelebration
+import com.nilpo.contenttracker.ui.common.ObjectiveCelebration
+import com.nilpo.contenttracker.ui.common.ObjectiveStep
+import com.nilpo.contenttracker.ui.common.withoutCelebrated
+import com.nilpo.contenttracker.ui.common.CompletionReaction
 import com.nilpo.contenttracker.ui.common.OmnilogSnackbar
+import com.nilpo.contenttracker.ui.common.StatusReactionCard
+import com.nilpo.contenttracker.ui.common.StatusReactionVisuals
+import com.nilpo.contenttracker.ui.common.statusEventDeletionMessageResId
 import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
@@ -185,6 +199,7 @@ import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -208,6 +223,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    // The open completion celebration and the answer it is waiting for: true when the user undoes.
+    var completionCelebration by remember { mutableStateOf<CompletionCelebrationRequest?>(null) }
+    var objectiveCelebration by remember { mutableStateOf<ObjectiveCelebrationRequest?>(null) }
     val preferences = remember(context) {
         context.getSharedPreferences("omnilog_preferences", Context.MODE_PRIVATE)
     }
@@ -372,7 +390,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     val metadataLinkErrorMessage = stringResource(R.string.metadata_link_error)
     val deletionUndoAction = stringResource(R.string.deletion_undo_action)
     val deletionUndoProgressMessage = stringResource(R.string.deletion_undo_progress_message)
-    val deletionUndoStatusEventMessage = stringResource(R.string.deletion_undo_status_event_message)
     val deletionRestoredMessage = stringResource(R.string.deletion_restored)
     val deletionRestoreFailedMessage = stringResource(R.string.deletion_restore_failed)
     val navigateBack: () -> Unit = {
@@ -790,42 +807,83 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 is HomeUiEvent.StatusEventDeletionAvailable -> {
                     showDeletionRecovery(
                         deletionToken = event.deletionToken,
-                        message = deletionUndoStatusEventMessage,
+                        message = context.getString(
+                            statusEventDeletionMessageResId(event.previousStatus, event.status),
+                        ),
                     )
                 }
 
                 is HomeUiEvent.SessionCompletedReversible -> {
-                    val result = snackbarHostState.showSnackbar(
-                        message = context.getString(R.string.quick_progress_completed_message),
-                        actionLabel = deletionUndoAction,
-                        duration = SnackbarDuration.Long,
+                    // A goal gets its moment once; a repeat finish shows it as plain progress.
+                    val reaction = event.reaction.copy(
+                        steps = event.reaction.steps.withoutCelebrated { CelebratedObjectives.contains(context, it) },
                     )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        if (!viewModel.restoreDeletion(event.recoveryToken).getOrDefault(false)) {
+                    val step = reaction.objective
+                    val undo = CompletableDeferred<Boolean>()
+                    step?.takeIf { it.reached }?.let { CelebratedObjectives.add(context, it.progress.objective) }
+                    completionCelebration = CompletionCelebrationRequest(
+                        reaction = reaction,
+                        canUndo = event.recoveryToken != null,
+                        undo = undo,
+                    )
+                    val undone = try {
+                        undo.await()
+                    } finally {
+                        completionCelebration = null
+                    }
+                    val token = event.recoveryToken
+                    if (undone && token != null) {
+                        step?.takeIf { it.reached }?.let { CelebratedObjectives.remove(context, it.progress.objective) }
+                        if (!viewModel.restoreDeletion(token).getOrDefault(false)) {
                             snackbarHostState.showSnackbar(deletionRestoreFailedMessage)
                         }
                     } else {
-                        viewModel.expireDeletion(event.recoveryToken)
+                        token?.let(viewModel::expireDeletion)
                     }
                 }
 
-                is HomeUiEvent.SessionStartedReversible -> {
-                    val message = if (event.previousStatus == TrackingStatus.Paused) {
-                        R.string.quick_progress_resumed_message
+                is HomeUiEvent.ObjectiveReached -> {
+                    val step = event.steps
+                        .withoutCelebrated { CelebratedObjectives.contains(context, it) }
+                        .firstOrNull { it.reached }
+                    if (step == null) {
+                        event.recoveryToken?.let(viewModel::expireDeletion)
                     } else {
-                        R.string.quick_progress_started_message
+                        val objective = step.progress.objective
+                        CelebratedObjectives.add(context, objective)
+                        val undo = CompletableDeferred<Boolean>()
+                        objectiveCelebration = ObjectiveCelebrationRequest(step, event.recoveryToken != null, undo)
+                        val undone = try {
+                            undo.await()
+                        } finally {
+                            objectiveCelebration = null
+                        }
+                        val token = event.recoveryToken
+                        if (undone && token != null) {
+                            CelebratedObjectives.remove(context, objective)
+                            if (!viewModel.restoreDeletion(token).getOrDefault(false)) {
+                                snackbarHostState.showSnackbar(deletionRestoreFailedMessage)
+                            }
+                        } else {
+                            token?.let(viewModel::expireDeletion)
+                        }
                     }
+                }
+
+                is HomeUiEvent.SessionStatusChangedReversible -> {
                     val result = snackbarHostState.showSnackbar(
-                        message = context.getString(message),
-                        actionLabel = deletionUndoAction,
-                        duration = SnackbarDuration.Long,
+                        StatusReactionVisuals(
+                            reaction = event.reaction,
+                            actionLabel = event.recoveryToken?.let { deletionUndoAction },
+                        ),
                     )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        if (!viewModel.restoreDeletion(event.recoveryToken).getOrDefault(false)) {
+                    val token = event.recoveryToken
+                    if (result == SnackbarResult.ActionPerformed && token != null) {
+                        if (!viewModel.restoreDeletion(token).getOrDefault(false)) {
                             snackbarHostState.showSnackbar(deletionRestoreFailedMessage)
                         }
                     } else {
-                        viewModel.expireDeletion(event.recoveryToken)
+                        token?.let(viewModel::expireDeletion)
                     }
                 }
 
@@ -913,8 +971,16 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         }
     }
 
+    // Pushes the library back while the completion page is up, so its text cannot compete with the
+    // page's own. A no-op below Android 12, where the page's own background carries legibility.
+    val celebrationBlur by animateDpAsState(
+        targetValue = if (completionCelebration != null || objectiveCelebration != null) 24.dp else 0.dp,
+        animationSpec = tween(durationMillis = 280),
+        label = "celebrationBlur",
+    )
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+            modifier = Modifier.blur(celebrationBlur),
             topBar = {
                 OmnilogTopBar(
                     accent = when (currentRoute) {
@@ -1607,7 +1673,36 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 .align(Alignment.TopCenter)
                 .padding(start = 16.dp, top = 82.dp, end = 16.dp),
         ) { snackbarData ->
-            OmnilogSnackbar(snackbarData = snackbarData)
+            key(snackbarData) {
+                SwipeToDismissBox(
+                    state = rememberSwipeToDismissBoxState(),
+                    backgroundContent = {},
+                    onDismiss = { snackbarData.dismiss() },
+                ) {
+                    val visuals = snackbarData.visuals
+                    if (visuals is StatusReactionVisuals) {
+                        StatusReactionCard(reaction = visuals.reaction, snackbarData = snackbarData)
+                    } else {
+                        OmnilogSnackbar(snackbarData = snackbarData)
+                    }
+                }
+            }
+        }
+
+        // Last in the root box so the page lies over every screen, the app bar, and the snackbars.
+        completionCelebration?.let { request ->
+            CompletionCelebration(
+                reaction = request.reaction,
+                onContinue = { request.undo.complete(false) },
+                onUndo = if (request.canUndo) ({ request.undo.complete(true) }) else null,
+            )
+        }
+        objectiveCelebration?.let { request ->
+            ObjectiveCelebration(
+                step = request.step,
+                onContinue = { request.undo.complete(false) },
+                onUndo = if (request.canUndo) ({ request.undo.complete(true) }) else null,
+            )
         }
     }
 
@@ -3285,4 +3380,16 @@ private fun Throwable?.providerCsvValidationMessage(
     else -> messages.invalid
 }
 
+/** An open completion page and the answer it waits for: true when the user undoes. */
+private class CompletionCelebrationRequest(
+    val reaction: CompletionReaction,
+    val canUndo: Boolean,
+    val undo: CompletableDeferred<Boolean>,
+)
 
+/** An open goal page and the answer it waits for: true when the user undoes. */
+private class ObjectiveCelebrationRequest(
+    val step: ObjectiveStep,
+    val canUndo: Boolean,
+    val undo: CompletableDeferred<Boolean>,
+)
