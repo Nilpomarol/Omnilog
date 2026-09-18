@@ -7,8 +7,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
@@ -30,16 +28,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
@@ -62,6 +59,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.ui.common.OmnilogPanelPadding
+import com.nilpo.contenttracker.ui.common.OmnilogPanelGroup
+import com.nilpo.contenttracker.ui.common.OmnilogPanelDivider
+import com.nilpo.contenttracker.ui.common.OmnilogChapterTitle
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import com.nilpo.contenttracker.core.imports.ImportSource
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
+import com.nilpo.contenttracker.ui.common.ProviderLogo
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.objectives.ObjectiveCalculator
 import com.nilpo.contenttracker.core.model.TrackedMedia
@@ -95,7 +104,8 @@ fun HomeLandingScreen(
     /** Opens the profile's objectives, at the given one when a tile was tapped. */
     onObjectivesClick: (objectiveId: Long?) -> Unit,
     onStatusClick: (TrackingStatus) -> Unit,
-    onAddToSection: (MediaSection) -> Unit,
+    onOpenSection: (MediaSection) -> Unit,
+    onImportFrom: (ImportSource) -> Unit,
     onImportBackup: () -> Unit,
     onQuickCommitProgress: (TrackedMedia, Int) -> Unit = { _, _ -> },
     onQuickComplete: (TrackedMedia, QuickCompletion) -> Unit = { _, _ -> },
@@ -169,12 +179,11 @@ fun HomeLandingScreen(
                 ) {
                     if (items.isEmpty()) {
                         item {
-                            Box(Modifier.padding(horizontal = DetailGutter)) {
-                                EmptyHomeState(
-                                    onAddToSection = onAddToSection,
-                                    onImportBackup = onImportBackup,
-                                )
-                            }
+                            EmptyHomeState(
+                                onOpenSection = onOpenSection,
+                                onImportFrom = onImportFrom,
+                                onImportBackup = onImportBackup,
+                            )
                         }
                     } else {
                         item {
@@ -794,73 +803,176 @@ private fun HomeContinueCard(
 }
 
 /**
- * First run: the library is empty, so every dashboard section below would be empty too.
- * Offers one entry point per media section rather than a generic add, because the choice of
- * section is what the rest of the product is organized around.
+ * First run: the library is empty, so every dashboard section would be empty too. Home becomes a
+ * one-screen guide in the Configuració style instead: how a title travels through Home first, then
+ * the four sections as tiles that open each one, then the importers for what is already tracked
+ * elsewhere. Kept compact enough to fit a normal phone without scrolling at the default text size.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EmptyHomeState(
-    onAddToSection: (MediaSection) -> Unit,
+    onOpenSection: (MediaSection) -> Unit,
+    onImportFrom: (ImportSource) -> Unit,
     onImportBackup: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.home_empty_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
-            )
-            Text(
-                text = stringResource(R.string.home_empty_state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = OmnilogTheme.colors.appMuted,
-            )
-            FlowRow(
-                modifier = Modifier.padding(top = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MediaSection.entries.forEach { section ->
-                    OutlinedButton(
-                        onClick = { onAddToSection(section) },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = section.themedAccent()),
-                        border = BorderStroke(1.dp, section.themedAccent().copy(alpha = 0.58f)),
-                    ) {
-                        Icon(
-                            painter = painterResource(section.navIconResId),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        OmnilogChapterTitle(
+            title = stringResource(R.string.home_empty_title),
+            note = stringResource(R.string.home_empty_state),
+            modifier = Modifier.padding(horizontal = DetailGutter),
+        )
+
+        OmnilogPanelGroup(label = stringResource(R.string.home_empty_how_label), labelGutter = DetailGutter) {
+            listOf(
+                R.string.home_empty_how_start_title to R.string.home_empty_how_start_body,
+                R.string.home_empty_how_progress_title to R.string.home_empty_how_progress_body,
+                R.string.home_empty_how_finish_title to R.string.home_empty_how_finish_body,
+            ).forEachIndexed { index, (titleResId, bodyResId) ->
+                if (index > 0) OmnilogPanelDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = OmnilogPanelPadding, vertical = 9.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${index + 1}",
+                        modifier = Modifier.width(20.dp),
+                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = SerifFontFamily),
+                        color = OmnilogTheme.accents.Dashboard,
+                        textAlign = TextAlign.Center,
+                    )
+                    Column {
+                        Text(
+                            text = stringResource(titleResId),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmnilogTheme.colors.appInk,
                         )
                         Text(
-                            text = stringResource(section.titleResId),
-                            modifier = Modifier.padding(start = 6.dp),
-                            fontWeight = FontWeight.SemiBold,
+                            text = stringResource(bodyResId),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OmnilogTheme.colors.appMuted,
                         )
                     }
                 }
             }
-            TextButton(
-                onClick = onImportBackup,
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+        }
+
+        OmnilogPanelGroup(label = stringResource(R.string.home_empty_sections_label), labelGutter = DetailGutter) {
+            OnboardingTileRow(
+                tiles = MediaSection.entries.map { section ->
+                    OnboardingTile(
+                        label = stringResource(section.titleResId),
+                        onClick = { onOpenSection(section) },
+                    ) { SectionMark(section) }
+                },
+            )
+        }
+
+        OmnilogPanelGroup(label = stringResource(R.string.home_empty_import_label), labelGutter = DetailGutter) {
+            OnboardingTileRow(
+                tiles = listOf(
+                    ImportSource.ImdbCsv to ExternalRatingSource.Imdb,
+                    ImportSource.StoryGraphCsv to ExternalRatingSource.StoryGraph,
+                    ImportSource.MalXml to ExternalRatingSource.Mal,
+                ).map { (source, logo) ->
+                    OnboardingTile(label = logo.onboardingName(), onClick = { onImportFrom(source) }) {
+                        // StoryGraph's mark sits padded on a paper chip, so it needs more height to read
+                        // at the same size as the bare wordmarks beside it.
+                        if (logo == ExternalRatingSource.StoryGraph) {
+                            ProviderLogo(source = logo, height = 34.dp, maxWidth = 34.dp)
+                        } else {
+                            ProviderLogo(source = logo, height = 20.dp, maxWidth = 40.dp)
+                        }
+                    }
+                } + OnboardingTile(
+                    label = stringResource(R.string.home_empty_import_backup),
+                    onClick = onImportBackup,
+                ) {
+                    // The launcher icon's foreground, scaled past its adaptive-icon safe margin so
+                    // only the dark square with the OL mark shows.
+                    Image(
+                        painter = painterResource(R.mipmap.ic_launcher_foreground),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .graphicsLayer {
+                                scaleX = 1.12f
+                                scaleY = 1.12f
+                            },
+                    )
+                },
+            )
+        }
+    }
+}
+
+private class OnboardingTile(
+    val label: String,
+    val onClick: () -> Unit,
+    val mark: @Composable () -> Unit,
+)
+
+/** Equal tiles across one panel: a mark above a short label, split by thin vertical rules. */
+@Composable
+private fun OnboardingTileRow(tiles: List<OnboardingTile>) {
+    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        tiles.forEachIndexed { index, tile ->
+            if (index > 0) {
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 14.dp)
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(OmnilogTheme.colors.appLine),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable(onClick = tile.onClick)
+                    .padding(horizontal = 4.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
             ) {
+                Box(modifier = Modifier.height(34.dp), contentAlignment = Alignment.Center) { tile.mark() }
                 Text(
-                    text = stringResource(R.string.home_empty_import_backup),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = OmnilogTheme.accents.Dashboard,
+                    text = tile.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = OmnilogTheme.colors.appInk,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
     }
+}
+
+/** The section's icon on a soft tint of its accent. */
+@Composable
+internal fun SectionMark(section: MediaSection, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .background(section.themedAccent().copy(alpha = 0.14f), RoundedCornerShape(10.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(section.navIconResId),
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = section.themedAccent(),
+        )
+    }
+}
+
+private fun ExternalRatingSource.onboardingName(): String = when (this) {
+    ExternalRatingSource.Imdb -> "IMDb"
+    ExternalRatingSource.StoryGraph -> "StoryGraph"
+    ExternalRatingSource.Mal -> "MyAnimeList"
+    else -> name
 }
 
 private val TrackingStatus.iconResId: Int

@@ -1226,10 +1226,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     openProfile()
                                 },
                                 onStatusClick = { status -> backStack.push(AppRoute.StatusList(status)) },
-                                onAddToSection = { section ->
+                                onOpenSection = { section ->
+                                    backStack.selectSection(section)
                                     viewModel.selectSection(section)
                                     viewModel.clearMetadataSearch()
                                 },
+                                onImportFrom = ::openImportSheet,
                                 onImportBackup = { backupActions.onImportBackupRequested() },
                                 onQuickCommitProgress = viewModel::quickCommitProgress,
                                 onQuickComplete = viewModel::quickComplete,

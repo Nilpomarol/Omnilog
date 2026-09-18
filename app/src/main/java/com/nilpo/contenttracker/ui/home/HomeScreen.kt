@@ -95,6 +95,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
+import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.MetadataSuggestion
@@ -110,6 +111,12 @@ import com.nilpo.contenttracker.ui.common.EmptyStateAction
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
 import com.nilpo.contenttracker.ui.common.OmnilogEmptyState
+import com.nilpo.contenttracker.ui.common.OmnilogChapterTitle
+import com.nilpo.contenttracker.ui.common.OmnilogPanelDivider
+import com.nilpo.contenttracker.ui.common.OmnilogPanelGroup
+import com.nilpo.contenttracker.ui.common.OmnilogPanelPadding
+import com.nilpo.contenttracker.ui.common.OmnilogPanelRow
+import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.partialSearchFailureMessage
 import com.nilpo.contenttracker.ui.common.progressUnitLabel
@@ -205,7 +212,8 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            // An empty section has nothing to filter or sort, so it opens straight on its guide.
+            if (sectionItemCount > 0) item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // The search field lives in the top bar, so it stays put while the list scrolls.
                     BrowseControls(
@@ -244,23 +252,10 @@ fun HomeScreen(
             if (uiState.trackedItems.isEmpty() && uiState.searchQuery.isBlank()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     if (sectionItemCount == 0) {
-                        OmnilogEmptyState(
-                            title = stringResource(section.emptyTitleResId),
-                            body = stringResource(section.emptyMessageResId),
-                            accent = section.themedAccent(),
-                            iconResId = section.navIconResId,
-                            primaryAction = EmptyStateAction(
-                                label = stringResource(section.addActionResId),
-                                onClick = onManualAddClick,
-                            ),
-                            secondaryAction = section.importActionResId?.let { importLabelResId ->
-                                onImportRequested?.let { onImport ->
-                                    EmptyStateAction(
-                                        label = stringResource(importLabelResId),
-                                        onClick = onImport,
-                                    )
-                                }
-                            },
+                        SectionEmptyState(
+                            section = section,
+                            onAddClick = onManualAddClick,
+                            onImportClick = onImportRequested,
                         )
                     } else {
                         OmnilogEmptyState(
@@ -1612,3 +1607,95 @@ private fun MediaType.sectionAccent() = when (this) {
     MediaType.Movie, MediaType.TvShow -> MediaSection.Movies.themedAccent()
     MediaType.Game -> MediaSection.Games.themedAccent()
 }
+
+/**
+ * A section with nothing in it yet: what it is for, the two ways in (search and add, or import the
+ * whole list at once where a provider allows it), and three lines on what the section will do with
+ * what is added. Same chapter-and-panel language as Home's first run and Configuració.
+ */
+@Composable
+private fun SectionEmptyState(
+    section: MediaSection,
+    onAddClick: () -> Unit,
+    onImportClick: (() -> Unit)?,
+) {
+    Column(
+        modifier = Modifier.padding(top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        OmnilogChapterTitle(
+            title = stringResource(section.emptyTitleResId),
+            note = stringResource(section.emptyMessageResId),
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        OmnilogPanelGroup(
+            label = stringResource(R.string.section_empty_start_label),
+            labelGutter = 4.dp,
+            panelMargin = 0.dp,
+        ) {
+            OmnilogPanelRow(
+                title = stringResource(section.addActionResId),
+                description = stringResource(R.string.section_empty_add_description),
+                onClick = onAddClick,
+            ) { SectionMark(section) }
+            val importLabelResId = section.importActionResId
+            val importLogo = section.importLogo
+            if (onImportClick != null && importLabelResId != null && importLogo != null) {
+                OmnilogPanelDivider()
+                OmnilogPanelRow(
+                    title = stringResource(importLabelResId),
+                    description = stringResource(R.string.section_empty_import_description),
+                    onClick = onImportClick,
+                ) {
+                    Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                        ProviderLogo(source = importLogo, height = 20.dp, maxWidth = 34.dp)
+                    }
+                }
+            }
+        }
+        OmnilogPanelGroup(
+            label = stringResource(R.string.section_empty_hints_label),
+            labelGutter = 4.dp,
+            panelMargin = 0.dp,
+        ) {
+            section.emptyHintResIds.forEachIndexed { index, hintResId ->
+                if (index > 0) OmnilogPanelDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = OmnilogPanelPadding, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(section.themedAccent(), CircleShape),
+                    )
+                    Text(
+                        text = stringResource(hintResId),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OmnilogTheme.colors.appInk,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val MediaSection.importLogo: ExternalRatingSource?
+    get() = when (this) {
+        MediaSection.Anime -> ExternalRatingSource.Mal
+        MediaSection.Books -> ExternalRatingSource.StoryGraph
+        MediaSection.Movies -> ExternalRatingSource.Imdb
+        MediaSection.Games -> null
+    }
+
+private val MediaSection.emptyHintResIds: List<Int>
+    get() = when (this) {
+        MediaSection.Anime -> listOf(R.string.empty_anime_hint_progress, R.string.empty_anime_hint_browse, R.string.empty_anime_hint_extra)
+        MediaSection.Books -> listOf(R.string.empty_books_hint_progress, R.string.empty_books_hint_browse, R.string.empty_books_hint_extra)
+        MediaSection.Movies -> listOf(R.string.empty_movies_hint_progress, R.string.empty_movies_hint_browse, R.string.empty_movies_hint_extra)
+        MediaSection.Games -> listOf(R.string.empty_games_hint_progress, R.string.empty_games_hint_browse, R.string.empty_games_hint_extra)
+    }
+

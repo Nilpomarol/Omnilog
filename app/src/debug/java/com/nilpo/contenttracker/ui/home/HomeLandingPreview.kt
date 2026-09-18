@@ -72,7 +72,8 @@ private fun HomePreviewContent(uiState: HomeUiState) {
             onTimelineClick = {},
             onObjectivesClick = {},
             onStatusClick = {},
-            onAddToSection = {},
+            onOpenSection = {},
+            onImportFrom = {},
             onImportBackup = {},
         )
     }
