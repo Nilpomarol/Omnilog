@@ -5,9 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PageSize
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -70,7 +69,7 @@ import java.util.Locale
 import kotlin.math.absoluteValue
 
 /**
- * A calendar-year overview: the year's goals as a snapping strip of tiles, then, under a hairline, the
+ * A calendar-year overview: the year's goals as a scrolling strip of tiles, then, under a hairline, the
  * year's completions with a month chart and per-format totals. Each part keeps its own destination.
  */
 @Composable
@@ -156,8 +155,8 @@ private val GoalOrder = listOf(
 )
 
 /**
- * One square tile per goal, paged rather than free-scrolling so a fling advances a single goal.
- * Several tiles share the width, so a strip that runs past the edge shows a cut-off tile as its hint.
+ * One square tile per goal on a free-scrolling strip. Several tiles share the width, so a strip that
+ * runs past the edge shows a cut-off tile as its hint.
  */
 @Composable
 private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClick: (objectiveId: Long?) -> Unit) {
@@ -176,25 +175,12 @@ private fun RhythmGoals(goals: List<ObjectiveProgress>, today: LocalDate, onClic
         }
         return
     }
-    BoxWithConstraints {
-        // Only a strip that overflows scrolls. Its end is padded by the width's leftover after the
-        // whole tiles that fit, so the scroll range is a whole number of tiles: the strip stops with
-        // a tile flush at the start edge, rather than one cut off, and never more than a tile of blank.
-        // Measured inside the gutters, which the strip keeps as content padding at rest.
-        val width = maxWidth - DetailGutter * 2
-        val step = GoalTileWidth + GoalTileSpacing
-        val overflows = step * goals.size - GoalTileSpacing > width
-        val endPadding = if (overflows) ((width + GoalTileSpacing).value % step.value).dp else 0.dp
-        val pagerState = rememberPagerState { goals.size }
-        HorizontalPager(
-            state = pagerState,
-            pageSize = PageSize.Fixed(GoalTileWidth),
-            contentPadding = PaddingValues(start = DetailGutter, end = DetailGutter + endPadding),
-            pageSpacing = GoalTileSpacing,
-            verticalAlignment = Alignment.Top,
-            key = { goals[it].objective.id },
-        ) { page ->
-            GoalTile(goals[page], today) { onClick(goals[page].objective.id) }
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = DetailGutter),
+        horizontalArrangement = Arrangement.spacedBy(GoalTileSpacing),
+    ) {
+        items(goals, key = { it.objective.id }) { goal ->
+            GoalTile(goal, today) { onClick(goal.objective.id) }
         }
     }
 }
