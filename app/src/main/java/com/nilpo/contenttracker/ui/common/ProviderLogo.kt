@@ -39,7 +39,8 @@ fun ExternalRatingSource.logoRes(): Int? = when (this) {
     ExternalRatingSource.Steam -> R.drawable.steam_logo
     ExternalRatingSource.StoryGraph -> R.drawable.storygraph_logo
     ExternalRatingSource.Rawg -> R.drawable.rawg_logo
-    ExternalRatingSource.FilmAffinity -> null
+    ExternalRatingSource.FilmAffinity,
+    ExternalRatingSource.Other -> null
 }
 
 /**
@@ -137,6 +138,7 @@ fun ExternalRatingSource?.logoWidth(height: Dp = 30.dp, maxWidth: Dp = 60.dp): D
         ExternalRatingSource.Mal,
         ExternalRatingSource.Steam,
         ExternalRatingSource.FilmAffinity,
+        ExternalRatingSource.Other,
         ExternalRatingSource.GoogleBooks -> height
 
         ExternalRatingSource.StoryGraph -> (height.value - 6f + 12f).dp

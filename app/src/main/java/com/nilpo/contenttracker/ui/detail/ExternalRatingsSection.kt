@@ -29,7 +29,7 @@ import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.RatingHalfPoints
 import com.nilpo.contenttracker.ui.common.PartialStar
-import com.nilpo.contenttracker.ui.common.displayName
+import com.nilpo.contenttracker.ui.common.sourceName
 import com.nilpo.contenttracker.ui.common.formatCompactCount
 import com.nilpo.contenttracker.ui.common.formatExternalRatingCompact
 import com.nilpo.contenttracker.ui.common.formatRatingHalfPoints
@@ -182,7 +182,7 @@ private fun LedgerRow(rating: ExternalRating, mediaType: MediaType) {
 
     Row(verticalAlignment = Alignment.Bottom) {
         Text(
-            text = rating.source.displayName(),
+            text = rating.sourceName(),
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 6.dp),

@@ -875,9 +875,10 @@ class HomeViewModel(
         maxScore: Double,
         voteCount: Int?,
         makePrimary: Boolean,
+        customSourceName: String?,
     ) {
         viewModelScope.launch {
-            mediaRepository.addExternalRating(mediaItemId, source, score, maxScore, voteCount, makePrimary)
+            mediaRepository.addExternalRating(mediaItemId, source, score, maxScore, voteCount, makePrimary, customSourceName)
         }
     }
 
@@ -888,15 +889,10 @@ class HomeViewModel(
         maxScore: Double,
         voteCount: Int?,
         makePrimary: Boolean,
+        customSourceName: String?,
     ) {
         viewModelScope.launch {
-            mediaRepository.updateExternalRating(externalRatingId, source, score, maxScore, voteCount, makePrimary)
-        }
-    }
-
-    fun setPrimaryExternalRating(externalRatingId: Long) {
-        viewModelScope.launch {
-            mediaRepository.setPrimaryExternalRating(externalRatingId)
+            mediaRepository.updateExternalRating(externalRatingId, source, score, maxScore, voteCount, makePrimary, customSourceName)
         }
     }
 

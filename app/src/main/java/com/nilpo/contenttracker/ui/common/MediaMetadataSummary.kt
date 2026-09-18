@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.ContentTrackerApplication
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
@@ -503,8 +504,12 @@ fun ExternalRatingSource.displayName(): String {
         ExternalRatingSource.Steam -> "Steam"
         ExternalRatingSource.FilmAffinity -> "FilmAffinity"
         ExternalRatingSource.StoryGraph -> "StoryGraph"
+        ExternalRatingSource.Other -> "Altra"
     }
 }
+
+/** The name to print for a rating: the user's own for a custom site, the known name otherwise. */
+fun ExternalRating.sourceName(): String = customSourceName ?: source.displayName()
 
 fun MetadataSource.displayName(): String {
     return when (this) {

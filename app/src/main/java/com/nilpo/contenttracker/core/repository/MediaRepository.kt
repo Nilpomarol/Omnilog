@@ -244,6 +244,8 @@ interface MediaRepository {
         maxScore: Double,
         voteCount: Int?,
         makePrimary: Boolean,
+        /** The site's name when [source] is [ExternalRatingSource.Other]. */
+        customSourceName: String? = null,
     )
 
     suspend fun updateExternalRating(
@@ -253,6 +255,8 @@ interface MediaRepository {
         maxScore: Double,
         voteCount: Int?,
         makePrimary: Boolean,
+        /** The site's name when [source] is [ExternalRatingSource.Other]. */
+        customSourceName: String? = null,
     )
 
     suspend fun setPrimaryExternalRating(externalRatingId: Long)

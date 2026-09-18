@@ -210,7 +210,7 @@ fun MetadataSummary(
     val platform = session.platform?.let { stringResource(R.string.platform_label, it.name) }
     val ownership = stringResource(R.string.owned_label).takeIf { trackedMedia.item.isOwned }
     val externalRating = trackedMedia.primaryExternalRating?.let {
-        "${it.source.displayName()} ${formatExternalRating(it.score, it.maxScore, trackedMedia.item.type, it.source)}"
+        "${it.sourceName()} ${formatExternalRating(it.score, it.maxScore, trackedMedia.item.type, it.source)}"
     }
     val details = listOfNotNull(platform, ownership, externalRating)
 

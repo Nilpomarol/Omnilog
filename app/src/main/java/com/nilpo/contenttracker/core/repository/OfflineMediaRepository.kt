@@ -23,6 +23,7 @@ import com.nilpo.contenttracker.core.model.AddTrackedMediaRequest
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
+import com.nilpo.contenttracker.core.model.storedName
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
@@ -1283,19 +1284,21 @@ class OfflineMediaRepository(
         maxScore: Double,
         voteCount: Int?,
         makePrimary: Boolean,
+        customSourceName: String?,
     ) {
+        val storedSource = source.storedName(customSourceName) ?: return
         val validScore = score.takeIf { it in 0.0..maxScore } ?: return
         val validMax = maxScore.takeIf { it > 0.0 } ?: return
         val existing = mediaDao.getExternalRatingsForItem(mediaItemId)
-            .firstOrNull { it.source == source.name }
+            .firstOrNull { it.source.equals(storedSource, ignoreCase = true) }
         if (existing != null) {
-            updateExternalRating(existing.id, source, validScore, validMax, voteCount, makePrimary)
+            updateExternalRating(existing.id, source, validScore, validMax, voteCount, makePrimary, customSourceName)
             return
         }
         val ratingId = mediaDao.insertExternalRating(
             ExternalRatingEntity(
                 mediaItemId = mediaItemId,
-                source = source.name,
+                source = storedSource,
                 score = validScore,
                 maxScore = validMax,
                 voteCount = voteCount?.takeIf { it >= 0 },
@@ -1314,10 +1317,12 @@ class OfflineMediaRepository(
         maxScore: Double,
         voteCount: Int?,
         makePrimary: Boolean,
+        customSourceName: String?,
     ) {
+        val storedSource = source.storedName(customSourceName) ?: return
         val existing = mediaDao.getExternalRating(externalRatingId) ?: return
         if (mediaDao.getExternalRatingsForItem(existing.mediaItemId).any { rating ->
-                rating.id != externalRatingId && rating.source == source.name
+                rating.id != externalRatingId && rating.source.equals(storedSource, ignoreCase = true)
             }
         ) return
         val validScore = score.takeIf { it in 0.0..maxScore } ?: return
@@ -1325,7 +1330,7 @@ class OfflineMediaRepository(
         val validVoteCount = voteCount?.takeIf { it >= 0 }
         mediaDao.updateExternalRating(
             externalRatingId = externalRatingId,
-            source = source.name,
+            source = storedSource,
             score = validScore,
             maxScore = validMax,
             voteCount = validVoteCount,

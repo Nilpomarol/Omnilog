@@ -932,8 +932,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 pendingMetadataChange != null ||
                 pendingImportConfirmation != null ||
                 pendingImport != null ||
-                showRestoreList ||
-                detailActions.isManagingExternalRatings,
+                showRestoreList,
     ) {
         when {
             showImportHub -> showImportHub = false
@@ -947,7 +946,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             pendingImportConfirmation != null -> pendingImportConfirmation = null
             pendingImport != null -> pendingImport = null
             showRestoreList -> showRestoreList = false
-            detailActions.isManagingExternalRatings -> detailActions.onCloseExternalRatings()
         }
     }
 
@@ -1004,8 +1002,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                             currentRoute is AppRoute.CollectionDetail ||
                             currentRoute is AppRoute.StatusList ||
                             currentRoute is AppRoute.AddMedia,
-                    showDetailActions = currentRoute is AppRoute.MediaDetail &&
-                            !detailActions.isManagingExternalRatings,
+                    showDetailActions = currentRoute is AppRoute.MediaDetail,
                     showProfileAction = currentRoute !is AppRoute.MediaDetail &&
                             currentRoute !is AppRoute.AddMedia &&
                             currentRoute !is AppRoute.Section &&
@@ -1031,11 +1028,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     showSectionActions = currentRoute is AppRoute.Section,
                     showTimelineSettingsAction = currentRoute == AppRoute.Record && recordTab == RecordTab.Timeline,
                     profileImage = profileImage,
-                    // Only the detail page draws artwork under the bar, and only while it is
-                    // actually showing that page — the external-ratings page it can swap to has an
-                    // ordinary background and needs the bar's own surface back.
-                    overCover = (currentRoute is AppRoute.MediaDetail &&
-                            !detailActions.isManagingExternalRatings) ||
+                    overCover = currentRoute is AppRoute.MediaDetail ||
                             currentRoute is AppRoute.CollectionDetail ||
                             currentRoute is AppRoute.AuthorDetail ||
                             currentRoute == AppRoute.Profile,
@@ -1077,9 +1070,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                     onTimelineSettingsRequested = {
                         timelineHeaderActions.onSettingsRequested()
                     },
-                    onBack = if (detailActions.isManagingExternalRatings) {
-                        detailActions.onCloseExternalRatings
-                    } else if (currentRoute is AppRoute.AddMedia) {
+                    onBack = if (currentRoute is AppRoute.AddMedia) {
                         stepBackFromAddMedia
                     } else if (currentRoute is AppRoute.CollectionDetail) {
                         collectionBackRequest ?: navigateBack
@@ -1643,7 +1634,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     onUpdateProgressUpdate = viewModel::updateProgressUpdate,
                                     onAddExternalRating = viewModel::addExternalRating,
                                     onUpdateExternalRating = viewModel::updateExternalRating,
-                                    onSetPrimaryExternalRating = viewModel::setPrimaryExternalRating,
                                     onDeleteExternalRating = viewModel::deleteExternalRating,
                                     onUpdateMediaItemDetails = viewModel::updateMediaItemDetails,
                                     onUpdateMediaItemMetadata = viewModel::updateMediaItemMetadata,
@@ -2380,8 +2370,6 @@ class DetailHeaderActions {
     var isEditingItemDetails by mutableStateOf(false)
     var isMenuExpanded by mutableStateOf(false)
     var isRefreshingMetadata by mutableStateOf(false)
-    var isManagingExternalRatings by mutableStateOf(false)
-    var onCloseExternalRatings: () -> Unit = {}
     var showLinkMetadata by mutableStateOf(false)
     var linkMetadataLabelResId by mutableStateOf(R.string.link_metadata_movie)
     var onDeleteRequested: () -> Unit = {}

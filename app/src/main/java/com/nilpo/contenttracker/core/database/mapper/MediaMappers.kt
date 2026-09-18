@@ -12,6 +12,7 @@ import com.nilpo.contenttracker.core.model.ConsumptionPlatformType
 import com.nilpo.contenttracker.core.model.ExternalRating
 import com.nilpo.contenttracker.core.model.ExternalRatingOrigin
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
+import com.nilpo.contenttracker.core.model.storedName
 import com.nilpo.contenttracker.core.model.MediaCollection
 import com.nilpo.contenttracker.core.model.MediaCredit
 import com.nilpo.contenttracker.core.model.MediaCreditRole
@@ -242,10 +243,12 @@ fun TrackingSession.toEntity(): TrackingSessionEntity {
 }
 
 fun ExternalRatingEntity.toDomain(): ExternalRating {
+    val (knownSource, customName) = ExternalRatingSource.fromStored(source)
     return ExternalRating(
         id = id,
         mediaItemId = mediaItemId,
-        source = enumValueOrDefault(source, ExternalRatingSource.Tmdb),
+        source = knownSource,
+        customSourceName = customName,
         score = score,
         maxScore = maxScore,
         voteCount = voteCount,
@@ -258,7 +261,7 @@ fun ExternalRating.toEntity(): ExternalRatingEntity {
     return ExternalRatingEntity(
         id = id,
         mediaItemId = mediaItemId,
-        source = source.name,
+        source = source.storedName(customSourceName) ?: source.name,
         score = score,
         maxScore = maxScore,
         voteCount = voteCount,

@@ -54,6 +54,7 @@ import com.nilpo.contenttracker.ui.common.QuickCompletion
 import com.nilpo.contenttracker.ui.common.QuickProgressSheet
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.common.displayName
+import com.nilpo.contenttracker.ui.common.sourceName
 import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.common.toMediaMetadataUi
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
@@ -80,9 +81,8 @@ fun DetailScreen(
     onDeleteStatusEvent: (Long) -> Unit,
     onUpdateStatusEventDate: (Long, LocalDate?) -> Unit,
     onUpdateProgressUpdate: (Long, Int, LocalDate?, Boolean) -> Unit,
-    onAddExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
-    onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean) -> Unit,
-    onSetPrimaryExternalRating: (Long) -> Unit,
+    onAddExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean, String?) -> Unit,
+    onUpdateExternalRating: (Long, ExternalRatingSource, Double, Double, Int?, Boolean, String?) -> Unit,
     onDeleteExternalRating: (Long) -> Unit,
     onUpdateMediaItemDetails: (Long, String, Long?, String?, Double?, Int?, Boolean) -> Unit,
     onUpdateMediaItemMetadata: (Long, String, String?, Int?, String?, Int?, List<String>, List<String>, List<MediaCredit>, String?, String?, String?, String?) -> Unit,
@@ -132,7 +132,7 @@ fun DetailScreen(
         collectionSortOrder = media.collectionSortOrder,
         progressTotal = media.effectiveProgressTotal(),
         isOwned = media.isOwned,
-        externalRatingSourceName = primaryExternalRating?.source?.displayName(),
+        externalRatingSourceName = primaryExternalRating?.sourceName(),
         externalRatingSource = primaryExternalRating?.source,
         externalRatingScoreDescriptor = primaryExternalRating?.scoreDescriptor,
     )
@@ -166,8 +166,6 @@ fun DetailScreen(
     headerActions.onManageExternalRatingsRequested = {
         showExternalRatingsManager = true
     }
-    headerActions.isManagingExternalRatings = showExternalRatingsManager
-    headerActions.onCloseExternalRatings = { showExternalRatingsManager = false }
     headerActions.onRefreshMetadataRequested = {
         onRefreshMediaItemMetadata(media.id)
     }
@@ -192,32 +190,6 @@ fun DetailScreen(
         MediaType.Anime -> R.string.link_metadata_anime
         MediaType.Book -> R.string.link_metadata_book
         else -> R.string.link_metadata_movie
-    }
-
-    if (showExternalRatingsManager) {
-        ExternalRatingsPage(
-            title = displayMediaTitle(media.title),
-            mediaType = media.type,
-            ratings = trackedMedia.externalRatings,
-            primaryRatingId = media.primaryExternalRatingId,
-            accent = accent,
-            onAddExternalRating = { source, score, maxScore, voteCount, makePrimary ->
-                onAddExternalRating(
-                    media.id,
-                    source,
-                    score,
-                    maxScore,
-                    voteCount,
-                    makePrimary
-                )
-            },
-            onUpdateExternalRating = onUpdateExternalRating,
-            onSetPrimary = onSetPrimaryExternalRating,
-            onDelete = onDeleteExternalRating,
-            // This page has no header, so it takes the app bar's inset back as ordinary padding.
-            modifier = modifier.padding(contentPadding),
-        )
-        return
     }
 
     Surface(
@@ -436,7 +408,8 @@ fun DetailScreen(
     }
 
     if (showGoodreadsPrompt) {
-        GoodreadsRatingPrompt(
+        GoodreadsRatingSheet(
+            title = displayMediaTitle(media.title),
             accent = accent,
             onSave = { score, voteCount ->
                 onAddExternalRating(
@@ -446,6 +419,7 @@ fun DetailScreen(
                     5.0,
                     voteCount,
                     true,
+                    null,
                 )
                 dismissGoodreadsPrompt = true
             },
@@ -478,6 +452,22 @@ fun DetailScreen(
                 showQuickProgress = false
             },
             onDismiss = { showQuickProgress = false },
+        )
+    }
+
+    if (showExternalRatingsManager) {
+        ExternalRatingsSheet(
+            title = displayMediaTitle(media.title),
+            mediaType = media.type,
+            ratings = trackedMedia.externalRatings,
+            primaryRatingId = media.primaryExternalRatingId,
+            accent = accent,
+            onAdd = { source, score, maxScore, voteCount, makePrimary, customName ->
+                onAddExternalRating(media.id, source, score, maxScore, voteCount, makePrimary, customName)
+            },
+            onUpdate = onUpdateExternalRating,
+            onDelete = onDeleteExternalRating,
+            onDismiss = { showExternalRatingsManager = false },
         )
     }
 
