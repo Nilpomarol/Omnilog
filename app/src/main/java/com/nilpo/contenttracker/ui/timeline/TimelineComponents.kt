@@ -158,15 +158,7 @@ internal fun TimelineMonthHeader(
     // The first month sits right under the filters, which already give it air.
     isFirst: Boolean = false,
 ) {
-    val summary = buildList {
-        when {
-            completedCount == 1 -> add(stringResource(R.string.timeline_day_completed_one))
-            completedCount > 1 -> add(stringResource(R.string.timeline_day_completed, completedCount))
-        }
-        progressByUnit.forEach { (unit, amount) ->
-            add(stringResource(R.string.timeline_progress_current, amount, unit.label(amount)))
-        }
-    }.joinToString(" · ")
+    val summary = timelineMonthSummary(progressByUnit, completedCount)
 
     Column(
         modifier = modifier
@@ -184,6 +176,18 @@ internal fun TimelineMonthHeader(
         }
     }
 }
+
+/** What a month added up to: completions, then progress per unit. Empty when nothing happened. */
+@Composable
+internal fun timelineMonthSummary(progressByUnit: Map<TimelineProgressUnit, Int>, completedCount: Int): String = buildList {
+    when {
+        completedCount == 1 -> add(stringResource(R.string.timeline_day_completed_one))
+        completedCount > 1 -> add(stringResource(R.string.timeline_day_completed, completedCount))
+    }
+    progressByUnit.forEach { (unit, amount) ->
+        add(stringResource(R.string.timeline_progress_current, amount, unit.label(amount)))
+    }
+}.joinToString(" · ")
 
 /**
  * One line of the library's diary, in the same shape as a row of the item's Activitat: the date once

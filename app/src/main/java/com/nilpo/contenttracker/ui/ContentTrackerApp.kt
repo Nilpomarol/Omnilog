@@ -198,6 +198,8 @@ import com.nilpo.contenttracker.ui.record.RecordScreen
 import com.nilpo.contenttracker.ui.record.RecordTab
 import com.nilpo.contenttracker.ui.stats.StatsListScreen
 import com.nilpo.contenttracker.ui.stats.StatsScreen
+import com.nilpo.contenttracker.ui.stats.statsPeriodOptions
+import com.nilpo.contenttracker.ui.timeline.TimelineCalendarScreen
 import com.nilpo.contenttracker.ui.timeline.TimelineScreen
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
@@ -1387,47 +1389,64 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                     .padding(innerPadding),
                             )
                         } else if (route == AppRoute.Record) {
+                            val sessionActivitySheet: @Composable (Long, () -> Unit) -> Unit = { sessionId, onDismiss ->
+                                val media = uiState.allTrackedItems
+                                    .firstOrNull { tracked -> tracked.sessions.any { it.id == sessionId } }
+                                val session = media?.sessions?.firstOrNull { it.id == sessionId }
+                                if (media == null || session == null) {
+                                    // The session was deleted while the sheet was open.
+                                    LaunchedEffect(sessionId) { onDismiss() }
+                                } else {
+                                    ActivitySheet(
+                                        session = session,
+                                        mediaType = media.item.type,
+                                        progressTotal = media.item.progressTotal,
+                                        accent = media.item.type.homeSection().themedAccent(),
+                                        onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
+                                        onUpdateProgressUpdate = viewModel::updateProgressUpdate,
+                                        onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
+                                        onUpdateStatusEventDate = viewModel::updateSessionStatusEventDate,
+                                        onDismiss = onDismiss,
+                                        itemTitle = displayMediaTitle(media.item.title),
+                                        onOpenItem = {
+                                            onDismiss()
+                                            openTrackedMedia(media)
+                                        },
+                                    )
+                                }
+                            }
                             RecordScreen(
                                 selectedTab = recordTab,
                                 onTabSelected = { recordTab = it },
-                                timeline = {
+                                periodOptions = remember(uiState.allTrackedItems) { statsPeriodOptions(uiState.allTrackedItems) },
+                                timeline = { filters ->
                                     TimelineScreen(
                                         entries = timelineEntries,
                                         isLoading = uiState.isLoading,
                                         headerActions = timelineHeaderActions,
                                         onBrowseLibrary = { backStack.selectHome() },
-                                        sessionActivitySheet = { sessionId, onDismiss ->
-                                            val media = uiState.allTrackedItems
-                                                .firstOrNull { tracked -> tracked.sessions.any { it.id == sessionId } }
-                                            val session = media?.sessions?.firstOrNull { it.id == sessionId }
-                                            if (media == null || session == null) {
-                                                // The session was deleted while the sheet was open.
-                                                LaunchedEffect(sessionId) { onDismiss() }
-                                            } else {
-                                                ActivitySheet(
-                                                    session = session,
-                                                    mediaType = media.item.type,
-                                                    progressTotal = media.item.progressTotal,
-                                                    accent = media.item.type.homeSection().themedAccent(),
-                                                    onDeleteProgressUpdate = viewModel::deleteProgressUpdate,
-                                                    onUpdateProgressUpdate = viewModel::updateProgressUpdate,
-                                                    onDeleteStatusEvent = viewModel::deleteSessionStatusEvent,
-                                                    onUpdateStatusEventDate = viewModel::updateSessionStatusEventDate,
-                                                    onDismiss = onDismiss,
-                                                    itemTitle = displayMediaTitle(media.item.title),
-                                                    onOpenItem = {
-                                                        onDismiss()
-                                                        openTrackedMedia(media)
-                                                    },
-                                                )
-                                            }
-                                        },
+                                        sessionActivitySheet = sessionActivitySheet,
+                                        mediaTypes = filters.media.types,
+                                        period = filters.period,
+                                        hasFilters = filters.isFiltered,
+                                        onClearFilters = filters.clear,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 },
-                                stats = {
+                                calendar = { filters ->
+                                    TimelineCalendarScreen(
+                                        entries = timelineEntries,
+                                        isLoading = uiState.isLoading,
+                                        sessionActivitySheet = sessionActivitySheet,
+                                        mediaTypes = filters.media.types,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                },
+                                stats = { filters ->
                                     StatsScreen(
                                         items = uiState.allTrackedItems,
+                                        mediaFilter = filters.media,
+                                        period = filters.period,
                                         onCreatorClick = { creator, mediaType ->
                                             backStack.push(
                                                 AppRoute.AuthorDetail(

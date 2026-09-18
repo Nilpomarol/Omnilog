@@ -786,19 +786,6 @@ class StatsCalculator(
             }
     }
 
-    private fun StatsPeriod.contains(date: LocalDate?, today: LocalDate): Boolean {
-        if (date == null) return this == StatsPeriod.AllTime
-        return when (this) {
-            StatsPeriod.AllTime -> true
-            StatsPeriod.ThisYear -> date.year == today.year && !date.isAfter(today)
-            is StatsPeriod.Year -> date.year == year && (year < today.year || !date.isAfter(today))
-            StatsPeriod.Last12Months -> {
-                val start = today.minusMonths(11).withDayOfMonth(1)
-                !date.isBefore(start) && !date.isAfter(today)
-            }
-        }
-    }
-
     private fun monthLabel(month: YearMonth): String {
         return when (month.monthValue) {
             1 -> "gen."

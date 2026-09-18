@@ -3,7 +3,7 @@
 Status: Current feature specification  
 Last reviewed: 2026-09-17
 
-Cronologia and Estadístiques are two swipeable tabs of one page, "Registre" (`AppRoute.Record`, `ui/record/RecordScreen.kt`). Home's recent-activity link opens it on Cronologia and the rhythm card on Estadístiques.
+Cronologia, Calendari and Estadístiques are swipeable tabs of one page, "Registre" (`AppRoute.Record`, `ui/record/RecordScreen.kt`). The page owns the filters, shown once under the tabs and shared by all three: format, and period (Aquest any by default; 12 mesos; Tot; past years). The period chip hides on Calendari, whose month picker moves through time. Home's recent-activity link opens it on Cronologia and the rhythm card on Estadístiques.
 
 Stats is a secondary Home/Profile drill-in for understanding the user's own history. It is not a provider-popularity dashboard and should not become a sixth root navigation destination.
 
@@ -79,7 +79,6 @@ Each shelf (best rated, collections, creators, most revisited) has a "Veure-ho t
 
 Charts draw in (columns rise, bars and lines grow) the first time they come into view for a given period and filter, and not again when scrolled back to or after returning from a list.
 
-Filters sit in the same order as Cronologia: media type, then period.
 
 Principles kept from the earlier charts:
 

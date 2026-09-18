@@ -204,3 +204,12 @@ internal fun StatsMediaFilter.label(): String {
         StatsMediaFilter.Games -> stringResource(R.string.nav_games)
     }
 }
+
+internal val StatsMediaFilter.dropdownIconResId: Int
+    get() = when (this) {
+        StatsMediaFilter.All -> R.drawable.ic_group_items
+        StatsMediaFilter.Anime -> R.drawable.ic_nav_anime
+        StatsMediaFilter.Books -> R.drawable.ic_nav_books
+        StatsMediaFilter.Movies -> R.drawable.ic_media_movie
+        StatsMediaFilter.Games -> R.drawable.ic_nav_games
+    }

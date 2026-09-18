@@ -85,25 +85,21 @@ import kotlin.math.roundToInt
  * to say, and each shelf opens its full list.
  */
 @Composable
-fun StatsScreen(
+internal fun StatsScreen(
     items: List<TrackedMedia>,
+    // The Registre page's shared filters.
+    mediaFilter: StatsMediaFilter,
+    period: StatsPeriod,
     onMediaClick: (TrackedMedia) -> Unit,
     onCreatorClick: (String, MediaType) -> Unit,
     onCollectionClick: (Long, MediaType) -> Unit,
     onSeeAll: (kind: StatsListKind, periodCode: String, mediaFilterName: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val periodOptions = remember(items) { statsPeriodOptions(items) }
-    // Saved as codes so the choice survives opening a list and coming back.
-    var periodCode by rememberSaveable { mutableStateOf(StatsPeriod.ThisYear.code()) }
-    var mediaFilterName by rememberSaveable { mutableStateOf(StatsMediaFilter.All.name) }
-    val selectedPeriod = statsPeriodFromCode(periodCode)
-    val mediaFilter = StatsMediaFilter.entries.firstOrNull { it.name == mediaFilterName } ?: StatsMediaFilter.All
-    LaunchedEffect(periodOptions) {
-        if (selectedPeriod !in periodOptions) periodCode = StatsPeriod.ThisYear.code()
-    }
-    val snapshot = remember(items, selectedPeriod, mediaFilter) {
-        StatsCalculator().calculate(items, StatsFilters(period = selectedPeriod, mediaTypes = mediaFilter.types))
+    val periodCode = period.code()
+    val mediaFilterName = mediaFilter.name
+    val snapshot = remember(items, period, mediaFilter) {
+        StatsCalculator().calculate(items, StatsFilters(period = period, mediaTypes = mediaFilter.types))
     }
     val reveals = rememberSaveable(saver = RevealRegistry.Saver) { RevealRegistry() }
     val scope = "$periodCode|$mediaFilterName"
@@ -116,16 +112,7 @@ fun StatsScreen(
             verticalArrangement = Arrangement.spacedBy(40.dp),
         ) {
             item(key = "lead") {
-                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    StatsFilterBar(
-                        selectedMedia = mediaFilter,
-                        onMediaSelected = { mediaFilterName = it.name },
-                        selectedPeriod = selectedPeriod,
-                        periodOptions = periodOptions,
-                        onPeriodSelected = { periodCode = it.code() },
-                    )
-                    StatsLead(snapshot, reveal = reveals.reveal("$scope|lead"))
-                }
+                StatsLead(snapshot, reveal = reveals.reveal("$scope|lead"))
             }
             if (snapshot.averageRating != null) {
                 item(key = "ratings") { RatingsChapter(snapshot, reveals, scope, onMediaClick, onCollectionClick, seeAll) }
@@ -749,59 +736,3 @@ private fun CoverFan(
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Filters
-// ─────────────────────────────────────────────────────────────
-
-/** The same two dropdowns as the Cronologia tab, in the same order: what, then when. */
-@Composable
-private fun StatsFilterBar(
-    selectedMedia: StatsMediaFilter,
-    onMediaSelected: (StatsMediaFilter) -> Unit,
-    selectedPeriod: StatsPeriod,
-    periodOptions: List<StatsPeriod>,
-    onPeriodSelected: (StatsPeriod) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = DetailGutter),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OmnilogDropdownChip(
-            selectedOption = selectedMedia,
-            options = StatsMediaFilter.entries,
-            optionLabel = { it.label() },
-            onOptionSelected = onMediaSelected,
-            modifier = Modifier.weight(1f),
-            isActive = { it != StatsMediaFilter.All },
-            optionColor = { it.themedAccent() },
-            optionIcon = { filter, tint ->
-                Icon(
-                    painter = painterResource(filter.dropdownIconResId),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = tint,
-                )
-            },
-        )
-        OmnilogDropdownChip(
-            selectedOption = selectedPeriod,
-            options = periodOptions,
-            optionLabel = { it.label() },
-            onOptionSelected = onPeriodSelected,
-            modifier = Modifier.weight(1f),
-            isActive = { it != StatsPeriod.ThisYear },
-            optionColor = { OmnilogTheme.accents.Dashboard },
-        )
-    }
-}
-
-private val StatsMediaFilter.dropdownIconResId: Int
-    get() = when (this) {
-        StatsMediaFilter.All -> R.drawable.ic_group_items
-        StatsMediaFilter.Anime -> R.drawable.ic_nav_anime
-        StatsMediaFilter.Books -> R.drawable.ic_nav_books
-        StatsMediaFilter.Movies -> R.drawable.ic_media_movie
-        StatsMediaFilter.Games -> R.drawable.ic_nav_games
-    }

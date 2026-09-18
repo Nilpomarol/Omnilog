@@ -11,6 +11,23 @@ sealed interface StatsPeriod {
     data class Year(val year: Int) : StatsPeriod
 }
 
+/**
+ * Whether [date] falls in the period as of [today]. An undated event belongs only to all time: it has
+ * no honest place in a bounded period.
+ */
+fun StatsPeriod.contains(date: java.time.LocalDate?, today: java.time.LocalDate = java.time.LocalDate.now()): Boolean {
+    if (date == null) return this == StatsPeriod.AllTime
+    return when (this) {
+        StatsPeriod.AllTime -> true
+        StatsPeriod.ThisYear -> date.year == today.year && !date.isAfter(today)
+        is StatsPeriod.Year -> date.year == year && (year < today.year || !date.isAfter(today))
+        StatsPeriod.Last12Months -> {
+            val start = today.minusMonths(11).withDayOfMonth(1)
+            !date.isBefore(start) && !date.isAfter(today)
+        }
+    }
+}
+
 data class StatsFilters(
     val period: StatsPeriod = StatsPeriod.ThisYear,
     val mediaTypes: Set<MediaType> = MediaType.entries.toSet(),

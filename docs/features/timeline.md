@@ -3,7 +3,7 @@
 Status: Current feature specification  
 Last reviewed: 2026-09-17
 
-Cronologia and Estadístiques are two swipeable tabs of one page, "Registre" (`AppRoute.Record`, `ui/record/RecordScreen.kt`). Home's recent-activity link opens it on Cronologia and the rhythm card on Estadístiques.
+Cronologia, Calendari and Estadístiques are swipeable tabs of one page, "Registre" (`AppRoute.Record`, `ui/record/RecordScreen.kt`). The page owns the filters, shown once under the tabs and shared by all three: format, and period (Aquest any by default; 12 mesos; Tot; past years). The period chip hides on Calendari, whose month picker moves through time. Home's recent-activity link opens it on Cronologia and the rhythm card on Estadístiques.
 
 Timeline is the library-wide chronology of meaningful consumption events. It is not a generic audit log of every database mutation.
 
@@ -53,6 +53,8 @@ The last-modified timestamp is only an ordering fallback for legacy snapshot dat
 The screen reads as a diary: months are chapters (serif heading plus a summary of completions and progress per unit), the day sits once in the gutter, and each row hangs off the shared rail. There is no hero/recap card. Rows come in three tiers: endings (completed, abandoned) have the large cover, a heavier title, outcome and rating; changes of state (started, revisited, paused, resumed) a small cover, title and state; progress entries a thumbnail, the amount and a bar of prior ground versus this gain. No tier is a card. The bead grows with the tier. Month totals count every entry, including hidden progress.
 
 Tapping a row opens that session's Activitat sheet over the screen, with a link to the item.
+
+The **Calendari** tab of the Registre page (`ui/timeline/TimelineCalendar.kt`) shows the same chronology as a month grid: one swipeable page per month, from the first recorded month to the current month. Weeks are always complete, starting on the locale's first day, with the neighbouring months' days dimmed; tapping one of those pages to its month and selects it. The calendar shows milestones only: progress entries never appear on it, whatever the visibility setting, since a day square holds one cover. An active day shows the cover of its most telling entry (completion, then abandonment, start/revisit, pause/resume) and "+N" when several titles share the day. Tapping a day lists its entries under the calendar with the same diary rows; landing on another month selects its latest active day. Tapping the month title opens a compact sheet to pick any month and year in range (active months carry a dot). The tab follows the page's format filter; the period word hides there, since the picker already covers time. The tab follows the page's format filter, ignores the period, and honours the same visibility settings as Cronologia; undated entries have no place on it.
 
 Progress rows are off by default and opted into per type; the screen says under the filters when they are hidden and links to the setting. While a type's progress is hidden, its milestones drop their amount and position too, since a lone folded amount would read as the whole story.
 

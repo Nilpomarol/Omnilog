@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -34,11 +35,14 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
+import androidx.compose.ui.text.font.FontWeight
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.timeline.TimelineDayGroup
 import com.nilpo.contenttracker.core.timeline.TimelineEntry
 import com.nilpo.contenttracker.core.timeline.TimelineFilters
-import com.nilpo.contenttracker.core.timeline.TimelineMediaFilter
+import com.nilpo.contenttracker.core.stats.StatsPeriod
+import com.nilpo.contenttracker.core.stats.contains
 import com.nilpo.contenttracker.core.timeline.toSnapshot
 import com.nilpo.contenttracker.ui.TimelineHeaderActions
 import com.nilpo.contenttracker.ui.common.EmptyStateAction
@@ -66,46 +70,50 @@ fun TimelineScreen(
     headerActions: TimelineHeaderActions,
     onBrowseLibrary: () -> Unit,
     sessionActivitySheet: @Composable (sessionId: Long, onDismiss: () -> Unit) -> Unit,
+    // The Registre page's shared filters.
+    mediaTypes: Set<MediaType>,
+    period: StatsPeriod,
+    hasFilters: Boolean,
+    onClearFilters: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var mediaFilterName by rememberSaveable { mutableStateOf(TimelineMediaFilter.All.name) }
-    var selectedYear by rememberSaveable { mutableStateOf<Int?>(null) }
     var showConfiguration by rememberSaveable { mutableStateOf(false) }
     var openSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showUndated by rememberSaveable { mutableStateOf(false) }
     headerActions.onSettingsRequested = { showConfiguration = true }
     val preferences = rememberTimelinePreferences()
     val visibility by rememberTimelineVisibility(preferences)
-    val mediaFilter = TimelineMediaFilter.entries.firstOrNull { it.name == mediaFilterName }
-        ?: TimelineMediaFilter.All
-
-    val snapshot = remember(entries, mediaFilter, selectedYear, visibility) {
-        entries.toSnapshot(
+    val scoped = remember(entries, mediaTypes, period) {
+        entries.filter { it.mediaType in mediaTypes && period.contains(it.date) }
+    }
+    val snapshot = remember(scoped, visibility) {
+        scoped.toSnapshot(
             TimelineFilters(
-                media = mediaFilter,
-                year = selectedYear,
                 excludedMediaTypes = visibility.hiddenMediaTypes,
                 historyMediaTypes = visibility.historyMediaTypes,
             ),
         )
     }
-    // A month's totals count every entry, including the ones the history setting keeps off the list.
-    val monthTotals = remember(entries, mediaFilter, selectedYear, visibility) {
+    // Whether anything at all would show without the page's filters, which decides between "nothing
+    // yet", "hidden by settings" and "nothing for these filters".
+    val libraryCount = remember(entries, visibility) {
         entries.toSnapshot(
-            TimelineFilters(media = mediaFilter, year = selectedYear, excludedMediaTypes = visibility.hiddenMediaTypes),
-        ).groups.filter { it.date != null }.groupBy { YearMonth.from(it.date) }
+            TimelineFilters(excludedMediaTypes = visibility.hiddenMediaTypes, historyMediaTypes = visibility.historyMediaTypes),
+        ).unfilteredEntryCount
+    }
+    // A month's totals count every entry, including the ones the history setting keeps off the list.
+    val monthTotals = remember(scoped, visibility) {
+        scoped.toSnapshot(TimelineFilters(excludedMediaTypes = visibility.hiddenMediaTypes))
+            .groups.filter { it.date != null }.groupBy { YearMonth.from(it.date) }
     }
     // Ordered newest first, as the snapshot is; groupBy keeps that order.
     val months = remember(snapshot) {
         snapshot.groups.filter { it.date != null }.groupBy { YearMonth.from(it.date) }
     }
     val undated = remember(snapshot) { snapshot.groups.firstOrNull { it.date == null }?.entries.orEmpty() }
-    val visibleTypes = MediaType.entries.filter { visibility.isVisible(it) }
-    val quietTypes = visibleTypes.filterNot { visibility.showsHistory(it) }
     val listState = rememberLazyListState()
-    val hasFilters = mediaFilter != TimelineMediaFilter.All || selectedYear != null
     // The library has events, but the visibility settings hide every one of them.
-    val isHiddenByConfiguration = entries.isNotEmpty() && snapshot.unfilteredEntryCount == 0
+    val isHiddenByConfiguration = entries.isNotEmpty() && libraryCount == 0
     val openSession: (TimelineEntry) -> Unit = { openSessionId = it.sessionId }
 
     Surface(modifier = modifier, color = OmnilogTheme.colors.appBackground) {
@@ -121,7 +129,7 @@ fun TimelineScreen(
                 )
             }
 
-            snapshot.unfilteredEntryCount == 0 -> Column(
+            libraryCount == 0 -> Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -156,32 +164,7 @@ fun TimelineScreen(
                         modifier = Modifier.padding(horizontal = DetailGutter),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        TimelineFilterBar(
-                            selectedMedia = mediaFilter,
-                            selectedYear = selectedYear,
-                            availableYears = snapshot.availableYears,
-                            onMediaSelected = { mediaFilterName = it.name },
-                            onYearSelected = { selectedYear = it },
-                        )
-                        // Hidden progress used to leave no trace on the screen; say so, and where to change it.
-                        if (quietTypes.isNotEmpty()) {
-                            Text(
-                                text = if (quietTypes.size == visibleTypes.size) {
-                                    stringResource(R.string.timeline_history_hidden_all)
-                                } else {
-                                    stringResource(
-                                        R.string.timeline_history_hidden_note,
-                                        quietTypes.map { it.timelineSettingsLabel() }.joinToString(", "),
-                                    )
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showConfiguration = true }
-                                    .padding(vertical = 4.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = OmnilogTheme.colors.appMuted,
-                            )
-                        }
+                        HiddenProgressNote(visibility = visibility, onOpenSettings = { showConfiguration = true })
                     }
                 }
 
@@ -193,10 +176,7 @@ fun TimelineScreen(
                             accent = OmnilogTheme.accents.Dashboard,
                             primaryAction = EmptyStateAction(
                                 label = stringResource(R.string.timeline_clear_filters),
-                                onClick = {
-                                    mediaFilterName = TimelineMediaFilter.All.name
-                                    selectedYear = null
-                                },
+                                onClick = onClearFilters,
                             ),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
                         )
@@ -309,77 +289,31 @@ private fun YearMonth.title(): String {
 }
 
 /** Summed per unit, never across units; see `TimelineProgressUnit`. */
-private fun List<TimelineDayGroup>.monthProgress() = flatMap { it.progressByUnit.entries }
+internal fun List<TimelineDayGroup>.monthProgress() = flatMap { it.progressByUnit.entries }
     .groupBy({ it.key }, { it.value })
     .mapValues { (_, amounts) -> amounts.sum() }
 
-/** Two dropdowns rather than chip rows: the year list grows without bound as the library ages. */
+
+/**
+ * Says when progress entries are being hidden, and links to the setting. Without it, hidden progress
+ * left no trace on the screen.
+ */
 @Composable
-private fun TimelineFilterBar(
-    selectedMedia: TimelineMediaFilter,
-    selectedYear: Int?,
-    availableYears: List<Int>,
-    onMediaSelected: (TimelineMediaFilter) -> Unit,
-    onYearSelected: (Int?) -> Unit,
-) {
-    val yearOptions: List<Int?> = listOf(null) + availableYears
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OmnilogDropdownChip(
-            selectedOption = selectedMedia,
-            options = TimelineMediaFilter.entries,
-            optionLabel = { it.label() },
-            onOptionSelected = onMediaSelected,
-            modifier = Modifier.weight(1f),
-            isActive = { it != TimelineMediaFilter.All },
-            optionColor = { it.accent() },
-            optionIcon = { filter, tint ->
-                Icon(
-                    painter = painterResource(filter.dropdownIconResId),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = tint,
-                )
-            },
-        )
-        OmnilogDropdownChip(
-            selectedOption = selectedYear,
-            options = yearOptions,
-            optionLabel = { it?.toString() ?: stringResource(R.string.timeline_all_time) },
-            onOptionSelected = onYearSelected,
-            modifier = Modifier.weight(1f),
-            isActive = { it != null },
-            optionColor = { OmnilogTheme.accents.Dashboard },
-        )
-    }
+internal fun HiddenProgressNote(visibility: TimelineVisibility, onOpenSettings: () -> Unit) {
+    val visibleTypes = MediaType.entries.filter { visibility.isVisible(it) }
+    val quietTypes = visibleTypes.filterNot { visibility.showsHistory(it) }
+    if (quietTypes.isEmpty()) return
+    Text(
+        text = if (quietTypes.size == visibleTypes.size) {
+            stringResource(R.string.timeline_history_hidden_all)
+        } else {
+            stringResource(R.string.timeline_history_hidden_note, quietTypes.map { it.timelineSettingsLabel() }.joinToString(", "))
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenSettings)
+            .padding(vertical = 4.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = OmnilogTheme.colors.appMuted,
+    )
 }
-
-@Composable
-private fun TimelineMediaFilter.label(): String = when (this) {
-    TimelineMediaFilter.All -> stringResource(R.string.timeline_filter_all)
-    TimelineMediaFilter.Anime -> stringResource(R.string.nav_anime)
-    TimelineMediaFilter.Books -> stringResource(R.string.nav_books)
-    TimelineMediaFilter.MoviesAndTv -> stringResource(R.string.nav_movies_tv)
-    TimelineMediaFilter.Games -> stringResource(R.string.nav_games)
-}
-
-@Composable
-private fun TimelineMediaFilter.accent() = when (this) {
-    TimelineMediaFilter.All -> OmnilogTheme.accents.Dashboard
-    TimelineMediaFilter.Anime -> OmnilogTheme.accents.Anime
-    TimelineMediaFilter.Books -> OmnilogTheme.accents.Books
-    TimelineMediaFilter.MoviesAndTv -> OmnilogTheme.accents.Movie
-    TimelineMediaFilter.Games -> OmnilogTheme.accents.Games
-}
-
-private val TimelineMediaFilter.dropdownIconResId: Int
-    get() = when (this) {
-        TimelineMediaFilter.All -> R.drawable.ic_group_items
-        TimelineMediaFilter.Anime -> R.drawable.ic_nav_anime
-        TimelineMediaFilter.Books -> R.drawable.ic_nav_books
-        TimelineMediaFilter.MoviesAndTv -> R.drawable.ic_media_movie
-        TimelineMediaFilter.Games -> R.drawable.ic_nav_games
-    }
