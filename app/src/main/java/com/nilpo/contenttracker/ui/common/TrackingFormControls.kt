@@ -10,15 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
@@ -26,11 +19,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -48,17 +38,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
-import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.ui.theme.OmnilogColors
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
@@ -107,173 +92,6 @@ fun TrackingStatusSelector(
             )
         },
     )
-}
-
-@Composable
-private fun LegacyTrackingProgressField(
-    value: String,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    label: String,
-    accent: Color,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val current = value.toIntOrNull() ?: 0
-    val maximum = progressTotal ?: Int.MAX_VALUE
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            FilledTonalIconButton(
-                onClick = { onValueChange((current - 1).coerceAtLeast(0).toString()) },
-                modifier = Modifier.size(40.dp),
-                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = accent.copy(alpha = 0.14f), contentColor = accent),
-            ) { Text(text = "−", fontSize = 20.sp, fontWeight = FontWeight.Light) }
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(text = label, style = MaterialTheme.typography.labelMedium, color = OmnilogTheme.colors.appMuted)
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { input ->
-                        val digits = input.filter { it.isDigit() }
-                        onValueChange(digits.toIntOrNull()?.coerceIn(0, maximum)?.toString() ?: digits)
-                    },
-                    textStyle = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = accent),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    colors = trackingTextFieldColors(accent),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                progressTotal?.takeIf { it > 0 }?.let { total ->
-                    Text(text = "de $total ${progressUnitLabel(mediaType, total)}", style = MaterialTheme.typography.labelMedium, color = OmnilogTheme.colors.appMuted)
-                }
-            }
-            FilledTonalIconButton(
-                onClick = { onValueChange((current + 1).coerceAtMost(maximum).toString()) },
-                modifier = Modifier.size(40.dp),
-                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = accent.copy(alpha = 0.14f), contentColor = accent),
-            ) { Text(text = "+", fontSize = 20.sp, fontWeight = FontWeight.Light) }
-        }
-    }
-}
-
-@Composable
-fun TrackingProgressField(
-    value: String,
-    progressTotal: Int?,
-    mediaType: MediaType,
-    label: String,
-    accent: Color,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val current = value.toIntOrNull() ?: 0
-    val maximum = progressTotal ?: Int.MAX_VALUE
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                    )
-                    if (progressTotal != null && progressTotal > 0) {
-                        val percentage = ((current.toFloat() / progressTotal).coerceIn(0f, 1f) * 100).toInt()
-                        Text(
-                            text = "$current / $progressTotal ${progressUnitLabel(mediaType, progressTotal)} • $percentage%",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = OmnilogTheme.colors.appMuted,
-                        )
-                    } else {
-                        Text(
-                            text = "$current ${progressUnitLabel(mediaType, current)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = accent.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
-                ) {
-                    BasicTextField(
-                        value = value,
-                        onValueChange = { input ->
-                            val digits = input.filter { it.isDigit() }
-                            onValueChange(digits.toIntOrNull()?.coerceIn(0, maximum)?.toString() ?: digits)
-                        },
-                        modifier = Modifier
-                            .widthIn(min = 48.dp)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        textStyle = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            color = accent,
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        cursorBrush = SolidColor(accent),
-                    )
-                }
-            }
-            if (progressTotal != null && progressTotal > 0) {
-                val fraction = (current.toFloat() / progressTotal).coerceIn(0f, 1f)
-                val animatedFraction by animateFloatAsState(
-                    targetValue = fraction,
-                    animationSpec = spring(
-                        dampingRatio = 0.8f,
-                        stiffness = 150f
-                    ),
-                    label = "progressAnimation"
-                )
-                LinearProgressIndicator(
-                    progress = { animatedFraction },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = accent,
-                    trackColor = accent.copy(alpha = 0.12f),
-                    strokeCap = StrokeCap.Round,
-                    drawStopIndicator = {},
-                    gapSize = 0.dp,
-                )
-            }
-        }
-    }
 }
 
 /**

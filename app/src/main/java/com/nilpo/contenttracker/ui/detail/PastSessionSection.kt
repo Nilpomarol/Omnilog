@@ -11,12 +11,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
+import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
 import com.nilpo.contenttracker.core.model.TrackingStatus
@@ -25,11 +23,11 @@ import java.time.LocalDate
 
 @Composable
 fun PastSessionSection(
+    item: MediaItem,
     session: TrackingSession,
     visitNumber: Int,
     progressTotal: Int?,
     mediaType: MediaType,
-    accent: Color,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
     onDeleteStatusEvent: (Long) -> Unit,
@@ -62,18 +60,12 @@ fun PastSessionSection(
     )
 
     if (isEditing) {
-        Dialog(
-            onDismissRequest = { isEditing = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            SessionEditorScreen(
-                session = session,
-                progressTotal = progressTotal,
-                mediaType = mediaType,
-                accent = accent,
-                onBack = { isEditing = false },
-                onSaveSessionDetails = onUpdateSessionDetails,
-            )
-        }
+        SessionEditorSheet(
+            item = item,
+            session = session,
+            progressTotal = progressTotal,
+            onDismiss = { isEditing = false },
+            onSaveSessionDetails = onUpdateSessionDetails,
+        )
     }
 }

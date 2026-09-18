@@ -52,8 +52,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.AddTrackingSessionRequest
 import com.nilpo.contenttracker.core.model.ExternalRating
@@ -201,10 +199,9 @@ fun DetailQuickActionsSection(
     }
 
     if (showNewSessionDialog) {
-        NewSessionDialog(
+        NewSessionSheet(
             item = item,
             currentSession = currentSession,
-            accent = accent,
             onDismiss = { showNewSessionDialog = false },
             onStartNewSession = {
                 onStartNewSession(it)
@@ -712,10 +709,9 @@ private fun MediaType.prefersPrimarySource(source: ExternalRatingSource): Boolea
 
 
 @Composable
-private fun NewSessionDialog(
+private fun NewSessionSheet(
     item: MediaItem,
     currentSession: TrackingSession?,
-    accent: Color,
     onDismiss: () -> Unit,
     onStartNewSession: (AddTrackingSessionRequest) -> Unit,
 ) {
@@ -727,32 +723,26 @@ private fun NewSessionDialog(
         progressCurrent = 0,
     )
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        SessionEditorScreen(
-            session = draftSession,
-            progressTotal = item.effectiveProgressTotal(),
-            mediaType = item.type,
-            accent = accent,
-            titleResId = R.string.new_session_title,
-            onBack = onDismiss,
-            onSaveSessionDetails = { _, status, progress, rating, notes, startedAt, finishedAt ->
-                onStartNewSession(
-                    AddTrackingSessionRequest(
-                        mediaItemId = item.id,
-                        status = status,
-                        progressCurrent = progress,
-                        ratingHalfPoints = rating,
-                        notes = notes,
-                        startedAt = startedAt,
-                        finishedAt = finishedAt,
-                    ),
-                )
-            },
-        )
-    }
+    SessionEditorSheet(
+        item = item,
+        session = draftSession,
+        progressTotal = item.effectiveProgressTotal(),
+        titleResId = R.string.new_session_title,
+        onDismiss = onDismiss,
+        onSaveSessionDetails = { _, status, progress, rating, notes, startedAt, finishedAt ->
+            onStartNewSession(
+                AddTrackingSessionRequest(
+                    mediaItemId = item.id,
+                    status = status,
+                    progressCurrent = progress,
+                    ratingHalfPoints = rating,
+                    notes = notes,
+                    startedAt = startedAt,
+                    finishedAt = finishedAt,
+                ),
+            )
+        },
+    )
 }
 
 private fun MediaItem.effectiveProgressTotal(): Int? {

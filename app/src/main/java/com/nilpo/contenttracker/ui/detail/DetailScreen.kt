@@ -260,7 +260,6 @@ fun DetailScreen(
                                 session = session,
                                 progressTotal = media.effectiveProgressTotal(),
                                 mediaType = media.type,
-                                accent = accent,
                                 onUpdateSessionDetails = onUpdateSessionDetails,
                                 onQuickComplete = onQuickComplete,
                                 // Only offered when a previous session survives to become live
@@ -377,11 +376,11 @@ fun DetailScreen(
                                             HorizontalDivider(color = OmnilogTheme.colors.appLine)
                                         }
                                         PastSessionSection(
+                                            item = media,
                                             session = session,
                                             visitNumber = trackedMedia.visitNumber(session),
                                             progressTotal = media.effectiveProgressTotal(),
                                             mediaType = media.type,
-                                            accent = accent,
                                             onUpdateSessionDetails = onUpdateSessionDetails,
                                             onDeleteProgressUpdate = onDeleteProgressUpdate,
                                             onDeleteStatusEvent = onDeleteStatusEvent,

@@ -15,33 +15,22 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,13 +38,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackingSession
@@ -64,11 +49,21 @@ import com.nilpo.contenttracker.core.model.endsSession
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.TrackingDateRange
 import com.nilpo.contenttracker.ui.common.TrackingNotesField
-import com.nilpo.contenttracker.ui.common.TrackingProgressField
 import com.nilpo.contenttracker.ui.common.TrackingRatingSelector
 import com.nilpo.contenttracker.ui.common.TrackingStatusSelector
-import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.text.style.TextOverflow
+import com.nilpo.contenttracker.core.model.MediaItem
+import com.nilpo.contenttracker.ui.common.MetadataCoverImage
+import com.nilpo.contenttracker.ui.common.QuickProgressRail
+import com.nilpo.contenttracker.ui.common.contentColorOn
+import com.nilpo.contenttracker.ui.common.displayMediaTitle
+import com.nilpo.contenttracker.ui.common.progressUnitLabel
 import java.time.LocalDate
 
 // ─────────────────────────────────────────────────────────────
@@ -81,7 +76,6 @@ fun CurrentSessionSection(
     session: TrackingSession,
     progressTotal: Int?,
     mediaType: MediaType,
-    accent: Color,
     onUpdateSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onQuickComplete: (QuickCompletion) -> Unit,
     onDeleteProgressUpdate: (Long) -> Unit,
@@ -163,25 +157,19 @@ fun CurrentSessionSection(
     }
 
     if (showEditor) {
-        Dialog(
-            onDismissRequest = { showEditor = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            SessionEditorScreen(
-                session = session,
-                progressTotal = progressTotal,
-                mediaType = mediaType,
-                accent = accent,
-                onBack = { showEditor = false },
-                onSaveSessionDetails = onUpdateSessionDetails,
-                onDeleteSession = onDeleteSession?.let {
-                    {
-                        it()
-                        showEditor = false
-                    }
-                },
-            )
-        }
+        SessionEditorSheet(
+            item = trackedMedia.item,
+            session = session,
+            progressTotal = progressTotal,
+            onDismiss = { showEditor = false },
+            onSaveSessionDetails = onUpdateSessionDetails,
+            onDeleteSession = onDeleteSession?.let {
+                {
+                    it()
+                    showEditor = false
+                }
+            },
+        )
     }
 }
 
@@ -447,18 +435,23 @@ internal fun logActionLabel(status: TrackingStatus, mediaType: MediaType): Strin
 }
 
 // ─────────────────────────────────────────────────────────────
-// Full-page edit screen
+// The editor sheet
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Every field of a session in one sheet, built from the quick progress sheet's parts: the same cover
+ * header, the same rail for the position, one full-width button at the foot.
+ *
+ * The status leads and colours everything under it, so the form reads as the state it will save.
+ */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun SessionEditorScreen(
+fun SessionEditorSheet(
+    item: MediaItem,
     session: TrackingSession,
     progressTotal: Int?,
-    mediaType: MediaType,
-    accent: Color,
     titleResId: Int = R.string.edit_current_session,
-    onBack: () -> Unit,
+    onDismiss: () -> Unit,
     onSaveSessionDetails: (Long, TrackingStatus, Int, Int?, String?, LocalDate?, LocalDate?) -> Unit,
     onDeleteSession: (() -> Unit)? = null,
 ) {
@@ -496,164 +489,167 @@ fun SessionEditorScreen(
         eventsBeforeTerminal.lastOrNull { it.hasKnownDate }?.occurredOn?.isAfter(parsedFinishedAt) != true
     val canSave = parsedProgress != null && parsedProgress in 0..maxProgress &&
         datesParse && datesOrdered && transitionOrderValid
+    val stateColor by animateColorAsState(
+        targetValue = sessionStateVisual(draftStatus).color,
+        label = "sessionStateColor",
+    )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(titleResId),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                        )
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = onBack,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = accent,
-                        ),
-                    ) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    Button(
-                        onClick = {
-                            onSaveSessionDetails(
-                                session.id,
-                                draftStatus,
-                                parsedProgress ?: return@Button,
-                                draftRating,
-                                draftNotes.takeIf { it.isNotBlank() },
-                                draftStartedAtText.toLocalDateOrNull(),
-                                draftFinishedAtText.toLocalDateOrNull(),
-                            )
-                            onBack()
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = accent,
-                            contentColor = Color.White,
-                        ),
-                        enabled = canSave,
-                    ) {
-                        Text(text = stringResource(R.string.save))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { innerPadding ->
-        val stateColor = sessionStateVisual(draftStatus).color
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = OmnilogTheme.colors.appPanel,
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                // Insets before the scroll, so the viewport ends above the keyboard and a focused
+                // notes field can be scrolled into view.
+                .navigationBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            // ── Status ───────────────────────────────────────────
-            EditSectionHeader(title = stringResource(R.string.field_status))
-            TrackingStatusSelector(
-                selectedStatus = draftStatus,
-                accent = stateColor,
-                onStatusSelected = { status ->
-                    draftStatus = status
-                    if (status == TrackingStatus.InProgress && draftStartedAtText.isBlank()) {
-                        draftStartedAtText = LocalDate.now().toString()
-                    }
-                    // Offered, not imposed — the same way the start date is. Filling the field here
-                    // rather than defaulting it on save is what keeps "finished, date unknown"
-                    // expressible: the date is visible before saving and can be cleared again.
-                    if (status.endsSession && draftFinishedAtText.isBlank()) {
-                        draftFinishedAtText = LocalDate.now().toString()
-                    }
-                    if (!status.endsSession) {
-                        draftFinishedAtText = ""
-                    }
-                    if (status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
-                        draftProgressText = maxOf(
-                            draftProgressText.toIntOrNull() ?: 0,
-                            progressTotal,
-                        ).toString()
-                    }
-                },
-            )
-
-            EditSectionDivider()
-
-            // ── Progress ─────────────────────────────────────────
-            TrackingProgressField(
-                value = draftProgressText,
-                progressTotal = progressTotal,
-                mediaType = mediaType,
-                label = stringResource(R.string.field_progress),
-                accent = stateColor,
-                onValueChange = { value -> draftProgressText = value },
-            )
-
-            EditSectionDivider()
-
-            // ── Rating ───────────────────────────────────────────
-            EditSectionHeader(title = stringResource(R.string.field_rating))
-            TrackingRatingSelector(
-                currentRatingHalfPoints = draftRating,
-                accent = stateColor,
-                onRatingSelected = { draftRating = it },
-            )
-
-            EditSectionDivider()
-
-            EditSectionHeader(title = stringResource(R.string.session_dates))
-            TrackingDateRange(
-                startedLabel = stringResource(R.string.session_started_label),
-                startedValue = draftStartedAtText,
-                accent = stateColor,
-                onStartedValueChange = { draftStartedAtText = it },
-                finishedLabel = stringResource(R.string.session_finished_label),
-                finishedValue = draftFinishedAtText,
-                onFinishedValueChange = { draftFinishedAtText = it },
-            )
-
-            EditSectionDivider()
-
-            // ── Notes ────────────────────────────────────────────
-            EditSectionHeader(title = stringResource(R.string.field_notes))
-            TrackingNotesField(
-                value = draftNotes,
-                accent = stateColor,
-                onValueChange = { draftNotes = it },
-            )
-
-            // Deleting the live session hands the title back to the one before it, so it only
-            // appears when there is a previous session to fall back to.
-            onDeleteSession?.let {
-                EditSectionDivider()
-                TextButton(
-                    onClick = { showDeleteConfirmation = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MetadataCoverImage(
+                    coverUrl = item.coverUrl,
+                    modifier = Modifier.size(width = 40.dp, height = 60.dp),
+                    shape = RoundedCornerShape(6.dp),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.delete_session),
+                        text = stringResource(titleResId),
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = OmnilogTheme.colors.appMuted,
+                    )
+                    Text(
+                        text = displayMediaTitle(item.title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = OmnilogTheme.colors.appInk,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            EditorField(title = stringResource(R.string.field_status)) {
+                TrackingStatusSelector(
+                    selectedStatus = draftStatus,
+                    accent = stateColor,
+                    onStatusSelected = { status ->
+                        draftStatus = status
+                        if (status == TrackingStatus.InProgress && draftStartedAtText.isBlank()) {
+                            draftStartedAtText = LocalDate.now().toString()
+                        }
+                        // Offered, not imposed — the same way the start date is. Filling the field here
+                        // rather than defaulting it on save is what keeps "finished, date unknown"
+                        // expressible: the date is visible before saving and can be cleared again.
+                        if (status.endsSession && draftFinishedAtText.isBlank()) {
+                            draftFinishedAtText = LocalDate.now().toString()
+                        }
+                        if (!status.endsSession) {
+                            draftFinishedAtText = ""
+                        }
+                        if (status == TrackingStatus.Completed && progressTotal != null && progressTotal > 0) {
+                            draftProgressText = maxOf(
+                                draftProgressText.toIntOrNull() ?: 0,
+                                progressTotal,
+                            ).toString()
+                        }
+                    },
+                )
+            }
+
+            QuickProgressRail(
+                text = draftProgressText,
+                total = progressTotal?.takeIf { it > 0 },
+                mediaType = item.type,
+                accent = stateColor,
+                // Held to the ceiling as it is typed, as the old field did, rather than leaving Save
+                // greyed out with no reason given.
+                onTextChange = { text ->
+                    draftProgressText = text.toIntOrNull()?.coerceAtMost(maxProgress)?.toString() ?: text
+                },
+            )
+
+            EditorField(title = stringResource(R.string.field_rating)) {
+                TrackingRatingSelector(
+                    currentRatingHalfPoints = draftRating,
+                    accent = stateColor,
+                    onRatingSelected = { draftRating = it },
+                )
+            }
+
+            EditorField(title = stringResource(R.string.session_dates)) {
+                TrackingDateRange(
+                    startedLabel = stringResource(R.string.session_started_label),
+                    startedValue = draftStartedAtText,
+                    accent = stateColor,
+                    onStartedValueChange = { draftStartedAtText = it },
+                    finishedLabel = stringResource(R.string.session_finished_label),
+                    finishedValue = draftFinishedAtText,
+                    onFinishedValueChange = { draftFinishedAtText = it },
+                )
+            }
+
+            EditorField(title = stringResource(R.string.field_notes)) {
+                TrackingNotesField(
+                    value = draftNotes,
+                    accent = stateColor,
+                    onValueChange = { draftNotes = it },
+                )
+            }
+
+            Column {
+                Button(
+                    onClick = {
+                        onSaveSessionDetails(
+                            session.id,
+                            draftStatus,
+                            parsedProgress ?: return@Button,
+                            draftRating,
+                            draftNotes.takeIf { it.isNotBlank() },
+                            parsedStartedAt,
+                            parsedFinishedAt,
+                        )
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = canSave,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = stateColor,
+                        contentColor = contentColorOn(stateColor),
+                    ),
+                ) {
+                    Text(
+                        text = stringResource(R.string.save),
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+
+                // Deleting the live session hands the title back to the one before it, so it only
+                // appears when there is a previous session to fall back to.
+                onDeleteSession?.let {
+                    TextButton(
+                        onClick = { showDeleteConfirmation = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                    ) {
+                        Text(text = stringResource(R.string.delete_session))
+                    }
+                }
+            }
         }
     }
 
@@ -684,23 +680,18 @@ fun SessionEditorScreen(
     }
 }
 
+/** A muted label over its control, the way the quick sheet labels its rating. */
 @Composable
-private fun EditSectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = OmnilogTheme.colors.appMuted,
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun EditSectionDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(vertical = 8.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-    )
+private fun EditorField(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = OmnilogTheme.colors.appMuted,
+        )
+        content()
+    }
 }
 
 private fun String.toLocalDateOrNull(): LocalDate? =
