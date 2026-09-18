@@ -115,7 +115,6 @@ import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.TrackedMedia
 import com.nilpo.contenttracker.core.model.TrackingStatus
 import com.nilpo.contenttracker.core.repository.BackupPreview
-import com.nilpo.contenttracker.core.repository.ImdbCsvPreview
 import com.nilpo.contenttracker.core.repository.MalformedProviderCsvException
 import com.nilpo.contenttracker.core.repository.ProviderCsvValidationException
 import com.nilpo.contenttracker.core.repository.ProviderCsvValidationIssue
@@ -132,9 +131,7 @@ import com.nilpo.contenttracker.core.repository.MetadataRefreshField
 import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.defaultSelectedMetadataFields
 import com.nilpo.contenttracker.core.repository.requiresMetadataConfirmation
-import com.nilpo.contenttracker.core.repository.MyAnimeListXmlPreview
 import com.nilpo.contenttracker.core.repository.MyAnimeListAccountImportPreview
-import com.nilpo.contenttracker.core.repository.StoryGraphCsvPreview
 import com.nilpo.contenttracker.core.repository.ProviderImportEncodingException
 import com.nilpo.contenttracker.core.repository.ProviderImportFileTooLargeException
 import com.nilpo.contenttracker.core.repository.UnsupportedBackupSchemaException
@@ -143,6 +140,7 @@ import com.nilpo.contenttracker.core.imports.AnimeTitlePreference
 import com.nilpo.contenttracker.core.imports.AnimeTitlePreferences
 import com.nilpo.contenttracker.core.imports.ImportCoverageItem
 import com.nilpo.contenttracker.core.imports.ImportIssueItem
+import com.nilpo.contenttracker.core.imports.ImportSource
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
@@ -182,6 +180,7 @@ import com.nilpo.contenttracker.core.model.hasContributor
 import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.ui.imports.ImportHubDialog
 import com.nilpo.contenttracker.ui.imports.ImportProgressBanner
+import com.nilpo.contenttracker.ui.imports.ImportSheet
 import com.nilpo.contenttracker.ui.imports.MetadataDiffFieldList
 import com.nilpo.contenttracker.ui.imports.userFacingMessage
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
@@ -251,12 +250,12 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var showRestoreList by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<PendingBackupImport?>(null) }
     var pendingImportConfirmation by remember { mutableStateOf<PendingBackupImport?>(null) }
-    var pendingImdbCsvImport by remember { mutableStateOf<PendingImdbCsvImport?>(null) }
-    var pendingStoryGraphCsvImport by remember { mutableStateOf<PendingStoryGraphCsvImport?>(null) }
-    var pendingMyAnimeListXmlImport by remember { mutableStateOf<PendingMyAnimeListXmlImport?>(null) }
-    var pendingMyAnimeListAccountImport by remember {
-        mutableStateOf<MyAnimeListAccountImportPreview?>(null)
-    }
+    // The import sheet: open on its guide while [importSheetSource] is set, on its preview once a
+    // file or the MAL account has been read into [pendingProviderImport].
+    var importSheetSource by remember { mutableStateOf<ImportSource?>(null) }
+    var pendingProviderImport by remember { mutableStateOf<PendingProviderImport?>(null) }
+    var importSheetError by remember { mutableStateOf<String?>(null) }
+    var isReadingImportSource by remember { mutableStateOf(false) }
     var isProviderImporting by remember { mutableStateOf(false) }
     var showMalInitialSyncConfirmation by remember { mutableStateOf(false) }
     var metadataLinkTarget by remember { mutableStateOf<TrackedMedia?>(null) }
@@ -528,136 +527,123 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
             }
         }
     }
+    // Reads the chosen export into a preview. The sheet is still open on its guide when the picker
+    // returns, so every problem is written there, next to the button that picks another file.
+    fun prepareProviderImport(
+        uri: Uri,
+        readErrorFallback: String,
+        prepare: suspend (String) -> PendingProviderImport,
+        problem: (Throwable?) -> String,
+        nothingNew: (ProviderImportPreview) -> String,
+    ) {
+        coroutineScope.launch {
+            isReadingImportSource = true
+            importSheetError = null
+            val readResult = context.readProviderImportText(uri)
+            val prepared = readResult.getOrNull()?.let { text -> runCatching { prepare(text) } }
+            isReadingImportSource = false
+            val pending = prepared?.getOrNull()
+            importSheetError = when {
+                prepared == null -> providerImportReadErrorMessage(
+                    error = readResult.exceptionOrNull(),
+                    fallback = readErrorFallback,
+                    encodingError = providerImportEncodingErrorMessage,
+                    tooLarge = providerImportTooLargeMessage,
+                )
+                pending == null -> problem(prepared.exceptionOrNull())
+                pending.preview.importableRows == 0 -> nothingNew(pending.preview)
+                else -> {
+                    pendingProviderImport = pending
+                    null
+                }
+            }
+        }
+    }
     val importImdbCsvLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri != null) {
-            coroutineScope.launch {
-                val readResult = context.readProviderImportText(uri)
-                val csv = readResult.getOrNull()
-                if (csv == null) {
-                    snackbarHostState.showSnackbar(
-                        providerImportReadErrorMessage(
-                            error = readResult.exceptionOrNull(),
-                            fallback = imdbImportReadErrorMessage,
-                            encodingError = providerImportEncodingErrorMessage,
-                            tooLarge = providerImportTooLargeMessage,
-                        ),
-                    )
-                    return@launch
-                }
-
-                val previewResult = runCatching {
-                    PendingImdbCsvImport(viewModel.prepareImdbCsv(csv))
-                }
-                val pendingCsv = previewResult.getOrNull()
-                if (pendingCsv == null) {
-                    val error = previewResult.exceptionOrNull()
-                    snackbarHostState.showSnackbar(
-                        error.providerCsvValidationMessage(
-                            context = context,
-                            messages = imdbCsvValidationMessages,
-                            malformedFallback = providerImportMalformedCsvMessage,
-                        ),
-                    )
-                } else if (pendingCsv.preview.importableRows == 0) {
-                    snackbarHostState.showSnackbar(
-                        when (pendingCsv.preview.noImportableReason()) {
-                            ProviderNoImportableReason.UnsupportedOnly -> imdbImportUnsupportedOnlyMessage
-                            ProviderNoImportableReason.DuplicatesOnly -> imdbImportDuplicatesOnlyMessage
-                            else -> imdbImportEmptyMessage
-                        },
-                    )
-                } else {
-                    pendingImdbCsvImport = pendingCsv
-                }
-            }
+            prepareProviderImport(
+                uri = uri,
+                readErrorFallback = imdbImportReadErrorMessage,
+                prepare = { csv -> PendingImdbCsvImport(viewModel.prepareImdbCsv(csv)) },
+                problem = { error ->
+                    error.providerCsvValidationMessage(context, imdbCsvValidationMessages, providerImportMalformedCsvMessage)
+                },
+                nothingNew = { preview ->
+                    when (preview.noImportableReason()) {
+                        ProviderNoImportableReason.UnsupportedOnly -> imdbImportUnsupportedOnlyMessage
+                        ProviderNoImportableReason.DuplicatesOnly -> imdbImportDuplicatesOnlyMessage
+                        else -> imdbImportEmptyMessage
+                    }
+                },
+            )
         }
     }
     val importStoryGraphCsvLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri != null) {
-            coroutineScope.launch {
-                val readResult = context.readProviderImportText(uri)
-                val csv = readResult.getOrNull()
-                if (csv == null) {
-                    snackbarHostState.showSnackbar(
-                        providerImportReadErrorMessage(
-                            error = readResult.exceptionOrNull(),
-                            fallback = storyGraphImportReadErrorMessage,
-                            encodingError = providerImportEncodingErrorMessage,
-                            tooLarge = providerImportTooLargeMessage,
-                        ),
-                    )
-                    return@launch
-                }
-
-                val previewResult = runCatching {
-                    PendingStoryGraphCsvImport(viewModel.prepareStoryGraphCsv(csv))
-                }
-                val pendingCsv = previewResult.getOrNull()
-                if (pendingCsv == null) {
-                    val error = previewResult.exceptionOrNull()
-                    snackbarHostState.showSnackbar(
-                        error.providerCsvValidationMessage(
-                            context = context,
-                            messages = storyGraphCsvValidationMessages,
-                            malformedFallback = providerImportMalformedCsvMessage,
-                        ),
-                    )
-                } else if (pendingCsv.preview.importableRows == 0) {
-                    snackbarHostState.showSnackbar(
-                        when (pendingCsv.preview.noImportableReason()) {
-                            ProviderNoImportableReason.UnsupportedOnly -> storyGraphImportUnsupportedOnlyMessage
-                            ProviderNoImportableReason.DuplicatesOnly -> storyGraphImportDuplicatesOnlyMessage
-                            else -> storyGraphImportEmptyMessage
-                        },
-                    )
-                } else {
-                    pendingStoryGraphCsvImport = pendingCsv
-                }
-            }
+            prepareProviderImport(
+                uri = uri,
+                readErrorFallback = storyGraphImportReadErrorMessage,
+                prepare = { csv -> PendingStoryGraphCsvImport(viewModel.prepareStoryGraphCsv(csv)) },
+                problem = { error ->
+                    error.providerCsvValidationMessage(context, storyGraphCsvValidationMessages, providerImportMalformedCsvMessage)
+                },
+                nothingNew = { preview ->
+                    when (preview.noImportableReason()) {
+                        ProviderNoImportableReason.UnsupportedOnly -> storyGraphImportUnsupportedOnlyMessage
+                        ProviderNoImportableReason.DuplicatesOnly -> storyGraphImportDuplicatesOnlyMessage
+                        else -> storyGraphImportEmptyMessage
+                    }
+                },
+            )
         }
     }
     val importMyAnimeListXmlLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri != null) {
-            coroutineScope.launch {
-                val readResult = context.readProviderImportText(uri)
-                val xml = readResult.getOrNull()
-                if (xml == null) {
-                    snackbarHostState.showSnackbar(
-                        providerImportReadErrorMessage(
-                            error = readResult.exceptionOrNull(),
-                            fallback = myAnimeListImportReadErrorMessage,
-                            encodingError = providerImportEncodingErrorMessage,
-                            tooLarge = providerImportTooLargeMessage,
-                        ),
-                    )
-                    return@launch
-                }
-
-                val previewResult = runCatching {
-                    PendingMyAnimeListXmlImport(viewModel.prepareMyAnimeListXml(xml))
-                }
-                val pendingXml = previewResult.getOrNull()
-                if (pendingXml == null) {
-                    snackbarHostState.showSnackbar(
-                        if (previewResult.exceptionOrNull() is MalformedProviderXmlException) {
-                            providerImportMalformedXmlMessage
-                        } else {
-                            myAnimeListImportInvalidMessage
-                        },
-                    )
-                } else if (pendingXml.preview.importableRows == 0) {
-                    snackbarHostState.showSnackbar(myAnimeListImportEmptyMessage)
-                } else {
-                    pendingMyAnimeListXmlImport = pendingXml
+            prepareProviderImport(
+                uri = uri,
+                readErrorFallback = myAnimeListImportReadErrorMessage,
+                prepare = { xml -> PendingMyAnimeListXmlImport(viewModel.prepareMyAnimeListXml(xml)) },
+                problem = { error ->
+                    if (error is MalformedProviderXmlException) providerImportMalformedXmlMessage else myAnimeListImportInvalidMessage
+                },
+                nothingNew = { myAnimeListImportEmptyMessage },
+            )
+        }
+    }
+    fun openImportSheet(source: ImportSource) {
+        importSheetError = null
+        importSheetSource = source
+    }
+    fun startMalAccountImport() {
+        if (importSheetSource == null) importSheetSource = ImportSource.MalApi
+        coroutineScope.launch {
+            isReadingImportSource = true
+            importSheetError = null
+            val accountImport = viewModel.previewMyAnimeListAccount().getOrNull()
+            isReadingImportSource = false
+            importSheetError = when {
+                accountImport == null -> myAnimeListAccountImportErrorMessage
+                accountImport.preview.importableRows == 0 -> myAnimeListAccountImportEmptyMessage
+                else -> {
+                    pendingProviderImport = PendingMalAccountImport(accountImport)
+                    null
                 }
             }
         }
+    }
+    fun closeImportSheet() {
+        if (pendingProviderImport is PendingMalAccountImport) {
+            coroutineScope.launch { viewModel.discardMyAnimeListAccountImport() }
+        }
+        pendingProviderImport = null
+        importSheetSource = null
+        importSheetError = null
     }
     backupActions.onExportBackupRequested = {
         exportBackupLauncher.launch("omnilog-backup-${LocalDate.now()}.json")
@@ -951,10 +937,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 pendingPossibleDuplicate != null ||
                 metadataLinkTarget != null ||
                 pendingMetadataChange != null ||
-                pendingMyAnimeListAccountImport != null ||
-                pendingMyAnimeListXmlImport != null ||
-                pendingStoryGraphCsvImport != null ||
-                pendingImdbCsvImport != null ||
                 pendingImportConfirmation != null ||
                 pendingImport != null ||
                 showRestoreList ||
@@ -969,13 +951,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 metadataLinkImportIssueId = null
             }
             pendingMetadataChange != null -> pendingMetadataChange = null
-            pendingMyAnimeListAccountImport != null && !isProviderImporting -> {
-                pendingMyAnimeListAccountImport = null
-                coroutineScope.launch { viewModel.discardMyAnimeListAccountImport() }
-            }
-            pendingMyAnimeListXmlImport != null && !isProviderImporting -> pendingMyAnimeListXmlImport = null
-            pendingStoryGraphCsvImport != null && !isProviderImporting -> pendingStoryGraphCsvImport = null
-            pendingImdbCsvImport != null && !isProviderImporting -> pendingImdbCsvImport = null
             pendingImportConfirmation != null -> pendingImportConfirmation = null
             pendingImport != null -> pendingImport = null
             showRestoreList -> showRestoreList = false
@@ -1254,7 +1229,6 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 onAddToSection = { section ->
                                     viewModel.selectSection(section)
                                     viewModel.clearMetadataSearch()
-                                    backStack.push(AppRoute.AddMedia(section))
                                 },
                                 onImportBackup = { backupActions.onImportBackupRequested() },
                                 onQuickCommitProgress = viewModel::quickCommitProgress,
@@ -1312,23 +1286,10 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 },
                                 onExportBackup = { backupActions.onExportBackupRequested() },
                                 onRestoreBackup = { backupActions.onRestoreBackupRequested() },
-                                onImportMyAnimeListAccount = {
-                                    coroutineScope.launch {
-                                        val result = viewModel.previewMyAnimeListAccount()
-                                        val accountImport = result.getOrNull()
-                                        when {
-                                            accountImport == null -> snackbarHostState.showSnackbar(
-                                                myAnimeListAccountImportErrorMessage,
-                                            )
-                                            accountImport.preview.importableRows == 0 ->
-                                                snackbarHostState.showSnackbar(myAnimeListAccountImportEmptyMessage)
-                                            else -> pendingMyAnimeListAccountImport = accountImport
-                                        }
-                                    }
-                                },
-                                onImportMyAnimeListXml = { backupActions.onImportMyAnimeListXmlRequested() },
-                                onImportImdbCsv = { backupActions.onImportImdbCsvRequested() },
-                                onImportStoryGraphCsv = { backupActions.onImportStoryGraphCsvRequested() },
+                                onImportMyAnimeListAccount = { startMalAccountImport() },
+                                onImportMyAnimeListXml = { openImportSheet(ImportSource.MalXml) },
+                                onImportImdbCsv = { openImportSheet(ImportSource.ImdbCsv) },
+                                onImportStoryGraphCsv = { openImportSheet(ImportSource.StoryGraphCsv) },
                                 isAutoBackupEnabled = autoBackupConfiguration.directoryUri != null,
                                 autoBackupFrequency = autoBackupConfiguration.frequency,
                                 lastAutoBackupAtEpochMillis = autoBackupConfiguration.lastSuccessAtEpochMillis,
@@ -1592,15 +1553,15 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                                 },
                                 onImportRequested = when (route.section) {
                                     MediaSection.Anime -> {
-                                        { backupActions.onImportMyAnimeListXmlRequested() }
+                                        { openImportSheet(ImportSource.MalXml) }
                                     }
 
                                     MediaSection.Books -> {
-                                        { backupActions.onImportStoryGraphCsvRequested() }
+                                        { openImportSheet(ImportSource.StoryGraphCsv) }
                                     }
 
                                     MediaSection.Movies -> {
-                                        { backupActions.onImportImdbCsvRequested() }
+                                        { openImportSheet(ImportSource.ImdbCsv) }
                                     }
 
                                     MediaSection.Games -> null
@@ -1978,286 +1939,53 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         )
     }
 
-    pendingImdbCsvImport?.let { imdbImport ->
-        OmnilogAlertDialog(
-            onDismissRequest = { if (!isProviderImporting) pendingImdbCsvImport = null },
-            title = stringResource(
-                R.string.imdb_import_title,
-                stringResource(R.string.nav_movies_tv),
-            ),
-            text = {
-                ProviderImportPreviewSummary(
-                    preview = imdbImport.preview,
-                    summary = stringResource(
-                        R.string.imdb_import_message_with_summary,
-                        imdbImport.preview.importableRows,
-                        imdbImport.preview.totalRows,
-                    ),
-                )
+    val importSheetShownSource = pendingProviderImport?.source ?: importSheetSource
+    if (importSheetShownSource != null) {
+        val isAnimeImport = importSheetShownSource == ImportSource.MalXml || importSheetShownSource == ImportSource.MalApi
+        ImportSheet(
+            source = importSheetShownSource,
+            preview = pendingProviderImport?.preview,
+            error = importSheetError,
+            isReadingSource = isReadingImportSource,
+            isImporting = isProviderImporting,
+            malAccountName = malSyncState.accountName?.takeIf { isAnimeImport && malSyncState.isConnected },
+            animeTitlePreference = animeTitlePreference,
+            onAnimeTitlePreferenceChange = { animeTitlePreference = it },
+            onChooseFile = {
+                when (importSheetShownSource) {
+                    ImportSource.ImdbCsv -> backupActions.onImportImdbCsvRequested()
+                    ImportSource.StoryGraphCsv -> backupActions.onImportStoryGraphCsvRequested()
+                    ImportSource.MalXml, ImportSource.MalApi -> backupActions.onImportMyAnimeListXmlRequested()
+                }
             },
-            confirmButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = {
-                        if (!isProviderImporting) {
-                            isProviderImporting = true
-                            coroutineScope.launch {
-                                val result = runCatching {
-                                    viewModel.importPreparedImdbCsv(imdbImport.prepared)
-                                }
-                                pendingImdbCsvImport = null
-                                isProviderImporting = false
-                                result.fold(
-                                    onSuccess = { importResult ->
-                                        snackbarHostState.showSnackbar(
-                                            context.getString(
-                                                R.string.imdb_import_success_with_summary,
-                                                importResult.importedRows,
-                                                importResult.skippedDuplicateRows,
-                                                importResult.unsupportedRows,
-                                                importResult.invalidRows,
-                                            ),
-                                        )
-                                    },
-                                    onFailure = {
-                                        snackbarHostState.showSnackbar(providerImportFailedMessage)
-                                    },
-                                )
-                            }
+            onImportMalAccount = { startMalAccountImport() },
+            onConfirm = confirm@{
+                val pending = pendingProviderImport ?: return@confirm
+                if (isProviderImporting) return@confirm
+                isProviderImporting = true
+                if (isAnimeImport) AnimeTitlePreferences.write(context, animeTitlePreference)
+                coroutineScope.launch {
+                    val result = runCatching {
+                        when (pending) {
+                            is PendingImdbCsvImport -> viewModel.importPreparedImdbCsv(pending.prepared)
+                            is PendingStoryGraphCsvImport -> viewModel.importPreparedStoryGraphCsv(pending.prepared)
+                            is PendingMyAnimeListXmlImport -> viewModel.importPreparedMyAnimeListXml(pending.prepared)
+                            is PendingMalAccountImport -> viewModel.importMyAnimeListAccount(pending.accountImport)
                         }
-                    },
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (isProviderImporting) R.string.provider_import_in_progress
-                            else R.string.imdb_import_confirm,
+                    }
+                    pendingProviderImport = null
+                    importSheetSource = null
+                    importSheetError = null
+                    isProviderImporting = false
+                    snackbarHostState.showSnackbar(
+                        result.fold(
+                            onSuccess = { it.userFacingMessage(pending.source) },
+                            onFailure = { providerImportFailedMessage },
                         ),
                     )
                 }
             },
-            dismissButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = { if (!isProviderImporting) pendingImdbCsvImport = null },
-                ) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    pendingStoryGraphCsvImport?.let { storyGraphImport ->
-        OmnilogAlertDialog(
-            onDismissRequest = { if (!isProviderImporting) pendingStoryGraphCsvImport = null },
-            title = stringResource(R.string.storygraph_import_title),
-            text = {
-                ProviderImportPreviewSummary(
-                    preview = storyGraphImport.preview,
-                    summary = stringResource(
-                        R.string.storygraph_import_message_with_summary,
-                        storyGraphImport.preview.importableRows,
-                        storyGraphImport.preview.totalRows,
-                    ),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = {
-                        if (!isProviderImporting) {
-                            isProviderImporting = true
-                            coroutineScope.launch {
-                                val result = runCatching {
-                                    viewModel.importPreparedStoryGraphCsv(storyGraphImport.prepared)
-                                }
-                                pendingStoryGraphCsvImport = null
-                                isProviderImporting = false
-                                result.fold(
-                                    onSuccess = { importResult ->
-                                        snackbarHostState.showSnackbar(
-                                            context.getString(
-                                                R.string.storygraph_import_success_with_summary,
-                                                importResult.importedRows,
-                                                importResult.skippedDuplicateRows,
-                                                importResult.unsupportedRows,
-                                                importResult.invalidRows,
-                                            ),
-                                        )
-                                    },
-                                    onFailure = {
-                                        snackbarHostState.showSnackbar(providerImportFailedMessage)
-                                    },
-                                )
-                            }
-                        }
-                    },
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (isProviderImporting) R.string.provider_import_in_progress
-                            else R.string.storygraph_import_confirm,
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = { if (!isProviderImporting) pendingStoryGraphCsvImport = null },
-                ) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    pendingMyAnimeListAccountImport?.let { accountImport ->
-        OmnilogAlertDialog(
-            onDismissRequest = {
-                if (!isProviderImporting) {
-                    pendingMyAnimeListAccountImport = null
-                    coroutineScope.launch { viewModel.discardMyAnimeListAccountImport() }
-                }
-            },
-            title = stringResource(R.string.mal_account_import_title),
-            text = {
-                MalTitlePreferencePrompt(
-                    summary = stringResource(
-                        R.string.mal_account_import_message_with_summary,
-                        accountImport.preview.importableRows,
-                        accountImport.preview.totalRows,
-                        accountImport.preview.skippedDuplicateRows,
-                        accountImport.preview.unsupportedRows,
-                        accountImport.preview.invalidRows,
-                    ),
-                    preference = animeTitlePreference,
-                    onPreferenceChange = { animeTitlePreference = it },
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = {
-                        if (!isProviderImporting) {
-                            isProviderImporting = true
-                            AnimeTitlePreferences.write(context, animeTitlePreference)
-                            coroutineScope.launch {
-                                val result = runCatching {
-                                    viewModel.importMyAnimeListAccount(accountImport)
-                                }
-                                pendingMyAnimeListAccountImport = null
-                                isProviderImporting = false
-                                result.fold(
-                                    onSuccess = { importResult ->
-                                        snackbarHostState.showSnackbar(
-                                            context.getString(
-                                                R.string.mal_import_success_with_summary,
-                                                importResult.importedRows,
-                                                importResult.skippedDuplicateRows,
-                                                importResult.unsupportedRows,
-                                                importResult.invalidRows,
-                                            ),
-                                        )
-                                    },
-                                    onFailure = {
-                                        snackbarHostState.showSnackbar(providerImportFailedMessage)
-                                    },
-                                )
-                            }
-                        }
-                    },
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (isProviderImporting) R.string.provider_import_in_progress
-                            else R.string.mal_import_confirm,
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = {
-                        if (!isProviderImporting) {
-                            pendingMyAnimeListAccountImport = null
-                            coroutineScope.launch { viewModel.discardMyAnimeListAccountImport() }
-                        }
-                    },
-                ) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    pendingMyAnimeListXmlImport?.let { malImport ->
-        OmnilogAlertDialog(
-            onDismissRequest = { if (!isProviderImporting) pendingMyAnimeListXmlImport = null },
-            title = stringResource(R.string.mal_import_title),
-            text = {
-                MalTitlePreferencePrompt(
-                    summary = stringResource(
-                        R.string.mal_import_message_with_summary,
-                        malImport.preview.importableRows,
-                        malImport.preview.totalRows,
-                        malImport.preview.skippedDuplicateRows,
-                        malImport.preview.unsupportedRows,
-                        malImport.preview.invalidRows,
-                    ),
-                    preference = animeTitlePreference,
-                    onPreferenceChange = { animeTitlePreference = it },
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = {
-                        if (!isProviderImporting) {
-                            isProviderImporting = true
-                            AnimeTitlePreferences.write(context, animeTitlePreference)
-                            coroutineScope.launch {
-                                val result = runCatching {
-                                    viewModel.importPreparedMyAnimeListXml(malImport.prepared)
-                                }
-                                pendingMyAnimeListXmlImport = null
-                                isProviderImporting = false
-                                result.fold(
-                                    onSuccess = { importResult ->
-                                        snackbarHostState.showSnackbar(
-                                            context.getString(
-                                                R.string.mal_import_success_with_summary,
-                                                importResult.importedRows,
-                                                importResult.skippedDuplicateRows,
-                                                importResult.unsupportedRows,
-                                                importResult.invalidRows,
-                                            ),
-                                        )
-                                    },
-                                    onFailure = {
-                                        snackbarHostState.showSnackbar(providerImportFailedMessage)
-                                    },
-                                )
-                            }
-                        }
-                    },
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (isProviderImporting) R.string.provider_import_in_progress
-                            else R.string.mal_import_confirm,
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !isProviderImporting,
-                    onClick = { if (!isProviderImporting) pendingMyAnimeListXmlImport = null },
-                ) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-            },
+            onDismiss = { closeImportSheet() },
         )
     }
 
@@ -2693,80 +2421,30 @@ private data class PendingBackupImport(
     val preview: BackupPreview,
 )
 
-@Composable
-private fun ProviderImportPreviewSummary(
-    preview: ProviderImportPreview,
-    summary: String,
-) {
-    val groups = preview.rejectedGroups()
-    Column(
-        modifier = Modifier
-            .heightIn(max = 420.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(text = summary)
-        if (groups.isNotEmpty()) {
-            HorizontalDivider(color = OmnilogTheme.colors.appLine)
-            Text(
-                text = stringResource(R.string.provider_import_rejected_title),
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
-            )
-            groups.forEach { group ->
-                Text(
-                    text = stringResource(
-                        when (group.reason) {
-                            ProviderRejectedReason.Duplicate -> R.string.provider_import_rejected_duplicate
-                            ProviderRejectedReason.UnsupportedType -> R.string.provider_import_rejected_unsupported
-                            ProviderRejectedReason.MissingTitle -> R.string.provider_import_rejected_missing_title
-                        },
-                        group.count,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                group.samples.forEach { row ->
-                    Text(
-                        text = row.label?.let { label ->
-                            stringResource(R.string.provider_import_rejected_sample, row.rowNumber, label)
-                        } ?: stringResource(
-                            R.string.provider_import_rejected_sample_without_label,
-                            row.rowNumber,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-                val remaining = group.count - group.samples.size
-                if (remaining > 0) {
-                    Text(
-                        text = stringResource(R.string.provider_import_rejected_more, remaining),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-            }
-        }
-    }
+/** A provider import read and previewed, waiting for the user's confirmation in the import sheet. */
+private sealed interface PendingProviderImport {
+    val source: ImportSource
+    val preview: ProviderImportPreview
 }
 
-private data class PendingImdbCsvImport(
-    val prepared: PreparedImdbCsvImport,
-) {
-    val preview: ImdbCsvPreview get() = prepared.preview
+private data class PendingImdbCsvImport(val prepared: PreparedImdbCsvImport) : PendingProviderImport {
+    override val source: ImportSource get() = ImportSource.ImdbCsv
+    override val preview: ProviderImportPreview get() = prepared.preview
 }
 
-private data class PendingStoryGraphCsvImport(
-    val prepared: PreparedStoryGraphCsvImport,
-) {
-    val preview: StoryGraphCsvPreview get() = prepared.preview
+private data class PendingStoryGraphCsvImport(val prepared: PreparedStoryGraphCsvImport) : PendingProviderImport {
+    override val source: ImportSource get() = ImportSource.StoryGraphCsv
+    override val preview: ProviderImportPreview get() = prepared.preview
 }
 
-private data class PendingMyAnimeListXmlImport(
-    val prepared: PreparedMyAnimeListXmlImport,
-) {
-    val preview: MyAnimeListXmlPreview get() = prepared.preview
+private data class PendingMyAnimeListXmlImport(val prepared: PreparedMyAnimeListXmlImport) : PendingProviderImport {
+    override val source: ImportSource get() = ImportSource.MalXml
+    override val preview: ProviderImportPreview get() = prepared.preview
+}
+
+private data class PendingMalAccountImport(val accountImport: MyAnimeListAccountImportPreview) : PendingProviderImport {
+    override val source: ImportSource get() = ImportSource.MalApi
+    override val preview: ProviderImportPreview get() = accountImport.preview
 }
 
 private data class PendingMetadataChange(
@@ -2778,64 +2456,6 @@ private data class PendingMetadataChange(
 private enum class MetadataChangeOperation {
     Refresh,
     Link,
-}
-
-@Composable
-private fun MalTitlePreferencePrompt(
-    summary: String,
-    preference: AnimeTitlePreference,
-    onPreferenceChange: (AnimeTitlePreference) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(summary)
-        Text(
-            text = "Com vols desar els títols?",
-            fontWeight = FontWeight.ExtraBold,
-            color = OmnilogTheme.colors.appInk,
-        )
-        AnimeTitlePreference.entries.forEach { option ->
-            val selected = option == preference
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onPreferenceChange(option) },
-                shape = RoundedCornerShape(8.dp),
-                color = if (selected) {
-                    OmnilogTheme.accents.Anime.copy(alpha = 0.12f)
-                } else {
-                    OmnilogTheme.colors.appPanel
-                },
-                border = BorderStroke(
-                    1.dp,
-                    if (selected) OmnilogTheme.accents.Anime else OmnilogTheme.colors.appLine,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Text(
-                        text = when (option) {
-                            AnimeTitlePreference.EnglishWithRomajiOriginal -> "Anglès + original en rōmaji"
-                            AnimeTitlePreference.KeepMalTitle -> "Conserva el títol de MAL"
-                        },
-                        fontWeight = FontWeight.Bold,
-                        color = OmnilogTheme.colors.appInk,
-                    )
-                    Text(
-                        text = when (option) {
-                            AnimeTitlePreference.EnglishWithRomajiOriginal ->
-                                "Usa l'anglès com a títol principal i el rōmaji com a títol original."
-                            AnimeTitlePreference.KeepMalTitle ->
-                                "Manté exactament el títol retornat per la importació."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable

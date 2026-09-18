@@ -2,6 +2,7 @@ package com.nilpo.contenttracker.ui.imports
 
 import com.nilpo.contenttracker.core.imports.ImportCompletionSummary
 import com.nilpo.contenttracker.core.imports.ImportSource
+import com.nilpo.contenttracker.core.repository.ProviderImportResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -14,7 +15,7 @@ class ImportCompletionSummaryTest {
 
         assertFalse(summary.needsAttention)
         assertEquals(
-            "Enriquiment de StoryGraph completat: 10/10 processats · 10 enriquits.",
+            "StoryGraph: metadades completades.",
             summary.userFacingMessage(),
         )
     }
@@ -30,9 +31,23 @@ class ImportCompletionSummaryTest {
 
         assertTrue(summary.needsAttention)
         assertEquals(
-            "Enriquiment de StoryGraph completat: 10/10 processats · 6 enriquits" +
-                " · 1 per revisar · 1 incidència · 2 amb camps buits.",
+            "StoryGraph: metadades completades · 1 per revisar · 1 incidència · 2 amb dades pendents.",
             summary.userFacingMessage(),
+        )
+    }
+
+    @Test
+    fun `import result leaves out every counter that is zero`() {
+        val clean = ProviderImportResult(importedRows = 12, skippedDuplicateRows = 0, unsupportedRows = 0)
+        val mixed = ProviderImportResult(importedRows = 1, skippedDuplicateRows = 3, unsupportedRows = 1, invalidRows = 1)
+
+        assertEquals(
+            "12 llibres importats. Les metadades es completen en segon pla.",
+            clean.userFacingMessage(ImportSource.StoryGraphCsv),
+        )
+        assertEquals(
+            "1 anime importat · 3 ja hi eren · 2 omesos. Les metadades es completen en segon pla.",
+            mixed.userFacingMessage(ImportSource.MalXml),
         )
     }
 

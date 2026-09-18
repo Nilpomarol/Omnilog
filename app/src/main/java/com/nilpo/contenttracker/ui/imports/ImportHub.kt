@@ -1,20 +1,34 @@
 package com.nilpo.contenttracker.ui.imports
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -30,20 +44,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.nilpo.contenttracker.core.imports.ImportBatchProgress
 import com.nilpo.contenttracker.core.imports.ImportBatchState
-import com.nilpo.contenttracker.core.imports.canDeleteFromHistory
-import com.nilpo.contenttracker.core.imports.ImportCoverageItem
 import com.nilpo.contenttracker.core.imports.ImportCompletionSummary
+import com.nilpo.contenttracker.core.imports.ImportCoverageItem
 import com.nilpo.contenttracker.core.imports.ImportEnrichmentState
 import com.nilpo.contenttracker.core.imports.ImportIssueItem
 import com.nilpo.contenttracker.core.imports.ImportItemState
@@ -51,20 +70,34 @@ import com.nilpo.contenttracker.core.imports.ImportMetadataGap
 import com.nilpo.contenttracker.core.imports.ImportReviewApplyOutcome
 import com.nilpo.contenttracker.core.imports.ImportReviewDraft
 import com.nilpo.contenttracker.core.imports.ImportReviewItem
-import com.nilpo.contenttracker.core.imports.ImportSource
 import com.nilpo.contenttracker.core.imports.ProviderReference
-import com.nilpo.contenttracker.core.model.MetadataSource
+import com.nilpo.contenttracker.core.imports.canDeleteFromHistory
 import com.nilpo.contenttracker.core.model.MediaType
+import com.nilpo.contenttracker.core.model.MetadataSource
 import com.nilpo.contenttracker.core.model.plainSynopsis
 import com.nilpo.contenttracker.core.repository.MetadataRefreshField
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
+import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
+import com.nilpo.contenttracker.ui.common.OmnilogLocale
+import com.nilpo.contenttracker.ui.common.OmnilogPrimaryButton
+import com.nilpo.contenttracker.ui.common.OmnilogTonalButton
+import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+private val SheetGutter = 16.dp
+private val PanelShape = RoundedCornerShape(14.dp)
+
+/**
+ * The strip above the navigation bar while an import completes its metadata, or while one has
+ * something left to decide. Tinted with the accent of the section it fills.
+ */
 @Composable
 internal fun ImportProgressBanner(
     progress: ImportBatchProgress,
@@ -73,74 +106,75 @@ internal fun ImportProgressBanner(
     modifier: Modifier = Modifier,
     concurrentImportCount: Int = 1,
 ) {
-    val active = progress.state == ImportBatchState.Enriching || progress.state == ImportBatchState.Paused
+    val active = progress.isActive()
+    val accent = progress.source.accent()
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen),
         color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (concurrentImportCount > 1) {
-                            "$concurrentImportCount importacions en curs o en pausa"
-                        } else {
-                            progress.statusTitle()
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogTheme.colors.appInk,
-                    )
-                    Text(
-                        text = if (concurrentImportCount > 1) {
-                            "Obre l'activitat per veure i gestionar cada importació."
-                        } else {
-                            progress.summary()
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-                if (active && concurrentImportCount <= 1) {
-                    TextButton(onClick = onToggle) {
-                        Text(if (progress.state == ImportBatchState.Paused) "Continua" else "Pausa")
-                    }
-                } else {
-                    TextButton(onClick = onOpen) {
-                        Text(
-                            when {
-                                concurrentImportCount > 1 -> "Obre"
-                                progress.needsReviewCount > 0 -> "Revisa"
-                                progress.issueCount > 0 -> "Incidències"
-                                progress.coverageGapCount > 0 -> "Completa"
-                                else -> "Detalls"
-                            },
-                        )
-                    }
-                }
-            }
-            if (concurrentImportCount <= 1) {
+        Column {
+            if (concurrentImportCount <= 1 && active) {
                 LinearProgressIndicator(
                     progress = { progress.fraction() },
                     modifier = Modifier.fillMaxWidth(),
-                    color = OmnilogTheme.accents.Anime,
+                    color = accent,
                     trackColor = OmnilogTheme.colors.appLine,
+                    drawStopIndicator = {},
                 )
+            } else {
+                HorizontalDivider(color = OmnilogTheme.colors.appLine)
+            }
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ProviderLogo(source = progress.source.ratingSource(), height = 18.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (concurrentImportCount > 1) {
+                            "$concurrentImportCount importacions en curs"
+                        } else {
+                            progress.headline()
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmnilogTheme.colors.appInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = if (concurrentImportCount > 1) "Toca per veure-les" else progress.summary(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OmnilogTheme.colors.appMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                TextButton(onClick = if (active && concurrentImportCount <= 1) onToggle else onOpen) {
+                    Text(
+                        text = when {
+                            concurrentImportCount > 1 -> "Obre"
+                            active -> if (progress.state == ImportBatchState.Paused) "Continua" else "Pausa"
+                            progress.needsReviewCount > 0 -> "Revisa"
+                            else -> "Obre"
+                        },
+                        color = accent,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
     }
 }
 
+/**
+ * The import activity: what is waiting for a decision first, then what went wrong, what is still
+ * missing, the imports themselves, and a folded history. Every row shows one action; the rest sit
+ * behind its ⋯ menu. Confirmations and reviews open in place, with a back arrow.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ImportHubDialog(
@@ -190,6 +224,21 @@ internal fun ImportHubDialog(
         }
     }
 
+    fun runItemAction(
+        setBusy: (Long?) -> Unit,
+        itemId: Long,
+        failure: String,
+        action: suspend (Long) -> Result<Unit>,
+    ) {
+        setBusy(itemId)
+        message = null
+        scope.launch {
+            val result = action(itemId)
+            setBusy(null)
+            if (result.isFailure) message = failure
+        }
+    }
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // The lists inside drive their own scroll; leftover at either end is consumed here rather than
     // handed up to the sheet, so scrolling the content never drags the sheet.
@@ -217,203 +266,147 @@ internal fun ImportHubDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.92f)
-                .nestedScroll(keepScrollInContent)
-                .padding(horizontal = 16.dp),
+                .nestedScroll(keepScrollInContent),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-                ImportSheetHeader(
-                    title = when {
-                        historyDeletionCandidate != null -> "Elimina el registre"
-                        clearHistoryConfirmation -> "Neteja l'historial"
-                        cancellationCandidate != null -> "Cancel·la l'enriquiment"
-                        draft != null -> "Revisa els camps"
-                        selectedItem != null -> "Tria la coincidència"
-                        else -> "Importacions"
-                    },
-                    subtitle = cancellationCandidate?.let { "Importació de ${it.source.label()}" }
-                        ?: historyDeletionCandidate?.let { "Importació de ${it.source.label()}" }
-                        ?: if (clearHistoryConfirmation) "Importacions completades i cancel·lades" else null
-                        ?: draft?.title ?: selectedItem?.title ?: when {
-                            state.reviewItems.isNotEmpty() ->
-                                "Progrés i decisions pendents de les importacions."
-                            state.recentBatches.any { it.issueCount > 0 } ->
-                                "Progrés i incidències dels proveïdors de metadades."
-                            state.coverageItems.isNotEmpty() ->
-                                "Metadades aplicades amb alguns camps encara buits."
-                            else -> "Progrés de les importacions."
-                        },
-                    isDrillDown = isDrillDown,
-                    onBack = {
-                        when {
-                            historyDeletionCandidate != null -> historyDeletionCandidate = null
-                            clearHistoryConfirmation -> clearHistoryConfirmation = false
-                            cancellationCandidate != null -> cancellationCandidate = null
-                            draft != null -> {
-                                draft = null
-                                selectedFields = emptySet()
-                            }
-                            selectedItem != null -> selectedItem = null
-                            else -> onDismiss()
+            ImportSheetHeader(
+                title = when {
+                    historyDeletionCandidate != null -> "Elimina el registre"
+                    clearHistoryConfirmation -> "Neteja l'historial"
+                    cancellationCandidate != null -> "Deixa de completar"
+                    draft != null -> "Revisa els camps"
+                    selectedItem != null -> "Tria la coincidència"
+                    else -> "Activitat d'importació"
+                },
+                subtitle = cancellationCandidate?.let { "Importació de ${it.source.label()}" }
+                    ?: historyDeletionCandidate?.let { "Importació de ${it.source.label()}" }
+                    ?: draft?.title ?: selectedItem?.title,
+                isDrillDown = isDrillDown,
+                onBack = {
+                    when {
+                        historyDeletionCandidate != null -> historyDeletionCandidate = null
+                        clearHistoryConfirmation -> clearHistoryConfirmation = false
+                        cancellationCandidate != null -> cancellationCandidate = null
+                        draft != null -> {
+                            draft = null
+                            selectedFields = emptySet()
                         }
-                    },
-                )
+                        selectedItem != null -> selectedItem = null
+                        else -> onDismiss()
+                    }
+                },
+            )
 
-                message?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+            message?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier
+                        .padding(horizontal = SheetGutter)
+                        .fillMaxWidth()
+                        .clip(PanelShape)
+                        .background(OmnilogTheme.accents.Dropped.copy(alpha = 0.12f))
+                        .padding(14.dp),
+                    color = OmnilogTheme.colors.appInk,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            when {
+                historyDeletionCandidate != null -> {
+                    val batch = requireNotNull(historyDeletionCandidate)
+                    ConfirmationStep(
+                        text = "S'eliminarà només aquest registre i els seus detalls. Els títols de la " +
+                            "biblioteca, el progrés i les metadades es conservaran.",
+                        keepLabel = "Conserva'l",
+                        confirmLabel = "Elimina el registre",
+                        enabled = !loading,
+                        onKeep = { historyDeletionCandidate = null },
+                        onConfirm = {
+                            loading = true
+                            message = null
+                            scope.launch {
+                                val result = onDeleteHistory(batch.batchId)
+                                loading = false
+                                historyDeletionCandidate = null
+                                if (result.isFailure) message = "No s'ha pogut eliminar aquest registre."
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
                     )
                 }
-
-                when {
-                    historyDeletionCandidate != null -> {
-                        val batch = requireNotNull(historyDeletionCandidate)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
-                        ) {
-                            Text(
-                                "S'eliminarà només aquest registre d'importació i els seus detalls " +
-                                    "d'enriquiment. Els títols de la biblioteca, " +
-                                    "el progrés i les metadades es conservaran.",
-                                color = OmnilogTheme.colors.appMuted,
-                            )
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.End,
-                            ) {
-                                TextButton(
-                                    enabled = !loading,
-                                    onClick = { historyDeletionCandidate = null },
-                                ) {
-                                    Text("Conserva el registre")
-                                }
-                                TextButton(
-                                    enabled = !loading,
-                                    onClick = {
-                                        loading = true
-                                        message = null
-                                        scope.launch {
-                                            val result = onDeleteHistory(batch.batchId)
-                                            loading = false
-                                            historyDeletionCandidate = null
-                                            if (result.isFailure) {
-                                                message = "No s'ha pogut eliminar aquest registre."
-                                            }
-                                        }
-                                    },
-                                ) {
-                                    Text("Elimina el registre")
-                                }
+                clearHistoryConfirmation -> {
+                    val removableCount = state.historyBatches.count { it.canDeleteFromHistory() }
+                    ConfirmationStep(
+                        text = "S'eliminaran $removableCount ${if (removableCount == 1) "registre" else "registres"} " +
+                            "d'importacions ja resoltes. Els títols de la biblioteca, el progrés i les metadades es conservaran.",
+                        keepLabel = "Conserva'l",
+                        confirmLabel = "Neteja l'historial",
+                        enabled = !loading,
+                        onKeep = { clearHistoryConfirmation = false },
+                        onConfirm = {
+                            loading = true
+                            message = null
+                            scope.launch {
+                                val result = onClearHistory()
+                                loading = false
+                                clearHistoryConfirmation = false
+                                if (result.isFailure) message = "No s'ha pogut netejar l'historial."
                             }
-                        }
-                    }
-                    clearHistoryConfirmation -> {
-                        val removableCount = state.historyBatches.count { it.canDeleteFromHistory() }
-                        val recordLabel = if (removableCount == 1) "registre" else "registres"
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
-                        ) {
-                            Text(
-                                "S'eliminaran $removableCount $recordLabel d'importació ja resolts. " +
-                                    "Els títols de la biblioteca, el progrés i les metadades es conservaran.",
-                                color = OmnilogTheme.colors.appMuted,
-                            )
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.End,
-                            ) {
-                                TextButton(
-                                    enabled = !loading,
-                                    onClick = { clearHistoryConfirmation = false },
-                                ) {
-                                    Text("Conserva l'historial")
-                                }
-                                TextButton(
-                                    enabled = !loading,
-                                    onClick = {
-                                        loading = true
-                                        message = null
-                                        scope.launch {
-                                            val result = onClearHistory()
-                                            loading = false
-                                            clearHistoryConfirmation = false
-                                            if (result.isFailure) {
-                                                message = "No s'ha pogut netejar l'historial."
-                                            }
-                                        }
-                                    },
-                                ) {
-                                    Text("Neteja l'historial")
-                                }
-                            }
-                        }
-                    }
-                    cancellationCandidate != null -> {
-                        val batch = requireNotNull(cancellationCandidate)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
-                        ) {
-                            Text(
-                                "S'aturaran les consultes pendents i es tancaran les incidències i revisions " +
-                                    "d'aquesta importació. Els títols importats i les metadades ja aplicades " +
-                                    "es conservaran.",
-                                color = OmnilogTheme.colors.appMuted,
-                            )
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.End,
-                            ) {
-                                TextButton(onClick = { cancellationCandidate = null }) {
-                                    Text("Continua enriquint")
-                                }
-                                TextButton(
-                                    onClick = {
-                                        onCancel(batch.batchId)
-                                        cancellationCandidate = null
-                                    },
-                                ) {
-                                    Text("Cancel·la l'enriquiment")
-                                }
-                            }
-                        }
-                    }
-                    loading -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                            Text(
-                                text = "Carregant metadades…",
-                                modifier = Modifier.padding(top = 12.dp),
-                                color = OmnilogTheme.colors.appMuted,
-                            )
-                        }
-                    }
-                    draft != null -> {
-                        val currentDraft = requireNotNull(draft)
-                        currentDraft.reference.evidence.takeIf { it.isNotBlank() }?.let { evidence ->
-                            Text(
-                                text = "Criteri de coincidència: $evidence",
-                                color = OmnilogTheme.colors.appMuted,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                cancellationCandidate != null -> {
+                    val batch = requireNotNull(cancellationCandidate)
+                    ConfirmationStep(
+                        text = "Omnilog deixarà de buscar metadades per a aquesta importació i en tancarà les " +
+                            "incidències i revisions. Els títols importats i les metadades ja aplicades es conservaran.",
+                        keepLabel = "Continua completant",
+                        confirmLabel = "Deixa de completar",
+                        enabled = true,
+                        onKeep = { cancellationCandidate = null },
+                        onConfirm = {
+                            onCancel(batch.batchId)
+                            cancellationCandidate = null
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                loading -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            color = OmnilogTheme.accents.Dashboard,
+                        )
                         Text(
-                            text = "Marca només els camps que vols substituir. Els camps desmarcats conservaran el valor d'Omnilog.",
+                            text = "Carregant metadades…",
+                            modifier = Modifier.padding(top = 12.dp),
+                            color = OmnilogTheme.colors.appMuted,
+                        )
+                    }
+                }
+                draft != null -> {
+                    val currentDraft = requireNotNull(draft)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = SheetGutter),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = buildString {
+                                append("Marca només els camps que vols substituir; la resta conserva el valor d'Omnilog.")
+                                currentDraft.reference.evidence.takeIf { it.isNotBlank() }?.let {
+                                    append(" Coincidència per: $it.")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
                             color = OmnilogTheme.colors.appMuted,
                         )
                         MetadataDiffFieldList(
@@ -422,45 +415,48 @@ internal fun ImportHubDialog(
                             onSelectionChanged = { selectedFields = it },
                             modifier = Modifier.weight(1f),
                         )
-                        Row(
+                        OmnilogPrimaryButton(
+                            text = if (selectedFields.isEmpty()) "Conserva els valors actuals" else "Aplica la selecció",
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    loading = true
-                                    message = null
-                                    scope.launch {
-                                        val result = onApplyReview(currentDraft, selectedFields)
-                                        loading = false
-                                        result.fold(
-                                            onSuccess = { outcome ->
-                                                when (outcome) {
-                                                    ImportReviewApplyOutcome.Applied -> {
-                                                        draft = null
-                                                        selectedItem = null
-                                                        selectedFields = emptySet()
-                                                    }
-                                                    is ImportReviewApplyOutcome.Changed -> {
-                                                        draft = outcome.draft
-                                                        selectedFields = emptySet()
-                                                        message = "L'element ha canviat. Revisa els valors actualitzats abans de desar."
-                                                    }
+                            onClick = {
+                                loading = true
+                                message = null
+                                scope.launch {
+                                    val result = onApplyReview(currentDraft, selectedFields)
+                                    loading = false
+                                    result.fold(
+                                        onSuccess = { outcome ->
+                                            when (outcome) {
+                                                ImportReviewApplyOutcome.Applied -> {
+                                                    draft = null
+                                                    selectedItem = null
+                                                    selectedFields = emptySet()
                                                 }
-                                            },
-                                            onFailure = { message = "No s'ha pogut desar la decisió." },
-                                        )
-                                    }
-                                },
-                            ) {
-                                Text(if (selectedFields.isEmpty()) "Conserva els valors actuals" else "Aplica la selecció")
-                            }
-                        }
+                                                is ImportReviewApplyOutcome.Changed -> {
+                                                    draft = outcome.draft
+                                                    selectedFields = emptySet()
+                                                    message = "L'element ha canviat. Revisa els valors actualitzats abans de desar."
+                                                }
+                                            }
+                                        },
+                                        onFailure = { message = "No s'ha pogut desar la decisió." },
+                                    )
+                                }
+                            },
+                        )
                     }
-                    selectedItem != null -> {
-                        val item = requireNotNull(selectedItem)
+                }
+                selectedItem != null -> {
+                    val item = requireNotNull(selectedItem)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = SheetGutter),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
                         Text(
-                            text = "Cap coincidència per títol s'aplica automàticament. Tria'n una per comparar-la o omet aquest element.",
+                            text = "Cap coincidència per títol s'aplica sola. Tria la bona per comparar-la, o omet aquest títol.",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = OmnilogTheme.colors.appMuted,
                         )
                         LazyColumn(
@@ -471,85 +467,58 @@ internal fun ImportHubDialog(
                                 CandidateRow(candidate = candidate, onClick = { prepare(item, candidate) })
                             }
                         }
-                        TextButton(
-                            modifier = Modifier.align(Alignment.End),
+                        OmnilogTonalButton(
+                            text = "Omet aquest títol",
+                            modifier = Modifier.fillMaxWidth(),
                             onClick = {
                                 loading = true
                                 scope.launch {
                                     val result = onSkipReview(item.itemId)
                                     loading = false
                                     if (result.isSuccess) selectedItem = null
-                                    else message = "No s'ha pogut ometre aquest element."
+                                    else message = "No s'ha pogut ometre aquest títol."
                                 }
                             },
-                        ) {
-                            Text("Omet aquest element")
-                        }
+                        )
                     }
-                    else -> ImportOverview(
-                        state = state,
-                        onToggle = onToggle,
-                        onRetry = onRetry,
-                        onCancel = { cancellationCandidate = it },
-                        onReview = { item ->
-                            selectedItem = item
-                            if (item.candidates.size <= 1) {
-                                prepare(item, item.selectedReference ?: item.candidates.firstOrNull())
-                            }
-                        },
-                        busyIssueId = busyIssueId,
-                        onRetryIssue = { item ->
-                            busyIssueId = item.itemId
-                            message = null
-                            scope.launch {
-                                val result = onRetryIssue(item.itemId)
-                                busyIssueId = null
-                                if (result.isFailure) {
-                                    message = "No s'ha pogut tornar a cercar aquest títol."
-                                }
-                            }
-                        },
-                        onSkipIssue = { item ->
-                            busyIssueId = item.itemId
-                            message = null
-                            scope.launch {
-                                val result = onSkipIssue(item.itemId)
-                                busyIssueId = null
-                                if (result.isFailure) {
-                                    message = "No s'ha pogut tancar aquesta incidència."
-                                }
-                            }
-                        },
-                        onManualMatch = onManualMatch,
-                        busyCoverageId = busyCoverageId,
-                        onRetryCoverage = { item ->
-                            busyCoverageId = item.itemId
-                            message = null
-                            scope.launch {
-                                val result = onRetryCoverage(item.itemId)
-                                busyCoverageId = null
-                                if (result.isFailure) {
-                                    message = "No s'han pogut tornar a consultar les metadades d'aquest títol."
-                                }
-                            }
-                        },
-                        onDismissCoverage = { item ->
-                            busyCoverageId = item.itemId
-                            message = null
-                            scope.launch {
-                                val result = onDismissCoverage(item.itemId)
-                                busyCoverageId = null
-                                if (result.isFailure) {
-                                    message = "No s'ha pogut desar aquesta decisió."
-                                }
-                            }
-                        },
-                        onManualMatchCoverage = onManualMatchCoverage,
-                        onDeleteHistory = { historyDeletionCandidate = it },
-                        onClearHistory = { clearHistoryConfirmation = true },
-                        modifier = Modifier.weight(1f),
-                    )
                 }
+                else -> ImportOverview(
+                    state = state,
+                    onToggle = onToggle,
+                    onRetry = onRetry,
+                    onCancel = { cancellationCandidate = it },
+                    onReview = { item ->
+                        selectedItem = item
+                        if (item.candidates.size <= 1) {
+                            prepare(item, item.selectedReference ?: item.candidates.firstOrNull())
+                        }
+                    },
+                    busyIssueId = busyIssueId,
+                    onRetryIssue = { item ->
+                        runItemAction({ busyIssueId = it }, item.itemId, "No s'ha pogut tornar a cercar aquest títol.", onRetryIssue)
+                    },
+                    onSkipIssue = { item ->
+                        runItemAction({ busyIssueId = it }, item.itemId, "No s'ha pogut tancar aquesta incidència.", onSkipIssue)
+                    },
+                    onManualMatch = onManualMatch,
+                    busyCoverageId = busyCoverageId,
+                    onRetryCoverage = { item ->
+                        runItemAction(
+                            { busyCoverageId = it },
+                            item.itemId,
+                            "No s'han pogut tornar a consultar les metadades d'aquest títol.",
+                            onRetryCoverage,
+                        )
+                    },
+                    onDismissCoverage = { item ->
+                        runItemAction({ busyCoverageId = it }, item.itemId, "No s'ha pogut desar aquesta decisió.", onDismissCoverage)
+                    },
+                    onManualMatchCoverage = onManualMatchCoverage,
+                    onDeleteHistory = { historyDeletionCandidate = it },
+                    onClearHistory = { clearHistoryConfirmation = true },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -562,52 +531,73 @@ private fun ImportSheetHeader(
     onBack: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = SheetGutter),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = if (isDrillDown) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Close,
+                contentDescription = if (isDrillDown) "Enrere" else "Tanca",
+                tint = OmnilogTheme.colors.appInk,
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontFamily = SerifFontFamily,
+                    fontWeight = FontWeight.Normal,
+                ),
                 color = OmnilogTheme.colors.appInk,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = OmnilogTheme.colors.appMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-        TextButton(onClick = onBack) {
-            Text(if (isDrillDown) "Enrere" else "Tanca")
         }
     }
 }
 
-/** Home's section heading: a bold label, then a hairline out to the right margin. */
+/** A confirmation in place of the list: what will and will not happen, then keep or go ahead. */
 @Composable
-private fun ImportSectionHeader(
-    title: String,
+private fun ConfirmationStep(
+    text: String,
+    keepLabel: String,
+    confirmLabel: String,
+    enabled: Boolean,
+    onKeep: () -> Unit,
+    onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = SheetGutter),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = OmnilogTheme.colors.appInk,
-        )
-        HorizontalDivider(
-            modifier = Modifier.weight(1f),
-            color = OmnilogTheme.colors.appLine,
-        )
+        Text(text = text, style = MaterialTheme.typography.bodyLarge, color = OmnilogTheme.colors.appInk)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OmnilogTonalButton(
+                text = confirmLabel,
+                onClick = onConfirm,
+                enabled = enabled,
+                accent = OmnilogTheme.accents.Dropped,
+            )
+            TextButton(onClick = onKeep, enabled = enabled) {
+                Text(text = keepLabel, color = OmnilogTheme.colors.appMuted)
+            }
+        }
     }
 }
 
@@ -633,153 +623,171 @@ private fun ImportOverview(
     val batches = state.recentBatches
     val history = state.historyBatches.filter(ImportBatchProgress::canDeleteFromHistory)
     var showHistory by remember { mutableStateOf(false) }
+    val nothingOpen = state.reviewItems.isEmpty() && state.issueItems.isEmpty() &&
+        state.coverageItems.isEmpty() && batches.isEmpty()
+
     LazyColumn(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (batches.isNotEmpty()) {
-            item { ImportSectionHeader(title = "En curs o per resoldre") }
+        if (nothingOpen) {
+            item(key = "empty") {
+                Column(
+                    modifier = Modifier.padding(horizontal = SheetGutter + 4.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "Tot al dia",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = SerifFontFamily,
+                            fontWeight = FontWeight.Normal,
+                        ),
+                        color = OmnilogTheme.colors.appInk,
+                    )
+                    Text(
+                        text = "No hi ha cap importació en curs ni res per revisar. Quan n'hi hagi, ho trobaràs aquí.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OmnilogTheme.colors.appMuted,
+                    )
+                }
+            }
         }
-        items(batches, key = { "batch:${it.batchId}" }) { batch ->
-            BatchStatusCard(
+
+        group(
+            key = "review",
+            label = "Per revisar",
+            count = state.reviewItems.size,
+            footnote = "Coincidències dubtoses: tria la bona o omet el títol.",
+            items = state.reviewItems,
+            itemKey = { "review:${it.itemId}" },
+        ) { item ->
+            HubRow(
+                title = item.title,
+                description = if (item.candidates.size > 1) {
+                    "${item.candidates.size} coincidències possibles"
+                } else {
+                    "Hi ha camps diferents per decidir"
+                },
+                modifier = Modifier.clickable { onReview(item) },
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = OmnilogTheme.colors.appMuted,
+                )
+            }
+        }
+
+        group(
+            key = "issues",
+            label = "Incidències",
+            count = state.issueItems.size,
+            items = state.issueItems,
+            itemKey = { "issue:${it.itemId}" },
+        ) { issue ->
+            HubRow(title = issue.title, description = issue.userFacingReason()) {
+                RowActions(
+                    busy = busyIssueId == issue.itemId,
+                    primaryLabel = "Cerca",
+                    onPrimary = { onManualMatch(issue) },
+                    overflow = buildList {
+                        if (issue.canRetry) {
+                            add((if (issue.state == ImportItemState.NoMatch) "Torna a cercar" else "Reintenta") to { onRetryIssue(issue) })
+                        }
+                        add("Conserva'l així" to { onSkipIssue(issue) })
+                    },
+                )
+            }
+        }
+
+        group(
+            key = "coverage",
+            label = "Falten dades",
+            count = state.coverageItems.size,
+            footnote = "Sense aquests totals no es pot mesurar el progrés.",
+            items = state.coverageItems,
+            itemKey = { "coverage:${it.itemId}" },
+        ) { coverage ->
+            HubRow(
+                title = coverage.title,
+                description = "Falten: ${coverage.missingFields.joinToString { it.label(coverage.mediaType) }}",
+            ) {
+                RowActions(
+                    busy = busyCoverageId == coverage.itemId,
+                    primaryLabel = "Reintenta",
+                    onPrimary = { onRetryCoverage(coverage) },
+                    overflow = listOf(
+                        "Prova una altra coincidència" to { onManualMatchCoverage(coverage) },
+                        "Dona-ho per bo" to { onDismissCoverage(coverage) },
+                    ),
+                )
+            }
+        }
+
+        group(
+            key = "batches",
+            label = "Importacions",
+            count = batches.size,
+            showCount = false,
+            items = batches,
+            itemKey = { "batch:${it.batchId}" },
+        ) { batch ->
+            BatchRow(
                 progress = batch,
                 onToggle = { onToggle(batch.batchId) },
                 onRetry = { onRetry(batch.batchId) },
                 onCancel = { onCancel(batch) },
             )
         }
-        if (state.issueItems.isNotEmpty()) {
-            item {
-                ImportSectionHeader(
-                    title = "Incidències (${state.issueItems.size})",
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            items(state.issueItems, key = { "issue:${it.itemId}" }) { issue ->
-                IssueRow(
-                    issue = issue,
-                    busy = busyIssueId == issue.itemId,
-                    onRetry = { onRetryIssue(issue) },
-                    onManualMatch = { onManualMatch(issue) },
-                    onSkip = { onSkipIssue(issue) },
-                )
-            }
-        }
-        if (state.coverageItems.isNotEmpty()) {
-            item {
-                ImportSectionHeader(
-                    title = "Totals de seguiment pendents (${state.coverageItems.size})",
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            item {
-                Text(
-                    text = "Falten pàgines, minuts o episodis necessaris per mesurar el progrés.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-            items(state.coverageItems, key = { "coverage:${it.itemId}" }) { coverage ->
-                CoverageRow(
-                    item = coverage,
-                    busy = busyCoverageId == coverage.itemId,
-                    onRetry = { onRetryCoverage(coverage) },
-                    onManualMatch = { onManualMatchCoverage(coverage) },
-                    onDismiss = { onDismissCoverage(coverage) },
-                )
-            }
-        }
-        if (state.reviewItems.isNotEmpty()) {
-            item {
-                ImportSectionHeader(
-                    title = "Per revisar (${state.reviewItems.size})",
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            items(state.reviewItems, key = { "review:${it.itemId}" }) { item ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onReview(item) },
-                    shape = RoundedCornerShape(14.dp),
-                    color = OmnilogTheme.colors.appPanel,
-                    border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = item.title,
-                            fontWeight = FontWeight.Bold,
-                            color = OmnilogTheme.colors.appInk,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = if (item.candidates.size > 1) {
-                                "${item.candidates.size} coincidències possibles"
-                            } else {
-                                "Hi ha camps diferents per decidir"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = OmnilogTheme.colors.appMuted,
-                        )
-                    }
-                }
-            }
-        } else if (
-            state.issueItems.isEmpty() &&
-            state.coverageItems.isEmpty() &&
-            batches.none { it.state == ImportBatchState.Enriching || it.state == ImportBatchState.Paused }
-        ) {
-            item {
-                Text(
-                    text = "No hi ha cap decisió pendent.",
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-        }
+
         if (history.isNotEmpty()) {
-            item {
+            item(key = "history-toggle") {
+                val rotation by animateFloatAsState(if (showHistory) 90f else 0f, label = "historyChevron")
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .padding(top = 12.dp)
+                        .clickable { showHistory = !showHistory }
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = SheetGutter + 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "Historial (${history.size})",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogTheme.colors.appInk,
+                    GroupLabel(text = "Historial · ${history.size}", modifier = Modifier.weight(1f))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = if (showHistory) "Amaga l'historial" else "Mostra l'historial",
+                        tint = OmnilogTheme.colors.appMuted,
+                        modifier = Modifier.rotate(rotation),
                     )
-                    TextButton(onClick = { showHistory = !showHistory }) {
-                        Text(if (showHistory) "Amaga" else "Mostra")
-                    }
                 }
             }
-            if (showHistory) {
-                item {
-                    Text(
-                        text = "Registres de processos ja resolts. Eliminar-los no modifica la biblioteca.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-                items(history, key = { "history:${it.batchId}" }) { batch ->
-                    ImportHistoryCard(
-                        progress = batch,
-                        onDelete = { onDeleteHistory(batch) },
-                    )
-                }
-                item {
-                    TextButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = onClearHistory,
-                    ) {
-                        Text("Neteja l'historial resolt")
+            item(key = "history") {
+                AnimatedVisibility(visible = showHistory) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Panel {
+                            history.forEachIndexed { index, batch ->
+                                if (index > 0) RowDivider()
+                                HubRow(
+                                    title = "${batch.source.label()} · ${batch.historyDateLabel()}",
+                                    description = batch.historySummary(),
+                                    leading = { ProviderLogo(source = batch.source.ratingSource(), height = 18.dp) },
+                                ) {
+                                    RowActions(
+                                        busy = false,
+                                        primaryLabel = null,
+                                        onPrimary = {},
+                                        overflow = listOf("Elimina el registre" to { onDeleteHistory(batch) }),
+                                    )
+                                }
+                            }
+                        }
+                        TextButton(
+                            onClick = onClearHistory,
+                            modifier = Modifier.padding(horizontal = SheetGutter - 8.dp),
+                        ) {
+                            Text("Neteja tot l'historial", color = OmnilogTheme.accents.Dropped)
+                        }
                     }
                 }
             }
@@ -787,221 +795,194 @@ private fun ImportOverview(
     }
 }
 
-@Composable
-private fun ImportHistoryCard(
-    progress: ImportBatchProgress,
-    onDelete: () -> Unit,
+/** A named group — label, optional one-line footnote — with its rows on one panel. */
+private fun <T> LazyListScope.group(
+    key: String,
+    label: String,
+    count: Int,
+    items: List<T>,
+    itemKey: (T) -> String,
+    footnote: String? = null,
+    showCount: Boolean = true,
+    row: @Composable (T) -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
+    if (items.isEmpty()) return
+    item(key = "$key-label") {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.padding(start = SheetGutter + 4.dp, end = SheetGutter + 4.dp, top = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(
-                text = when (progress.state) {
-                    ImportBatchState.Cancelled -> "${progress.source.label()} · Enriquiment cancel·lat"
-                    else -> "${progress.source.label()} · Importació completada"
-                },
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
-            )
-            Text(
-                text = "Finalitzada: ${progress.historyDateLabel()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appMuted,
-            )
-            Text(
-                text = progress.summary(),
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appMuted,
-            )
-            TextButton(
-                modifier = Modifier.align(Alignment.End),
-                onClick = onDelete,
-            ) {
-                Text("Elimina el registre")
+            GroupLabel(text = if (showCount) "$label · $count" else label)
+            footnote?.let {
+                Text(text = it, style = MaterialTheme.typography.bodySmall, color = OmnilogTheme.colors.appMuted)
+            }
+        }
+    }
+    item(key = "$key-rows") {
+        Panel {
+            items.forEachIndexed { index, value ->
+                if (index > 0) RowDivider()
+                androidx.compose.runtime.key(itemKey(value)) { row(value) }
             }
         }
     }
 }
 
 @Composable
-private fun CoverageRow(
-    item: ImportCoverageItem,
-    busy: Boolean,
-    onRetry: () -> Unit,
-    onManualMatch: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+private fun GroupLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text.uppercase(OmnilogLocale),
+        modifier = modifier.semantics { heading() },
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        color = OmnilogTheme.colors.appMuted,
+    )
+}
+
+@Composable
+private fun Panel(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = SheetGutter)
+            .fillMaxWidth()
+            .clip(PanelShape)
+            .background(OmnilogTheme.colors.appPanel),
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
+        content()
+    }
+}
+
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OmnilogTheme.colors.appLine)
+}
+
+@Composable
+private fun HubRow(
+    title: String,
+    description: String?,
+    modifier: Modifier = Modifier,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 60.dp)
+            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        leading?.invoke()
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = item.title,
-                fontWeight = FontWeight.Bold,
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
                 color = OmnilogTheme.colors.appInk,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = "Falten: ${item.missingFields.joinToString { it.label(item.mediaType) }}.",
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appMuted,
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
+        }
+        trailing()
+    }
+}
+
+/** One visible action, the rest behind ⋯; a spinner while the row's request is in flight. */
+@Composable
+private fun RowActions(
+    busy: Boolean,
+    primaryLabel: String?,
+    onPrimary: () -> Unit,
+    overflow: List<Pair<String, () -> Unit>>,
+) {
+    if (busy) {
+        Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = OmnilogTheme.accents.Dashboard,
             )
-            Column(
-                modifier = Modifier.align(Alignment.End),
-                horizontalAlignment = Alignment.End,
-            ) {
-                TextButton(enabled = !busy, onClick = onRetry) {
-                    Text("Torna a consultar")
-                }
-                TextButton(enabled = !busy, onClick = onManualMatch) {
-                    Text("Prova una altra coincidència")
-                }
-                TextButton(enabled = !busy, onClick = onDismiss) {
-                    Text("Dona-ho per bo")
-                }
+        }
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        primaryLabel?.let { OmnilogTonalButton(text = it, onClick = onPrimary) }
+        if (overflow.isNotEmpty()) OverflowMenu(overflow)
+    }
+}
+
+@Composable
+private fun OverflowMenu(actions: List<Pair<String, () -> Unit>>) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = "Més accions",
+                tint = OmnilogTheme.colors.appMuted,
+            )
+        }
+        OmnilogDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            actions.forEach { (label, action) ->
+                OmnilogDropdownItem(
+                    text = label,
+                    onClick = {
+                        expanded = false
+                        action()
+                    },
+                )
             }
         }
     }
 }
 
-private fun ImportMetadataGap.label(mediaType: MediaType): String = when (this) {
-    ImportMetadataGap.Cover -> "portada"
-    ImportMetadataGap.Synopsis -> "sinopsi"
-    ImportMetadataGap.ReleaseYear -> "any"
-    ImportMetadataGap.Creators -> when (mediaType) {
-        MediaType.Book -> "autoria"
-        MediaType.Movie -> "direcció"
-        MediaType.TvShow -> "creació"
-        MediaType.Anime -> "estudi o autoria"
-        MediaType.Game -> "desenvolupador"
-    }
-    ImportMetadataGap.Genres -> "gèneres"
-    ImportMetadataGap.ProgressTotal -> when (mediaType) {
-        MediaType.Book -> "pàgines"
-        MediaType.Movie -> "durada"
-        MediaType.Anime,
-        MediaType.TvShow,
-        -> "episodis"
-        MediaType.Game -> "durada"
-    }
-}
-
 @Composable
-private fun BatchStatusCard(
+private fun BatchRow(
     progress: ImportBatchProgress,
     onToggle: () -> Unit,
     onRetry: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val active = progress.state == ImportBatchState.Enriching || progress.state == ImportBatchState.Paused
+    val active = progress.isActive()
     val cancellable = active || progress.state == ImportBatchState.CompletedWithIssues
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    Column(modifier = Modifier.padding(bottom = if (active) 14.dp else 0.dp)) {
+        HubRow(
+            title = progress.headline(),
+            description = progress.summary(),
+            leading = { ProviderLogo(source = progress.source.ratingSource(), height = 18.dp) },
         ) {
-            Text(
-                text = progress.statusTitle(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
+            RowActions(
+                busy = false,
+                primaryLabel = when {
+                    !active -> null
+                    progress.state == ImportBatchState.Paused -> "Continua"
+                    else -> "Pausa"
+                },
+                onPrimary = onToggle,
+                overflow = buildList {
+                    if (!active && progress.retryableIssueCount > 0) add("Reintenta les incidències" to onRetry)
+                    if (cancellable) add("Deixa de completar" to onCancel)
+                },
             )
-            Text(progress.summary(), color = OmnilogTheme.colors.appMuted)
+        }
+        if (active) {
             LinearProgressIndicator(
                 progress = { progress.fraction() },
-                modifier = Modifier.fillMaxWidth(),
-                color = OmnilogTheme.accents.Anime,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                color = progress.source.accent(),
                 trackColor = OmnilogTheme.colors.appLine,
+                drawStopIndicator = {},
             )
-            if (active || progress.issueCount > 0 || cancellable) {
-                Column(
-                    modifier = Modifier.align(Alignment.End),
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    if (active) {
-                        TextButton(onClick = onToggle) {
-                            Text(if (progress.state == ImportBatchState.Paused) "Continua" else "Pausa")
-                        }
-                    } else if (progress.retryableIssueCount > 0) {
-                        TextButton(onClick = onRetry) {
-                            Text("Reintenta les incidències")
-                        }
-                    }
-                    if (cancellable) {
-                        TextButton(onClick = onCancel) {
-                            Text("Cancel·la l'enriquiment")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun IssueRow(
-    issue: ImportIssueItem,
-    busy: Boolean,
-    onRetry: () -> Unit,
-    onManualMatch: () -> Unit,
-    onSkip: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = issue.title,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = issue.userFacingReason(),
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appMuted,
-            )
-            Column(
-                modifier = Modifier.align(Alignment.End),
-                horizontalAlignment = Alignment.End,
-            ) {
-                if (issue.canRetry) {
-                    TextButton(enabled = !busy, onClick = onRetry) {
-                        Text(if (issue.state == ImportItemState.NoMatch) "Torna a cercar" else "Reintenta")
-                    }
-                }
-                TextButton(enabled = !busy, onClick = onManualMatch) {
-                    Text("Cerca manualment")
-                }
-                TextButton(enabled = !busy, onClick = onSkip) {
-                    Text("Conserva'l així")
-                }
-            }
         }
     }
 }
@@ -1029,104 +1010,125 @@ internal fun ImportIssueItem.userFacingReason(): String = when (state) {
     else -> "No s'han pogut completar les metadades."
 }
 
+private fun ImportMetadataGap.label(mediaType: MediaType): String = when (this) {
+    ImportMetadataGap.Cover -> "portada"
+    ImportMetadataGap.Synopsis -> "sinopsi"
+    ImportMetadataGap.ReleaseYear -> "any"
+    ImportMetadataGap.Creators -> when (mediaType) {
+        MediaType.Book -> "autoria"
+        MediaType.Movie -> "direcció"
+        MediaType.TvShow -> "creació"
+        MediaType.Anime -> "estudi o autoria"
+        MediaType.Game -> "desenvolupador"
+    }
+    ImportMetadataGap.Genres -> "gèneres"
+    ImportMetadataGap.ProgressTotal -> when (mediaType) {
+        MediaType.Book -> "pàgines"
+        MediaType.Movie -> "durada"
+        MediaType.Anime,
+        MediaType.TvShow,
+        -> "episodis"
+        MediaType.Game -> "durada"
+    }
+}
+
 @Composable
 private fun CandidateRow(candidate: ProviderReference, onClick: () -> Unit) {
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
+            .clip(PanelShape)
+            .background(OmnilogTheme.colors.appPanel)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            candidate.coverUrl?.let { url ->
-                AsyncImage(
-                    model = url,
-                    contentDescription = "Portada de ${candidate.title.orEmpty()}",
-                    modifier = Modifier.size(width = 72.dp, height = 104.dp),
-                )
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(
-                    text = candidate.title ?: "Coincidència ${candidate.externalId}",
-                    fontWeight = FontWeight.Bold,
-                    color = OmnilogTheme.colors.appInk,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                candidate.subtitle
-                    ?.takeIf { it.isNotBlank() && !it.equals(candidate.title, ignoreCase = true) }
-                    ?.let { subtitle ->
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                candidate.originalTitle
-                    ?.takeIf { it.isNotBlank() && !it.equals(candidate.title, ignoreCase = true) }
-                    ?.let { originalTitle ->
-                        CandidateDetail(label = "Títol original", value = originalTitle)
-                    }
-                candidate.creators.takeIf { it.isNotEmpty() }?.let { creators ->
-                    CandidateDetail(label = "Autoria", value = creators.joinToString())
-                }
-                candidate.evidence.takeIf { it.isNotBlank() }?.let { evidence ->
-                    CandidateDetail(label = "Criteri", value = evidence)
-                }
-                val language = languageLabel(candidate.language).takeIf { it.isNotBlank() }
-                val primaryFacts = listOfNotNull(
-                    candidate.releaseYear?.toString(),
-                    language,
-                    candidate.progressTotal?.let { "$it pàgines" },
-                    candidate.format?.takeUnless { it.equals("BOOK", ignoreCase = true) },
-                )
-                if (primaryFacts.isNotEmpty()) {
+        candidate.coverUrl?.let { url ->
+            AsyncImage(
+                model = url,
+                contentDescription = "Portada de ${candidate.title.orEmpty()}",
+                modifier = Modifier
+                    .size(width = 72.dp, height = 104.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+            )
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(
+                text = candidate.title ?: "Coincidència ${candidate.externalId}",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = SerifFontFamily,
+                    fontWeight = FontWeight.Normal,
+                ),
+                color = OmnilogTheme.colors.appInk,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            candidate.subtitle
+                ?.takeIf { it.isNotBlank() && !it.equals(candidate.title, ignoreCase = true) }
+                ?.let { subtitle ->
                     Text(
-                        text = primaryFacts.joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-                candidate.publishers.takeIf { it.isNotEmpty() }?.let { publishers ->
-                    CandidateDetail(label = "Editorial", value = publishers.joinToString())
-                }
-                candidate.identifiers.takeIf { it.isNotEmpty() }?.let { identifiers ->
-                    CandidateDetail(label = "ISBN", value = identifiers.joinToString(" · "))
-                }
-                candidate.genres.takeIf { it.isNotEmpty() }?.let { genres ->
-                    CandidateDetail(label = "Gèneres", value = genres.joinToString())
-                }
-                candidate.ratingScore?.let { score ->
-                    val maxScore = candidate.ratingMaxScore ?: 5.0
-                    val votes = candidate.ratingVoteCount?.let { " · $it valoracions" }.orEmpty()
-                    CandidateDetail(
-                        label = "Valoració",
-                        value = "${score.compactNumber()}/${maxScore.compactNumber()}$votes",
-                    )
-                }
-                plainSynopsis(candidate.synopsis)?.takeIf { it.isNotBlank() }?.let { synopsis ->
-                    Text(
-                        text = synopsis,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OmnilogTheme.colors.appMuted,
-                        maxLines = 5,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            candidate.originalTitle
+                ?.takeIf { it.isNotBlank() && !it.equals(candidate.title, ignoreCase = true) }
+                ?.let { originalTitle -> CandidateDetail(label = "Títol original", value = originalTitle) }
+            candidate.creators.takeIf { it.isNotEmpty() }?.let { creators ->
+                CandidateDetail(label = "Autoria", value = creators.joinToString())
+            }
+            candidate.evidence.takeIf { it.isNotBlank() }?.let { evidence ->
+                CandidateDetail(label = "Criteri", value = evidence)
+            }
+            val language = languageLabel(candidate.language).takeIf { it.isNotBlank() }
+            val primaryFacts = listOfNotNull(
+                candidate.releaseYear?.toString(),
+                language,
+                candidate.progressTotal?.let { "$it pàgines" },
+                candidate.format?.takeUnless { it.equals("BOOK", ignoreCase = true) },
+            )
+            if (primaryFacts.isNotEmpty()) {
                 Text(
-                    text = "${candidate.source.displayName()} · ${candidate.externalId}",
+                    text = primaryFacts.joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = OmnilogTheme.colors.appMuted,
                 )
             }
+            candidate.publishers.takeIf { it.isNotEmpty() }?.let { publishers ->
+                CandidateDetail(label = "Editorial", value = publishers.joinToString())
+            }
+            candidate.identifiers.takeIf { it.isNotEmpty() }?.let { identifiers ->
+                CandidateDetail(label = "ISBN", value = identifiers.joinToString(" · "))
+            }
+            candidate.genres.takeIf { it.isNotEmpty() }?.let { genres ->
+                CandidateDetail(label = "Gèneres", value = genres.joinToString())
+            }
+            candidate.ratingScore?.let { score ->
+                val maxScore = candidate.ratingMaxScore ?: 5.0
+                val votes = candidate.ratingVoteCount?.let { " · $it valoracions" }.orEmpty()
+                CandidateDetail(
+                    label = "Valoració",
+                    value = "${score.compactNumber()}/${maxScore.compactNumber()}$votes",
+                )
+            }
+            plainSynopsis(candidate.synopsis)?.takeIf { it.isNotBlank() }?.let { synopsis ->
+                Text(
+                    text = synopsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = "${candidate.source.displayName()} · ${candidate.externalId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
+            )
         }
     }
 }
@@ -1151,36 +1153,31 @@ private fun MetadataSource.displayName(): String = when (this) {
     else -> name
 }
 
+private fun ImportBatchProgress.isActive(): Boolean =
+    state == ImportBatchState.Enriching || state == ImportBatchState.Paused
+
 private fun ImportBatchProgress.fraction(): Float = if (totalCount <= 0) 0f
 else processedCount.toFloat() / totalCount.toFloat()
 
-private fun ImportBatchProgress.statusTitle(): String = when (state) {
-    ImportBatchState.Enriching -> "Completant metadades de ${source.label()}…"
-    ImportBatchState.Paused -> "Metadades de ${source.label()} en pausa"
-    ImportBatchState.CompletedWithIssues -> when {
-        needsReviewCount > 0 -> "Importació de ${source.label()} amb decisions pendents"
-        issueCount > 0 -> "Importació de ${source.label()} amb incidències"
-        coverageGapCount > 0 -> "Importació de ${source.label()} amb metadades incompletes"
-        else -> "Importació de ${source.label()} completada"
-    }
-    ImportBatchState.Completed -> if (coverageGapCount > 0) {
-        "Importació de ${source.label()} amb metadades incompletes"
-    } else {
-        "Importació de ${source.label()} completada"
-    }
-    ImportBatchState.Cancelled -> "Enriquiment de ${source.label()} cancel·lat"
-    else -> "Importació de ${source.label()}"
+private fun ImportBatchProgress.headline(): String = when (state) {
+    ImportBatchState.Enriching -> "Completant ${source.label()}…"
+    ImportBatchState.Paused -> "${source.label()} en pausa"
+    ImportBatchState.Cancelled -> "${source.label()} · aturada"
+    else -> "${source.label()} · importada"
 }
 
-private fun ImportBatchProgress.summary(): String = buildString {
-    append("$processedCount/$totalCount processats · $appliedCount enriquits")
-    if (needsReviewCount > 0) append(" · $needsReviewCount per revisar")
-    if (issueCount > 0) append(" · $issueCount incidències")
-    if (coverageGapCount > 0) append(" · $coverageGapCount incomplets")
-    if (optionalMetadataGapCount > 0) {
-        append(" · $optionalMetadataGapCount amb metadades opcionals parcials")
-    }
-    if (cancelledCount > 0) append(" · $cancelledCount cancel·lats")
+/** Progress while it runs, then only what still asks for something. */
+private fun ImportBatchProgress.summary(): String = buildList {
+    if (isActive()) add("$processedCount de $totalCount")
+    if (needsReviewCount > 0) add("$needsReviewCount per revisar")
+    if (issueCount > 0) add("$issueCount ${if (issueCount == 1) "incidència" else "incidències"}")
+    if (coverageGapCount > 0) add("$coverageGapCount amb dades pendents")
+    if (isEmpty()) add("$appliedCount de $totalCount completats")
+}.joinToString(" · ")
+
+private fun ImportBatchProgress.historySummary(): String = buildString {
+    append("$appliedCount de $totalCount completats")
+    if (cancelledCount > 0) append(" · $cancelledCount sense completar")
 }
 
 private fun ImportBatchProgress.historyDateLabel(): String {
@@ -1191,22 +1188,15 @@ private fun ImportBatchProgress.historyDateLabel(): String {
 }
 
 private val importHistoryDateFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("d MMM yyyy · HH:mm", Locale.forLanguageTag("ca"))
+    DateTimeFormatter.ofPattern("d MMM yyyy", Locale.forLanguageTag("ca"))
 
-private fun ImportSource.label(): String = when (this) {
-    ImportSource.MalApi -> "MyAnimeList"
-    ImportSource.MalXml -> "MAL XML"
-    ImportSource.ImdbCsv -> "IMDb"
-    ImportSource.StoryGraphCsv -> "StoryGraph"
-}
-
+/** The completion notice: done, and only what still needs the user, if anything. */
 internal fun ImportCompletionSummary.userFacingMessage(): String = buildString {
-    val processedLabel = if (processedCount == 1) "processat" else "processats"
-    val appliedLabel = if (appliedCount == 1) "enriquit" else "enriquits"
-    append("Enriquiment de ${source.label()} completat: $processedCount/$totalCount $processedLabel")
-    append(" · $appliedCount $appliedLabel")
-    if (needsReviewCount > 0) append(" · $needsReviewCount per revisar")
-    if (issueCount > 0) append(" · $issueCount ${if (issueCount == 1) "incidència" else "incidències"}")
-    if (coverageGapCount > 0) append(" · $coverageGapCount amb camps buits")
-    append('.')
+    append("${source.label()}: metadades completades")
+    val pending = buildList {
+        if (needsReviewCount > 0) add("$needsReviewCount per revisar")
+        if (issueCount > 0) add("$issueCount ${if (issueCount == 1) "incidència" else "incidències"}")
+        if (coverageGapCount > 0) add("$coverageGapCount amb dades pendents")
+    }
+    if (pending.isEmpty()) append('.') else append(" · ${pending.joinToString(" · ")}.")
 }

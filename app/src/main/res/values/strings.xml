@@ -704,11 +704,7 @@
     <string name="backup_import_read_error">No s\'ha pogut llegir el fitxer de còpia.</string>
     <string name="backup_import_invalid">Aquest fitxer no és una còpia vàlida.</string>
     <string name="backup_import_unsupported">Aquesta versió de còpia no és compatible.</string>
-    <string name="imdb_import_title">Importa IMDb CSV a %1$s</string>
     <string name="import_imdb_description">Afegeix pel·lícules i sèries a %1$s.</string>
-    <string name="imdb_import_message_with_summary">S\'importaran %1$d elements de %2$d files.\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
-    <string name="imdb_import_confirm">Importa elements</string>
-    <string name="imdb_import_success_with_summary">%1$d elements importats. Duplicats ignorats: %2$d. No compatibles: %3$d. Files sense títol: %4$d. Les metadades es continuen completant en segon pla.</string>
     <string name="imdb_import_read_error">No s\'ha pogut llegir el CSV d\'IMDb.</string>
     <string name="imdb_import_invalid">Aquest fitxer no sembla una exportació CSV d\'IMDb.</string>
     <string name="imdb_import_empty">No hi ha elements nous importables en aquest CSV.</string>
@@ -718,10 +714,6 @@
     <string name="imdb_import_no_usable_rows">El CSV d\'IMDb no conté cap fila amb un títol utilitzable.</string>
     <string name="imdb_import_unsupported_only">Aquest CSV només conté episodis o tipus d\'IMDb que Omnilog encara no pot importar.</string>
     <string name="imdb_import_duplicates_only">Tots els elements compatibles d\'aquest CSV d\'IMDb ja són a la biblioteca.</string>
-    <string name="storygraph_import_title">Importa StoryGraph CSV</string>
-    <string name="storygraph_import_message_with_summary">S\'importaran %1$d llibres de %2$d files.\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
-    <string name="storygraph_import_confirm">Importa llibres</string>
-    <string name="storygraph_import_success_with_summary">%1$d llibres importats. Duplicats ignorats: %2$d. No compatibles: %3$d. Files sense títol: %4$d. Les metadades es continuen completant en segon pla.</string>
     <string name="storygraph_import_read_error">No s\'ha pogut llegir el CSV de StoryGraph.</string>
     <string name="storygraph_import_invalid">Aquest fitxer no sembla una exportació CSV de StoryGraph.</string>
     <string name="storygraph_import_empty">No hi ha llibres nous importables en aquest CSV.</string>
@@ -731,15 +723,9 @@
     <string name="storygraph_import_no_usable_rows">El CSV de StoryGraph no conté cap fila amb un títol utilitzable.</string>
     <string name="storygraph_import_unsupported_only">Aquest CSV no conté cap fila de StoryGraph compatible amb Omnilog.</string>
     <string name="storygraph_import_duplicates_only">Tots els llibres compatibles d\'aquest CSV de StoryGraph ja són a la biblioteca.</string>
-    <string name="mal_import_title">Importa MyAnimeList XML</string>
-    <string name="mal_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d\nEntrades invàlides ignorades: %5$d\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
-    <string name="mal_import_confirm">Importa animes</string>
-    <string name="mal_import_success_with_summary">%1$d animes importats. Duplicats ignorats: %2$d. No compatibles: %3$d. Entrades invàlides ignorades: %4$d. Les metadades es continuen completant en segon pla.</string>
     <string name="mal_import_read_error">No s\'ha pogut llegir l\'XML de MyAnimeList.</string>
     <string name="mal_import_invalid">Aquest fitxer no sembla una exportació XML de MyAnimeList.</string>
     <string name="mal_import_empty">No hi ha animes nous importables en aquest XML.</string>
-    <string name="mal_account_import_title">Importa el compte de MyAnimeList</string>
-    <string name="mal_account_import_message_with_summary">S\'importaran %1$d animes de %2$d entrades del compte.\n\nDuplicats ignorats: %3$d\nEntrades no compatibles: %4$d\nEntrades invàlides ignorades: %5$d\n\nDesprés, Omnilog completarà les metadades en segon pla. Les coincidències dubtoses quedaran a Importacions perquè les revisis.</string>
     <string name="mal_account_import_error">No s\'ha pogut llegir la llista del compte de MyAnimeList. Torna-ho a provar per continuar des de l\'última pàgina completada.</string>
     <string name="provider_import_encoding_error">No s\'ha pogut llegir la codificació del fitxer. Torna\'l a exportar com a UTF-8 o UTF-16.</string>
     <string name="provider_import_too_large">El fitxer supera el límit de 25 MB.</string>
@@ -747,8 +733,6 @@
     <string name="provider_import_malformed_csv_at_row">El CSV està malmès a la fila %1$d. Torna a exportar-lo sense editar-lo o revisa les comes i les cometes.</string>
     <string name="provider_import_malformed_xml">L\'XML està malmès o incomplet.</string>
     <string name="provider_import_failed">No s\'ha pogut completar la importació. No s\'ha afegit cap element.</string>
-    <string name="provider_import_in_progress">Important…</string>
-    <string name="provider_import_rejected_title">Files omeses</string>
     <string name="provider_import_rejected_duplicate">Duplicades o ja presents: %1$d</string>
     <string name="provider_import_rejected_unsupported">Tipus no compatible: %1$d</string>
     <string name="provider_import_rejected_missing_title">Sense títol: %1$d</string>

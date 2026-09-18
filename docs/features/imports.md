@@ -93,6 +93,13 @@ The Settings import hub remains the discoverable central entry point.
 
 Matching media sections may also expose contextual provider-import actions, but each contextual action should launch only the provider flow relevant to that section.
 
+Every provider import goes through one import sheet (`ui/imports/ImportSheet.kt`):
+
+1. a guide saying where the export lives and how to get it, with the file picker (and, for MAL with a connected account, the account import);
+2. a preview with the count of new titles, the skipped rows folded by reason, the anime title language where it applies, and one confirm button.
+
+Read and validation errors are shown in the sheet, next to the button that picks another file. MAL's `.xml.gz` export is read as-is.
+
 ## Implementation References
 
 - import parsers in `core/repository` / `core/imports`;

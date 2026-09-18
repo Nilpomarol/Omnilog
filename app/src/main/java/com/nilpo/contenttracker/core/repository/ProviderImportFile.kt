@@ -7,6 +7,7 @@ import java.nio.charset.Charset
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import java.util.zip.GZIPInputStream
 
 internal open class ProviderImportFileException(
     message: String,
@@ -50,6 +51,15 @@ internal class ProviderImportFileTooLargeException : ProviderImportFileException
 )
 
 internal fun InputStream.readProviderImportText(): String {
+    // MyAnimeList hands out its export as `.xml.gz`; reading it as-is saves the user from finding a
+    // way to unpack it on the phone. The size limit applies to the unpacked text.
+    val source = buffered().apply { mark(2) }
+    val isGzip = source.read() == 0x1F && source.read() == 0x8B
+    source.reset()
+    return (if (isGzip) GZIPInputStream(source) else source).readLimitedProviderImportText()
+}
+
+private fun InputStream.readLimitedProviderImportText(): String {
     val output = ByteArrayOutputStream()
     val buffer = ByteArray(16 * 1024)
     var total = 0

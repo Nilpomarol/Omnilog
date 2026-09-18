@@ -54,6 +54,17 @@ class ProviderImportCharacterizationTest {
     }
 
     @Test
+    fun `provider files read gzipped exports like MAL's xml gz and plain text alike`() {
+        val xml = "<?xml version=\"1.0\"?><myanimelist><anime/></myanimelist>"
+        val gzipped = java.io.ByteArrayOutputStream().also { bytes ->
+            java.util.zip.GZIPOutputStream(bytes).use { it.write(xml.toByteArray(StandardCharsets.UTF_8)) }
+        }.toByteArray()
+
+        assertEquals(xml, gzipped.inputStream().readProviderImportText())
+        assertEquals(xml, xml.toByteArray(StandardCharsets.UTF_8).inputStream().readProviderImportText())
+    }
+
+    @Test
     fun `provider files reject binary control characters`() {
         assertThrows(ProviderImportEncodingException::class.java) {
             decodeProviderImportText(byteArrayOf('A'.code.toByte(), 0, 1, 'B'.code.toByte()))

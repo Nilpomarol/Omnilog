@@ -88,6 +88,8 @@ import com.nilpo.contenttracker.core.refresh.MetadataRefreshRunState
 import com.nilpo.contenttracker.core.refresh.MetadataRefreshState
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
+import com.nilpo.contenttracker.ui.common.OmnilogPrimaryButton
+import com.nilpo.contenttracker.ui.common.OmnilogTonalButton
 import com.nilpo.contenttracker.ui.common.OmnilogLocale
 import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
@@ -97,6 +99,7 @@ import com.nilpo.contenttracker.ui.detail.DetailGutter
 import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.home.navIconResId
+import com.nilpo.contenttracker.ui.home.themedAccent
 import com.nilpo.contenttracker.ui.theme.DarkAccents
 import com.nilpo.contenttracker.ui.theme.DarkPalette
 import com.nilpo.contenttracker.ui.theme.LightAccents
@@ -414,7 +417,7 @@ private fun MyAnimeListChapter(
                     },
                 )
                 SettingsButtons {
-                    SettingsPrimaryButton(
+                    OmnilogPrimaryButton(
                         text = "Connecta",
                         onClick = onConnect,
                         enabled = state.isAvailable && !state.isAuthorizing,
@@ -430,12 +433,12 @@ private fun MyAnimeListChapter(
                 description = malSyncDescription(state),
             )
             SettingsButtons {
-                SettingsPrimaryButton(
+                OmnilogPrimaryButton(
                     text = if (state.isSyncEnabled) "Sincronitza ara" else "Activa la sincronització",
                     onClick = if (state.isSyncEnabled) onRetry else onSync,
                     enabled = !state.isSyncing,
                 )
-                SettingsTonalButton(
+                OmnilogTonalButton(
                     text = "Envia-ho tot",
                     onClick = onSync,
                     enabled = !state.isSyncing,
@@ -566,16 +569,16 @@ private fun MetadataChapter(
             }
             SettingsButtons {
                 if (activeRefresh == null) {
-                    SettingsPrimaryButton(text = "Actualitza-ho tot", onClick = onRefreshAll)
+                    OmnilogPrimaryButton(text = "Actualitza-ho tot", onClick = onRefreshAll)
                 } else {
-                    SettingsTonalButton(
+                    OmnilogTonalButton(
                         text = "Atura",
                         onClick = { onCancelRefresh(activeRefresh.runId) },
-                        tone = OmnilogTheme.accents.Dropped,
+                        accent = OmnilogTheme.accents.Dropped,
                     )
                 }
                 if (refreshState.history.isNotEmpty()) {
-                    SettingsTonalButton(text = "Historial", onClick = onShowHistory)
+                    OmnilogTonalButton(text = "Historial", onClick = onShowHistory)
                 }
             }
         }
@@ -597,7 +600,7 @@ private fun MetadataChapter(
                 onSelect = onAnimeTitlePreferenceChange,
             )
             SettingsButtons {
-                SettingsTonalButton(text = "Aplica a tota la biblioteca", onClick = onApplyAnimeTitles)
+                OmnilogTonalButton(text = "Aplica a tota la biblioteca", onClick = onApplyAnimeTitles)
             }
         }
         SettingsGroup(label = stringResource(MediaSection.Books.titleResId)) {
@@ -804,42 +807,6 @@ private fun SettingsButtons(content: @Composable RowScope.() -> Unit) {
     )
 }
 
-/** The one strong action of a group: filled in the dashboard accent. */
-@Composable
-private fun SettingsPrimaryButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = OmnilogTheme.accents.Dashboard,
-            contentColor = OmnilogTheme.colors.appBackground,
-            disabledContainerColor = OmnilogTheme.colors.appLine,
-            disabledContentColor = OmnilogTheme.colors.appMuted,
-        ),
-    ) {
-        Text(text = text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-    }
-}
-
-/** A quieter action beside or instead of the primary one: a soft tint of the same accent. */
-@Composable
-private fun SettingsTonalButton(text: String, onClick: () -> Unit, enabled: Boolean = true, tone: Color = OmnilogTheme.accents.Dashboard) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = tone.copy(alpha = 0.16f),
-            contentColor = tone,
-            disabledContainerColor = OmnilogTheme.colors.appLine.copy(alpha = 0.5f),
-            disabledContentColor = OmnilogTheme.colors.appMuted,
-        ),
-    ) {
-        Text(text = text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-    }
-}
-
 /** A text-only action outside the panels, for the rare step that should not draw the eye. */
 @Composable
 private fun SettingsSecondaryButton(
@@ -1003,7 +970,7 @@ private fun SectionVisibilityToggle(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accent = section.accent
+    val accent = section.themedAccent()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     // As on the navigation bar: the mark grows slightly under the finger, and the fill, ring and

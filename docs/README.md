@@ -36,6 +36,7 @@ If a current document and archived material disagree, the current document wins 
 ## Audits
 
 - [`audits/ai-assisted-repository-audit.md`](audits/ai-assisted-repository-audit.md) — AI-assisted development audit and recommendations.
+- [`audits/imports-audit.md`](audits/imports-audit.md) — import flow usability audit (September 2026).
 
 ## Archive
 
