@@ -1,20 +1,23 @@
 package com.nilpo.contenttracker.ui.detail
 
+import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,11 +31,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,20 +52,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.activity.compose.BackHandler
-import androidx.annotation.StringRes
-import coil3.compose.AsyncImage
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.model.ItemLanguage
 import com.nilpo.contenttracker.core.model.MediaCredit
@@ -72,28 +72,31 @@ import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.core.model.MediaItem
 import com.nilpo.contenttracker.core.model.MediaType
 import com.nilpo.contenttracker.core.model.plainSynopsis
+import com.nilpo.contenttracker.ui.add.FloatingPrimaryAction
+import com.nilpo.contenttracker.ui.common.MetadataCoverImage
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.OmnilogAnchoredDropdown
 import com.nilpo.contenttracker.ui.common.languageLabel
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 
 /**
- * The item record, editable.
+ * The item record, editable, laid out like the detail page it edits.
  *
- * This is a working form and nothing else: no accent rules, no hero, no second rendering of the
- * detail page. What it borrows from the rest of the app is the form idiom — a panel per field with
- * its label above its value — and it drops the stock outlined fields that made the old version read
- * as a Material dialog pasted into Omnilog.
+ * The cover sits beside a serif title, and every field is a label over its value over a hairline —
+ * the detail page's ruled sheet, not a stack of boxed inputs. The rule turns the accent while its
+ * field has focus, and a label turns the accent once its value differs from the record, so a long
+ * form still shows at a glance what is about to be saved.
  *
  * Two things are structural rather than cosmetic. Lists that the detail page draws as lists are
- * edited as lists: genres are chips and every credited person is a row, not a comma-separated line
+ * edited as lists: genres are pills and every credited person is a row, not a comma-separated line
  * in a text box. And each credit row keeps the [MediaCredit] it came from, so renaming a performer
- * no longer discards their character and portrait — the old form rebuilt credits from text and only
- * recovered the extras when the typed name still matched exactly.
+ * does not discard their character and portrait.
  *
  * Saving marks every changed field as a local override, which protects it from provider refreshes.
- * The form therefore only enables Desa once something actually differs, so opening the page and
- * closing it cannot silently freeze the record.
+ * The form therefore only saves once something actually differs, and the button says why when it
+ * cannot. A genre or name still sitting in its entry field counts as typed: it is saved with the rest
+ * rather than silently dropped for want of a tap on +.
  */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,6 +152,7 @@ fun ItemDetailsEditor(
     var language by rememberSaveable(item.id) { mutableStateOf(initialLanguage) }
     var totalText by rememberSaveable(item.id) { mutableStateOf(item.progressTotal?.toString().orEmpty()) }
     var genresText by rememberSaveable(item.id) { mutableStateOf(initialGenres) }
+    var genreDraft by rememberSaveable(item.id) { mutableStateOf("") }
     var coverUrl by rememberSaveable(item.id) { mutableStateOf(item.coverUrl.orEmpty()) }
     var sourceUrl by rememberSaveable(item.id) { mutableStateOf(item.sourceUrl.orEmpty()) }
     var steamAppId by rememberSaveable(item.id) { mutableStateOf(item.steamAppId.orEmpty()) }
@@ -156,22 +160,56 @@ fun ItemDetailsEditor(
     val creditTexts = MediaCreditRole.entries.associateWith { role ->
         rememberSaveable(item.id, role.name) { mutableStateOf(initialDrafts.getValue(role)) }
     }
+    val newNames = MediaCreditRole.entries.associateWith { role ->
+        rememberSaveable(item.id, "new-${role.name}") { mutableStateOf("") }
+    }
+    // Only the roles that hold someone are drawn, plus the ones added here; eight empty lists would
+    // bury the one that matters.
+    var shownRoles by rememberSaveable(item.id) {
+        mutableStateOf(
+            MediaCreditRole.entries
+                .filter { it == primaryRole || initialDrafts.getValue(it).isNotEmpty() }
+                .joinToString(RoleSeparator) { it.name },
+        )
+    }
+    val visibleRoles = shownRoles.split(RoleSeparator).mapNotNull { name ->
+        MediaCreditRole.entries.firstOrNull { it.name == name }
+    }
 
-    var showCoverDialog by rememberSaveable(item.id) { mutableStateOf(false) }
-    var showOtherCredits by rememberSaveable(item.id) { mutableStateOf(false) }
+    var editingCover by rememberSaveable(item.id) { mutableStateOf(false) }
     var confirmDiscard by rememberSaveable(item.id) { mutableStateOf(false) }
 
-    val hasChanges = title != item.title ||
-        originalTitle != item.originalTitle.orEmpty() ||
-        releaseYearText != item.releaseYear?.toString().orEmpty() ||
-        language != initialLanguage ||
-        totalText != item.progressTotal?.toString().orEmpty() ||
-        genresText != initialGenres ||
-        coverUrl != item.coverUrl.orEmpty() ||
-        sourceUrl != item.sourceUrl.orEmpty() ||
-        steamAppId != item.steamAppId.orEmpty() ||
-        synopsis != initialSynopsis ||
-        MediaCreditRole.entries.any { creditTexts.getValue(it).value != initialDrafts.getValue(it) }
+    val genres = (genresText.toMetadataList() + genreDraft.trim())
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+    val roleDrafts = MediaCreditRole.entries.associateWith { role ->
+        val pending = newNames.getValue(role).value.trim()
+        val drafts = creditTexts.getValue(role).value.decodeCreditDrafts()
+        if (pending.isBlank()) drafts else drafts + CreditDraft(NoSourceCredit, pending)
+    }
+    val rolesChanged = MediaCreditRole.entries.filter {
+        roleDrafts.getValue(it).encodeCreditDrafts() != initialDrafts.getValue(it)
+    }.toSet()
+
+    val titleChanged = title != item.title
+    val originalTitleChanged = originalTitle != item.originalTitle.orEmpty()
+    val yearChanged = releaseYearText != item.releaseYear?.toString().orEmpty()
+    val languageChanged = language != initialLanguage
+    val totalChanged = totalText != item.progressTotal?.toString().orEmpty()
+    val genresChanged = genres.joinToString(GenreSeparator) != initialGenres
+    val coverChanged = coverUrl != item.coverUrl.orEmpty()
+    val sourceChanged = sourceUrl != item.sourceUrl.orEmpty()
+    val steamChanged = steamAppId != item.steamAppId.orEmpty()
+    val synopsisChanged = synopsis != initialSynopsis
+    val hasChanges = titleChanged || originalTitleChanged || yearChanged || languageChanged ||
+        totalChanged || genresChanged || coverChanged || sourceChanged || steamChanged ||
+        synopsisChanged || rolesChanged.isNotEmpty()
+
+    val saveBlockedReason = when {
+        title.isBlank() -> stringResource(R.string.editor_save_needs_title)
+        !hasChanges -> stringResource(R.string.editor_save_no_changes)
+        else -> null
+    }
 
     val requestDismiss = { if (hasChanges) confirmDiscard = true else onDismiss() }
 
@@ -195,18 +233,6 @@ fun ItemDetailsEditor(
         )
     }
 
-    if (showCoverDialog) {
-        CoverUrlDialog(
-            coverUrl = coverUrl,
-            accent = accent,
-            onConfirm = {
-                coverUrl = it
-                showCoverDialog = false
-            },
-            onDismiss = { showCoverDialog = false },
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -222,279 +248,318 @@ fun ItemDetailsEditor(
                 title = {
                     Text(
                         text = stringResource(R.string.edit_metadata_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = OmnilogTheme.colors.appInk,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                actions = {
-                    Button(
-                        enabled = title.isNotBlank() && hasChanges,
-                        onClick = {
-                            val editedCredits = MediaCreditRole.entries.flatMap { role ->
-                                creditTexts.getValue(role).value
-                                    .decodeCreditDrafts()
-                                    .toCredits(role, creditsByRole.getValue(role))
-                            }
-                            onSaveMetadata(
-                                title.trim(),
-                                originalTitle.trim().takeIf { it.isNotBlank() },
-                                releaseYearText.toIntOrNull(),
-                                ItemLanguage.normalize(language).takeUnless { isGame },
-                                totalText.toIntOrNull().takeUnless { isGame },
-                                genresText.toMetadataList(),
-                                editedCredits.filter { it.roleType == primaryRole }.map { it.personName },
-                                editedCredits,
-                                coverUrl.trim().takeIf { it.isNotBlank() },
-                                synopsis.trim().takeIf { it.isNotBlank() },
-                                sourceUrl.trim().takeIf { it.isNotBlank() },
-                                steamAppId.trim().takeIf { it.isNotBlank() },
-                            )
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = accent,
-                            contentColor = Color.Black,
-                            disabledContainerColor = OmnilogTheme.colors.appPanel,
-                            disabledContentColor = OmnilogTheme.colors.appMuted,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = SerifFontFamily,
+                            fontWeight = FontWeight.Normal,
                         ),
-                    ) {
-                        Text(text = stringResource(R.string.save), fontWeight = FontWeight.Bold)
-                    }
+                        color = OmnilogTheme.colors.appInk,
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = OmnilogTheme.colors.appBackground),
             )
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DetailGutter, vertical = 12.dp),
+            ) {
+                FloatingPrimaryAction(
+                    text = saveBlockedReason ?: stringResource(R.string.editor_save),
+                    enabled = saveBlockedReason == null,
+                    onClick = {
+                        val editedCredits = MediaCreditRole.entries.flatMap { role ->
+                            roleDrafts.getValue(role).toCredits(role, creditsByRole.getValue(role))
+                        }
+                        onSaveMetadata(
+                            title.trim(),
+                            originalTitle.trim().takeIf { it.isNotBlank() },
+                            releaseYearText.toIntOrNull(),
+                            ItemLanguage.normalize(language).takeUnless { isGame },
+                            totalText.toIntOrNull().takeUnless { isGame },
+                            genres,
+                            editedCredits.filter { it.roleType == primaryRole }.map { it.personName },
+                            editedCredits,
+                            coverUrl.trim().takeIf { it.isNotBlank() },
+                            synopsis.trim().takeIf { it.isNotBlank() },
+                            sourceUrl.trim().takeIf { it.isNotBlank() },
+                            steamAppId.trim().takeIf { it.isNotBlank() },
+                        )
+                    },
+                )
+            }
         },
         containerColor = OmnilogTheme.colors.appBackground,
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = DetailGutter)
+                .padding(top = 8.dp, bottom = 24.dp),
         ) {
-            EditorSectionTitle(stringResource(R.string.editor_section_identity))
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                CoverThumbnail(
+                EditorCover(
                     coverUrl = coverUrl,
                     accent = accent,
-                    onClick = { showCoverDialog = true },
+                    onClick = { editingCover = !editingCover },
                 )
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    EditorField(
+                    LedgerField(
                         label = stringResource(R.string.field_title),
                         value = title,
                         onValueChange = { title = it },
                         accent = accent,
+                        changed = titleChanged,
+                        singleLine = false,
+                        textStyle = MaterialTheme.typography.headlineSmall.copy(
+                            fontFamily = SerifFontFamily,
+                            fontWeight = FontWeight.Normal,
+                        ),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     )
-                    EditorField(
+                    LedgerField(
                         label = stringResource(R.string.field_original_title),
                         value = originalTitle,
                         onValueChange = { originalTitle = it },
                         accent = accent,
+                        changed = originalTitleChanged,
+                        singleLine = false,
                     )
                 }
             }
 
-            EditorSectionTitle(stringResource(R.string.editor_section_facts))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                EditorField(
-                    label = stringResource(R.string.field_release_year),
-                    value = releaseYearText,
-                    onValueChange = { value -> releaseYearText = value.filter { it.isDigit() }.take(4) },
-                    accent = accent,
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    emphasised = true,
-                )
-                if (!isGame) {
-                    EditorField(
-                        label = stringResource(item.type.totalUnitLabelRes()),
-                        value = totalText,
-                        onValueChange = { value -> totalText = value.filter { it.isDigit() } },
+            AnimatedVisibility(visible = editingCover) {
+                Column(modifier = Modifier.padding(top = 18.dp)) {
+                    LedgerField(
+                        label = stringResource(R.string.field_cover_url),
+                        value = coverUrl,
+                        onValueChange = { coverUrl = it },
                         accent = accent,
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        emphasised = true,
+                        changed = coverChanged,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { editingCover = false }),
                     )
-                }
-            }
-            if (!isGame) {
-                LanguageField(
-                    value = language,
-                    onValueChange = { language = it },
-                    accent = accent,
-                )
-            }
-            ChipListField(
-                label = stringResource(R.string.field_genres),
-                values = genresText.toMetadataList(),
-                onValuesChange = { genresText = it.joinToString(GenreSeparator) },
-                addLabel = stringResource(R.string.editor_add_genre),
-                accent = accent,
-            )
-            EditorField(
-                label = stringResource(R.string.field_synopsis),
-                value = synopsis,
-                onValueChange = { synopsis = it },
-                accent = accent,
-                singleLine = false,
-                minLines = 4,
-            )
-
-            EditorSectionTitle(stringResource(R.string.editor_section_people))
-            CreditListField(
-                label = stringResource(primaryRole.editorLabelRes()),
-                encodedDrafts = creditTexts.getValue(primaryRole).value,
-                sourceCredits = creditsByRole.getValue(primaryRole),
-                onDraftsChange = { creditTexts.getValue(primaryRole).value = it },
-                accent = accent,
-            )
-            TextButton(onClick = { showOtherCredits = !showOtherCredits }) {
-                Text(
-                    text = stringResource(R.string.editor_other_credits),
-                    color = accent,
-                    fontWeight = FontWeight.Bold,
-                )
-                Icon(
-                    imageVector = if (showOtherCredits) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = accent,
-                )
-            }
-            AnimatedVisibility(visible = showOtherCredits) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MediaCreditRole.entries.filter { it != primaryRole }.forEach { role ->
-                        CreditListField(
-                            label = stringResource(role.editorLabelRes()),
-                            encodedDrafts = creditTexts.getValue(role).value,
-                            sourceCredits = creditsByRole.getValue(role),
-                            onDraftsChange = { creditTexts.getValue(role).value = it },
-                            accent = accent,
-                        )
+                    if (coverUrl.isNotBlank()) {
+                        TextButton(onClick = { coverUrl = "" }, contentPadding = PaddingValues(end = 12.dp)) {
+                            Text(
+                                text = stringResource(R.string.editor_cover_remove),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     }
                 }
             }
 
-            EditorSectionTitle(stringResource(R.string.editor_section_links))
-            EditorField(
-                label = stringResource(R.string.field_source_url),
-                value = sourceUrl,
-                onValueChange = { sourceUrl = it },
-                accent = accent,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            Text(
+                text = stringResource(R.string.editor_override_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
+                modifier = Modifier.padding(top = 20.dp),
             )
-            if (isGame) {
-                EditorField(
-                    label = stringResource(R.string.field_steam_app_id),
-                    value = steamAppId,
-                    onValueChange = { value -> steamAppId = value.filter(Char::isDigit) },
+
+            EditorSection(stringResource(R.string.editor_section_facts)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    LedgerField(
+                        label = stringResource(R.string.field_release_year),
+                        value = releaseYearText,
+                        onValueChange = { value -> releaseYearText = value.filter { it.isDigit() }.take(4) },
+                        accent = accent,
+                        changed = yearChanged,
+                        modifier = Modifier.weight(1f),
+                        textStyle = NumberStyle(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    if (isGame) {
+                        Spacer(modifier = Modifier.weight(2.4f))
+                    } else {
+                        LedgerField(
+                            label = stringResource(item.type.totalUnitLabelRes()),
+                            value = totalText,
+                            onValueChange = { value -> totalText = value.filter { it.isDigit() }.take(6) },
+                            accent = accent,
+                            changed = totalChanged,
+                            modifier = Modifier.weight(1f),
+                            textStyle = NumberStyle(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+                        LanguageField(
+                            value = language,
+                            onValueChange = { language = it },
+                            accent = accent,
+                            changed = languageChanged,
+                            modifier = Modifier.weight(1.4f),
+                        )
+                    }
+                }
+                GenreField(
+                    committed = genresText.toMetadataList(),
+                    onCommittedChange = { genresText = it.joinToString(GenreSeparator) },
+                    draft = genreDraft,
+                    onDraftChange = { genreDraft = it },
                     accent = accent,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    helper = stringResource(R.string.field_steam_app_id_help),
+                    changed = genresChanged,
+                )
+                LedgerField(
+                    label = stringResource(R.string.field_synopsis),
+                    value = synopsis,
+                    onValueChange = { synopsis = it },
+                    accent = accent,
+                    changed = synopsisChanged,
+                    singleLine = false,
+                    minLines = 3,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            EditorSection(stringResource(R.string.editor_section_people)) {
+                visibleRoles.forEach { role ->
+                    CreditListField(
+                        label = stringResource(role.editorLabelRes()),
+                        encodedDrafts = creditTexts.getValue(role).value,
+                        sourceCredits = creditsByRole.getValue(role),
+                        onDraftsChange = { creditTexts.getValue(role).value = it },
+                        newName = newNames.getValue(role).value,
+                        onNewNameChange = { newNames.getValue(role).value = it },
+                        accent = accent,
+                        changed = role in rolesChanged,
+                    )
+                }
+                val hiddenRoles = MediaCreditRole.entries - visibleRoles.toSet()
+                if (hiddenRoles.isNotEmpty()) {
+                    AddRoleButton(
+                        roles = hiddenRoles,
+                        accent = accent,
+                        onRoleAdded = { role -> shownRoles = shownRoles + RoleSeparator + role.name },
+                    )
+                }
+            }
+
+            EditorSection(stringResource(R.string.editor_section_links)) {
+                LedgerField(
+                    label = stringResource(R.string.field_source_url),
+                    value = sourceUrl,
+                    onValueChange = { sourceUrl = it },
+                    accent = accent,
+                    changed = sourceChanged,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                )
+                if (isGame) {
+                    LedgerField(
+                        label = stringResource(R.string.field_steam_app_id),
+                        value = steamAppId,
+                        onValueChange = { value -> steamAppId = value.filter(Char::isDigit) },
+                        accent = accent,
+                        changed = steamChanged,
+                        helper = stringResource(R.string.field_steam_app_id_help),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
+            }
         }
     }
 }
 
-/**
- * A section break, not a section card.
- *
- * The fields below it are already panels, so nesting them inside a second panel only added an
- * outline and 16dp of padding on both sides of every value.
- */
+/** A serif heading and its fields, spaced like the detail page's sections. */
 @Composable
-private fun EditorSectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.ExtraBold,
-        color = OmnilogTheme.colors.appInk,
-        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
-    )
+private fun EditorSection(title: String, content: @Composable () -> Unit) {
+    DetailSectionTitle(title, modifier = Modifier.padding(top = 32.dp, bottom = 14.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        content()
+    }
 }
 
 @Composable
-private fun EditorPanel(
+private fun NumberStyle() = MaterialTheme.typography.titleLarge.copy(fontFamily = SerifFontFamily)
+
+/**
+ * The label and the rule, around whatever value sits between them.
+ *
+ * The rule turns the accent while [focused]; the label turns the accent once [changed], which is how
+ * the page marks what saving will override.
+ */
+@Composable
+private fun LedgerFrame(
+    label: String?,
+    accent: Color,
+    changed: Boolean,
+    focused: Boolean,
     modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit,
+    content: @Composable () -> Unit,
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = OmnilogTheme.colors.appPanel,
-        border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-            content = content,
+    Column(modifier = modifier.fillMaxWidth()) {
+        label?.let {
+            Text(
+                text = it.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing * 1.6f,
+                color = if (changed) accent else OmnilogTheme.colors.appMuted,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+        Box(modifier = Modifier.heightIn(min = 28.dp), contentAlignment = Alignment.CenterStart) {
+            content()
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (focused) 2.dp else 1.dp)
+                .background(if (focused) accent else OmnilogTheme.colors.appLine),
         )
     }
 }
 
 /**
- * One field: its name above its value, both inside the panel.
- *
- * [emphasised] is for the numbers — a year or a page count is the whole content of its panel, so it
- * carries the accent and a size up rather than sitting at body weight like a title.
+ * One text field in the ledger. The whole frame is the text field's decoration, so a tap anywhere on
+ * the label or the rule lands in the field rather than on dead space around a thin line of text.
  */
 @Composable
-private fun EditorField(
-    label: String,
+private fun LedgerField(
+    label: String?,
     value: String,
     onValueChange: (String) -> Unit,
     accent: Color,
+    changed: Boolean,
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
     minLines: Int = 1,
-    emphasised: Boolean = false,
+    placeholder: String = stringResource(R.string.editor_value_empty),
     helper: String? = null,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
-    EditorPanel(modifier) {
-        DetailFieldLabel(label)
-        val textStyle = if (emphasised) {
-            MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.ExtraBold,
-                color = accent,
-            )
-        } else {
-            MaterialTheme.typography.bodyLarge.copy(color = OmnilogTheme.colors.appInk)
-        }
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val style = textStyle.copy(color = OmnilogTheme.colors.appInk)
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = singleLine,
             minLines = minLines,
-            textStyle = textStyle,
+            textStyle = style,
             keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
+            interactionSource = interaction,
             cursorBrush = SolidColor(accent),
             decorationBox = { field ->
-                if (value.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.editor_value_empty),
-                        style = textStyle.copy(color = OmnilogTheme.colors.appMuted),
-                    )
+                LedgerFrame(label = label, accent = accent, changed = changed, focused = focused) {
+                    if (value.isEmpty()) {
+                        Text(text = placeholder, style = style.copy(color = OmnilogTheme.colors.appMuted))
+                    }
+                    field()
                 }
-                field()
             },
         )
         helper?.let {
@@ -512,6 +577,8 @@ private fun LanguageField(
     value: String,
     onValueChange: (String) -> Unit,
     accent: Color,
+    changed: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val options = remember(value) {
         if (value in ItemLanguage.Defaults) ItemLanguage.Defaults else ItemLanguage.Defaults + value
@@ -521,24 +588,27 @@ private fun LanguageField(
         options = options,
         optionLabel = { languageLabel(it) },
         onOptionSelected = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-    ) { option, _, _, anchorModifier ->
-        EditorPanel(anchorModifier) {
-            DetailFieldLabel(stringResource(R.string.field_language))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+        modifier = modifier,
+    ) { option, _, expanded, anchorModifier ->
+        LedgerFrame(
+            label = stringResource(R.string.field_language),
+            accent = accent,
+            changed = changed,
+            focused = expanded,
+            modifier = anchorModifier,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = languageLabel(option),
                     style = MaterialTheme.typography.bodyLarge,
                     color = OmnilogTheme.colors.appInk,
+                    maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowDown,
                     contentDescription = null,
-                    tint = accent,
+                    tint = OmnilogTheme.colors.appMuted,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -547,83 +617,78 @@ private fun LanguageField(
 }
 
 /**
- * A list of short values, edited as the chips the detail page draws them as.
- *
- * The entry row stays at the bottom rather than appearing on demand: adding two genres in a row is
- * the common case, and a plus that swaps itself for a field costs a tap each time.
+ * Genres as the paper pills the detail page shows, each one tapped away, with the entry field kept
+ * underneath: adding two genres in a row is the common case, and Done keeps the keyboard up for it.
  */
 @Composable
-private fun ChipListField(
-    label: String,
-    values: List<String>,
-    onValuesChange: (List<String>) -> Unit,
-    addLabel: String,
+private fun GenreField(
+    committed: List<String>,
+    onCommittedChange: (List<String>) -> Unit,
+    draft: String,
+    onDraftChange: (String) -> Unit,
     accent: Color,
+    changed: Boolean,
 ) {
-    var draft by rememberSaveable(label) { mutableStateOf("") }
     val commitDraft = {
         val entry = draft.trim()
-        if (entry.isNotBlank() && values.none { it.equals(entry, ignoreCase = true) }) {
-            onValuesChange(values + entry)
+        if (entry.isNotBlank() && committed.none { it.equals(entry, ignoreCase = true) }) {
+            onCommittedChange(committed + entry)
         }
-        draft = ""
+        onDraftChange("")
     }
-
-    EditorPanel {
-        DetailFieldLabel(label)
-        if (values.isNotEmpty()) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        EntryField(
+            label = stringResource(R.string.field_genres),
+            value = draft,
+            onValueChange = onDraftChange,
+            placeholder = stringResource(R.string.editor_add_genre),
+            accent = accent,
+            changed = changed,
+            onCommit = commitDraft,
+        )
+        if (committed.isNotEmpty()) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                values.forEach { entry ->
+                committed.forEach { entry ->
+                    val removeLabel = stringResource(R.string.editor_remove_entry, entry)
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.Transparent,
-                        border = BorderStroke(1.dp, accent.copy(alpha = 0.75f)),
+                        onClick = { onCommittedChange(committed - entry) },
+                        shape = RoundedCornerShape(50),
+                        color = OmnilogTheme.colors.appPanel,
+                        modifier = Modifier.semantics { contentDescription = removeLabel },
                     ) {
                         Row(
-                            modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
+                            modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Text(
                                 text = entry,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelLarge,
                                 color = OmnilogTheme.colors.appInk,
                             )
-                            IconButton(
-                                onClick = { onValuesChange(values - entry) },
-                                modifier = Modifier.size(26.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = stringResource(R.string.editor_remove_entry, entry),
-                                    tint = OmnilogTheme.colors.appMuted,
-                                    modifier = Modifier.size(15.dp),
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = null,
+                                tint = OmnilogTheme.colors.appMuted,
+                                modifier = Modifier.size(14.dp),
+                            )
                         }
                     }
                 }
             }
         }
-        InlineEntryRow(
-            value = draft,
-            onValueChange = { draft = it },
-            placeholder = addLabel,
-            accent = accent,
-            onCommit = commitDraft,
-        )
     }
 }
 
 /**
- * One role's people, a row each.
+ * One role's people, a row each under the role's label.
  *
  * Each row carries the index of the credit it came from, so an edited name is applied to that same
- * [MediaCredit] on save and keeps its character, portrait and provider origin. A row typed into the
- * empty entry field has no source and becomes a plain new credit.
+ * [MediaCredit] on save and keeps its character, portrait and provider origin. A name typed into the
+ * entry row has no source and becomes a plain new credit.
  */
 @Composable
 private fun CreditListField(
@@ -631,240 +696,176 @@ private fun CreditListField(
     encodedDrafts: String,
     sourceCredits: List<MediaCredit>,
     onDraftsChange: (String) -> Unit,
+    newName: String,
+    onNewNameChange: (String) -> Unit,
     accent: Color,
+    changed: Boolean,
 ) {
     val drafts = encodedDrafts.decodeCreditDrafts()
-    var newName by rememberSaveable(label) { mutableStateOf("") }
-
-    EditorPanel {
-        DetailFieldLabel(label)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         drafts.forEachIndexed { index, draft ->
             val character = sourceCredits.getOrNull(draft.sourceIndex)?.characterName
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    BasicTextField(
-                        value = draft.name,
-                        onValueChange = { name ->
-                            onDraftsChange(
-                                drafts.toMutableList()
-                                    .also { it[index] = draft.copy(name = name) }
-                                    .encodeCreditDrafts(),
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = OmnilogTheme.colors.appInk),
-                        cursorBrush = SolidColor(accent),
-                    )
-                    character?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = stringResource(R.string.editor_credit_character, it),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = OmnilogTheme.colors.appMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                IconButton(
-                    onClick = {
+            Row(verticalAlignment = Alignment.Bottom) {
+                LedgerField(
+                    // The role is named once, over its first row.
+                    label = label.takeIf { index == 0 },
+                    value = draft.name,
+                    onValueChange = { name ->
                         onDraftsChange(
-                            drafts.toMutableList().also { it.removeAt(index) }.encodeCreditDrafts(),
+                            drafts.toMutableList()
+                                .also { it[index] = draft.copy(name = name) }
+                                .encodeCreditDrafts(),
                         )
                     },
-                    modifier = Modifier.size(30.dp),
+                    accent = accent,
+                    changed = changed,
+                    helper = character?.takeIf { it.isNotBlank() }
+                        ?.let { stringResource(R.string.editor_credit_character, it) },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(
+                    onClick = {
+                        onDraftsChange(drafts.toMutableList().also { it.removeAt(index) }.encodeCreditDrafts())
+                    },
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Close,
                         contentDescription = stringResource(R.string.editor_remove_entry, draft.name),
                         tint = OmnilogTheme.colors.appMuted,
-                        modifier = Modifier.size(17.dp),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
         }
-        InlineEntryRow(
+        EntryField(
+            label = label.takeIf { drafts.isEmpty() },
             value = newName,
-            onValueChange = { newName = it },
+            onValueChange = onNewNameChange,
             placeholder = stringResource(R.string.editor_add_person),
             accent = accent,
+            changed = changed,
+            capitalization = KeyboardCapitalization.Words,
             onCommit = {
                 val entry = newName.trim()
                 if (entry.isNotBlank()) {
                     onDraftsChange((drafts + CreditDraft(NoSourceCredit, entry)).encodeCreditDrafts())
                 }
-                newName = ""
+                onNewNameChange("")
             },
         )
     }
 }
 
-/** The "type a value, press add" row shared by the chip and credit lists. */
+/** A ledger field for adding to a list: Done or the trailing + commits what was typed. */
 @Composable
-private fun InlineEntryRow(
+private fun EntryField(
+    label: String?,
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
     accent: Color,
+    changed: Boolean,
     onCommit: () -> Unit,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        BasicTextField(
+    Row(verticalAlignment = Alignment.Bottom) {
+        LedgerField(
+            label = label,
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = OmnilogTheme.colors.appInk),
-            cursorBrush = SolidColor(accent),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            accent = accent,
+            changed = changed,
+            placeholder = placeholder,
+            keyboardOptions = KeyboardOptions(capitalization = capitalization, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onCommit() }),
-            decorationBox = { field ->
-                if (value.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                }
-                field()
-            },
+            modifier = Modifier.weight(1f),
         )
-        IconButton(
-            onClick = onCommit,
-            enabled = value.isNotBlank(),
-            modifier = Modifier.size(30.dp),
-        ) {
+        IconButton(onClick = onCommit, enabled = value.isNotBlank()) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = placeholder,
                 tint = if (value.isNotBlank()) accent else OmnilogTheme.colors.appMuted,
-                modifier = Modifier.size(19.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }
 }
 
 @Composable
-private fun CoverThumbnail(coverUrl: String, accent: Color, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .width(84.dp)
-            .height(122.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(accent.copy(alpha = 0.15f))
-            .border(1.dp, OmnilogTheme.colors.appLine, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (coverUrl.isNotBlank()) {
-            AsyncImage(
-                model = coverUrl,
-                contentDescription = stringResource(R.string.field_cover_url),
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
+private fun AddRoleButton(
+    roles: List<MediaCreditRole>,
+    accent: Color,
+    onRoleAdded: (MediaCreditRole) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        // Flush with the fields above it rather than indented by the button's own padding.
+        TextButton(onClick = { expanded = true }, contentPadding = PaddingValues(end = 12.dp)) {
             Icon(
-                imageVector = Icons.Filled.Edit,
+                imageVector = Icons.Filled.Add,
                 contentDescription = null,
                 tint = accent,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier
+                    .padding(end = 6.dp)
+                    .size(18.dp),
+            )
+            Text(
+                text = stringResource(R.string.editor_add_role),
+                color = accent,
+                fontWeight = FontWeight.Bold,
             )
         }
-        Text(
-            text = stringResource(R.string.editor_cover_change).uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.9.sp,
-            color = Color.White,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.65f))
-                .padding(vertical = 4.dp),
-        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = OmnilogTheme.colors.appPanel,
+        ) {
+            roles.forEach { role ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(role.editorLabelRes()), color = OmnilogTheme.colors.appInk) },
+                    onClick = {
+                        expanded = false
+                        onRoleAdded(role)
+                    },
+                )
+            }
+        }
     }
 }
 
 /**
- * The cover URL, with its own preview.
- *
- * Removing the cover is its own button. It used to be the dialog's dismiss action, so "Cancel·la"
- * wiped the artwork instead of leaving it alone.
+ * The cover at the detail header's proportions, with what tapping it does written underneath. The
+ * URL field it opens sits in the page, so the cover updates beside the title as the address is typed.
  */
 @Composable
-private fun CoverUrlDialog(
-    coverUrl: String,
-    accent: Color,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var draft by rememberSaveable(coverUrl) { mutableStateOf(coverUrl) }
-    OmnilogAlertDialog(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.field_cover_url),
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(100.dp)
-                        .height(145.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(accent.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (draft.isNotBlank()) {
-                        AsyncImage(
-                            model = draft,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    }
-                }
-                EditorField(
-                    label = stringResource(R.string.field_cover_url),
-                    value = draft,
-                    onValueChange = { draft = it },
-                    accent = accent,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                )
-                if (draft.isNotBlank()) {
-                    TextButton(onClick = { draft = "" }) {
-                        Text(
-                            text = stringResource(R.string.editor_cover_remove),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(draft) },
-                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black),
-            ) {
-                Text(text = stringResource(R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel), color = OmnilogTheme.colors.appMuted)
-            }
-        },
-    )
+private fun EditorCover(coverUrl: String, accent: Color, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(CoverWidth)
+            .clickable(role = Role.Button, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        MetadataCoverImage(
+            coverUrl = coverUrl.takeIf { it.isNotBlank() },
+            modifier = Modifier
+                .width(CoverWidth)
+                .height(CoverWidth * 1.5f),
+            shape = RoundedCornerShape(6.dp),
+        )
+        Text(
+            text = stringResource(if (coverUrl.isBlank()) R.string.editor_cover_add else R.string.editor_cover_change),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = accent,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
+
+private val CoverWidth = 96.dp
+private const val RoleSeparator = ","
 
 /** One person in one role, and the credit it was read from — [NoSourceCredit] when it is new. */
 private data class CreditDraft(val sourceIndex: Int, val name: String)
