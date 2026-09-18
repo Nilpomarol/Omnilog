@@ -3,7 +3,13 @@ package com.nilpo.contenttracker.ui.settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -997,10 +1004,25 @@ private fun SectionVisibilityToggle(
     modifier: Modifier = Modifier,
 ) {
     val accent = section.accent
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    // As on the navigation bar: the mark grows slightly under the finger, and the fill, ring and
+    // tint cross-fade rather than snap when the section is shown or hidden.
+    val discScale by animateFloatAsState(if (pressed) 1.1f else 1f, tween(220), label = "sectionDiscScale")
+    val fill by animateColorAsState(if (isVisible) accent.copy(alpha = 0.16f) else Color.Transparent, tween(220), label = "sectionFill")
+    val ring by animateColorAsState(if (isVisible) Color.Transparent else OmnilogTheme.colors.appLine, tween(220), label = "sectionRing")
+    val tint by animateColorAsState(if (isVisible) accent else OmnilogTheme.colors.appMuted, tween(220), label = "sectionTint")
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .toggleable(value = isVisible, role = Role.Checkbox, onValueChange = { onToggle() })
+            // No ripple: it would wash a rectangle over the disc and label alike. The disc answers
+            // the tap instead.
+            .toggleable(
+                value = isVisible,
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Checkbox,
+                onValueChange = { onToggle() },
+            )
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1008,19 +1030,15 @@ private fun SectionVisibilityToggle(
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .then(
-                    if (isVisible) {
-                        Modifier.background(accent.copy(alpha = 0.16f), CircleShape)
-                    } else {
-                        Modifier.border(1.dp, OmnilogTheme.colors.appLine, CircleShape)
-                    },
-                ),
+                .scale(discScale)
+                .background(fill, CircleShape)
+                .border(1.dp, ring, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(section.navIconResId),
                 contentDescription = null,
-                tint = if (isVisible) accent else OmnilogTheme.colors.appMuted,
+                tint = tint,
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -1043,9 +1061,19 @@ private fun ThemeSwatch(
     modifier: Modifier = Modifier,
 ) {
     val accent = OmnilogTheme.accents.Dashboard
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    // The preview gives a little under the finger, like a card pressed into the page, and the outline
+    // eases onto the new choice.
+    val previewScale by animateFloatAsState(if (pressed) 0.95f else 1f, tween(220), label = "swatchScale")
+    val outline by animateColorAsState(if (isSelected) accent else OmnilogTheme.colors.appLine, tween(220), label = "swatchOutline")
+    val outlineWidth by animateDpAsState(if (isSelected) 2.dp else 1.dp, tween(220), label = "swatchOutlineWidth")
     Column(
+        // No ripple, as with the section toggles: the preview answers the tap instead.
         modifier = modifier.selectable(
             selected = isSelected,
+            interactionSource = interactionSource,
+            indication = null,
             role = Role.RadioButton,
             onClick = onSelect,
         ),
@@ -1055,13 +1083,11 @@ private fun ThemeSwatch(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp),
+                .height(64.dp)
+                .scale(previewScale),
             shape = RoundedCornerShape(8.dp),
             color = Color.Transparent,
-            border = BorderStroke(
-                if (isSelected) 2.dp else 1.dp,
-                if (isSelected) accent else OmnilogTheme.colors.appLine,
-            ),
+            border = BorderStroke(outlineWidth, outline),
         ) {
             when (option) {
                 ThemePreference.Light -> ThemePreviewPane(isDark = false)
