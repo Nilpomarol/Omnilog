@@ -16,7 +16,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -32,9 +31,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,7 +49,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SwipeToDismissBox
@@ -99,8 +95,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavEntry
@@ -127,7 +121,6 @@ import com.nilpo.contenttracker.core.repository.ProviderRejectedReason
 import com.nilpo.contenttracker.core.repository.noImportableReason
 import com.nilpo.contenttracker.core.repository.rejectedGroups
 import com.nilpo.contenttracker.core.repository.MalformedProviderXmlException
-import com.nilpo.contenttracker.core.repository.MetadataRefreshField
 import com.nilpo.contenttracker.core.repository.MetadataRefreshPreview
 import com.nilpo.contenttracker.core.repository.defaultSelectedMetadataFields
 import com.nilpo.contenttracker.core.repository.requiresMetadataConfirmation
@@ -144,10 +137,10 @@ import com.nilpo.contenttracker.core.imports.ImportSource
 import com.nilpo.contenttracker.ui.add.AddMediaScreen
 import com.nilpo.contenttracker.ui.add.DashboardStyleSearchBar
 import com.nilpo.contenttracker.ui.add.MetadataDuplicateState
-import com.nilpo.contenttracker.ui.add.MetadataSuggestionRow
 import com.nilpo.contenttracker.ui.detail.DetailScreen
 import com.nilpo.contenttracker.ui.detail.ActivitySheet
-import com.nilpo.contenttracker.ui.common.EmptyStateAction
+import com.nilpo.contenttracker.ui.detail.MetadataLinkSheet
+import com.nilpo.contenttracker.ui.detail.MetadataReviewSheet
 import com.nilpo.contenttracker.ui.common.OmnilogAlertDialog
 import com.nilpo.contenttracker.ui.common.CelebratedObjectives
 import com.nilpo.contenttracker.ui.common.CompletionCelebration
@@ -159,7 +152,6 @@ import com.nilpo.contenttracker.ui.common.OmnilogSnackbar
 import com.nilpo.contenttracker.ui.common.StatusReactionCard
 import com.nilpo.contenttracker.ui.common.StatusReactionVisuals
 import com.nilpo.contenttracker.ui.common.statusEventDeletionMessageResId
-import com.nilpo.contenttracker.ui.common.OmnilogStatusPanel
 import com.nilpo.contenttracker.ui.common.displayMediaTitle
 import com.nilpo.contenttracker.ui.home.CollectionDetailScreen
 import com.nilpo.contenttracker.ui.home.AuthorDetailScreen
@@ -181,7 +173,6 @@ import com.nilpo.contenttracker.core.model.MediaCreditRole
 import com.nilpo.contenttracker.ui.imports.ImportHubDialog
 import com.nilpo.contenttracker.ui.imports.ImportProgressBanner
 import com.nilpo.contenttracker.ui.imports.ImportSheet
-import com.nilpo.contenttracker.ui.imports.MetadataDiffFieldList
 import com.nilpo.contenttracker.ui.imports.userFacingMessage
 import com.nilpo.contenttracker.ui.common.formatCollectionOrder
 import com.nilpo.contenttracker.ui.profile.ProfileScreen
@@ -263,6 +254,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     var metadataLinkQuery by remember { mutableStateOf("") }
     var metadataLinkSuggestions by remember { mutableStateOf<List<MetadataSuggestion>>(emptyList()) }
     var isMetadataLinkLoading by remember { mutableStateOf(false) }
+    var isMetadataLinkPreviewing by remember { mutableStateOf(false) }
     var hasMetadataLinkError by remember { mutableStateOf(false) }
     var metadataLinkSearchRequestId by remember { mutableStateOf(0) }
     var pendingMetadataChange by remember { mutableStateOf<PendingMetadataChange?>(null) }
@@ -711,6 +703,7 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
         metadataLinkQuery = trackedMedia.item.title
         metadataLinkSuggestions = emptyList()
         isMetadataLinkLoading = false
+        isMetadataLinkPreviewing = false
         hasMetadataLinkError = false
     }
     val startMetadataRefresh: (TrackedMedia) -> Unit = { trackedMedia ->
@@ -2026,8 +2019,9 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
     }
 
     pendingMetadataChange?.let { pending ->
-        MetadataRefreshConfirmationDialog(
+        MetadataReviewSheet(
             preview = pending.preview,
+            accent = pending.preview.refreshed.mediaType.homeSection().themedAccent(),
             onDismiss = { pendingMetadataChange = null },
             onConfirm = { selectedFields ->
                 coroutineScope.launch {
@@ -2198,182 +2192,87 @@ fun ContentTrackerApp(viewModel: HomeViewModel) {
                 searchMetadataLink(target, query)
             }
         }
-        Dialog(
-            onDismissRequest = {
+        MetadataLinkSheet(
+            itemTitle = displayMediaTitle(target.item.title),
+            providerName = providerName,
+            accent = target.item.type.homeSection().themedAccent(),
+            query = metadataLinkQuery,
+            onQueryChange = { metadataLinkQuery = it },
+            suggestions = metadataLinkSuggestions,
+            isSearching = isMetadataLinkLoading,
+            isPreparing = isMetadataLinkPreviewing,
+            hasError = hasMetadataLinkError,
+            onSearch = { searchMetadataLink(target, metadataLinkQuery) },
+            onDismiss = {
                 metadataLinkTarget = null
                 metadataLinkImportIssueId = null
             },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(14.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = OmnilogTheme.colors.appBackground,
-                border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.metadata_link_title, providerName),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = OmnilogTheme.colors.appInk,
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.metadata_link_message,
-                            displayMediaTitle(target.item.title)
-                        ),
-                        color = OmnilogTheme.colors.appMuted,
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedTextField(
-                            value = metadataLinkQuery,
-                            onValueChange = { metadataLinkQuery = it },
-                            label = {
-                                Text(
-                                    text = stringResource(
-                                        R.string.metadata_link_search_label,
-                                        providerName
-                                    )
-                                )
-                            },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
+            onPick = { suggestion ->
+                coroutineScope.launch {
+                    // Held through the apply as well, so a second tap cannot start another link.
+                    isMetadataLinkPreviewing = true
+                    try {
+                        val result = viewModel.previewMediaItemMetadataLink(
+                            target.item.id,
+                            suggestion,
                         )
-                        TextButton(
-                            enabled = !isMetadataLinkLoading,
-                            onClick = { searchMetadataLink(target, metadataLinkQuery) },
-                        ) {
-                            Text(text = stringResource(R.string.metadata_link_search))
+                        if (metadataLinkTarget?.item?.id != target.item.id) {
+                            return@launch
                         }
-                    }
+                        val preview = result.getOrNull()
+                        when {
+                            result.isFailure || preview == null -> {
+                                snackbarHostState.showSnackbar(metadataLinkErrorMessage)
+                            }
 
-                    val linkAccent = target.item.type.homeSection().themedAccent()
-                    when {
-                        isMetadataLinkLoading -> OmnilogStatusPanel(
-                            text = stringResource(R.string.metadata_link_loading),
-                            accent = linkAccent,
-                            showProgressIndicator = true,
-                        )
+                            preview.requiresMetadataConfirmation() -> {
+                                val importIssueItemId = metadataLinkImportIssueId
+                                metadataLinkTarget = null
+                                metadataLinkImportIssueId = null
+                                pendingMetadataChange = PendingMetadataChange(
+                                    preview = preview,
+                                    operation = MetadataChangeOperation.Link,
+                                    importIssueItemId = importIssueItemId,
+                                )
+                            }
 
-                        hasMetadataLinkError -> OmnilogStatusPanel(
-                            text = stringResource(R.string.metadata_link_search_error),
-                            accent = linkAccent,
-                            textColor = MaterialTheme.colorScheme.error,
-                            action = EmptyStateAction(
-                                label = stringResource(R.string.retry_action),
-                                onClick = { searchMetadataLink(target, metadataLinkQuery) },
-                            ),
-                        )
-
-                        metadataLinkSuggestions.isEmpty() -> OmnilogStatusPanel(
-                            text = stringResource(R.string.metadata_link_empty),
-                            accent = linkAccent,
-                        )
-
-                        else -> LazyColumn(
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            itemsIndexed(metadataLinkSuggestions) { index, suggestion ->
-                                if (index > 0) HorizontalDivider(color = OmnilogTheme.colors.appLine)
-                                MetadataSuggestionRow(
-                                    suggestion = suggestion,
-                                    accent = target.item.type.homeSection().themedAccent(),
-                                    duplicateState = MetadataDuplicateState.None,
-                                    showSource = false,
-                                    horizontalPadding = 0.dp,
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            isMetadataLinkLoading = true
-                                            val result = viewModel.previewMediaItemMetadataLink(
-                                                target.item.id,
-                                                suggestion,
-                                            )
-                                            isMetadataLinkLoading = false
-                                            if (metadataLinkTarget?.item?.id != target.item.id) {
-                                                return@launch
-                                            }
-                                            val preview = result.getOrNull()
-                                            when {
-                                                result.isFailure || preview == null -> {
-                                                    snackbarHostState.showSnackbar(metadataLinkErrorMessage)
-                                                }
-
-                                                preview.requiresMetadataConfirmation() -> {
-                                                    val importIssueItemId = metadataLinkImportIssueId
-                                                    metadataLinkTarget = null
-                                                    metadataLinkImportIssueId = null
-                                                    pendingMetadataChange = PendingMetadataChange(
-                                                        preview = preview,
-                                                        operation = MetadataChangeOperation.Link,
-                                                        importIssueItemId = importIssueItemId,
-                                                    )
-                                                }
-
-                                                else -> {
-                                                    val applyResult = viewModel.applyMediaItemMetadataRefresh(
-                                                        preview = preview,
-                                                        selectedFields = preview.defaultSelectedMetadataFields(),
-                                                    )
-                                                    val issueResult = if (
-                                                        applyResult.getOrDefault(false) &&
-                                                        metadataLinkImportIssueId != null
-                                                    ) {
-                                                        viewModel.completeImportIssueAfterManualLink(
-                                                            requireNotNull(metadataLinkImportIssueId),
-                                                            preview.refreshed,
-                                                        )
-                                                    } else {
-                                                        null
-                                                    }
-                                                    if (applyResult.getOrDefault(false) && issueResult?.isFailure != true) {
-                                                        metadataLinkTarget = null
-                                                        metadataLinkImportIssueId = null
-                                                    }
-                                                    snackbarHostState.showSnackbar(
-                                                        if (applyResult.getOrDefault(false) && issueResult?.isFailure == true) {
-                                                            "S'han aplicat les metadades, però no s'ha pogut tancar la incidència."
-                                                        } else if (applyResult.getOrDefault(false)) {
-                                                            metadataLinkSuccessMessage
-                                                        } else {
-                                                            metadataLinkErrorMessage
-                                                        },
-                                                    )
-                                                }
-                                            }
-                                        }
+                            else -> {
+                                val applyResult = viewModel.applyMediaItemMetadataRefresh(
+                                    preview = preview,
+                                    selectedFields = preview.defaultSelectedMetadataFields(),
+                                )
+                                val issueResult = if (
+                                    applyResult.getOrDefault(false) &&
+                                    metadataLinkImportIssueId != null
+                                ) {
+                                    viewModel.completeImportIssueAfterManualLink(
+                                        requireNotNull(metadataLinkImportIssueId),
+                                        preview.refreshed,
+                                    )
+                                } else {
+                                    null
+                                }
+                                if (applyResult.getOrDefault(false) && issueResult?.isFailure != true) {
+                                    metadataLinkTarget = null
+                                    metadataLinkImportIssueId = null
+                                }
+                                snackbarHostState.showSnackbar(
+                                    if (applyResult.getOrDefault(false) && issueResult?.isFailure == true) {
+                                        "S'han aplicat les metadades, però no s'ha pogut tancar la incidència."
+                                    } else if (applyResult.getOrDefault(false)) {
+                                        metadataLinkSuccessMessage
+                                    } else {
+                                        metadataLinkErrorMessage
                                     },
                                 )
                             }
                         }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        TextButton(
-                            onClick = {
-                                metadataLinkTarget = null
-                                metadataLinkImportIssueId = null
-                            },
-                        ) {
-                            Text(text = stringResource(R.string.cancel))
-                        }
+                    } finally {
+                        isMetadataLinkPreviewing = false
                     }
                 }
-            }
-        }
+            },
+        )
     }
 
     pendingPossibleDuplicate?.let { duplicate ->
@@ -2458,71 +2357,6 @@ private data class PendingMetadataChange(
 private enum class MetadataChangeOperation {
     Refresh,
     Link,
-}
-
-@Composable
-private fun MetadataRefreshConfirmationDialog(
-    preview: MetadataRefreshPreview,
-    onDismiss: () -> Unit,
-    onConfirm: (Set<MetadataRefreshField>) -> Unit,
-) {
-    var selectedFields by remember(preview) {
-        mutableStateOf(
-            preview.defaultSelectedMetadataFields(),
-        )
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = OmnilogTheme.colors.appBackground,
-            border = BorderStroke(1.dp, OmnilogTheme.colors.appLine),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.metadata_refresh_confirm_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
-                )
-                Text(
-                    text = stringResource(R.string.metadata_refresh_confirm_message),
-                    color = OmnilogTheme.colors.appMuted,
-                )
-                MetadataDiffFieldList(
-                    changes = preview.changes,
-                    selectedFields = selectedFields,
-                    onSelectionChanged = { selectedFields = it },
-                    modifier = Modifier.weight(1f),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    TextButton(
-                        enabled = selectedFields.isNotEmpty(),
-                        onClick = { onConfirm(selectedFields) },
-                    ) {
-                        Text(text = stringResource(R.string.metadata_refresh_apply_selected))
-                    }
-                }
-            }
-        }
-    }
 }
 
 private data class PendingPossibleDuplicate(
