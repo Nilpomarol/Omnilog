@@ -2,14 +2,17 @@ package com.nilpo.contenttracker.ui.settings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,24 +21,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -53,28 +60,34 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
 import com.nilpo.contenttracker.core.backup.AutoBackupRetentionOptions
+import com.nilpo.contenttracker.core.imports.AnimeTitlePreference
 import com.nilpo.contenttracker.core.imports.ImportBatchState
 import com.nilpo.contenttracker.core.imports.ImportEnrichmentState
-import com.nilpo.contenttracker.core.imports.AnimeTitlePreference
-import com.nilpo.contenttracker.core.mal.MalSyncState
 import com.nilpo.contenttracker.core.mal.MalSyncChange
+import com.nilpo.contenttracker.core.mal.MalSyncState
 import com.nilpo.contenttracker.core.model.ExternalRatingSource
 import com.nilpo.contenttracker.core.refresh.MetadataRefreshProgress
 import com.nilpo.contenttracker.core.refresh.MetadataRefreshRunState
 import com.nilpo.contenttracker.core.refresh.MetadataRefreshState
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownItem
 import com.nilpo.contenttracker.ui.common.OmnilogDropdownMenu
+import com.nilpo.contenttracker.ui.common.OmnilogLocale
 import com.nilpo.contenttracker.ui.common.ProviderLogo
 import com.nilpo.contenttracker.ui.common.rememberActiveFilterPreferences
 import com.nilpo.contenttracker.ui.common.rememberHiddenActiveSections
 import com.nilpo.contenttracker.ui.common.writeHiddenActiveSections
+import com.nilpo.contenttracker.ui.detail.DetailGutter
+import com.nilpo.contenttracker.ui.detail.DetailSectionTitle
 import com.nilpo.contenttracker.ui.home.MediaSection
 import com.nilpo.contenttracker.ui.home.navIconResId
 import com.nilpo.contenttracker.ui.theme.DarkAccents
@@ -82,6 +95,7 @@ import com.nilpo.contenttracker.ui.theme.DarkPalette
 import com.nilpo.contenttracker.ui.theme.LightAccents
 import com.nilpo.contenttracker.ui.theme.LightPalette
 import com.nilpo.contenttracker.ui.theme.OmnilogTheme
+import com.nilpo.contenttracker.ui.theme.SerifFontFamily
 import com.nilpo.contenttracker.ui.theme.ThemePreference
 import com.nilpo.contenttracker.ui.theme.rememberThemePreference
 import com.nilpo.contenttracker.ui.theme.rememberThemePreferences
@@ -92,16 +106,19 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-private val RowPaddingHorizontal = 16.dp
-private val RowPaddingVertical = 14.dp
+/** The inset of the chapter titles and group labels; the panels sit a little wider than their text. */
+private val HeaderGutter = 20.dp
+private val PanelMargin = 16.dp
+private val PanelPadding = 16.dp
 
 /** Whether tapping a row opens something else, or acts immediately in place. */
 private enum class SettingsRowAffordance { Chevron, None }
 
 /**
- * Preferences, backups, imports and MyAnimeList — grouped by what they do, not by when they were
- * added, with one consistent rule: a chevron means the tap opens another screen, sheet or system
- * picker; no chevron means the tap does the thing right here.
+ * Preferences, backups, imports, MyAnimeList and metadata, set as chapters: a serif title, then named
+ * groups, each on a soft panel. Three kinds of thing never look alike — a chapter's serif title, a
+ * setting's plain row, and an action, which is always a button. A chevron on a row means it opens
+ * another screen, sheet or system picker.
  */
 @Composable
 fun SettingsScreen(
@@ -138,322 +155,66 @@ fun SettingsScreen(
     onDisconnectMyAnimeList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val activeFilterPreferences = rememberActiveFilterPreferences()
-    val hiddenActiveSections by rememberHiddenActiveSections(activeFilterPreferences)
-    val themePreferences = rememberThemePreferences()
-    val themePreference by rememberThemePreference(themePreferences)
     var showMetadataHistory by remember { mutableStateOf(false) }
     var showMalPendingChanges by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier, color = OmnilogTheme.colors.appBackground) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(44.dp),
         ) {
-            item {
-                SettingsSection(title = "Aparença") {
-                    SettingsPanel {
-                        SettingsThemeRow(
-                            selected = themePreference,
-                            onSelect = { themePreferences.writeThemePreference(it) },
-                        )
-                    }
-                }
+            item(key = "appearance") { AppearanceChapter() }
+            item(key = "backups") {
+                BackupsChapter(
+                    isAutoBackupEnabled = isAutoBackupEnabled,
+                    frequency = autoBackupFrequency,
+                    lastSuccessAtEpochMillis = lastAutoBackupAtEpochMillis,
+                    folderLabel = autoBackupFolderLabel,
+                    maxKeptBackups = maxKeptBackups,
+                    onToggle = onAutoBackupToggle,
+                    onFolderRequested = onAutoBackupFolderRequested,
+                    onFrequencyChange = onAutoBackupFrequencyChange,
+                    onMaxKeptBackupsChange = onMaxKeptBackupsChange,
+                    onExport = onExportBackup,
+                    onRestore = onRestoreBackup,
+                )
             }
-            item {
-                SettingsSection(title = "Inici") {
-                    SettingsPanel {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = RowPaddingHorizontal, vertical = RowPaddingVertical),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            SettingsRowText(
-                                title = "Seccions a «Ara mateix»",
-                                description = "Tria quines seccions apareixen a la llista d'inici. " +
-                                    "Toca'n una per amagar-la o tornar-la a mostrar. " +
-                                    visibleSectionsSummary(hiddenActiveSections),
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                MediaSection.entries.forEach { section ->
-                                    val isVisible = section !in hiddenActiveSections
-                                    SectionVisibilityPill(
-                                        section = section,
-                                        isVisible = isVisible,
-                                        onToggle = {
-                                            activeFilterPreferences.writeHiddenActiveSections(
-                                                if (isVisible) {
-                                                    hiddenActiveSections + section
-                                                } else {
-                                                    hiddenActiveSections - section
-                                                },
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+            item(key = "mal") {
+                MyAnimeListChapter(
+                    state = malSyncState,
+                    onConnect = onConnectMyAnimeList,
+                    onSync = onSyncMyAnimeList,
+                    onRetry = onRetryMyAnimeList,
+                    onDisconnect = onDisconnectMyAnimeList,
+                    onImportAccount = onImportMyAnimeListAccount,
+                    onShowPendingChanges = { showMalPendingChanges = true },
+                )
             }
-            item {
-                SettingsSection(title = "Preferències") {
-                    SettingsPanel {
-                        SettingsSwitchRow(
-                            title = "Nota de Goodreads",
-                            description = "Desactivat per defecte. Si l'actives, Omnilog et " +
-                                "demanarà la nota quan obris un llibre que encara no en tingui.",
-                            checked = askForGoodreadsRating,
-                            onCheckedChange = onAskForGoodreadsRatingChange,
-                        )
-                    }
-                }
+            item(key = "imports") {
+                ImportsChapter(
+                    importEnrichmentState = importEnrichmentState,
+                    isMalImporting = malSyncState.isImporting,
+                    onOpenImportActivity = onOpenImportActivity,
+                    onImportImdb = onImportImdbCsv,
+                    onImportStoryGraph = onImportStoryGraphCsv,
+                    onImportMalXml = onImportMyAnimeListXml,
+                )
             }
-            item {
-                SettingsSection(title = "Metadades") {
-                    val activeRefresh = metadataRefreshState.activeRun
-                    SettingsPanel {
-                        SettingsActionRow(
-                            title = if (activeRefresh == null) {
-                                "Actualitza totes les metadades"
-                            } else {
-                                "Atura l'actualització de metadades"
-                            },
-                            description = if (activeRefresh == null) {
-                                buildString {
-                                    append("Actualitza els elements vinculats a un proveïdor. Els camps editats manualment es conserven.")
-                                    metadataRefreshState.latestCompletedRun?.let { lastRun ->
-                                        append(" Última actualització: ${lastRun.appliedCount} actualitzats")
-                                        if (lastRun.unchangedCount > 0) append(", ${lastRun.unchangedCount} sense canvis")
-                                        if (lastRun.skippedCount > 0) append(", ${lastRun.skippedCount} omesos")
-                                        if (lastRun.failedCount > 0) append(", ${lastRun.failedCount} amb incidències")
-                                        append('.')
-                                    }
-                                }
-                            } else {
-                                "${activeRefresh.processedCount} de ${activeRefresh.totalCount} elements processats. " +
-                                    "Toca per aturar-la."
-                            },
-                            onClick = {
-                                activeRefresh?.let { refresh ->
-                                    onCancelBulkMetadataRefresh(refresh.runId)
-                                } ?: onBulkMetadataRefresh()
-                            },
-                            affordance = SettingsRowAffordance.None,
-                        )
-                        SettingsDivider()
-                        SettingsActionRow(
-                            title = "Veure historial",
-                            description = if (metadataRefreshState.history.isEmpty()) {
-                                "Encara no s'ha fet cap actualització de metadades."
-                            } else {
-                                "Consulta les últimes actualitzacions i el que ha canviat en cada una."
-                            },
-                            onClick = { showMetadataHistory = true },
-                            enabled = metadataRefreshState.history.isNotEmpty(),
-                        )
-                    }
-                }
+            item(key = "metadata") {
+                MetadataChapter(
+                    refreshState = metadataRefreshState,
+                    onRefreshAll = onBulkMetadataRefresh,
+                    onCancelRefresh = onCancelBulkMetadataRefresh,
+                    onShowHistory = { showMetadataHistory = true },
+                    animeTitlePreference = animeTitlePreference,
+                    onAnimeTitlePreferenceChange = onAnimeTitlePreferenceChange,
+                    onApplyAnimeTitles = onBulkRefreshAnimeTitles,
+                    askForGoodreadsRating = askForGoodreadsRating,
+                    onAskForGoodreadsRatingChange = onAskForGoodreadsRatingChange,
+                )
             }
-            item {
-                SettingsSection(title = "Còpies de seguretat") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        AutoBackupCard(
-                            isAutoBackupEnabled = isAutoBackupEnabled,
-                            selectedFrequency = autoBackupFrequency,
-                            lastSuccessAtEpochMillis = lastAutoBackupAtEpochMillis,
-                            folderLabel = autoBackupFolderLabel,
-                            maxKeptBackups = maxKeptBackups,
-                            onToggle = onAutoBackupToggle,
-                            onFolderRequested = onAutoBackupFolderRequested,
-                            onFrequencyChange = onAutoBackupFrequencyChange,
-                            onMaxKeptBackupsChange = onMaxKeptBackupsChange,
-                        )
-                        SettingsPanel {
-                            SettingsActionRow(
-                                title = "Exporta la biblioteca",
-                                description = stringResource(R.string.settings_export_backup_description),
-                                onClick = onExportBackup,
-                            )
-                            SettingsDivider()
-                            SettingsActionRow(
-                                title = "Restaura una còpia",
-                                description = "Tria un fitxer o una còpia de seguretat anterior per recuperar la biblioteca.",
-                                onClick = onRestoreBackup,
-                            )
-                        }
-                    }
-                }
-            }
-            item {
-                SettingsSection(
-                    title = "MyAnimeList",
-                    leading = { ProviderLogo(source = ExternalRatingSource.Mal, height = 18.dp) },
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SettingsPanel {
-                            if (malSyncState.isConnected) {
-                                SettingsActionRow(
-                                    title = malSyncState.accountName?.let { "Compte: $it" } ?: "Compte connectat",
-                                    description = malSyncDescription(malSyncState),
-                                    onClick = if (malSyncState.isSyncEnabled) {
-                                        onRetryMyAnimeList
-                                    } else {
-                                        onSyncMyAnimeList
-                                    },
-                                    enabled = !malSyncState.isSyncing,
-                                    affordance = SettingsRowAffordance.None,
-                                    logoSource = ExternalRatingSource.Mal,
-                                )
-                                SettingsDivider()
-                                SettingsActionRow(
-                                    title = "Desconnecta MyAnimeList",
-                                    description = "Atura els enviaments. Les dades d'Omnilog no canviaran.",
-                                    onClick = onDisconnectMyAnimeList,
-                                    affordance = SettingsRowAffordance.None,
-                                    accent = OmnilogTheme.accents.Dropped,
-                                )
-                            } else {
-                                SettingsActionRow(
-                                    title = if (malSyncState.isAuthorizing) "Connectant…" else "Connecta MyAnimeList",
-                                    description = malSyncState.error
-                                        ?: "Omnilog podrà actualitzar la llista d'anime amb les teves dades locals.",
-                                    onClick = onConnectMyAnimeList,
-                                    enabled = malSyncState.isAvailable && !malSyncState.isAuthorizing,
-                                    logoSource = ExternalRatingSource.Mal,
-                                )
-                            }
-                        }
-                        if (malSyncState.isConnected) {
-                            SettingsPanel {
-                                SettingsActionRow(
-                                    title = "Sincronitza tota la biblioteca",
-                                    description = "Envia a MyAnimeList l'estat actual dels animes amb identificador MAL.",
-                                    onClick = onSyncMyAnimeList,
-                                    enabled = !malSyncState.isSyncing,
-                                    affordance = SettingsRowAffordance.None,
-                                    accent = OmnilogTheme.accents.Anime,
-                                )
-                                if (malSyncState.changes.isNotEmpty()) {
-                                    SettingsDivider()
-                                    SettingsActionRow(
-                                        title = "Canvis pendents de sincronitzar",
-                                        description = malPendingChangesSummary(malSyncState),
-                                        onClick = { showMalPendingChanges = true },
-                                        accent = if (malSyncState.failedCount > 0) {
-                                            OmnilogTheme.accents.Dropped
-                                        } else {
-                                            OmnilogTheme.accents.Anime
-                                        },
-                                    )
-                                }
-                            }
-                            SettingsPanel {
-                                SettingsActionRow(
-                                    title = when {
-                                        malSyncState.isImporting -> "Llegint MyAnimeList…"
-                                        else -> "Importa des del compte de MyAnimeList"
-                                    },
-                                    description = when {
-                                        malSyncState.isImporting ->
-                                            "${malSyncState.importFetchedCount} animes llegits. Pots continuar usant Omnilog."
-                                        else ->
-                                            "Previsualitza i afegeix la llista del compte ${malSyncState.accountName.orEmpty()}."
-                                    },
-                                    onClick = onImportMyAnimeListAccount,
-                                    enabled = !malSyncState.isAuthorizing && !malSyncState.isImporting && !malSyncState.isSyncing,
-                                    logoSource = ExternalRatingSource.Mal,
-                                )
-                                SettingsDivider()
-                                SettingsActionRow(
-                                    title = "Fitxer XML de MyAnimeList",
-                                    description = "Alternativa per a exportacions desades o comptes desconnectats.",
-                                    onClick = onImportMyAnimeListXml,
-                                    enabled = !malSyncState.isImporting,
-                                    logoSource = ExternalRatingSource.Mal,
-                                )
-                            }
-                        } else if (!malSyncState.isAvailable) {
-                            SettingsPanel {
-                                SettingsActionRow(
-                                    title = "Fitxer XML de MyAnimeList",
-                                    description = "Cal configurar MAL_CLIENT_ID per connectar el compte; l'importador XML continua disponible.",
-                                    onClick = onImportMyAnimeListXml,
-                                    logoSource = ExternalRatingSource.Mal,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            item {
-                SettingsSection(title = "Preferències d'importació") {
-                    SettingsPanel {
-                        SettingsActionRow(
-                            title = "Idioma dels títols d'anime",
-                            description = when (animeTitlePreference) {
-                                AnimeTitlePreference.EnglishWithRomajiOriginal ->
-                                    "Títol principal en anglès i títol original en rōmaji."
-                                AnimeTitlePreference.KeepMalTitle ->
-                                    "Conserva el títol principal que retorna MyAnimeList."
-                            },
-                            onClick = {
-                                onAnimeTitlePreferenceChange(
-                                    if (animeTitlePreference == AnimeTitlePreference.EnglishWithRomajiOriginal) {
-                                        AnimeTitlePreference.KeepMalTitle
-                                    } else {
-                                        AnimeTitlePreference.EnglishWithRomajiOriginal
-                                    },
-                                )
-                            },
-                            affordance = SettingsRowAffordance.None,
-                            iconResId = MediaSection.Anime.navIconResId,
-                            accent = OmnilogTheme.accents.Anime,
-                        )
-                        SettingsDivider()
-                        SettingsActionRow(
-                            title = "Aplica l'idioma a la biblioteca",
-                            description = "Actualitza en bloc els animes vinculats a MAL. Els títols editats manualment continuen protegits.",
-                            onClick = onBulkRefreshAnimeTitles,
-                            affordance = SettingsRowAffordance.None,
-                            iconResId = MediaSection.Anime.navIconResId,
-                            accent = OmnilogTheme.accents.Anime,
-                        )
-                    }
-                }
-            }
-            item {
-                SettingsSection(title = "Importa d'altres serveis") {
-                    SettingsPanel {
-                        SettingsActionRow(
-                            title = "Activitat d'importació",
-                            description = importActivityDescription(importEnrichmentState),
-                            onClick = onOpenImportActivity,
-                        )
-                        SettingsDivider()
-                        SettingsActionRow(
-                            title = "IMDb",
-                            description = stringResource(
-                                R.string.settings_import_imdb_description,
-                                stringResource(R.string.nav_movies_tv),
-                            ),
-                            onClick = onImportImdbCsv,
-                            logoSource = ExternalRatingSource.Imdb,
-                        )
-                        SettingsDivider()
-                        SettingsActionRow(
-                            title = "StoryGraph",
-                            description = "Afegeix llibres i lectures des d'un fitxer CSV.",
-                            onClick = onImportStoryGraphCsv,
-                            logoSource = ExternalRatingSource.StoryGraph,
-                        )
-                    }
-                }
-            }
-            item { SettingsAboutFooter() }
+            item(key = "about") { SettingsAboutFooter() }
         }
     }
 
@@ -479,197 +240,662 @@ fun SettingsScreen(
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Chapters
+// ─────────────────────────────────────────────────────────────
+
+/** How the app looks: the theme, and which sections Home's «Ara mateix» shows. */
 @Composable
-private fun SettingsSection(
-    title: String,
-    subtitle: String? = null,
-    leading: (@Composable () -> Unit)? = null,
-    content: @Composable () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+private fun AppearanceChapter() {
+    val themePreferences = rememberThemePreferences()
+    val themePreference by rememberThemePreference(themePreferences)
+    val activeFilterPreferences = rememberActiveFilterPreferences()
+    val hiddenSections by rememberHiddenActiveSections(activeFilterPreferences)
+
+    SettingsChapter(title = "Aparença") {
+        SettingsGroup(label = "Tema") {
+            Row(
+                modifier = Modifier.padding(PanelPadding),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ThemePreference.entries.forEach { option ->
+                    ThemeSwatch(
+                        option = option,
+                        isSelected = option == themePreference,
+                        onSelect = { themePreferences.writeThemePreference(option) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+        SettingsGroup(
+            label = "Pantalla d'inici",
+            footnote = "Toca una secció per amagar-la o mostrar-la a «Ara mateix». " +
+                visibleSectionsSummary(hiddenSections),
         ) {
-            leading?.invoke()
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
-            )
-            HorizontalDivider(
-                modifier = Modifier.weight(1f),
-                color = OmnilogTheme.colors.appLine,
-            )
+            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                MediaSection.entries.forEach { section ->
+                    val isVisible = section !in hiddenSections
+                    SectionVisibilityToggle(
+                        section = section,
+                        isVisible = isVisible,
+                        onToggle = {
+                            activeFilterPreferences.writeHiddenActiveSections(
+                                if (isVisible) hiddenSections + section else hiddenSections - section,
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
-        if (subtitle != null) {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appMuted,
-            )
-        }
-        content()
     }
 }
 
 /**
- * One equal-width pill per section, icon over label, so all four fit a single row inside the card.
- * A soft tint of the section's accent when it shows on Ara mateix; a plain muted outline when
- * hidden, so the on/off state reads without a separate switch.
+ * The chapter's note says where the library's safety stands, so the state of the automatic copy
+ * reads at a glance; its controls follow, and the one-off copies close the chapter as two tiles.
  */
 @Composable
-private fun SectionVisibilityPill(
-    section: MediaSection,
-    isVisible: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier,
+private fun BackupsChapter(
+    isAutoBackupEnabled: Boolean,
+    frequency: AutoBackupFrequency,
+    lastSuccessAtEpochMillis: Long?,
+    folderLabel: String?,
+    maxKeptBackups: Int,
+    onToggle: (Boolean) -> Unit,
+    onFolderRequested: () -> Unit,
+    onFrequencyChange: (AutoBackupFrequency) -> Unit,
+    onMaxKeptBackupsChange: (Int) -> Unit,
+    onExport: () -> Unit,
+    onRestore: () -> Unit,
 ) {
-    val accent = section.accent
-    val contentColor = if (isVisible) accent else OmnilogTheme.colors.appMuted
-    Surface(
-        modifier = modifier.toggleable(
-            value = isVisible,
-            role = Role.Checkbox,
-            onValueChange = { onToggle() },
-        ),
-        shape = RoundedCornerShape(14.dp),
-        color = if (isVisible) accent.copy(alpha = 0.16f) else Color.Transparent,
-        border = BorderStroke(
-            1.dp,
-            if (isVisible) accent.copy(alpha = 0.42f) else OmnilogTheme.colors.appLine,
-        ),
+    SettingsChapter(
+        title = "Còpies de seguretat",
+        note = if (isAutoBackupEnabled) {
+            "${lastAutoBackupSummary(lastSuccessAtEpochMillis).removeSuffix(".")} · " +
+                nextAutoBackupSummary(lastSuccessAtEpochMillis, frequency)
+        } else {
+            "Ara només es fan còpies quan les demanes."
+        },
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                painter = painterResource(section.navIconResId),
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(20.dp),
+        SettingsGroup(label = "Automàtica") {
+            SettingsSwitchRow(
+                title = "Còpia automàtica",
+                description = "Omnilog desa la biblioteca tot sol a la carpeta que triïs.",
+                checked = isAutoBackupEnabled,
+                onCheckedChange = onToggle,
             )
-            Text(
-                text = stringResource(section.titleResId),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            if (isAutoBackupEnabled) {
+                SettingsDivider()
+                SettingsDropdownRow(
+                    label = "Freqüència",
+                    options = AutoBackupFrequency.entries,
+                    selected = frequency,
+                    optionLabel = { it.label },
+                    onSelect = onFrequencyChange,
+                )
+                SettingsDivider()
+                SettingsDropdownRow(
+                    label = "Còpies desades",
+                    description = "Les més antigues s'esborren soles.",
+                    options = AutoBackupRetentionOptions,
+                    selected = maxKeptBackups,
+                    optionLabel = { "$it còpies" },
+                    onSelect = onMaxKeptBackupsChange,
+                )
+                SettingsDivider()
+                SettingsActionRow(
+                    title = "Carpeta",
+                    description = folderLabel ?: "Cap carpeta triada",
+                    onClick = onFolderRequested,
+                )
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGroupLabel(text = "Manual")
+            Row(
+                modifier = Modifier.padding(horizontal = PanelMargin),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BackupTile(
+                    iconResId = R.drawable.ic_settings_export,
+                    title = "Exporta",
+                    description = "Desa-la en un fitxer",
+                    onClick = onExport,
+                    modifier = Modifier.weight(1f),
+                )
+                BackupTile(
+                    iconResId = R.drawable.ic_settings_import,
+                    title = "Restaura",
+                    description = "Substitueix-la per una còpia",
+                    onClick = onRestore,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The account and its sync first, with the one strong action of the chapter; then what comes from
+ * the account. Disconnecting sits under the panels, away from the everyday controls.
+ */
+@Composable
+private fun MyAnimeListChapter(
+    state: MalSyncState,
+    onConnect: () -> Unit,
+    onSync: () -> Unit,
+    onRetry: () -> Unit,
+    onDisconnect: () -> Unit,
+    onImportAccount: () -> Unit,
+    onShowPendingChanges: () -> Unit,
+) {
+    SettingsChapter(
+        title = "MyAnimeList",
+        note = "Un enviament en un sol sentit: les dades d'Omnilog no canvien mai.",
+        leading = { ProviderLogo(source = ExternalRatingSource.Mal, height = 20.dp) },
+    ) {
+        if (!state.isConnected) {
+            SettingsGroup(label = "Compte") {
+                SettingsRow(
+                    title = if (state.isAuthorizing) "Connectant…" else "Sense connectar",
+                    description = state.error ?: if (state.isAvailable) {
+                        "Connecta el compte perquè Omnilog hi enviï la teva llista d'anime."
+                    } else {
+                        "Cal configurar MAL_CLIENT_ID per connectar el compte."
+                    },
+                )
+                SettingsButtons {
+                    SettingsPrimaryButton(
+                        text = "Connecta",
+                        onClick = onConnect,
+                        enabled = state.isAvailable && !state.isAuthorizing,
+                    )
+                }
+            }
+            return@SettingsChapter
+        }
+
+        SettingsGroup(label = "Sincronització") {
+            SettingsRow(
+                title = state.accountName?.let { "Connectat com a $it" } ?: "Compte connectat",
+                description = malSyncDescription(state),
+            )
+            SettingsButtons {
+                SettingsPrimaryButton(
+                    text = if (state.isSyncEnabled) "Sincronitza ara" else "Activa la sincronització",
+                    onClick = if (state.isSyncEnabled) onRetry else onSync,
+                    enabled = !state.isSyncing,
+                )
+                SettingsTonalButton(
+                    text = "Envia-ho tot",
+                    onClick = onSync,
+                    enabled = !state.isSyncing,
+                )
+            }
+            if (state.changes.isNotEmpty()) {
+                SettingsDivider()
+                SettingsActionRow(
+                    title = "Canvis pendents",
+                    description = malPendingChangesSummary(state),
+                    onClick = onShowPendingChanges,
+                    tone = if (state.failedCount > 0) OmnilogTheme.accents.Dropped else null,
+                )
+            }
+        }
+        SettingsGroup(label = "Importació") {
+            SettingsActionRow(
+                title = if (state.isImporting) "Llegint MyAnimeList…" else "Importa des del compte",
+                description = if (state.isImporting) {
+                    "${state.importFetchedCount} animes llegits. Pots continuar usant Omnilog."
+                } else {
+                    "Previsualitza i afegeix la llista de ${state.accountName ?: "el compte"}."
+                },
+                onClick = onImportAccount,
+                enabled = !state.isAuthorizing && !state.isImporting && !state.isSyncing,
+            )
+        }
+        SettingsSecondaryButton(
+            text = "Desconnecta MyAnimeList",
+            onClick = onDisconnect,
+            tone = OmnilogTheme.accents.Dropped,
+            modifier = Modifier.padding(horizontal = HeaderGutter - 12.dp),
+        )
+    }
+}
+
+/** What is running now, then every file importer in one place, MyAnimeList's XML included. */
+@Composable
+private fun ImportsChapter(
+    importEnrichmentState: ImportEnrichmentState,
+    isMalImporting: Boolean,
+    onOpenImportActivity: () -> Unit,
+    onImportImdb: () -> Unit,
+    onImportStoryGraph: () -> Unit,
+    onImportMalXml: () -> Unit,
+) {
+    SettingsChapter(
+        title = "Importacions",
+        note = "Les importacions només afegeixen; no esborren res del que ja tens.",
+    ) {
+        SettingsGroup(label = "Activitat") {
+            SettingsActionRow(
+                title = "Activitat d'importació",
+                description = importActivityDescription(importEnrichmentState),
+                onClick = onOpenImportActivity,
+            )
+        }
+        SettingsGroup(label = "Des d'un fitxer") {
+            SettingsActionRow(
+                title = "IMDb",
+                description = stringResource(
+                    R.string.settings_import_imdb_description,
+                    stringResource(R.string.nav_movies_tv),
+                ),
+                onClick = onImportImdb,
+                logoSource = ExternalRatingSource.Imdb,
+            )
+            SettingsDivider()
+            SettingsActionRow(
+                title = "StoryGraph",
+                description = "Afegeix llibres i lectures des d'un fitxer CSV.",
+                onClick = onImportStoryGraph,
+                logoSource = ExternalRatingSource.StoryGraph,
+            )
+            SettingsDivider()
+            SettingsActionRow(
+                title = "MyAnimeList",
+                description = "Una exportació XML desada, amb compte o sense.",
+                onClick = onImportMalXml,
+                enabled = !isMalImporting,
+                logoSource = ExternalRatingSource.Mal,
             )
         }
     }
 }
 
+/**
+ * Everything that shapes what providers put into the library: the bulk refresh, then the per-format
+ * preferences — anime titles and Goodreads ratings — that decide how their data lands.
+ */
 @Composable
-private fun SettingsPanel(content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = OmnilogTheme.colors.appPanel),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+private fun MetadataChapter(
+    refreshState: MetadataRefreshState,
+    onRefreshAll: () -> Unit,
+    onCancelRefresh: (Long) -> Unit,
+    onShowHistory: () -> Unit,
+    animeTitlePreference: AnimeTitlePreference,
+    onAnimeTitlePreferenceChange: (AnimeTitlePreference) -> Unit,
+    onApplyAnimeTitles: () -> Unit,
+    askForGoodreadsRating: Boolean,
+    onAskForGoodreadsRatingChange: (Boolean) -> Unit,
+) {
+    val activeRefresh = refreshState.activeRun
+    SettingsChapter(
+        title = "Metadades",
+        note = "Els camps que has editat a mà sempre es conserven.",
     ) {
+        SettingsGroup(label = "Actualització") {
+            SettingsRow(
+                title = if (activeRefresh == null) "Totes les metadades" else "Actualitzant…",
+                description = if (activeRefresh == null) {
+                    refreshState.latestCompletedRun?.let { "Última vegada: ${it.summary()}." }
+                        ?: "Torna a llegir els elements vinculats a un proveïdor."
+                } else {
+                    "${activeRefresh.processedCount} de ${activeRefresh.totalCount} elements processats."
+                },
+            )
+            if (activeRefresh != null && activeRefresh.totalCount > 0) {
+                LinearProgressIndicator(
+                    progress = { activeRefresh.processedCount.toFloat() / activeRefresh.totalCount },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = PanelPadding),
+                    color = OmnilogTheme.accents.Dashboard,
+                    trackColor = OmnilogTheme.colors.appLine,
+                    drawStopIndicator = {},
+                )
+            }
+            SettingsButtons {
+                if (activeRefresh == null) {
+                    SettingsPrimaryButton(text = "Actualitza-ho tot", onClick = onRefreshAll)
+                } else {
+                    SettingsTonalButton(
+                        text = "Atura",
+                        onClick = { onCancelRefresh(activeRefresh.runId) },
+                        tone = OmnilogTheme.accents.Dropped,
+                    )
+                }
+                if (refreshState.history.isNotEmpty()) {
+                    SettingsTonalButton(text = "Historial", onClick = onShowHistory)
+                }
+            }
+        }
+        SettingsGroup(label = stringResource(MediaSection.Anime.titleResId)) {
+            SettingsDropdownRow(
+                label = "Idioma dels títols",
+                description = when (animeTitlePreference) {
+                    AnimeTitlePreference.EnglishWithRomajiOriginal -> "Títol en anglès; el rōmaji queda com a original."
+                    AnimeTitlePreference.KeepMalTitle -> "El títol principal que retorna MyAnimeList."
+                },
+                options = AnimeTitlePreference.entries,
+                selected = animeTitlePreference,
+                optionLabel = {
+                    when (it) {
+                        AnimeTitlePreference.EnglishWithRomajiOriginal -> "Anglès"
+                        AnimeTitlePreference.KeepMalTitle -> "Com a MAL"
+                    }
+                },
+                onSelect = onAnimeTitlePreferenceChange,
+            )
+            SettingsButtons {
+                SettingsTonalButton(text = "Aplica a tota la biblioteca", onClick = onApplyAnimeTitles)
+            }
+        }
+        SettingsGroup(label = stringResource(MediaSection.Books.titleResId)) {
+            SettingsSwitchRow(
+                title = "Demana la nota de Goodreads",
+                description = "En obrir un llibre que encara no en tingui.",
+                checked = askForGoodreadsRating,
+                onCheckedChange = onAskForGoodreadsRatingChange,
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Building blocks
+// ─────────────────────────────────────────────────────────────
+
+/** A chapter: a large serif title and at most one line under it, then its groups. */
+@Composable
+private fun SettingsChapter(
+    title: String,
+    note: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = HeaderGutter),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                leading?.invoke()
+                Text(
+                    text = title,
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontFamily = SerifFontFamily,
+                        fontWeight = FontWeight.Normal,
+                    ),
+                    color = OmnilogTheme.colors.appInk,
+                )
+            }
+            note?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = OmnilogTheme.colors.appMuted)
+            }
+        }
         content()
     }
 }
 
+/** The small capitals that name a group, set just outside its panel. */
 @Composable
-private fun SettingsDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(horizontal = RowPaddingHorizontal),
-        color = OmnilogTheme.colors.appLine,
+private fun SettingsGroupLabel(text: String) {
+    Text(
+        text = text.uppercase(OmnilogLocale),
+        modifier = Modifier
+            .padding(horizontal = HeaderGutter)
+            .semantics { heading() },
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        color = OmnilogTheme.colors.appMuted,
     )
 }
 
+/** A named group of rows on one soft panel, with an optional footnote under it. */
 @Composable
-private fun SettingsRowText(
-    title: String,
-    description: String?,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
+private fun SettingsGroup(
+    label: String,
+    footnote: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = if (enabled) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsGroupLabel(text = label)
+        Column(
+            modifier = Modifier
+                .padding(horizontal = PanelMargin)
+                .fillMaxWidth()
+                .clip(PanelShape)
+                .background(OmnilogTheme.colors.appPanel),
+            content = content,
         )
-        if (description != null) {
+        footnote?.let {
             Text(
-                text = description,
+                text = it,
+                modifier = Modifier.padding(horizontal = HeaderGutter),
                 style = MaterialTheme.typography.bodySmall,
                 color = OmnilogTheme.colors.appMuted,
             )
         }
+    }
+}
+
+private val PanelShape = RoundedCornerShape(14.dp)
+
+@Composable
+private fun SettingsDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = PanelPadding),
+        color = OmnilogTheme.colors.appLine,
+    )
+}
+
+/**
+ * The shared row: optional mark, title and description, and whatever control sits at the end. The
+ * title stays in the regular weight so it never competes with a chapter's heading.
+ */
+@Composable
+private fun SettingsRow(
+    title: String,
+    description: String?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tone: Color? = null,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(horizontal = PanelPadding, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        leading?.invoke()
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = when {
+                    !enabled -> OmnilogTheme.colors.appMuted
+                    tone != null -> tone
+                    else -> OmnilogTheme.colors.appInk
+                },
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
+                )
+            }
+        }
+        trailing()
     }
 }
 
 /**
  * @param affordance Chevron for rows that open another screen/sheet/system picker, None for rows
- *   that act immediately in place — the only visual language on this screen for that distinction.
- * @param logoSource draws the provider's real mark ([ProviderLogo]) instead of a tinted app icon,
- *   for rows that represent a specific external service.
+ *   that act immediately in place.
+ * @param logoSource draws the provider's real mark ([ProviderLogo]) for rows that stand for a
+ *   specific external service.
+ * @param tone colours the title, for the rows whose consequence deserves a second look.
  */
 @Composable
 private fun SettingsActionRow(
     title: String,
     description: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
     enabled: Boolean = true,
     affordance: SettingsRowAffordance = SettingsRowAffordance.Chevron,
-    iconResId: Int? = null,
     logoSource: ExternalRatingSource? = null,
-    accent: Color = OmnilogTheme.accents.Dashboard,
+    tone: Color? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = RowPaddingHorizontal, vertical = RowPaddingVertical),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (logoSource != null) {
-            Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
-                ProviderLogo(source = logoSource, height = 22.dp)
-            }
-        } else if (iconResId != null) {
-            Surface(
-                modifier = Modifier.size(34.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = accent.copy(alpha = if (enabled) 0.14f else 0.08f),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painter = painterResource(iconResId),
-                        contentDescription = null,
-                        tint = accent.copy(alpha = if (enabled) 1f else 0.56f),
-                        modifier = Modifier.size(18.dp),
-                    )
+    SettingsRow(
+        title = title,
+        description = description,
+        modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
+        enabled = enabled,
+        tone = tone,
+        leading = logoSource?.let { source ->
+            {
+                Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    ProviderLogo(source = source, height = 22.dp)
                 }
             }
-        }
-        SettingsRowText(
-            title = title,
-            description = description,
-            modifier = Modifier.weight(1f),
-            enabled = enabled,
-        )
+        },
+    ) {
         if (enabled && affordance == SettingsRowAffordance.Chevron) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = OmnilogTheme.colors.appMuted,
-                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/** The actions a group offers, under the row they act on. */
+@Composable
+private fun SettingsButtons(content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier = Modifier.padding(start = PanelPadding, end = PanelPadding, bottom = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+/** The one strong action of a group: filled in the dashboard accent. */
+@Composable
+private fun SettingsPrimaryButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = OmnilogTheme.accents.Dashboard,
+            contentColor = OmnilogTheme.colors.appBackground,
+            disabledContainerColor = OmnilogTheme.colors.appLine,
+            disabledContentColor = OmnilogTheme.colors.appMuted,
+        ),
+    ) {
+        Text(text = text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** A quieter action beside or instead of the primary one: a soft tint of the same accent. */
+@Composable
+private fun SettingsTonalButton(text: String, onClick: () -> Unit, enabled: Boolean = true, tone: Color = OmnilogTheme.accents.Dashboard) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = tone.copy(alpha = 0.16f),
+            contentColor = tone,
+            disabledContainerColor = OmnilogTheme.colors.appLine.copy(alpha = 0.5f),
+            disabledContentColor = OmnilogTheme.colors.appMuted,
+        ),
+    ) {
+        Text(text = text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** A text-only action outside the panels, for the rare step that should not draw the eye. */
+@Composable
+private fun SettingsSecondaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tone: Color = OmnilogTheme.accents.Dashboard,
+) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        colors = ButtonDefaults.textButtonColors(contentColor = tone),
+    ) {
+        Text(text = text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** A one-off backup: the mark, a verb and a line, as a tile rather than another row. */
+@Composable
+private fun BackupTile(
+    iconResId: Int,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val accent = OmnilogTheme.accents.Dashboard
+    Column(
+        modifier = modifier
+            .clip(PanelShape)
+            .background(OmnilogTheme.colors.appPanel)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(PanelPadding),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(accent.copy(alpha = 0.16f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconResId),
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = SerifFontFamily,
+                    fontWeight = FontWeight.Normal,
+                ),
+                color = OmnilogTheme.colors.appInk,
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = OmnilogTheme.colors.appMuted,
             )
         }
     }
@@ -682,63 +908,130 @@ private fun SettingsSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                role = Role.Switch,
-                onValueChange = onCheckedChange,
-            )
-            .padding(horizontal = RowPaddingHorizontal, vertical = RowPaddingVertical),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    SettingsRow(
+        title = title,
+        description = description,
+        modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
     ) {
-        SettingsRowText(
-            title = title,
-            description = description,
-            modifier = Modifier.weight(1f),
-        )
         Switch(
             checked = checked,
             onCheckedChange = null,
-            colors = settingsSwitchColors(),
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = OmnilogTheme.colors.appInk,
+                checkedTrackColor = OmnilogTheme.accents.Dashboard,
+                checkedBorderColor = OmnilogTheme.accents.Dashboard,
+                uncheckedThumbColor = OmnilogTheme.colors.appMuted,
+                uncheckedTrackColor = OmnilogTheme.colors.appBackground,
+                uncheckedBorderColor = OmnilogTheme.colors.appLine,
+            ),
         )
     }
 }
 
+/**
+ * A row whose current value sits at its end in the accent, opening a dropdown of the few options —
+ * the value reads as text, not as another chip.
+ */
 @Composable
-private fun settingsSwitchColors() = SwitchDefaults.colors(
-    checkedThumbColor = OmnilogTheme.colors.appInk,
-    checkedTrackColor = OmnilogTheme.accents.Dashboard,
-    checkedBorderColor = OmnilogTheme.accents.Dashboard,
-    uncheckedThumbColor = OmnilogTheme.colors.appMuted,
-    uncheckedTrackColor = OmnilogTheme.colors.appBackground,
-    uncheckedBorderColor = OmnilogTheme.colors.appLine,
-)
-
-@Composable
-private fun SettingsThemeRow(
-    selected: ThemePreference,
-    onSelect: (ThemePreference) -> Unit,
+private fun <T> SettingsDropdownRow(
+    label: String,
+    options: List<T>,
+    selected: T,
+    optionLabel: (T) -> String,
+    onSelect: (T) -> Unit,
+    description: String? = null,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = RowPaddingHorizontal, vertical = RowPaddingVertical),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    var expanded by remember { mutableStateOf(false) }
+    val accent = OmnilogTheme.accents.Dashboard
+    SettingsRow(
+        title = label,
+        description = description,
+        modifier = Modifier.clickable(role = Role.DropdownList) { expanded = true },
     ) {
-        SettingsRowText(title = "Tema de l'aplicació", description = null)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ThemePreference.entries.forEach { option ->
-                ThemeSwatch(
-                    option = option,
-                    isSelected = option == selected,
-                    onSelect = { onSelect(option) },
-                    modifier = Modifier.weight(1f),
+        Box {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = optionLabel(selected),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                    maxLines = 1,
+                )
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(20.dp),
                 )
             }
+            OmnilogDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                options.forEach { option ->
+                    OmnilogDropdownItem(
+                        text = optionLabel(option),
+                        selected = option == selected,
+                        accent = accent,
+                        onClick = {
+                            expanded = false
+                            onSelect(option)
+                        },
+                    )
+                }
+            }
         }
+    }
+}
+
+/**
+ * One toggle per section: the section's mark in a filled disc of its accent when it shows on
+ * «Ara mateix», an empty outlined ring when hidden — fill versus outline, so the state does not rest
+ * on colour alone.
+ */
+@Composable
+private fun SectionVisibilityToggle(
+    section: MediaSection,
+    isVisible: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val accent = section.accent
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .toggleable(value = isVisible, role = Role.Checkbox, onValueChange = { onToggle() })
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .then(
+                    if (isVisible) {
+                        Modifier.background(accent.copy(alpha = 0.16f), CircleShape)
+                    } else {
+                        Modifier.border(1.dp, OmnilogTheme.colors.appLine, CircleShape)
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(section.navIconResId),
+                contentDescription = null,
+                tint = if (isVisible) accent else OmnilogTheme.colors.appMuted,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Text(
+            text = stringResource(section.titleResId),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isVisible) FontWeight.Bold else FontWeight.Normal,
+            color = if (isVisible) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -756,14 +1049,14 @@ private fun ThemeSwatch(
             role = Role.RadioButton,
             onClick = onSelect,
         ),
-        verticalArrangement = Arrangement.spacedBy(7.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp),
-            shape = RoundedCornerShape(12.dp),
+                .height(64.dp),
+            shape = RoundedCornerShape(8.dp),
             color = Color.Transparent,
             border = BorderStroke(
                 if (isSelected) 2.dp else 1.dp,
@@ -782,8 +1075,8 @@ private fun ThemeSwatch(
         Text(
             text = option.themeOptionLabel(),
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-            color = if (isSelected) accent else OmnilogTheme.colors.appMuted,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (isSelected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
             maxLines = 1,
         )
     }
@@ -800,7 +1093,7 @@ private fun ThemePreviewPane(
         modifier = modifier
             .fillMaxSize()
             .background(palette.appBackground)
-            .padding(horizontal = 7.dp, vertical = 9.dp),
+            .padding(horizontal = 7.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         ThemePreviewBar(color = palette.appPanel, widthFraction = 1f)
@@ -882,181 +1175,12 @@ private fun nextAutoBackupSummary(lastSuccessAtEpochMillis: Long?, frequency: Au
 }
 
 @Composable
-private fun AutoBackupCard(
-    isAutoBackupEnabled: Boolean,
-    selectedFrequency: AutoBackupFrequency,
-    lastSuccessAtEpochMillis: Long?,
-    folderLabel: String?,
-    maxKeptBackups: Int,
-    onToggle: (Boolean) -> Unit,
-    onFolderRequested: () -> Unit,
-    onFrequencyChange: (AutoBackupFrequency) -> Unit,
-    onMaxKeptBackupsChange: (Int) -> Unit,
-) {
-    val statusAccent = if (isAutoBackupEnabled) {
-        OmnilogTheme.accents.Completed
-    } else {
-        OmnilogTheme.accents.Dashboard
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = OmnilogTheme.colors.appPanel),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(1.dp, statusAccent.copy(alpha = 0.26f)),
-    ) {
-        Column {
-            Row(
-                modifier = Modifier.padding(
-                    horizontal = RowPaddingHorizontal,
-                    vertical = RowPaddingVertical,
-                ),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SettingsRowText(
-                    title = "Còpia automàtica",
-                    description = if (isAutoBackupEnabled) {
-                        "${lastAutoBackupSummary(lastSuccessAtEpochMillis)} · " +
-                            nextAutoBackupSummary(lastSuccessAtEpochMillis, selectedFrequency)
-                    } else {
-                        "Tria una carpeta i Omnilog hi desarà la biblioteca tot sol."
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(
-                    checked = isAutoBackupEnabled,
-                    onCheckedChange = onToggle,
-                    colors = settingsSwitchColors(),
-                )
-            }
-            if (isAutoBackupEnabled) {
-                SettingsDivider()
-                SettingsDropdownRow(
-                    label = "Freqüència",
-                    options = AutoBackupFrequency.entries,
-                    selected = selectedFrequency,
-                    optionLabel = { it.label },
-                    onSelect = onFrequencyChange,
-                    accent = statusAccent,
-                )
-                SettingsDivider()
-                SettingsDropdownRow(
-                    label = "Còpies desades",
-                    description = "Es conserven les $maxKeptBackups còpies més recents; les més " +
-                        "antigues s'esborren soles de la carpeta.",
-                    options = AutoBackupRetentionOptions,
-                    selected = maxKeptBackups,
-                    optionLabel = { "$it còpies" },
-                    onSelect = onMaxKeptBackupsChange,
-                    accent = statusAccent,
-                )
-                SettingsDivider()
-                SettingsActionRow(
-                    title = "Carpeta de còpies de seguretat",
-                    description = folderLabel ?: "Cap carpeta triada",
-                    onClick = onFolderRequested,
-                )
-            }
-        }
-    }
-}
-
-/**
- * A labelled row that opens a dropdown of options — the compact, unambiguous control for a short
- * fixed list where chips took a whole scrolling row and read as a filter.
- */
-@Composable
-private fun <T> SettingsDropdownRow(
-    label: String,
-    options: List<T>,
-    selected: T,
-    optionLabel: (T) -> String,
-    onSelect: (T) -> Unit,
-    accent: Color,
-    description: String? = null,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { expanded = true }
-            .padding(horizontal = RowPaddingHorizontal, vertical = RowPaddingVertical),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = OmnilogTheme.colors.appInk,
-            )
-            if (description != null) {
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OmnilogTheme.colors.appMuted,
-                )
-            }
-        }
-        Box {
-            Surface(
-                modifier = Modifier.clickable { expanded = true },
-                shape = RoundedCornerShape(999.dp),
-                color = accent.copy(alpha = 0.16f),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.5f)),
-            ) {
-                Row(
-                    modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = optionLabel(selected),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = accent,
-                        maxLines = 1,
-                    )
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-            OmnilogDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                options.forEach { option ->
-                    OmnilogDropdownItem(
-                        text = optionLabel(option),
-                        selected = option == selected,
-                        accent = accent,
-                        onClick = {
-                            expanded = false
-                            onSelect(option)
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun malSyncDescription(state: MalSyncState): String = when {
     state.isSyncing -> "Sincronitzant ${state.pendingCount} canvis…"
     !state.isSyncEnabled -> "Toca per revisar i activar el primer enviament des d'Omnilog."
     state.failedCount > 0 -> "${state.failedCount} canvis necessiten atenció. Toca per reintentar."
     state.pendingCount > 0 -> "${state.pendingCount} canvis pendents. Toca per sincronitzar ara."
-    state.lastSuccessAtEpochMillis != null -> "Al dia · ${lastAutoBackupSummary(state.lastSuccessAtEpochMillis)}"
+    state.lastSuccessAtEpochMillis != null -> "Al dia · última sincronització: ${formatRunTimestamp(state.lastSuccessAtEpochMillis)}"
     else -> "Connectat. Toca per enviar la biblioteca d'anime."
 }
 
@@ -1124,74 +1248,60 @@ private fun formatRunTimestamp(epochMillis: Long): String {
     return dateTime.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT))
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MetadataRefreshHistorySheet(
     history: List<MetadataRefreshProgress>,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = OmnilogTheme.colors.appPanel) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = DetailGutter),
         ) {
-            Text(
-                text = "Historial d'actualitzacions",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = OmnilogTheme.colors.appInk,
-            )
+            DetailSectionTitle(text = "Historial d'actualitzacions", modifier = Modifier.semantics { heading() })
             Spacer(modifier = Modifier.height(8.dp))
-            if (history.isEmpty()) {
-                Text(
-                    text = "Encara no s'ha fet cap actualització de metadades.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = OmnilogTheme.colors.appMuted,
-                    modifier = Modifier.padding(vertical = 24.dp),
-                )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    history.forEachIndexed { index, run ->
-                        if (index > 0) {
-                            HorizontalDivider(color = OmnilogTheme.colors.appLine)
-                        }
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                history.forEachIndexed { index, run ->
+                    if (index > 0) {
+                        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    text = run.state.label(),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = OmnilogTheme.colors.appInk,
-                                )
-                                Text(
-                                    text = formatRunTimestamp(
-                                        run.completedAtEpochMillis ?: run.createdAtEpochMillis,
-                                    ),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = OmnilogTheme.colors.appMuted,
-                                )
-                            }
                             Text(
-                                text = run.summary(),
-                                style = MaterialTheme.typography.bodySmall,
+                                text = run.state.label(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = OmnilogTheme.colors.appInk,
+                            )
+                            Text(
+                                text = formatRunTimestamp(
+                                    run.completedAtEpochMillis ?: run.createdAtEpochMillis,
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = OmnilogTheme.colors.appMuted,
                             )
                         }
+                        Text(
+                            text = run.summary(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OmnilogTheme.colors.appMuted,
+                        )
                     }
                 }
             }
@@ -1237,29 +1347,26 @@ private fun MalPendingChangesSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.82f)
-                .padding(horizontal = 16.dp),
+                .fillMaxHeight(0.82f),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier.padding(horizontal = DetailGutter),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                ProviderLogo(source = ExternalRatingSource.Mal, height = 18.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProviderLogo(source = ExternalRatingSource.Mal, height = 18.dp)
+                    DetailSectionTitle(text = "Canvis pendents", modifier = Modifier.semantics { heading() })
+                }
                 Text(
-                    text = "Canvis pendents",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = OmnilogTheme.colors.appInk,
+                    text = "S'enviaran a MyAnimeList amb l'estat que tenen ara a Omnilog.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OmnilogTheme.colors.appMuted,
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Aquests animes s'enviaran a MyAnimeList amb l'estat que tenen ara a " +
-                    "Omnilog. És un enviament en un sol sentit: les dades d'Omnilog no canvien.",
-                style = MaterialTheme.typography.bodySmall,
-                color = OmnilogTheme.colors.appMuted,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1269,18 +1376,18 @@ private fun MalPendingChangesSheet(
             ) {
                 state.changes.forEachIndexed { index, change ->
                     if (index > 0) {
-                        HorizontalDivider(color = OmnilogTheme.colors.appLine)
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = DetailGutter), color = OmnilogTheme.colors.appLine)
                     }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 10.dp),
+                            .padding(horizontal = DetailGutter, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
                             text = change.animeTitle,
                             style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             color = OmnilogTheme.colors.appInk,
                         )
                         Text(
@@ -1295,29 +1402,28 @@ private fun MalPendingChangesSheet(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            SettingsPanel {
+            HorizontalDivider(color = OmnilogTheme.colors.appLine)
+            Column(modifier = Modifier.padding(horizontal = DetailGutter - PanelPadding)) {
                 SettingsActionRow(
                     title = "Reintenta els canvis",
-                    description = "Torna a enviar-los a MyAnimeList. Els que ja estan sincronitzats no es tornen a enviar.",
+                    description = "Els que ja estan sincronitzats no es tornen a enviar.",
                     onClick = {
                         onDismiss()
                         onRetry()
                     },
                     enabled = !state.isSyncing,
                     affordance = SettingsRowAffordance.None,
-                    accent = OmnilogTheme.accents.Anime,
                 )
                 SettingsDivider()
                 SettingsActionRow(
                     title = "Cancel·la la cua",
-                    description = "Elimina aquests canvis pendents sense modificar les dades d'Omnilog.",
+                    description = "Elimina aquests canvis sense modificar les dades d'Omnilog.",
                     onClick = {
                         onDismiss()
                         onCancel()
                     },
                     affordance = SettingsRowAffordance.None,
-                    accent = OmnilogTheme.accents.Dropped,
+                    tone = OmnilogTheme.accents.Dropped,
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -1325,13 +1431,14 @@ private fun MalPendingChangesSheet(
     }
 }
 
+/** The page closes on what Omnilog promises about the library, then the colophon in serif. */
 @Composable
 private fun SettingsAboutFooter() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = HeaderGutter),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth(0.25f),
@@ -1345,8 +1452,7 @@ private fun SettingsAboutFooter() {
         )
         Text(
             text = "Omnilog · Versió 1.0",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = SerifFontFamily),
             color = OmnilogTheme.colors.appMuted,
         )
     }
