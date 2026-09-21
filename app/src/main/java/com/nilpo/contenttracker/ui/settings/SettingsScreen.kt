@@ -116,7 +116,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** The inset of the chapter titles and group labels; the panels sit a little wider than their text. */
+/** The inset of everything on the page — titles, labels and rows — so they share one left edge. */
 private val HeaderGutter = 20.dp
 private val PanelMargin = 16.dp
 private val PanelPadding = 16.dp
@@ -126,7 +126,7 @@ private enum class SettingsRowAffordance { Chevron, None }
 
 /**
  * Preferences, backups, imports, MyAnimeList and metadata, set as chapters: a serif title, then named
- * groups, each on a soft panel. Three kinds of thing never look alike — a chapter's serif title, a
+ * groups, ruled rows set straight on the page. Three kinds of thing never look alike — a chapter's serif title, a
  * setting's plain row, and an action, which is always a button. A chevron on a row means it opens
  * another screen, sheet or system picker.
  */
@@ -265,7 +265,7 @@ private fun AppearanceChapter() {
     SettingsChapter(title = "Aparença") {
         SettingsGroup(label = "Tema") {
             Row(
-                modifier = Modifier.padding(PanelPadding),
+                modifier = Modifier.padding(horizontal = HeaderGutter, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ThemePreference.entries.forEach { option ->
@@ -283,7 +283,7 @@ private fun AppearanceChapter() {
             footnote = "Toca una secció per amagar-la o mostrar-la a «Ara mateix». " +
                 visibleSectionsSummary(hiddenSections),
         ) {
-            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+            Row(modifier = Modifier.padding(horizontal = HeaderGutter - 8.dp, vertical = 8.dp)) {
                 MediaSection.entries.forEach { section ->
                     val isVisible = section !in hiddenSections
                     SectionVisibilityToggle(
@@ -561,7 +561,7 @@ private fun MetadataChapter(
                     progress = { activeRefresh.processedCount.toFloat() / activeRefresh.totalCount },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = PanelPadding),
+                        .padding(horizontal = HeaderGutter),
                     color = OmnilogTheme.accents.Dashboard,
                     trackColor = OmnilogTheme.colors.appLine,
                     drawStopIndicator = {},
@@ -669,23 +669,20 @@ private fun SettingsGroupLabel(text: String) {
     )
 }
 
-/** A named group of rows on one soft panel, with an optional footnote under it. */
+/**
+ * A named group of rows set straight on the page, ruled from the label and from each other; only
+ * tiles that are things to tap in their own right ([BackupTile]) get a panel.
+ */
 @Composable
 private fun SettingsGroup(
     label: String,
     footnote: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SettingsGroupLabel(text = label)
-        Column(
-            modifier = Modifier
-                .padding(horizontal = PanelMargin)
-                .fillMaxWidth()
-                .clip(PanelShape)
-                .background(OmnilogTheme.colors.appPanel),
-            content = content,
-        )
+        SettingsDivider()
+        Column(modifier = Modifier.fillMaxWidth(), content = content)
         footnote?.let {
             Text(
                 text = it,
@@ -702,7 +699,7 @@ private val PanelShape = RoundedCornerShape(14.dp)
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(
-        modifier = Modifier.padding(horizontal = PanelPadding),
+        modifier = Modifier.padding(horizontal = HeaderGutter),
         color = OmnilogTheme.colors.appLine,
     )
 }
@@ -725,7 +722,7 @@ private fun SettingsRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .padding(horizontal = PanelPadding, vertical = 12.dp),
+            .padding(horizontal = HeaderGutter, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -800,7 +797,7 @@ private fun SettingsActionRow(
 @Composable
 private fun SettingsButtons(content: @Composable RowScope.() -> Unit) {
     Row(
-        modifier = Modifier.padding(start = PanelPadding, end = PanelPadding, bottom = 14.dp),
+        modifier = Modifier.padding(start = HeaderGutter, end = HeaderGutter, bottom = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
@@ -895,7 +892,7 @@ private fun SettingsSwitchRow(
                 checkedTrackColor = OmnilogTheme.accents.Dashboard,
                 checkedBorderColor = OmnilogTheme.accents.Dashboard,
                 uncheckedThumbColor = OmnilogTheme.colors.appMuted,
-                uncheckedTrackColor = OmnilogTheme.colors.appBackground,
+                uncheckedTrackColor = OmnilogTheme.colors.appPanel,
                 uncheckedBorderColor = OmnilogTheme.colors.appLine,
             ),
         )
@@ -1396,7 +1393,7 @@ private fun MalPendingChangesSheet(
                 }
             }
             HorizontalDivider(color = OmnilogTheme.colors.appLine)
-            Column(modifier = Modifier.padding(horizontal = DetailGutter - PanelPadding)) {
+            Column(modifier = Modifier.padding(horizontal = DetailGutter - HeaderGutter)) {
                 SettingsActionRow(
                     title = "Reintenta els canvis",
                     description = "Els que ja estan sincronitzats no es tornen a enviar.",
