@@ -82,7 +82,8 @@ import java.time.format.FormatStyle
  * `docs/features/activity.md`.
  *
  * Newest day first, so running totals always read in order and a re-dated entry moves to the day it
- * claims. Undated rows close the list: they belong to the session but to no day in it.
+ * claims. Undated rows close the list: they belong to the session but to no day in it. The exception
+ * is undated progress under a dated start, which sits just above the start it must have followed.
  *
  * Hung off the Timeline's own gutter and rail — the date in the gutter once per day, a bead per row —
  * because it is the same chronology at the scale of one session. Status changes take the larger bead

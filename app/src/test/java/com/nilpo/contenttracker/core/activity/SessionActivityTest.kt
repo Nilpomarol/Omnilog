@@ -265,6 +265,22 @@ class SessionActivityTest {
     }
 
     @Test
+    fun undatedProgressSitsAboveADatedStartNotBelowIt() {
+        val rows = session(
+            startedAt = start,
+            finishedAt = LocalDate.of(2026, 3, 20),
+            status = TrackingStatus.Completed,
+            updated = 1_000,
+            updates = listOf(
+                entry(id = 1, day = 5, amount = 30, createdAt = 100),
+                entry(id = 2, day = 9, amount = 2, createdAt = 200).copy(hasKnownDate = false),
+            ),
+        ).activity()
+
+        assertEquals(listOf("session:Completed", "entry:1", "entry:2", "session:Started"), rows.map { it.key })
+    }
+
+    @Test
     fun anEndingCannotPrecedeTheStartOrADatedTransition() {
         val paused = statusEvent(1, 100, TrackingStatus.Paused, day = 10, previous = TrackingStatus.InProgress)
 

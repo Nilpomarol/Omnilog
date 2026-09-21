@@ -52,7 +52,8 @@ data class SessionActivity(
 
 /**
  * A session's history as both Activitat and the Timeline read it: newest day first, undated rows
- * last, and rows within one day in the order they were recorded.
+ * last (undated progress sits just above a dated start instead, since it can only have followed it),
+ * and rows within one day in the order they were recorded.
  *
  * Ordered by date rather than by when rows were written, so running totals always read in sequence
  * and a re-dated entry moves to the day it now claims.
@@ -178,11 +179,16 @@ fun TrackingSession.activity(): List<SessionActivity> {
         )
     }
 
-    return rows.sortedWith(
+    val sorted = rows.sortedWith(
         compareBy<SessionActivity> { it.date == null }
             .thenByDescending { it.date }
             .thenByDescending { it.recordedAtEpochMillis },
     )
+    if (startedAt == null) return sorted
+    // Progress can only have come after the start, so undated entries sit just above it, not below.
+    val (undated, rest) = sorted.partition { it.date == null && it.kind == SessionActivityKind.Progress }
+    val at = rest.indexOfFirst { it.key == "session:${SessionActivityKind.Started.name}" }
+    return rest.take(at) + undated + rest.drop(at)
 }
 
 /**

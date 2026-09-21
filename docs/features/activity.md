@@ -54,7 +54,7 @@ Same-day pause/resume pairs are suppressed from the library Timeline only; Activ
 
 ## Ordering
 
-Activity reads newest day first, grouped by month, with rows of one day in the order they were recorded. Undated rows close the list under their own heading.
+Activity reads newest day first, grouped by month, with rows of one day in the order they were recorded. Undated rows close the list under their own heading, except undated progress in a session with a dated start, which sits just above the start it must have followed.
 
 Ordering by day keeps running totals in sequence, and a re-dated entry moves to the day it now claims.
 
