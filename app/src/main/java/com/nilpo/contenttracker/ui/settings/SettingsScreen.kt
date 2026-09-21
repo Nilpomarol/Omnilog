@@ -74,6 +74,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nilpo.contenttracker.BuildConfig
 import com.nilpo.contenttracker.R
 import com.nilpo.contenttracker.core.backup.AutoBackupFrequency
 import com.nilpo.contenttracker.core.backup.AutoBackupRetentionOptions
@@ -1421,7 +1422,10 @@ private fun MalPendingChangesSheet(
     }
 }
 
-/** The page closes on what Omnilog promises about the library, then the colophon in serif. */
+/**
+ * The page closes on what Omnilog promises about the library, then who supplies the metadata, then
+ * the colophon in serif. TMDB's terms prescribe its notice word for word, so that line stays in English.
+ */
 @Composable
 private fun SettingsAboutFooter() {
     Column(
@@ -1441,7 +1445,18 @@ private fun SettingsAboutFooter() {
             color = OmnilogTheme.colors.appMuted,
         )
         Text(
-            text = "Omnilog · Versió 1.0",
+            text = "Les metadades, valoracions i portades vénen d'AniList, MyAnimeList, TMDB, OMDb, " +
+                "Open Library, Google Books, RAWG, IGDB i Steam. Pertanyen als seus propietaris.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OmnilogTheme.colors.appMuted,
+        )
+        Text(
+            text = "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OmnilogTheme.colors.appMuted,
+        )
+        Text(
+            text = "Omnilog · Versió ${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.bodyMedium.copy(fontFamily = SerifFontFamily),
             color = OmnilogTheme.colors.appMuted,
         )

@@ -92,6 +92,10 @@ app/src/main/java/com/nilpo/contenttracker/
 
 Start with the [documentation index](docs/README.md): [roadmap](docs/current/roadmap.md), [design direction](docs/current/design.md), [development guide](docs/current/development-guide.md), and one spec per feature under [`docs/features/`](docs/features/).
 
+## Data providers
+
+Metadata, ratings and cover art come from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam, and belong to their respective owners. This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 ## License
 
 [MIT](LICENSE)

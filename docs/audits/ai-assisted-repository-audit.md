@@ -1,6 +1,6 @@
 # AI-Assisted Repository Audit & Optimization
 
-**Repository:** `Nilpomarol/Content-tracking-android-app`  
+**Repository:** `Nilpomarol/Omnilog`  
 **Project:** Omnilog  
 **Audit date:** 12 September 2026  
 **Status:** Audit report / advisory. Recommendations are not implemented merely by being documented here.  
