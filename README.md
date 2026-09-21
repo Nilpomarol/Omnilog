@@ -1,94 +1,97 @@
 # Omnilog
 
-Omnilog is a native Android personal media tracker for anime, books, movies/TV, and games. It is local-first: Room is the source of truth, while external providers enrich local items without owning the user's tracking history.
+[![CI](https://github.com/Nilpomarol/Omnilog/actions/workflows/ci.yml/badge.svg)](https://github.com/Nilpomarol/Omnilog/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## What It Tracks
+A native Android tracker for everything you watch, read and play: anime, books, movies and TV, and games, in one place.
 
-- media items and collections
-- sessions and progress/activity updates
-- personal ratings and notes
-- ownership
-- provider metadata and external ratings
-- imports from MyAnimeList, IMDb, and StoryGraph
-- backup export/import/restore
+It is **local-first**. The on-device database is the source of truth for your history, and external providers (AniList, TMDB, Open Library, Steam…) only enrich items with covers, synopses and ratings. They never own or overwrite what you logged.
 
-## Tech Stack
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home-scroll.gif" width="240" alt="Scrolling through Home"></td>
+    <td><img src="docs/screenshots/library-detail.gif" width="240" alt="Browsing the anime library and opening an item"></td>
+    <td><img src="docs/screenshots/timeline-stats.gif" width="240" alt="Stats and timeline"></td>
+  </tr>
+</table>
 
-- Kotlin
-- Jetpack Compose
-- Room
-- WorkManager
-- Navigation 3
-- Gradle wrapper
-- Android min SDK 26, target SDK 36, compile SDK 36
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home.png" width="240" alt="Home: continue watching, up next, and yearly pace rings"></td>
+    <td><img src="docs/screenshots/library.png" width="240" alt="Anime library with status filters and progress"></td>
+    <td><img src="docs/screenshots/detail.png" width="240" alt="Item detail with progress, personal rating and external ratings"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/timeline.png" width="240" alt="Library-wide timeline of started and completed items"></td>
+    <td><img src="docs/screenshots/stats.png" width="240" alt="Yearly statistics with completions per month and rating distribution"></td>
+    <td><img src="docs/screenshots/profile.png" width="240" alt="Profile with totals per media type"></td>
+  </tr>
+</table>
 
-## Build
+The UI is currently in Catalan.
 
-From the repository root on Windows:
+## Features
 
-```powershell
-.\gradlew.bat :app:assembleDebug --console=plain -q
+- **Four media types, one model.** Anime, books, movies/TV and games share sessions, progress, ratings, notes, ownership and collections.
+- **Progress and activity.** Log episodes, pages, minutes or hours per session. Every update is kept, so re-watches and re-reads keep their own history.
+- **Timeline and calendar.** A library-wide chronology derived from that history, not stored separately.
+- **Stats and goals.** Yearly comparisons, rating distributions and personal goals with pace tracking ("2 behind schedule · 101 days left").
+- **Metadata from nine providers.** Search, link and refresh from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam. Refreshes show a preview and never overwrite local edits.
+- **Imports.** MyAnimeList (XML export or account), IMDb CSV and StoryGraph CSV. Imports are additive and duplicate-aware, and enrichment runs as a durable background job that can be paused, resumed, cancelled and recovered after a crash.
+- **MyAnimeList sync.** Push progress back to MAL through an offline-tolerant queue. It never deletes MAL-only titles.
+- **Backup and restore.** Full export/import, plus automatic backups.
+- **Themes.** System, light and dark, each with its own palette.
+
+## Engineering notes
+
+- **Room schema v37** with hand-written migrations, every schema version exported under [`app/schemas`](app/schemas) and covered by instrumented migration tests for recent versions.
+- **Data-safety invariants** are written down and tested: metadata operations must preserve sessions, ratings, notes, ownership and collections ([`AGENTS.md`](AGENTS.md), [`HistoryInvariantTest`](app/src/test/java/com/nilpo/contenttracker/core/repository/HistoryInvariantTest.kt)).
+- **Pure logic is separated from Android**, so stats, timeline, objectives, import parsing and MAL sync payloads are plain JVM unit tests. The suite has 70+ test classes against roughly 57k lines of Kotlin.
+- **Import fixtures are synthetic.** The test exports under `app/src/test/resources` are made-up data, not a real account.
+- Design and behaviour are documented per feature in [`docs/`](docs/README.md).
+
+## Tech stack
+
+Kotlin · Jetpack Compose (Material 3) · Room · WorkManager · Navigation 3 · Coil · kotlinx.serialization · Gradle (Kotlin DSL) · min SDK 26, target/compile SDK 36
+
+## Getting started
+
+Requirements: JDK 21 (Android Studio's bundled JBR works) and the Android SDK.
+
+```bash
+git clone https://github.com/Nilpomarol/Omnilog.git
+cd Omnilog
+cp gradle.properties.example gradle.properties   # required: enables AndroidX
+./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
 ```
 
-Run unit tests:
+On Windows use `.\gradlew.bat` and `copy gradle.properties.example gradle.properties`. Android Studio needs the SDK path in `local.properties` (it writes this for you).
 
-```powershell
-.\gradlew.bat :app:testDebugUnitTest --console=plain -q
-```
+The debug build installs as `com.nilpo.contenttracker.debug`, so it never collides with a release-signed install.
 
-Use the equivalent `./gradlew` commands on Unix-like systems.
+### Provider keys (optional)
 
-If Android Studio's bundled JBR is needed on Windows:
+The app builds and runs without any keys. Search and enrichment are limited until you add them. Set them in the ignored root `gradle.properties`, in `~/.gradle/gradle.properties`, or as environment variables:
 
-```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-```
+`TMDB_API_KEY` · `GOOGLE_BOOKS_API_KEY` · `RAWG_API_KEY` · `OMDB_API_KEY` · `IGDB_CLIENT_ID` + `IGDB_CLIENT_SECRET` · `MAL_CLIENT_ID`
 
-## Provider Credentials
+Keys are compiled into `BuildConfig`, so anyone who can install your APK can extract them. Use restricted or low-value keys, and don't distribute a build containing the IGDB client secret.
 
-Provider keys are optional. The app builds without them, but metadata enrichment may be limited.
+For MAL account sync, register `omnilog://mal-oauth` as the OAuth redirect URI.
 
-Supported keys include:
-
-- `TMDB_API_KEY`
-- `GOOGLE_BOOKS_API_KEY`
-- `RAWG_API_KEY`
-- `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET`
-- `OMDB_API_KEY`
-- `MAL_CLIENT_ID`
-
-Do not commit real keys to this repository. Use environment variables, user-level Gradle properties, or the ignored root `gradle.properties` copied from `gradle.properties.example`.
-
-For MAL account synchronization, register:
+## Project layout
 
 ```text
-omnilog://mal-oauth
+app/src/main/java/com/nilpo/contenttracker/
+  core/   database, repository, imports, mal, stats, timeline, objectives, backup, refresh
+  ui/     home, detail, add, timeline, stats, profile, settings, imports, theme
 ```
-
-as the OAuth redirect URI.
-
-Direct IGDB client-secret use is appropriate only for local/development builds; a distributed Android application cannot keep a client secret private.
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md).
+Start with the [documentation index](docs/README.md): [roadmap](docs/current/roadmap.md), [design direction](docs/current/design.md), [development guide](docs/current/development-guide.md), and one spec per feature under [`docs/features/`](docs/features/).
 
-Most development tasks should only need:
+## License
 
-- [Agent instructions](AGENTS.md)
-- [Current roadmap](docs/current/roadmap.md)
-- [Current design direction](docs/current/design.md)
-- [Development guide](docs/current/development-guide.md)
-- one relevant document under [`docs/features/`](docs/features/)
-
-Historical implementation plans and delivery records live under `docs/archive/` and are intentionally non-authoritative.
-
-## Project Guardrails
-
-- Keep imports additive; backup restore is the normal destructive replace-all flow.
-- Preserve sessions, progress/activity history, ratings, reviews/notes, ownership, and collections during metadata operations.
-- Keep provider imports discoverable in Settings; contextual entry points should launch only the matching provider flow.
-- Ask before introducing major new frameworks or dependencies.
-- Keep secrets and local-machine configuration out of tracked files.
-- Prefer focused changes over broad architecture rewrites.
+[MIT](LICENSE)
