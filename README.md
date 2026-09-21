@@ -3,9 +3,19 @@
 [![CI](https://github.com/Nilpomarol/Omnilog/actions/workflows/ci.yml/badge.svg)](https://github.com/Nilpomarol/Omnilog/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A native Android tracker for everything you watch, read and play: anime, books, movies and TV, and games, in one place.
+A native Android tracker for everything you watch, read and play: anime, books, movies/TV and games, in one place.
 
-It is **local-first**. The on-device database is the source of truth for your history, and external providers (AniList, TMDB, Open Library, Steam…) only enrich items with covers, synopses and ratings. They never own or overwrite what you logged.
+Omnilog is **local-first**. The on-device database is the source of truth for your history, while external providers such as AniList, TMDB, Open Library and Steam only enrich items with covers, synopses and ratings. They never own or overwrite what you logged.
+
+> **Status:** Functional Android app with tracking, imports, MyAnimeList sync, statistics, goals, backup and restore implemented. The UI is currently in Catalan.
+
+## Why it stands out
+
+- **Four media types, one data model** for sessions, progress, ratings, notes, ownership and collections.
+- **Nine metadata providers** integrated for search and enrichment without giving up local ownership of user data.
+- **Durable import and sync workflows** that are duplicate-aware, offline-tolerant and recoverable after interruption.
+- **Room schema v37 with hand-written migrations**, migration tests and explicit data-safety invariants.
+- **70+ test classes** across roughly **57k lines of Kotlin**, with pure application logic kept testable outside Android.
 
 <table>
   <tr>
@@ -28,31 +38,30 @@ It is **local-first**. The on-device database is the source of truth for your hi
   </tr>
 </table>
 
-The UI is currently in Catalan.
-
 ## Features
 
-- **Four media types, one model.** Anime, books, movies/TV and games share sessions, progress, ratings, notes, ownership and collections.
-- **Progress and activity.** Log episodes, pages, minutes or hours per session. Every update is kept, so re-watches and re-reads keep their own history.
-- **Timeline and calendar.** A library-wide chronology derived from that history, not stored separately.
-- **Stats and goals.** Yearly comparisons, rating distributions and personal goals with pace tracking ("2 behind schedule · 101 days left").
-- **Metadata from nine providers.** Search, link and refresh from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam. Refreshes show a preview and never overwrite local edits.
-- **Imports.** MyAnimeList (XML export or account), IMDb CSV and StoryGraph CSV. Imports are additive and duplicate-aware, and enrichment runs as a durable background job that can be paused, resumed, cancelled and recovered after a crash.
-- **MyAnimeList sync.** Push progress back to MAL through an offline-tolerant queue. It never deletes MAL-only titles.
-- **Backup and restore.** Full export/import, plus automatic backups.
-- **Themes.** System, light and dark, each with its own palette.
+- **Progress and activity.** Log episodes, pages, minutes or hours per session. Every update is kept, so re-watches and re-reads preserve their own history.
+- **Timeline and calendar.** A library-wide chronology derived from activity history rather than stored separately.
+- **Stats and goals.** Yearly comparisons, rating distributions and personal goals with pace tracking such as `2 behind schedule · 101 days left`.
+- **Metadata enrichment.** Search, link and refresh from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam. Refreshes show a preview and never overwrite local edits.
+- **Imports.** MyAnimeList XML or account data, IMDb CSV and StoryGraph CSV. Imports are additive and duplicate-aware; enrichment runs as a durable background job that can be paused, resumed, cancelled and recovered after a crash.
+- **MyAnimeList sync.** Push progress back to MAL through an offline-tolerant queue without deleting MAL-only titles.
+- **Backup and restore.** Full export/import plus automatic backups.
+- **Themes.** System, light and dark themes, each with its own palette.
 
-## Engineering notes
+## Engineering
 
-- **Room schema v37** with hand-written migrations, every schema version exported under [`app/schemas`](app/schemas) and covered by instrumented migration tests for recent versions.
-- **Data-safety invariants** are written down and tested: metadata operations must preserve sessions, ratings, notes, ownership and collections ([`AGENTS.md`](AGENTS.md), [`HistoryInvariantTest`](app/src/test/java/com/nilpo/contenttracker/core/repository/HistoryInvariantTest.kt)).
-- **Pure logic is separated from Android**, so stats, timeline, objectives, import parsing and MAL sync payloads are plain JVM unit tests. The suite has 70+ test classes against roughly 57k lines of Kotlin.
-- **Import fixtures are synthetic.** The test exports under `app/src/test/resources` are made-up data, not a real account.
-- Design and behaviour are documented per feature in [`docs/`](docs/README.md).
+- **Versioned Room schema.** Schema v37 uses hand-written migrations, with every schema version exported under [`app/schemas`](app/schemas) and recent migrations covered by instrumented tests.
+- **Data-safety invariants.** Metadata operations must preserve sessions, ratings, notes, ownership and collections. These rules are documented and tested in [`AGENTS.md`](AGENTS.md) and [`HistoryInvariantTest`](app/src/test/java/com/nilpo/contenttracker/core/repository/HistoryInvariantTest.kt).
+- **Android-independent application logic.** Stats, timeline, objectives, import parsing and MAL sync payloads are plain JVM-testable logic rather than being tied to UI or Android framework code.
+- **Synthetic fixtures.** Test exports under `app/src/test/resources` contain made-up data rather than data from a real account.
+- **Feature-level documentation.** Design and behaviour are documented under [`docs/`](docs/README.md).
 
 ## Tech stack
 
-Kotlin · Jetpack Compose (Material 3) · Room · WorkManager · Navigation 3 · Coil · kotlinx.serialization · Gradle (Kotlin DSL) · min SDK 26, target/compile SDK 36
+Kotlin · Jetpack Compose (Material 3) · Room · WorkManager · Navigation 3 · Coil · kotlinx.serialization · Gradle (Kotlin DSL)
+
+**Android:** min SDK 26 · target/compile SDK 36
 
 ## Getting started
 
@@ -66,17 +75,17 @@ cp gradle.properties.example gradle.properties   # required: enables AndroidX
 ./gradlew :app:testDebugUnitTest
 ```
 
-On Windows use `.\gradlew.bat` and `copy gradle.properties.example gradle.properties`. Android Studio needs the SDK path in `local.properties` (it writes this for you).
+On Windows use `.\gradlew.bat` and `copy gradle.properties.example gradle.properties`. Android Studio needs the SDK path in `local.properties` and normally writes it automatically.
 
-The debug build installs as `com.nilpo.contenttracker.debug`, so it never collides with a release-signed install.
+The debug build installs as `com.nilpo.contenttracker.debug`, so it does not collide with a release-signed install.
 
 ### Provider keys (optional)
 
-The app builds and runs without any keys. Search and enrichment are limited until you add them. Set them in the ignored root `gradle.properties`, in `~/.gradle/gradle.properties`, or as environment variables:
+The app builds and runs without provider keys, but search and enrichment are limited until they are configured. Add them to the ignored root `gradle.properties`, `~/.gradle/gradle.properties`, or environment variables:
 
 `TMDB_API_KEY` · `GOOGLE_BOOKS_API_KEY` · `RAWG_API_KEY` · `OMDB_API_KEY` · `IGDB_CLIENT_ID` + `IGDB_CLIENT_SECRET` · `MAL_CLIENT_ID`
 
-Keys are compiled into `BuildConfig`, so anyone who can install your APK can extract them. Use restricted or low-value keys, and don't distribute a build containing the IGDB client secret.
+Keys are compiled into `BuildConfig`, so anyone who can install the APK can extract them. Use restricted or low-value keys, and do not distribute a build containing the IGDB client secret.
 
 For MAL account sync, register `omnilog://mal-oauth` as the OAuth redirect URI.
 
@@ -94,7 +103,7 @@ Start with the [documentation index](docs/README.md): [roadmap](docs/current/roa
 
 ## Data providers
 
-Metadata, ratings and cover art come from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam, and belong to their respective owners. This product uses the TMDB API but is not endorsed or certified by TMDB.
+Metadata, ratings and cover art come from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam and belong to their respective owners. This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## License
 
