@@ -3,19 +3,13 @@
 [![CI](https://github.com/Nilpomarol/Omnilog/actions/workflows/ci.yml/badge.svg)](https://github.com/Nilpomarol/Omnilog/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A native Android tracker for everything you watch, read and play: anime, books, movies/TV and games, in one place.
+Omnilog is a native Android tracker for everything you watch, read and play: anime, books, movies and TV, and games, all in one place.
 
-Omnilog is **local-first**. The on-device database is the source of truth for your history, while external providers such as AniList, TMDB, Open Library and Steam only enrich items with covers, synopses and ratings. They never own or overwrite what you logged.
+The app is **local-first**. The on-device database is the source of truth for your history and personal data. External providers such as AniList, TMDB, Open Library and Steam are used only to enrich items with metadata such as covers, synopses and ratings; they do not own or overwrite what you have logged.
 
-> **Status:** Functional Android app with tracking, imports, MyAnimeList sync, statistics, goals, backup and restore implemented. The UI is currently in Catalan.
+The UI is currently in Catalan.
 
-## Why it stands out
-
-- **Four media types, one data model** for sessions, progress, ratings, notes, ownership and collections.
-- **Nine metadata providers** integrated for search and enrichment without giving up local ownership of user data.
-- **Durable import and sync workflows** that are duplicate-aware, offline-tolerant and recoverable after interruption.
-- **Room schema v37 with hand-written migrations**, migration tests and explicit data-safety invariants.
-- **70+ test classes** across roughly **57k lines of Kotlin**, with pure application logic kept testable outside Android.
+## Screenshots
 
 <table>
   <tr>
@@ -40,54 +34,148 @@ Omnilog is **local-first**. The on-device database is the source of truth for yo
 
 ## Features
 
-- **Progress and activity.** Log episodes, pages, minutes or hours per session. Every update is kept, so re-watches and re-reads preserve their own history.
-- **Timeline and calendar.** A library-wide chronology derived from activity history rather than stored separately.
-- **Stats and goals.** Yearly comparisons, rating distributions and personal goals with pace tracking such as `2 behind schedule · 101 days left`.
-- **Metadata enrichment.** Search, link and refresh from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam. Refreshes show a preview and never overwrite local edits.
-- **Imports.** MyAnimeList XML or account data, IMDb CSV and StoryGraph CSV. Imports are additive and duplicate-aware; enrichment runs as a durable background job that can be paused, resumed, cancelled and recovered after a crash.
-- **MyAnimeList sync.** Push progress back to MAL through an offline-tolerant queue without deleting MAL-only titles.
-- **Backup and restore.** Full export/import plus automatic backups.
-- **Themes.** System, light and dark themes, each with its own palette.
+### Unified tracking
 
-## Engineering
+Anime, books, movies/TV and games share the same core model for:
 
-- **Versioned Room schema.** Schema v37 uses hand-written migrations, with every schema version exported under [`app/schemas`](app/schemas) and recent migrations covered by instrumented tests.
-- **Data-safety invariants.** Metadata operations must preserve sessions, ratings, notes, ownership and collections. These rules are documented and tested in [`AGENTS.md`](AGENTS.md) and [`HistoryInvariantTest`](app/src/test/java/com/nilpo/contenttracker/core/repository/HistoryInvariantTest.kt).
-- **Android-independent application logic.** Stats, timeline, objectives, import parsing and MAL sync payloads are plain JVM-testable logic rather than being tied to UI or Android framework code.
-- **Synthetic fixtures.** Test exports under `app/src/test/resources` contain made-up data rather than data from a real account.
-- **Feature-level documentation.** Design and behaviour are documented under [`docs/`](docs/README.md).
+- sessions and activity history;
+- progress;
+- personal ratings and notes;
+- ownership;
+- collections;
+- start and completion history.
+
+Progress can be logged in the unit that makes sense for each medium: episodes, pages, minutes or hours. Activity is preserved rather than flattened, so re-watches and re-reads retain their own history.
+
+### Timeline, statistics and goals
+
+- Library-wide timeline and calendar derived from activity history.
+- Yearly comparisons and completion statistics.
+- Rating distributions.
+- Personal goals with pace tracking.
+
+### Metadata enrichment
+
+Omnilog can search, link and refresh metadata from:
+
+- AniList
+- MyAnimeList
+- TMDB
+- OMDb
+- Open Library
+- Google Books
+- RAWG
+- IGDB
+- Steam
+
+Metadata refreshes show a preview before applying changes and are designed not to overwrite local user data.
+
+### Imports and sync
+
+- MyAnimeList XML export or account import.
+- IMDb CSV import.
+- StoryGraph CSV import.
+- Additive, duplicate-aware imports.
+- Background enrichment jobs that can be paused, resumed, cancelled and recovered after interruption.
+- MyAnimeList progress sync through an offline-tolerant queue.
+- MAL-only titles are not deleted by sync.
+
+### Backup and appearance
+
+- Full backup and restore.
+- Automatic backups.
+- System, light and dark themes with separate palettes.
+
+## Architecture and data integrity
+
+Omnilog uses Room as the local persistence layer. The current schema is **version 37** and uses hand-written migrations. Schema versions are exported under [`app/schemas`](app/schemas), and recent migrations are covered by instrumented migration tests.
+
+A central design rule is that metadata operations must never destroy personal history. Sessions, ratings, notes, ownership and collections are treated as protected user data. These invariants are documented in [`AGENTS.md`](AGENTS.md) and covered by tests such as [`HistoryInvariantTest`](app/src/test/java/com/nilpo/contenttracker/core/repository/HistoryInvariantTest.kt).
+
+Application logic that does not depend on Android is kept separate where practical. Statistics, timeline calculations, objectives, import parsing and MyAnimeList sync payload generation can therefore be tested as plain JVM logic.
+
+Test imports and fixtures under `app/src/test/resources` use synthetic data rather than real account exports.
 
 ## Tech stack
 
-Kotlin · Jetpack Compose (Material 3) · Room · WorkManager · Navigation 3 · Coil · kotlinx.serialization · Gradle (Kotlin DSL)
-
-**Android:** min SDK 26 · target/compile SDK 36
+- **Language:** Kotlin
+- **UI:** Jetpack Compose, Material 3
+- **Persistence:** Room
+- **Background work:** WorkManager
+- **Navigation:** Navigation 3
+- **Images:** Coil
+- **Serialization:** kotlinx.serialization
+- **Build:** Gradle with Kotlin DSL
+- **Android:** min SDK 26, target/compile SDK 36
 
 ## Getting started
 
-Requirements: JDK 21 (Android Studio's bundled JBR works) and the Android SDK.
+### Requirements
+
+- JDK 21. Android Studio's bundled JBR works.
+- Android SDK.
+
+### Build
 
 ```bash
 git clone https://github.com/Nilpomarol/Omnilog.git
 cd Omnilog
-cp gradle.properties.example gradle.properties   # required: enables AndroidX
+cp gradle.properties.example gradle.properties
 ./gradlew :app:assembleDebug
-./gradlew :app:testDebugUnitTest
 ```
 
-On Windows use `.\gradlew.bat` and `copy gradle.properties.example gradle.properties`. Android Studio needs the SDK path in `local.properties` and normally writes it automatically.
+On Windows:
 
-The debug build installs as `com.nilpo.contenttracker.debug`, so it does not collide with a release-signed install.
+```powershell
+copy gradle.properties.example gradle.properties
+.\gradlew.bat :app:assembleDebug
+```
 
-### Provider keys (optional)
+Android Studio normally writes the SDK path to `local.properties` automatically.
 
-The app builds and runs without provider keys, but search and enrichment are limited until they are configured. Add them to the ignored root `gradle.properties`, `~/.gradle/gradle.properties`, or environment variables:
+The debug build uses the application ID `com.nilpo.contenttracker.debug`, so it can be installed alongside a release-signed build.
 
-`TMDB_API_KEY` · `GOOGLE_BOOKS_API_KEY` · `RAWG_API_KEY` · `OMDB_API_KEY` · `IGDB_CLIENT_ID` + `IGDB_CLIENT_SECRET` · `MAL_CLIENT_ID`
+## Provider configuration
+
+Provider keys are optional. The app builds and runs without them, but search and enrichment capabilities are limited until the relevant providers are configured.
+
+Keys can be set in the ignored root `gradle.properties`, in `~/.gradle/gradle.properties`, or as environment variables:
+
+```text
+TMDB_API_KEY
+GOOGLE_BOOKS_API_KEY
+RAWG_API_KEY
+OMDB_API_KEY
+IGDB_CLIENT_ID
+IGDB_CLIENT_SECRET
+MAL_CLIENT_ID
+```
 
 Keys are compiled into `BuildConfig`, so anyone who can install the APK can extract them. Use restricted or low-value keys, and do not distribute a build containing the IGDB client secret.
 
-For MAL account sync, register `omnilog://mal-oauth` as the OAuth redirect URI.
+For MyAnimeList account sync, register the following OAuth redirect URI:
+
+```text
+omnilog://mal-oauth
+```
+
+## Testing
+
+Run the JVM unit tests with:
+
+```bash
+./gradlew :app:testDebugUnitTest
+```
+
+On Windows:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest
+```
+
+Migration and other Android instrumentation tests require an emulator or connected device.
+
+CI is configured through GitHub Actions and is exposed by the badge at the top of this README.
 
 ## Project layout
 
@@ -99,11 +187,20 @@ app/src/main/java/com/nilpo/contenttracker/
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md): [roadmap](docs/current/roadmap.md), [design direction](docs/current/design.md), [development guide](docs/current/development-guide.md), and one spec per feature under [`docs/features/`](docs/features/).
+The repository contains more detailed product and implementation documentation under [`docs/`](docs/README.md).
+
+Useful entry points:
+
+- [Roadmap](docs/current/roadmap.md)
+- [Design direction](docs/current/design.md)
+- [Development guide](docs/current/development-guide.md)
+- [Feature specifications](docs/features/)
 
 ## Data providers
 
-Metadata, ratings and cover art come from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam and belong to their respective owners. This product uses the TMDB API but is not endorsed or certified by TMDB.
+Metadata, ratings and cover art come from AniList, MyAnimeList, TMDB, OMDb, Open Library, Google Books, RAWG, IGDB and Steam and belong to their respective owners.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## License
 
