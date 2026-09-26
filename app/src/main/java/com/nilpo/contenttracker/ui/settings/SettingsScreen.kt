@@ -1,6 +1,7 @@
 package com.nilpo.contenttracker.ui.settings
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.animation.animateColorAsState
@@ -58,6 +59,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -255,13 +262,15 @@ fun SettingsScreen(
 // Chapters
 // ─────────────────────────────────────────────────────────────
 
-/** How the app looks: the theme, and which sections Home's «Ara mateix» shows. */
+/** How the app looks: the theme, the launcher icon, and which sections Home's «Ara mateix» shows. */
 @Composable
 private fun AppearanceChapter() {
     val themePreferences = rememberThemePreferences()
     val themePreference by rememberThemePreference(themePreferences)
     val activeFilterPreferences = rememberActiveFilterPreferences()
     val hiddenSections by rememberHiddenActiveSections(activeFilterPreferences)
+    val context = LocalContext.current
+    var appIcon by remember { mutableStateOf(currentAppIcon(context)) }
 
     SettingsChapter(title = "Aparença") {
         SettingsGroup(label = "Tema") {
@@ -276,6 +285,50 @@ private fun AppearanceChapter() {
                         onSelect = { themePreferences.writeThemePreference(option) },
                         modifier = Modifier.weight(1f),
                     )
+                }
+            }
+        }
+        SettingsGroup(label = "Icona de l'app") {
+            // The shelf logo keeps its last colour while the classic one is chosen, so going back to it
+            // doesn't reset the colour.
+            var shelfIcon by remember { mutableStateOf(appIcon.takeIf { it != AppIcon.Classic } ?: AppIcon.Green) }
+            val choose = { icon: AppIcon ->
+                selectAppIcon(icon)
+                appIcon = icon
+                if (icon != AppIcon.Classic) shelfIcon = icon
+            }
+            Row(
+                modifier = Modifier.padding(horizontal = HeaderGutter, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AppIconOption(
+                    icon = AppIcon.Classic,
+                    label = "Clàssica",
+                    isSelected = appIcon == AppIcon.Classic,
+                    onSelect = { choose(AppIcon.Classic) },
+                    modifier = Modifier.weight(1f),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    AppIconOption(
+                        icon = shelfIcon,
+                        label = "Prestatge",
+                        isSelected = appIcon != AppIcon.Classic,
+                        onSelect = { choose(shelfIcon) },
+                    )
+                    Row {
+                        AppIcon.entries.filter { it.color != null }.forEach { icon ->
+                            AppIconColorDot(
+                                icon = icon,
+                                isSelected = icon == appIcon,
+                                onSelect = { choose(icon) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1069,6 +1122,98 @@ private fun ThemeSwatch(
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = if (isSelected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
             maxLines = 1,
+        )
+    }
+}
+
+/**
+ * The icon drawn exactly as the launcher draws it: the adaptive icon rendered through this device's
+ * own mask shape.
+ */
+@Composable
+private fun AppIconOption(
+    icon: AppIcon,
+    label: String,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val sizePx = with(LocalDensity.current) { 72.dp.roundToPx() }
+    val preview = remember(icon, sizePx) {
+        context.getDrawable(icon.mipmap)!!.toBitmap(sizePx, sizePx).asImageBitmap()
+    }
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val previewScale by animateFloatAsState(if (pressed) 0.95f else 1f, tween(220), label = "iconScale")
+    val outline by animateColorAsState(
+        if (isSelected) OmnilogTheme.accents.Dashboard else Color.Transparent,
+        tween(220),
+        label = "iconOutline",
+    )
+    Column(
+        modifier = modifier.selectable(
+            selected = isSelected,
+            interactionSource = interactionSource,
+            indication = null,
+            role = Role.RadioButton,
+            onClick = onSelect,
+        ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(86.dp)
+                .scale(previewScale)
+                .border(2.dp, outline, RoundedCornerShape(26.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(bitmap = preview, contentDescription = null, modifier = Modifier.size(72.dp))
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (isSelected) OmnilogTheme.colors.appInk else OmnilogTheme.colors.appMuted,
+            maxLines = 1,
+        )
+    }
+}
+
+/** One colour of the shelf logo; six share the width under its preview, so the dot stays small. */
+@Composable
+private fun AppIconColorDot(
+    icon: AppIcon,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val outline by animateColorAsState(
+        if (isSelected) OmnilogTheme.accents.Dashboard else Color.Transparent,
+        tween(220),
+        label = "dotOutline",
+    )
+    Box(
+        modifier = modifier
+            .height(32.dp)
+            .selectable(
+                selected = isSelected,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.RadioButton,
+                onClick = onSelect,
+            )
+            .semantics { contentDescription = icon.label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .border(1.5.dp, outline, CircleShape)
+                .padding(3.dp)
+                .clip(CircleShape)
+                .background(colorResource(icon.color!!)),
         )
     }
 }

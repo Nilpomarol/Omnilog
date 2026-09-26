@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.nilpo.contenttracker.ui.ContentTrackerApp
 import com.nilpo.contenttracker.ui.home.HomeViewModel
+import com.nilpo.contenttracker.ui.settings.applyPendingAppIcon
 import com.nilpo.contenttracker.ui.theme.ContentTrackerTheme
 import com.nilpo.contenttracker.ui.theme.rememberThemePreference
 import com.nilpo.contenttracker.ui.theme.rememberThemePreferences
@@ -54,6 +55,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) applyPendingAppIcon(this)
     }
 
     override fun onNewIntent(intent: Intent) {

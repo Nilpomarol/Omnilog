@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Backgrounds of the shelf launcher icon, one per colour offered in Settings. -->
+    <color name="ic_launcher_green">#465538</color>
+    <color name="ic_launcher_violet">#6344AC</color>
+    <color name="ic_launcher_olive">#7C5D02</color>
+    <color name="ic_launcher_blue">#2860AD</color>
+    <color name="ic_launcher_magenta">#B0375F</color>
+    <color name="ic_launcher_teal">#066667</color>
+</resources>
